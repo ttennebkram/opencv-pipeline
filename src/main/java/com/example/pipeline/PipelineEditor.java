@@ -39,6 +39,7 @@ public class PipelineEditor {
     // Recent files
     private static final int MAX_RECENT_FILES = 10;
     private static final String RECENT_FILES_KEY = "recentFiles";
+    private static final String LAST_FILE_KEY = "lastFile";
     private Preferences prefs;
     private List<String> recentFiles = new ArrayList<>();
     private Combo recentFilesCombo;
@@ -80,8 +81,13 @@ public class PipelineEditor {
         // Right side - preview panel
         createPreviewPanel();
 
-        // Create initial sample nodes
-        createSamplePipeline();
+        // Load last file or create sample pipeline
+        String lastFile = prefs.get(LAST_FILE_KEY, "");
+        if (!lastFile.isEmpty() && new File(lastFile).exists()) {
+            loadDiagramFromPath(lastFile);
+        } else {
+            createSamplePipeline();
+        }
 
         shell.open();
         while (!shell.isDisposed()) {
@@ -252,6 +258,8 @@ public class PipelineEditor {
             recentFiles.remove(recentFiles.size() - 1);
         }
         saveRecentFiles();
+        // Save as last file for next startup
+        prefs.put(LAST_FILE_KEY, path);
         updateRecentFilesCombo(recentFilesCombo);
         updateOpenRecentMenu();
     }
@@ -773,6 +781,9 @@ public class PipelineEditor {
         // Clone the mat so we don't modify the original
         currentMat = currentMat.clone();
 
+        // Set output on source node
+        sourceNode.setOutputMat(currentMat);
+
         // Follow connections and execute each node
         PipelineNode currentNode = sourceNode;
         while (currentNode != null) {
@@ -791,13 +802,16 @@ public class PipelineEditor {
             if (nextNode instanceof ProcessingNode) {
                 ProcessingNode procNode = (ProcessingNode) nextNode;
                 currentMat = applyProcessing(currentMat, procNode.getName());
+                // Set output on this node for thumbnail
+                nextNode.setOutputMat(currentMat);
             }
 
             currentNode = nextNode;
         }
 
-        // Update preview
+        // Update preview and redraw canvas to show thumbnails
         updatePreview(currentMat);
+        canvas.redraw();
     }
 
     private Mat applyProcessing(Mat input, String operation) {
@@ -1011,7 +1025,9 @@ public class PipelineEditor {
         protected Display display;
         protected int x, y;
         protected int width = 180;
-        protected int height = 60;
+        protected int height = 100;  // Increased for thumbnail
+        protected Image thumbnail;
+        protected Mat outputMat;
 
         public abstract void paint(GC gc);
 
@@ -1025,6 +1041,70 @@ public class PipelineEditor {
 
         public Point getInputPoint() {
             return new Point(x, y + height / 2);
+        }
+
+        public void setOutputMat(Mat mat) {
+            this.outputMat = mat;
+            updateThumbnail();
+        }
+
+        protected void updateThumbnail() {
+            if (outputMat == null || outputMat.empty()) return;
+
+            // Dispose old thumbnail
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                thumbnail.dispose();
+            }
+
+            // Create thumbnail (max 60x40)
+            Mat resized = new Mat();
+            double scale = Math.min(60.0 / outputMat.width(), 40.0 / outputMat.height());
+            Imgproc.resize(outputMat, resized,
+                new Size(outputMat.width() * scale, outputMat.height() * scale));
+
+            // Convert to SWT Image
+            Mat rgb = new Mat();
+            if (resized.channels() == 3) {
+                Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
+            } else if (resized.channels() == 1) {
+                Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
+            } else {
+                rgb = resized;
+            }
+
+            int w = rgb.width();
+            int h = rgb.height();
+            byte[] data = new byte[w * h * 3];
+            rgb.get(0, 0, data);
+
+            // Create ImageData with proper scanline padding
+            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+            ImageData imageData = new ImageData(w, h, 24, palette);
+
+            // Copy data row by row to handle scanline padding
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int srcIdx = (y * w + x) * 3;
+                    int r = data[srcIdx] & 0xFF;
+                    int g = data[srcIdx + 1] & 0xFF;
+                    int b = data[srcIdx + 2] & 0xFF;
+                    imageData.setPixel(x, y, (r << 16) | (g << 8) | b);
+                }
+            }
+
+            thumbnail = new Image(display, imageData);
+        }
+
+        protected void drawThumbnail(GC gc, int thumbX, int thumbY) {
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                gc.drawImage(thumbnail, thumbX, thumbY);
+            }
+        }
+
+        public void disposeThumbnail() {
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                thumbnail.dispose();
+            }
         }
     }
 
@@ -1189,12 +1269,20 @@ public class PipelineEditor {
             gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
             Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
             gc.setFont(boldFont);
-            gc.drawString(name, x + 10, y + 10, true);
+            gc.drawString(name, x + 10, y + 5, true);
             boldFont.dispose();
 
-            // Draw parameters placeholder
-            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(parameters)", x + 10, y + 30, true);
+            // Draw thumbnail if available
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                Rectangle bounds = thumbnail.getBounds();
+                int thumbX = x + (width - bounds.width) / 2;
+                int thumbY = y + 25;
+                gc.drawImage(thumbnail, thumbX, thumbY);
+            } else {
+                // Draw placeholder
+                gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.drawString("(no output)", x + 10, y + 40, true);
+            }
         }
 
         public String getName() {
