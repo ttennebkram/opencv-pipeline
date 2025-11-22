@@ -22,6 +22,8 @@ public class PipelineEditor {
     private Shell shell;
     private Display display;
     private Canvas canvas;
+    private Canvas previewCanvas;
+    private Image previewImage;
 
     private List<PipelineNode> nodes = new ArrayList<>();
     private List<Connection> connections = new ArrayList<>();
@@ -56,8 +58,8 @@ public class PipelineEditor {
         display = new Display();
         shell = new Shell(display);
         shell.setText("OpenCV Pipeline Editor");
-        shell.setSize(1200, 800);
-        shell.setLayout(new GridLayout(2, false));
+        shell.setSize(1400, 800);
+        shell.setLayout(new GridLayout(3, false));
 
         // Initialize preferences and load recent files
         prefs = Preferences.userNodeForPackage(PipelineEditor.class);
@@ -72,8 +74,11 @@ public class PipelineEditor {
         // Left side - toolbar/palette
         createToolbar();
 
-        // Right side - canvas
+        // Center - canvas
         createCanvas();
+
+        // Right side - preview panel
+        createPreviewPanel();
 
         // Create initial sample nodes
         createSamplePipeline();
@@ -152,6 +157,19 @@ public class PipelineEditor {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 saveDiagramAs();
+            }
+        });
+
+        new MenuItem(fileMenu, SWT.SEPARATOR);
+
+        // Run Pipeline
+        MenuItem runItem = new MenuItem(fileMenu, SWT.PUSH);
+        runItem.setText("Run Pipeline\tCmd+E");
+        runItem.setAccelerator(SWT.MOD1 + 'E');
+        runItem.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                executePipeline();
             }
         });
 
@@ -462,6 +480,17 @@ public class PipelineEditor {
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+        // Run button
+        Button runBtn = new Button(toolbar, SWT.PUSH);
+        runBtn.setText("Run Pipeline");
+        runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        runBtn.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                executePipeline();
+            }
+        });
+
         // Restart button
         Button restartBtn = new Button(toolbar, SWT.PUSH);
         restartBtn.setText("Restart");
@@ -657,6 +686,194 @@ public class PipelineEditor {
 
         // Right-click for connections
         canvas.addMenuDetectListener(e -> handleRightClick(e));
+    }
+
+    private void createPreviewPanel() {
+        Composite previewPanel = new Composite(shell, SWT.BORDER);
+        GridData gd = new GridData(SWT.FILL, SWT.FILL, false, true);
+        gd.widthHint = 300;
+        previewPanel.setLayoutData(gd);
+        previewPanel.setLayout(new GridLayout(1, false));
+
+        Label titleLabel = new Label(previewPanel, SWT.NONE);
+        titleLabel.setText("Output Preview");
+        Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
+        titleLabel.setFont(boldFont);
+
+        previewCanvas = new Canvas(previewPanel, SWT.BORDER | SWT.DOUBLE_BUFFERED);
+        previewCanvas.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        previewCanvas.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+
+        previewCanvas.addPaintListener(e -> {
+            if (previewImage != null && !previewImage.isDisposed()) {
+                Rectangle bounds = previewImage.getBounds();
+                Rectangle canvasBounds = previewCanvas.getClientArea();
+
+                // Scale to fit while maintaining aspect ratio
+                double scale = Math.min(
+                    (double) canvasBounds.width / bounds.width,
+                    (double) canvasBounds.height / bounds.height
+                );
+                int scaledWidth = (int) (bounds.width * scale);
+                int scaledHeight = (int) (bounds.height * scale);
+                int x = (canvasBounds.width - scaledWidth) / 2;
+                int y = (canvasBounds.height - scaledHeight) / 2;
+
+                e.gc.drawImage(previewImage, 0, 0, bounds.width, bounds.height,
+                    x, y, scaledWidth, scaledHeight);
+            } else {
+                e.gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+                e.gc.drawString("No output yet", 10, 10, true);
+                e.gc.drawString("Click 'Run Pipeline'", 10, 30, true);
+            }
+        });
+    }
+
+    private void executePipeline() {
+        // Find all nodes and build execution order
+        // For now, simple linear execution following connections
+
+        // Find source node (ImageSourceNode with no incoming connections)
+        PipelineNode sourceNode = null;
+        for (PipelineNode node : nodes) {
+            if (node instanceof ImageSourceNode) {
+                boolean hasIncoming = false;
+                for (Connection conn : connections) {
+                    if (conn.target == node) {
+                        hasIncoming = true;
+                        break;
+                    }
+                }
+                if (!hasIncoming) {
+                    sourceNode = node;
+                    break;
+                }
+            }
+        }
+
+        if (sourceNode == null) {
+            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+            mb.setText("No Source");
+            mb.setMessage("No image source node found in the pipeline.");
+            mb.open();
+            return;
+        }
+
+        ImageSourceNode imgSource = (ImageSourceNode) sourceNode;
+        Mat currentMat = imgSource.getLoadedImage();
+
+        if (currentMat == null || currentMat.empty()) {
+            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+            mb.setText("No Image");
+            mb.setMessage("Please load an image in the source node first.");
+            mb.open();
+            return;
+        }
+
+        // Clone the mat so we don't modify the original
+        currentMat = currentMat.clone();
+
+        // Follow connections and execute each node
+        PipelineNode currentNode = sourceNode;
+        while (currentNode != null) {
+            // Find next node
+            PipelineNode nextNode = null;
+            for (Connection conn : connections) {
+                if (conn.source == currentNode) {
+                    nextNode = conn.target;
+                    break;
+                }
+            }
+
+            if (nextNode == null) break;
+
+            // Execute the processing
+            if (nextNode instanceof ProcessingNode) {
+                ProcessingNode procNode = (ProcessingNode) nextNode;
+                currentMat = applyProcessing(currentMat, procNode.getName());
+            }
+
+            currentNode = nextNode;
+        }
+
+        // Update preview
+        updatePreview(currentMat);
+    }
+
+    private Mat applyProcessing(Mat input, String operation) {
+        Mat output = new Mat();
+
+        switch (operation) {
+            case "Grayscale":
+                if (input.channels() == 3) {
+                    Imgproc.cvtColor(input, output, Imgproc.COLOR_BGR2GRAY);
+                } else {
+                    output = input.clone();
+                }
+                break;
+
+            case "Gaussian Blur":
+                Imgproc.GaussianBlur(input, output, new Size(15, 15), 0);
+                break;
+
+            case "Threshold":
+                Mat gray = input;
+                if (input.channels() == 3) {
+                    gray = new Mat();
+                    Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+                }
+                Imgproc.threshold(gray, output, 127, 255, Imgproc.THRESH_BINARY);
+                break;
+
+            case "Canny Edge":
+                Mat grayForCanny = input;
+                if (input.channels() == 3) {
+                    grayForCanny = new Mat();
+                    Imgproc.cvtColor(input, grayForCanny, Imgproc.COLOR_BGR2GRAY);
+                }
+                Imgproc.Canny(grayForCanny, output, 100, 200);
+                break;
+
+            case "Output":
+                // Output node just passes through
+                output = input.clone();
+                break;
+
+            default:
+                output = input.clone();
+                break;
+        }
+
+        return output;
+    }
+
+    private void updatePreview(Mat mat) {
+        // Dispose old preview image
+        if (previewImage != null && !previewImage.isDisposed()) {
+            previewImage.dispose();
+        }
+
+        // Convert Mat to SWT Image
+        Mat rgb = new Mat();
+        if (mat.channels() == 3) {
+            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_BGR2RGB);
+        } else if (mat.channels() == 1) {
+            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_GRAY2RGB);
+        } else {
+            rgb = mat;
+        }
+
+        int width = rgb.width();
+        int height = rgb.height();
+        byte[] data = new byte[width * height * 3];
+        rgb.get(0, 0, data);
+
+        ImageData imageData = new ImageData(width, height, 24,
+            new PaletteData(0xFF0000, 0x00FF00, 0x0000FF));
+        imageData.data = data;
+
+        previewImage = new Image(display, imageData);
+        previewCanvas.redraw();
     }
 
     private void paintCanvas(GC gc) {
