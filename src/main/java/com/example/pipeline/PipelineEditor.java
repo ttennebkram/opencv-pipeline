@@ -9,6 +9,8 @@ import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.videoio.VideoCapture;
+import org.opencv.videoio.Videoio;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -270,6 +272,17 @@ public class PipelineEditor {
         updateOpenRecentMenu();
     }
 
+    private String getCacheDir(String pipelinePath) {
+        // Create cache directory next to the pipeline file
+        File pipelineFile = new File(pipelinePath);
+        String parentDir = pipelineFile.getParent();
+        String baseName = pipelineFile.getName();
+        if (baseName.endsWith(".json")) {
+            baseName = baseName.substring(0, baseName.length() - 5);
+        }
+        return parentDir + File.separator + "." + baseName + "_cache";
+    }
+
     private void updateOpenRecentMenu() {
         if (openRecentMenu == null || openRecentMenu.isDisposed()) return;
 
@@ -363,8 +376,10 @@ public class PipelineEditor {
                     nodes.add(node);
                 } else if ("Processing".equals(type)) {
                     String name = nodeObj.get("name").getAsString();
-                    ProcessingNode node = new ProcessingNode(display, name, x, y);
-                    nodes.add(node);
+                    ProcessingNode node = createEffectNode(name, x, y);
+                    if (node != null) {
+                        nodes.add(node);
+                    }
                 }
             }
 
@@ -382,6 +397,10 @@ public class PipelineEditor {
 
             currentFilePath = path;
             addToRecentFiles(path);
+
+            // Execute pipeline after loading to generate ProcessingNode thumbnails
+            executePipeline();
+
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
 
@@ -430,10 +449,11 @@ public class PipelineEditor {
         effectsLabel.setText("Effects:");
         effectsLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Gaussian Blur", () -> addProcessingNode("Gaussian Blur"));
-        createNodeButton(toolbar, "Threshold", () -> addProcessingNode("Threshold"));
-        createNodeButton(toolbar, "Canny Edge", () -> addProcessingNode("Canny Edge"));
-        createNodeButton(toolbar, "Grayscale", () -> addProcessingNode("Grayscale"));
+        createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
+        createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
+        createNodeButton(toolbar, "Color Convert", () -> addEffectNode("Grayscale"));
+        createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
+        createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -444,7 +464,7 @@ public class PipelineEditor {
         outputsLabel.setText("Outputs:");
         outputsLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Output", () -> addProcessingNode("Output"));
+        // createNodeButton(toolbar, "Output", () -> addEffectNode("Output"));
 
         // Separator
         Label sep = new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL);
@@ -456,6 +476,7 @@ public class PipelineEditor {
         instructions.setText("Instructions:\n\n" +
             "• Drag nodes to move\n" +
             "• Right-click to connect\n" +
+            "• Double-click for properties\n" +
             "• Click 'Choose...' for image");
         GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
         gd.widthHint = 150;
@@ -581,6 +602,14 @@ public class PipelineEditor {
                 gson.toJson(root, writer);
             }
 
+            // Save thumbnails to cache directory
+            String cacheDir = getCacheDir(path);
+            for (PipelineNode node : nodes) {
+                if (node instanceof ImageSourceNode) {
+                    ((ImageSourceNode) node).saveThumbnailToCache(cacheDir);
+                }
+            }
+
             currentFilePath = path;
             addToRecentFiles(path);
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
@@ -630,14 +659,20 @@ public class PipelineEditor {
                         ImageSourceNode node = new ImageSourceNode(shell, display, canvas, x, y);
                         if (nodeObj.has("imagePath")) {
                             String imgPath = nodeObj.get("imagePath").getAsString();
+                            System.out.println("DEBUG load: Found imagePath in JSON: " + imgPath);
                             node.imagePath = imgPath;
-                            node.loadImage(imgPath);
+                            // Load the media (creates thumbnail and loads image for execution)
+                            node.loadMedia(imgPath);
+                        } else {
+                            System.out.println("DEBUG load: No imagePath in JSON for ImageSource node");
                         }
                         nodes.add(node);
                     } else if ("Processing".equals(type)) {
                         String name = nodeObj.get("name").getAsString();
-                        ProcessingNode node = new ProcessingNode(display, name, x, y);
-                        nodes.add(node);
+                        ProcessingNode node = createEffectNode(name, x, y);
+                        if (node != null) {
+                            nodes.add(node);
+                        }
                     }
                 }
 
@@ -655,6 +690,10 @@ public class PipelineEditor {
 
                 currentFilePath = path;
                 addToRecentFiles(path);
+
+                // Execute pipeline after loading to generate ProcessingNode thumbnails
+                executePipeline();
+
                 canvas.redraw();
                 shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
 
@@ -697,6 +736,11 @@ public class PipelineEditor {
             @Override
             public void mouseUp(MouseEvent e) {
                 handleMouseUp(e);
+            }
+
+            @Override
+            public void mouseDoubleClick(MouseEvent e) {
+                handleDoubleClick(e);
             }
         });
 
@@ -781,12 +825,10 @@ public class PipelineEditor {
         Mat currentMat = imgSource.getLoadedImage();
 
         if (currentMat == null || currentMat.empty()) {
-            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
-            mb.setText("No Image");
-            mb.setMessage("Please load an image in the source node first.");
-            mb.open();
+            System.out.println("DEBUG executePipeline: No image loaded in source node, skipping execution");
             return;
         }
+        System.out.println("DEBUG executePipeline: Starting execution with image " + currentMat.width() + "x" + currentMat.height());
 
         // Clone the mat so we don't modify the original
         currentMat = currentMat.clone();
@@ -811,9 +853,12 @@ public class PipelineEditor {
             // Execute the processing
             if (nextNode instanceof ProcessingNode) {
                 ProcessingNode procNode = (ProcessingNode) nextNode;
-                currentMat = applyProcessing(currentMat, procNode.getName());
+                System.out.println("DEBUG executePipeline: Processing node " + procNode.getName());
+                // Use the node's process method instead of hardcoded switch
+                currentMat = procNode.process(currentMat);
                 // Set output on this node for thumbnail
                 nextNode.setOutputMat(currentMat);
+                System.out.println("DEBUG executePipeline: Set output mat for " + procNode.getName() + ", size=" + currentMat.width() + "x" + currentMat.height());
             }
 
             currentNode = nextNode;
@@ -888,6 +933,7 @@ public class PipelineEditor {
 
         pipelineRunning.set(true);
         final ImageSourceNode finalSource = sourceNode;
+        final long frameDelayMs = (long) (1000.0 / finalSource.getFps());
 
         // Create threads for each node
         for (int i = 0; i < orderedNodes.size(); i++) {
@@ -905,15 +951,19 @@ public class PipelineEditor {
                         Mat outputMat = null;
 
                         if (node instanceof ImageSourceNode) {
-                            // Source node: generate frames
-                            inputMat = finalSource.getLoadedImage().clone();
+                            // Source node: get next frame (video or static image)
+                            inputMat = finalSource.getNextFrame();
+                            if (inputMat == null) {
+                                Thread.sleep(frameDelayMs);
+                                continue;
+                            }
                             outputMat = inputMat;
                         } else {
                             // Processing node: read from input queue
                             inputMat = inputQueue.take();
                             if (node instanceof ProcessingNode) {
                                 ProcessingNode pn = (ProcessingNode) node;
-                                outputMat = applyProcessing(inputMat, pn.getName());
+                                outputMat = pn.process(inputMat);
                                 inputMat.release(); // Release input after processing
                             } else {
                                 outputMat = inputMat;
@@ -957,9 +1007,9 @@ public class PipelineEditor {
                             outputMat.release();
                         }
 
-                        // Throttle source node to ~30fps
+                        // Throttle source node based on video FPS
                         if (node instanceof ImageSourceNode) {
-                            Thread.sleep(33);
+                            Thread.sleep(frameDelayMs);
                         }
                     }
                 } catch (InterruptedException e) {
@@ -1184,6 +1234,18 @@ public class PipelineEditor {
         }
     }
 
+    private void handleDoubleClick(MouseEvent e) {
+        Point clickPoint = new Point(e.x, e.y);
+        for (PipelineNode node : nodes) {
+            if (node.containsPoint(clickPoint)) {
+                if (node instanceof ProcessingNode) {
+                    ((ProcessingNode) node).showPropertiesDialog();
+                }
+                return;
+            }
+        }
+    }
+
     private void handleRightClick(MenuDetectEvent e) {
         Point clickPoint = display.map(null, canvas, new Point(e.x, e.y));
 
@@ -1198,9 +1260,9 @@ public class PipelineEditor {
 
     private void createSamplePipeline() {
         addImageSourceNodeAt(50, 100);
-        addProcessingNodeAt("Grayscale", 300, 100);
-        addProcessingNodeAt("Gaussian Blur", 500, 100);
-        addProcessingNodeAt("Output", 700, 100);
+        addEffectNodeAt("Grayscale", 300, 100);
+        addEffectNodeAt("GaussianBlur", 500, 100);
+        addEffectNodeAt("Threshold", 700, 100);
 
         if (nodes.size() >= 4) {
             connections.add(new Connection(nodes.get(0), nodes.get(1)));
@@ -1219,14 +1281,39 @@ public class PipelineEditor {
         canvas.redraw();
     }
 
-    private void addProcessingNode(String name) {
-        addProcessingNodeAt(name, 50 + nodes.size() * 30, 50 + nodes.size() * 30);
+    private void addEffectNode(String type) {
+        addEffectNodeAt(type, 50 + nodes.size() * 30, 50 + nodes.size() * 30);
     }
 
-    private void addProcessingNodeAt(String name, int x, int y) {
-        ProcessingNode node = new ProcessingNode(display, name, x, y);
-        nodes.add(node);
-        canvas.redraw();
+    private void addEffectNodeAt(String type, int x, int y) {
+        ProcessingNode node = createEffectNode(type, x, y);
+        if (node != null) {
+            nodes.add(node);
+            canvas.redraw();
+        }
+    }
+
+    private ProcessingNode createEffectNode(String type, int x, int y) {
+        switch (type) {
+            case "GaussianBlur":
+            case "Gaussian Blur":  // backward compatibility
+            case "Blur":           // backward compatibility
+                return new GaussianBlurNode(display, shell, x, y);
+            case "Threshold":
+            case "Threshold (Simple)":  // backward compatibility
+                return new ThresholdNode(display, shell, x, y);
+            case "Grayscale":
+            case "Color Convert":  // backward compatibility
+                return new GrayscaleNode(display, shell, x, y);
+            case "Invert":
+                return new InvertNode(display, shell, x, y);
+            case "Gain":
+                return new GainNode(display, shell, x, y);
+            default:
+                // For any unknown type, create a default GaussianBlur as placeholder
+                System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
+                return new GaussianBlurNode(display, shell, x, y);
+        }
     }
 
     // Base class for pipeline nodes
@@ -1258,7 +1345,11 @@ public class PipelineEditor {
         }
 
         protected void updateThumbnail() {
-            if (outputMat == null || outputMat.empty()) return;
+            System.out.println("DEBUG updateThumbnail: Called, outputMat=" + (outputMat != null ? outputMat.width() + "x" + outputMat.height() : "null"));
+            if (outputMat == null || outputMat.empty()) {
+                System.out.println("DEBUG updateThumbnail: outputMat is null or empty, returning");
+                return;
+            }
 
             // Dispose old thumbnail
             if (thumbnail != null && !thumbnail.isDisposed()) {
@@ -1302,6 +1393,7 @@ public class PipelineEditor {
             }
 
             thumbnail = new Image(display, imageData);
+            System.out.println("DEBUG updateThumbnail: Created thumbnail " + thumbnail.getBounds().width + "x" + thumbnail.getBounds().height);
         }
 
         protected void drawThumbnail(GC gc, int thumbX, int thumbY) {
@@ -1325,6 +1417,16 @@ public class PipelineEditor {
         private Image thumbnail = null;
         private Mat loadedImage = null;
         private Composite overlayComposite;
+
+        // Video support
+        private VideoCapture videoCapture = null;
+        private boolean isVideo = false;
+        private boolean loopVideo = true;
+        private double fps = 30.0;
+
+        // Static image repeat (default 1 fps)
+        private boolean repeatImage = true;
+        private double staticFps = 1.0;
 
         public ImageSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
             this.shell = shell;
@@ -1354,7 +1456,7 @@ public class PipelineEditor {
 
             Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
             GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
-            gd.heightHint = 50;
+            gd.heightHint = 60; // Increased from 50 to ensure enough room
             thumbnailLabel.setLayoutData(gd);
             thumbnailLabel.setText("No image");
 
@@ -1365,23 +1467,123 @@ public class PipelineEditor {
 
         private void chooseImage() {
             FileDialog dialog = new FileDialog(shell, SWT.OPEN);
-            dialog.setText("Select Image");
-            dialog.setFilterExtensions(new String[]{"*.png;*.jpg;*.jpeg;*.bmp;*.tiff", "*.*"});
-            dialog.setFilterNames(new String[]{"Image Files", "All Files"});
+            dialog.setText("Select Image or Video");
+            dialog.setFilterExtensions(new String[]{
+                "*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.mp4;*.avi;*.mov;*.mkv;*.webm",
+                "*.png;*.jpg;*.jpeg;*.bmp;*.tiff",
+                "*.mp4;*.avi;*.mov;*.mkv;*.webm",
+                "*.*"
+            });
+            dialog.setFilterNames(new String[]{
+                "All Media Files",
+                "Image Files",
+                "Video Files",
+                "All Files"
+            });
 
             String path = dialog.open();
             if (path != null) {
                 imagePath = path;
+                loadMedia(path);
+            }
+        }
+
+        private void loadMedia(String path) {
+            // Check if it's a video file
+            String lower = path.toLowerCase();
+            if (lower.endsWith(".mp4") || lower.endsWith(".avi") ||
+                lower.endsWith(".mov") || lower.endsWith(".mkv") ||
+                lower.endsWith(".webm")) {
+                loadVideo(path);
+            } else {
                 loadImage(path);
             }
         }
 
+        private void loadVideo(String path) {
+            // Release any existing video capture
+            if (videoCapture != null) {
+                videoCapture.release();
+            }
+
+            videoCapture = new VideoCapture(path);
+            if (!videoCapture.isOpened()) {
+                isVideo = false;
+                return;
+            }
+
+            isVideo = true;
+            fps = videoCapture.get(Videoio.CAP_PROP_FPS);
+            if (fps <= 0) fps = 30.0;
+
+            // Read first frame for thumbnail
+            Mat firstFrame = new Mat();
+            if (videoCapture.read(firstFrame) && !firstFrame.empty()) {
+                loadedImage = firstFrame.clone();
+
+                // Create thumbnail
+                Mat resized = new Mat();
+                double scale = Math.min(140.0 / firstFrame.width(), 45.0 / firstFrame.height());
+                Imgproc.resize(firstFrame, resized,
+                    new Size(firstFrame.width() * scale, firstFrame.height() * scale));
+
+                if (thumbnail != null) {
+                    thumbnail.dispose();
+                }
+                thumbnail = matToSwtImage(resized);
+
+                // Update the label
+                Control[] children = overlayComposite.getChildren();
+                if (children.length > 1 && children[1] instanceof Label) {
+                    Label label = (Label) children[1];
+                    label.setText("");
+                    label.setImage(thumbnail);
+                }
+
+                firstFrame.release();
+            }
+
+            // Reset to beginning
+            videoCapture.set(Videoio.CAP_PROP_POS_FRAMES, 0);
+        }
+
+        public Mat getNextFrame() {
+            if (isVideo && videoCapture != null && videoCapture.isOpened()) {
+                Mat frame = new Mat();
+                if (videoCapture.read(frame)) {
+                    return frame;
+                } else if (loopVideo) {
+                    // Loop back to start
+                    videoCapture.set(Videoio.CAP_PROP_POS_FRAMES, 0);
+                    if (videoCapture.read(frame)) {
+                        return frame;
+                    }
+                }
+                frame.release();
+                return null;
+            } else if (loadedImage != null && !loadedImage.empty()) {
+                return loadedImage.clone();
+            }
+            return null;
+        }
+
+        public boolean isVideoSource() {
+            return isVideo;
+        }
+
+        public double getFps() {
+            return isVideo ? fps : staticFps;
+        }
+
         private void loadImage(String path) {
+            System.out.println("DEBUG loadImage: Loading image from " + path);
             loadedImage = Imgcodecs.imread(path);
 
             if (loadedImage.empty()) {
+                System.out.println("DEBUG loadImage: Image is empty! File may not exist: " + path);
                 return;
             }
+            System.out.println("DEBUG loadImage: Loaded image " + loadedImage.width() + "x" + loadedImage.height());
 
             // Create thumbnail
             Mat resized = new Mat();
@@ -1389,18 +1591,113 @@ public class PipelineEditor {
             Imgproc.resize(loadedImage, resized,
                 new Size(loadedImage.width() * scale, loadedImage.height() * scale));
 
+            // Store the thumbnail Mat for caching
+            thumbnailMat = resized;
+
             if (thumbnail != null) {
                 thumbnail.dispose();
             }
             thumbnail = matToSwtImage(resized);
 
-            // Update the label
-            Control[] children = overlayComposite.getChildren();
-            if (children.length > 1 && children[1] instanceof Label) {
-                Label label = (Label) children[1];
-                label.setText("");
-                label.setImage(thumbnail);
+            // Capture the thumbnail reference for the asyncExec closure
+            final Image thumbToSet = thumbnail;
+
+            // Update the label - use asyncExec to defer until after UI is fully initialized
+            display.asyncExec(() -> {
+                if (overlayComposite.isDisposed()) {
+                    return;
+                }
+                if (thumbToSet == null || thumbToSet.isDisposed()) {
+                    System.out.println("DEBUG loadImage: ERROR - thumbnail is null or disposed in asyncExec!");
+                    return;
+                }
+                Control[] children = overlayComposite.getChildren();
+                System.out.println("DEBUG loadImage: overlayComposite has " + children.length + " children");
+                if (children.length > 1 && children[1] instanceof Label) {
+                    Label label = (Label) children[1];
+                    label.setText("");
+                    label.setImage(thumbToSet);
+
+                    // Force pack to resize label for the image
+                    label.pack();
+
+                    // Force complete layout refresh
+                    overlayComposite.layout(true, true);
+
+                    // Make sure it's visible and on top
+                    overlayComposite.setVisible(true);
+                    overlayComposite.moveAbove(null);
+
+                    // Force full repaint
+                    label.redraw();
+                    label.update();
+                    overlayComposite.redraw();
+                    overlayComposite.update();
+                    if (parentCanvas != null && !parentCanvas.isDisposed()) {
+                        parentCanvas.redraw();
+                        parentCanvas.update();
+                    }
+
+                    System.out.println("DEBUG loadImage: Set thumbnail on label, bounds=" + thumbToSet.getBounds() + ", label bounds=" + label.getBounds() + ", composite bounds=" + overlayComposite.getBounds() + ", visible=" + overlayComposite.isVisible());
+                } else {
+                    System.out.println("DEBUG loadImage: Could not find label at index 1");
+                }
+            });
+        }
+
+        // Thumbnail caching support
+        private Mat thumbnailMat = null;
+
+        public void saveThumbnailToCache(String cacheDir) {
+            if (thumbnailMat != null && imagePath != null) {
+                try {
+                    File cacheFolder = new File(cacheDir);
+                    if (!cacheFolder.exists()) {
+                        cacheFolder.mkdirs();
+                    }
+                    String thumbPath = getThumbnailCachePath(cacheDir);
+                    Imgcodecs.imwrite(thumbPath, thumbnailMat);
+                } catch (Exception e) {
+                    System.err.println("Failed to save thumbnail: " + e.getMessage());
+                }
             }
+        }
+
+        public boolean loadThumbnailFromCache(String cacheDir) {
+            if (imagePath == null) return false;
+
+            String thumbPath = getThumbnailCachePath(cacheDir);
+            File thumbFile = new File(thumbPath);
+            if (!thumbFile.exists()) return false;
+
+            try {
+                Mat cached = Imgcodecs.imread(thumbPath);
+                if (cached.empty()) return false;
+
+                thumbnailMat = cached;
+                if (thumbnail != null) {
+                    thumbnail.dispose();
+                }
+                thumbnail = matToSwtImage(cached);
+
+                // Update the label
+                Control[] children = overlayComposite.getChildren();
+                if (children.length > 1 && children[1] instanceof Label) {
+                    Label label = (Label) children[1];
+                    label.setText("");
+                    label.setImage(thumbnail);
+                }
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        private String getThumbnailCachePath(String cacheDir) {
+            // Create a simple hash from the image path
+            int hash = imagePath.hashCode();
+            String ext = imagePath.toLowerCase().endsWith(".png") ? ".png" : ".jpg";
+            return cacheDir + File.separator + "thumb_" + Math.abs(hash) + ext;
         }
 
         private Image matToSwtImage(Mat mat) {
@@ -1413,14 +1710,25 @@ public class PipelineEditor {
                 rgb = mat;
             }
 
-            int width = rgb.width();
-            int height = rgb.height();
-            byte[] data = new byte[width * height * 3];
+            int w = rgb.width();
+            int h = rgb.height();
+            byte[] data = new byte[w * h * 3];
             rgb.get(0, 0, data);
 
-            ImageData imageData = new ImageData(width, height, 24,
-                new PaletteData(0xFF0000, 0x00FF00, 0x0000FF));
-            imageData.data = data;
+            // Create ImageData with proper scanline padding
+            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+            ImageData imageData = new ImageData(w, h, 24, palette);
+
+            // Copy data row by row to handle scanline padding
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int srcIdx = (y * w + x) * 3;
+                    int r = data[srcIdx] & 0xFF;
+                    int g = data[srcIdx + 1] & 0xFF;
+                    int b = data[srcIdx + 2] & 0xFF;
+                    imageData.setPixel(x, y, (r << 16) | (g << 8) | b);
+                }
+            }
 
             return new Image(display, imageData);
         }
@@ -1453,18 +1761,32 @@ public class PipelineEditor {
     }
 
     // Processing node
-    static class ProcessingNode extends PipelineNode {
-        private String name;
+    // Base class for processing nodes with properties dialog support
+    abstract static class ProcessingNode extends PipelineNode {
+        protected String name;
+        protected Shell shell;
+        protected boolean enabled = true;
 
-        public ProcessingNode(Display display, String name, int x, int y) {
+        public ProcessingNode(Display display, Shell shell, String name, int x, int y) {
             this.display = display;
+            this.shell = shell;
             this.name = name;
             this.x = x;
             this.y = y;
         }
 
+        // Process input Mat and return output Mat
+        public abstract Mat process(Mat input);
+
+        // Show properties dialog
+        public abstract void showPropertiesDialog();
+
+        // Get description for tooltip
+        public abstract String getDescription();
+
         @Override
         public void paint(GC gc) {
+            System.out.println("DEBUG ProcessingNode.paint: " + name + ", thumbnail=" + (thumbnail != null ? (thumbnail.isDisposed() ? "disposed" : thumbnail.getBounds().width + "x" + thumbnail.getBounds().height) : "null"));
             // Draw node background
             gc.setBackground(new Color(230, 255, 230));
             gc.fillRoundRectangle(x, y, width, height, 10, 10);
@@ -1487,15 +1809,430 @@ public class PipelineEditor {
                 int thumbX = x + (width - bounds.width) / 2;
                 int thumbY = y + 25;
                 gc.drawImage(thumbnail, thumbX, thumbY);
+                System.out.println("DEBUG ProcessingNode.paint: Drew thumbnail at " + thumbX + "," + thumbY);
             } else {
                 // Draw placeholder
                 gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
                 gc.drawString("(no output)", x + 10, y + 40, true);
+                System.out.println("DEBUG ProcessingNode.paint: No thumbnail, drawing placeholder");
             }
         }
 
         public String getName() {
             return name;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    // Gaussian Blur effect node
+    static class GaussianBlurNode extends ProcessingNode {
+        private int kernelSizeX = 7;
+        private int kernelSizeY = 7;
+        private double sigmaX = 0.0;
+
+        public GaussianBlurNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Gaussian Blur", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            // Ensure odd kernel sizes
+            int kx = (kernelSizeX % 2 == 0) ? kernelSizeX + 1 : kernelSizeX;
+            int ky = (kernelSizeY % 2 == 0) ? kernelSizeY + 1 : kernelSizeY;
+
+            Mat output = new Mat();
+            Imgproc.GaussianBlur(input, output, new Size(kx, ky), sigmaX);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.GaussianBlur(src, ksize, sigmaX)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Gaussian Blur Properties");
+            dialog.setLayout(new GridLayout(2, false));
+
+            // Kernel Size X
+            new Label(dialog, SWT.NONE).setText("Kernel Size X:");
+            Scale kxScale = new Scale(dialog, SWT.HORIZONTAL);
+            kxScale.setMinimum(1);
+            kxScale.setMaximum(31);
+            kxScale.setSelection(kernelSizeX);
+            kxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label kxLabel = new Label(dialog, SWT.NONE);
+            kxLabel.setText(String.valueOf(kernelSizeX));
+            kxScale.addListener(SWT.Selection, e -> kxLabel.setText(String.valueOf(kxScale.getSelection())));
+
+            // Kernel Size Y
+            new Label(dialog, SWT.NONE).setText("Kernel Size Y:");
+            Scale kyScale = new Scale(dialog, SWT.HORIZONTAL);
+            kyScale.setMinimum(1);
+            kyScale.setMaximum(31);
+            kyScale.setSelection(kernelSizeY);
+            kyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label kyLabel = new Label(dialog, SWT.NONE);
+            kyLabel.setText(String.valueOf(kernelSizeY));
+            kyScale.addListener(SWT.Selection, e -> kyLabel.setText(String.valueOf(kyScale.getSelection())));
+
+            // Sigma X
+            new Label(dialog, SWT.NONE).setText("Sigma X:");
+            Scale sigmaScale = new Scale(dialog, SWT.HORIZONTAL);
+            sigmaScale.setMinimum(0);
+            sigmaScale.setMaximum(100);
+            sigmaScale.setSelection((int)(sigmaX * 10));
+            sigmaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label sigmaLabel = new Label(dialog, SWT.NONE);
+            sigmaLabel.setText(sigmaX == 0 ? "0 (auto)" : String.format("%.1f", sigmaX));
+            sigmaScale.addListener(SWT.Selection, e -> {
+                double val = sigmaScale.getSelection() / 10.0;
+                sigmaLabel.setText(val == 0 ? "0 (auto)" : String.format("%.1f", val));
+            });
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                kernelSizeX = kxScale.getSelection();
+                kernelSizeY = kyScale.getSelection();
+                sigmaX = sigmaScale.getSelection() / 10.0;
+                dialog.dispose();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            dialog.open();
+        }
+    }
+
+    // Grayscale / Color Conversion node
+    static class GrayscaleNode extends ProcessingNode {
+        private static final String[] CONVERSION_NAMES = {
+            "BGR to Grayscale", "BGR to RGB", "BGR to HSV", "BGR to HLS",
+            "BGR to LAB", "BGR to LUV", "BGR to YCrCb", "BGR to XYZ"
+        };
+        private static final int[] CONVERSION_CODES = {
+            Imgproc.COLOR_BGR2GRAY, Imgproc.COLOR_BGR2RGB, Imgproc.COLOR_BGR2HSV,
+            Imgproc.COLOR_BGR2HLS, Imgproc.COLOR_BGR2Lab, Imgproc.COLOR_BGR2Luv,
+            Imgproc.COLOR_BGR2YCrCb, Imgproc.COLOR_BGR2XYZ
+        };
+        private int conversionIndex = 0;
+
+        public GrayscaleNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Color Convert", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            Mat output = new Mat();
+            Imgproc.cvtColor(input, output, CONVERSION_CODES[conversionIndex]);
+
+            // Convert grayscale back to BGR for display
+            if (output.channels() == 1) {
+                Mat bgr = new Mat();
+                Imgproc.cvtColor(output, bgr, Imgproc.COLOR_GRAY2BGR);
+                output.release();
+                output = bgr;
+            }
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.cvtColor(src, code)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Color Conversion Properties");
+            dialog.setLayout(new GridLayout(2, false));
+
+            new Label(dialog, SWT.NONE).setText("Conversion:");
+            Combo combo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            combo.setItems(CONVERSION_NAMES);
+            combo.select(conversionIndex);
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 2;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                conversionIndex = combo.getSelectionIndex();
+                dialog.dispose();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            dialog.open();
+        }
+    }
+
+    // Invert effect node
+    static class InvertNode extends ProcessingNode {
+        public InvertNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Invert", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            Mat output = new Mat();
+            org.opencv.core.Core.bitwise_not(input, output);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "255 - pixel value";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Invert Properties");
+            dialog.setLayout(new GridLayout(1, false));
+
+            new Label(dialog, SWT.NONE).setText("Inverts all pixel values (negative image).\nNo parameters to configure.");
+
+            Button okBtn = new Button(dialog, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+            okBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            dialog.open();
+        }
+    }
+
+    // Threshold effect node
+    static class ThresholdNode extends ProcessingNode {
+        private static final String[] TYPE_NAMES = {
+            "BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"
+        };
+        private static final int[] TYPE_CODES = {
+            Imgproc.THRESH_BINARY, Imgproc.THRESH_BINARY_INV, Imgproc.THRESH_TRUNC,
+            Imgproc.THRESH_TOZERO, Imgproc.THRESH_TOZERO_INV
+        };
+        private static final String[] MODIFIER_NAMES = {"None", "OTSU", "TRIANGLE"};
+        private static final int[] MODIFIER_CODES = {0, Imgproc.THRESH_OTSU, Imgproc.THRESH_TRIANGLE};
+
+        private int threshValue = 127;
+        private int maxValue = 255;
+        private int typeIndex = 0;
+        private int modifierIndex = 0;
+
+        public ThresholdNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Threshold", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            int combinedType = TYPE_CODES[typeIndex] | MODIFIER_CODES[modifierIndex];
+            Mat output = new Mat();
+
+            // OTSU and TRIANGLE require grayscale
+            if (modifierIndex > 0) {
+                Mat gray = new Mat();
+                if (input.channels() == 3) {
+                    Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+                } else {
+                    gray = input.clone();
+                }
+                Imgproc.threshold(gray, output, threshValue, maxValue, combinedType);
+                gray.release();
+
+                // Convert back to BGR
+                Mat bgr = new Mat();
+                Imgproc.cvtColor(output, bgr, Imgproc.COLOR_GRAY2BGR);
+                output.release();
+                output = bgr;
+            } else {
+                Imgproc.threshold(input, output, threshValue, maxValue, combinedType);
+            }
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.threshold(src, thresh, maxval, type)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Threshold Properties");
+            dialog.setLayout(new GridLayout(2, false));
+
+            // Threshold value
+            new Label(dialog, SWT.NONE).setText("Threshold:");
+            Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
+            threshScale.setMinimum(0);
+            threshScale.setMaximum(255);
+            threshScale.setSelection(threshValue);
+            threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label threshLabel = new Label(dialog, SWT.NONE);
+            threshLabel.setText(String.valueOf(threshValue));
+            threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
+
+            // Max value
+            new Label(dialog, SWT.NONE).setText("Max Value:");
+            Scale maxScale = new Scale(dialog, SWT.HORIZONTAL);
+            maxScale.setMinimum(0);
+            maxScale.setMaximum(255);
+            maxScale.setSelection(maxValue);
+            maxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label maxLabel = new Label(dialog, SWT.NONE);
+            maxLabel.setText(String.valueOf(maxValue));
+            maxScale.addListener(SWT.Selection, e -> maxLabel.setText(String.valueOf(maxScale.getSelection())));
+
+            // Type
+            new Label(dialog, SWT.NONE).setText("Type:");
+            Combo typeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            typeCombo.setItems(TYPE_NAMES);
+            typeCombo.select(typeIndex);
+
+            // Modifier
+            new Label(dialog, SWT.NONE).setText("Modifier:");
+            Combo modCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            modCombo.setItems(MODIFIER_NAMES);
+            modCombo.select(modifierIndex);
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                threshValue = threshScale.getSelection();
+                maxValue = maxScale.getSelection();
+                typeIndex = typeCombo.getSelectionIndex();
+                modifierIndex = modCombo.getSelectionIndex();
+                dialog.dispose();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            dialog.open();
+        }
+    }
+
+    // Gain effect node
+    static class GainNode extends ProcessingNode {
+        private double gain = 1.0;
+
+        public GainNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Gain", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            Mat output = new Mat();
+            input.convertTo(output, -1, gain, 0);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.multiply(src, gain)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Gain Properties");
+            dialog.setLayout(new GridLayout(2, false));
+
+            new Label(dialog, SWT.NONE).setText("Gain (0.1x - 10x):");
+            Scale gainScale = new Scale(dialog, SWT.HORIZONTAL);
+            gainScale.setMinimum(1);
+            gainScale.setMaximum(100);
+            // Use logarithmic mapping: scale value = log10(gain) * 50 + 50
+            gainScale.setSelection((int)(Math.log10(gain) * 50 + 50));
+            gainScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label gainLabel = new Label(dialog, SWT.NONE);
+            gainLabel.setText(String.format("%.2fx", gain));
+            gainScale.addListener(SWT.Selection, e -> {
+                double logVal = (gainScale.getSelection() - 50) / 50.0;
+                double g = Math.pow(10, logVal);
+                gainLabel.setText(String.format("%.2fx", g));
+            });
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                double logVal = (gainScale.getSelection() - 50) / 50.0;
+                gain = Math.pow(10, logVal);
+                dialog.dispose();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            dialog.open();
         }
     }
 
