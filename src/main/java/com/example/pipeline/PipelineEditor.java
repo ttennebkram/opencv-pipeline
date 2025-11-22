@@ -15,7 +15,9 @@ import org.opencv.videoio.Videoio;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,6 +45,23 @@ public class PipelineEditor {
     private PipelineNode connectionSource = null;
     private Point connectionEndPoint = null;
 
+    // Dangling connections (one end attached, one end free)
+    private java.util.List<DanglingConnection> danglingConnections = new java.util.ArrayList<>();
+    private java.util.List<ReverseDanglingConnection> reverseDanglingConnections = new java.util.ArrayList<>();
+    private java.util.List<FreeConnection> freeConnections = new java.util.ArrayList<>();
+    private PipelineNode connectionTarget = null; // For reverse dragging (from target end)
+
+    // Free connection dragging state
+    private Point freeConnectionFixedEnd = null; // The end that stays fixed while dragging the other
+    private boolean draggingFreeConnectionSource = false; // true if dragging source end, false if dragging target end
+
+    // Selection state
+    private Set<PipelineNode> selectedNodes = new HashSet<>();
+    private Set<Connection> selectedConnections = new HashSet<>();
+    private Point selectionBoxStart = null;
+    private Point selectionBoxEnd = null;
+    private boolean isSelectionBoxDragging = false;
+
     // Recent files
     private static final int MAX_RECENT_FILES = 10;
     private static final String RECENT_FILES_KEY = "recentFiles";
@@ -57,7 +76,7 @@ public class PipelineEditor {
     // Node container sizes (based on thumbnail + padding for title/borders)
     private static final int NODE_WIDTH = PROCESSING_NODE_THUMB_WIDTH + 20;  // thumbnail + 10px padding each side
     private static final int NODE_HEIGHT = PROCESSING_NODE_THUMB_HEIGHT + 40; // thumbnail + 25px title + 15px bottom
-    private static final int SOURCE_NODE_HEIGHT = SOURCE_NODE_THUMB_HEIGHT + 70; // thumbnail + 25px title + 30px button + 15px padding
+    private static final int SOURCE_NODE_HEIGHT = SOURCE_NODE_THUMB_HEIGHT + 32; // thumbnail + 22px title + 10px bottom (tighter)
     private Preferences prefs;
     private List<String> recentFiles = new ArrayList<>();
     private Combo recentFilesCombo;
@@ -370,6 +389,9 @@ public class PipelineEditor {
             }
             nodes.clear();
             connections.clear();
+            danglingConnections.clear();
+            reverseDanglingConnections.clear();
+            freeConnections.clear();
 
             // Load JSON
             Gson gson = new Gson();
@@ -391,7 +413,10 @@ public class PipelineEditor {
                     if (nodeObj.has("imagePath")) {
                         String imgPath = nodeObj.get("imagePath").getAsString();
                         node.imagePath = imgPath;
-                        node.loadImage(imgPath);
+                        node.loadMedia(imgPath);
+                    }
+                    if (nodeObj.has("fpsMode")) {
+                        node.setFpsMode(nodeObj.get("fpsMode").getAsInt());
                     }
                     nodes.add(node);
                 } else if ("Processing".equals(type)) {
@@ -437,6 +462,50 @@ public class PipelineEditor {
                 }
             }
 
+            // Load dangling connections
+            if (root.has("danglingConnections")) {
+                JsonArray danglingArray = root.getAsJsonArray("danglingConnections");
+                for (JsonElement elem : danglingArray) {
+                    JsonObject dangObj = elem.getAsJsonObject();
+                    int sourceId = dangObj.get("sourceId").getAsInt();
+                    int freeEndX = dangObj.get("freeEndX").getAsInt();
+                    int freeEndY = dangObj.get("freeEndY").getAsInt();
+                    if (sourceId >= 0 && sourceId < nodes.size()) {
+                        DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY));
+                        danglingConnections.add(dc);
+                    }
+                }
+            }
+
+            // Load reverse dangling connections
+            if (root.has("reverseDanglingConnections")) {
+                JsonArray reverseArray = root.getAsJsonArray("reverseDanglingConnections");
+                for (JsonElement elem : reverseArray) {
+                    JsonObject revObj = elem.getAsJsonObject();
+                    int targetId = revObj.get("targetId").getAsInt();
+                    int freeEndX = revObj.get("freeEndX").getAsInt();
+                    int freeEndY = revObj.get("freeEndY").getAsInt();
+                    if (targetId >= 0 && targetId < nodes.size()) {
+                        ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY));
+                        reverseDanglingConnections.add(rdc);
+                    }
+                }
+            }
+
+            // Load free connections
+            if (root.has("freeConnections")) {
+                JsonArray freeArray = root.getAsJsonArray("freeConnections");
+                for (JsonElement elem : freeArray) {
+                    JsonObject freeObj = elem.getAsJsonObject();
+                    int startEndX = freeObj.get("startEndX").getAsInt();
+                    int startEndY = freeObj.get("startEndY").getAsInt();
+                    int arrowEndX = freeObj.get("arrowEndX").getAsInt();
+                    int arrowEndY = freeObj.get("arrowEndY").getAsInt();
+                    FreeConnection fc = new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY));
+                    freeConnections.add(fc);
+                }
+            }
+
             currentFilePath = path;
             addToRecentFiles(path);
 
@@ -463,6 +532,9 @@ public class PipelineEditor {
         }
         nodes.clear();
         connections.clear();
+        danglingConnections.clear();
+        reverseDanglingConnections.clear();
+        freeConnections.clear();
         currentFilePath = null;
         shell.setText("OpenCV Pipeline Editor");
         canvas.redraw();
@@ -619,6 +691,7 @@ public class PipelineEditor {
                     if (isn.imagePath != null) {
                         nodeObj.addProperty("imagePath", isn.imagePath);
                     }
+                    nodeObj.addProperty("fpsMode", isn.getFpsMode());
                 } else if (node instanceof ProcessingNode) {
                     nodeObj.addProperty("type", "Processing");
                     nodeObj.addProperty("name", ((ProcessingNode) node).getName());
@@ -659,11 +732,52 @@ public class PipelineEditor {
             }
             root.add("connections", connsArray);
 
+            // Save dangling connections (source node attached, free end)
+            JsonArray danglingArray = new JsonArray();
+            for (DanglingConnection dc : danglingConnections) {
+                JsonObject dcObj = new JsonObject();
+                dcObj.addProperty("sourceId", nodes.indexOf(dc.source));
+                dcObj.addProperty("freeEndX", dc.freeEnd.x);
+                dcObj.addProperty("freeEndY", dc.freeEnd.y);
+                danglingArray.add(dcObj);
+            }
+            root.add("danglingConnections", danglingArray);
+
+            // Save reverse dangling connections (target node attached, free end)
+            JsonArray reverseDanglingArray = new JsonArray();
+            for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+                JsonObject rdcObj = new JsonObject();
+                rdcObj.addProperty("targetId", nodes.indexOf(rdc.target));
+                rdcObj.addProperty("freeEndX", rdc.freeEnd.x);
+                rdcObj.addProperty("freeEndY", rdc.freeEnd.y);
+                reverseDanglingArray.add(rdcObj);
+            }
+            root.add("reverseDanglingConnections", reverseDanglingArray);
+
+            // Save free connections (both ends free)
+            JsonArray freeArray = new JsonArray();
+            for (FreeConnection fc : freeConnections) {
+                JsonObject fcObj = new JsonObject();
+                fcObj.addProperty("startEndX", fc.startEnd.x);
+                fcObj.addProperty("startEndY", fc.startEnd.y);
+                fcObj.addProperty("arrowEndX", fc.arrowEnd.x);
+                fcObj.addProperty("arrowEndY", fc.arrowEnd.y);
+                freeArray.add(fcObj);
+            }
+            root.add("freeConnections", freeArray);
+
+            System.out.println("DEBUG save: Saving " + connections.size() + " connections, " +
+                danglingConnections.size() + " dangling, " +
+                reverseDanglingConnections.size() + " reverse dangling, " +
+                freeConnections.size() + " free connections to " + path);
+
             // Write to file
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             try (FileWriter writer = new FileWriter(path)) {
                 gson.toJson(root, writer);
             }
+
+            System.out.println("DEBUG save: File written successfully");
 
             // Save thumbnails to cache directory
             String cacheDir = getCacheDir(path);
@@ -702,6 +816,9 @@ public class PipelineEditor {
                 }
                 nodes.clear();
                 connections.clear();
+                danglingConnections.clear();
+                reverseDanglingConnections.clear();
+                freeConnections.clear();
 
                 // Load JSON
                 Gson gson = new Gson();
@@ -766,16 +883,64 @@ public class PipelineEditor {
                 }
 
                 // Load connections
-                JsonArray connsArray = root.getAsJsonArray("connections");
-                for (JsonElement elem : connsArray) {
-                    JsonObject connObj = elem.getAsJsonObject();
-                    int sourceId = connObj.get("sourceId").getAsInt();
-                    int targetId = connObj.get("targetId").getAsInt();
-                    if (sourceId >= 0 && sourceId < nodes.size() &&
-                        targetId >= 0 && targetId < nodes.size()) {
-                        connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId)));
+                if (root.has("connections")) {
+                    JsonArray connsArray = root.getAsJsonArray("connections");
+                    for (JsonElement elem : connsArray) {
+                        JsonObject connObj = elem.getAsJsonObject();
+                        int sourceId = connObj.get("sourceId").getAsInt();
+                        int targetId = connObj.get("targetId").getAsInt();
+                        if (sourceId >= 0 && sourceId < nodes.size() &&
+                            targetId >= 0 && targetId < nodes.size()) {
+                            connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId)));
+                        }
                     }
                 }
+
+                // Load dangling connections (source node attached, free end)
+                if (root.has("danglingConnections")) {
+                    JsonArray danglingArray = root.getAsJsonArray("danglingConnections");
+                    for (JsonElement elem : danglingArray) {
+                        JsonObject dcObj = elem.getAsJsonObject();
+                        int sourceId = dcObj.get("sourceId").getAsInt();
+                        int freeEndX = dcObj.get("freeEndX").getAsInt();
+                        int freeEndY = dcObj.get("freeEndY").getAsInt();
+                        if (sourceId >= 0 && sourceId < nodes.size()) {
+                            danglingConnections.add(new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY)));
+                        }
+                    }
+                }
+
+                // Load reverse dangling connections (target node attached, free end)
+                if (root.has("reverseDanglingConnections")) {
+                    JsonArray reverseDanglingArray = root.getAsJsonArray("reverseDanglingConnections");
+                    for (JsonElement elem : reverseDanglingArray) {
+                        JsonObject rdcObj = elem.getAsJsonObject();
+                        int targetId = rdcObj.get("targetId").getAsInt();
+                        int freeEndX = rdcObj.get("freeEndX").getAsInt();
+                        int freeEndY = rdcObj.get("freeEndY").getAsInt();
+                        if (targetId >= 0 && targetId < nodes.size()) {
+                            reverseDanglingConnections.add(new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY)));
+                        }
+                    }
+                }
+
+                // Load free connections (both ends free)
+                if (root.has("freeConnections")) {
+                    JsonArray freeArray = root.getAsJsonArray("freeConnections");
+                    for (JsonElement elem : freeArray) {
+                        JsonObject fcObj = elem.getAsJsonObject();
+                        int startEndX = fcObj.get("startEndX").getAsInt();
+                        int startEndY = fcObj.get("startEndY").getAsInt();
+                        int arrowEndX = fcObj.get("arrowEndX").getAsInt();
+                        int arrowEndY = fcObj.get("arrowEndY").getAsInt();
+                        freeConnections.add(new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY)));
+                    }
+                }
+
+                System.out.println("DEBUG load: Loaded " + connections.size() + " connections, " +
+                    danglingConnections.size() + " dangling, " +
+                    reverseDanglingConnections.size() + " reverse dangling, " +
+                    freeConnections.size() + " free connections from " + path);
 
                 currentFilePath = path;
                 addToRecentFiles(path);
@@ -833,6 +998,18 @@ public class PipelineEditor {
         });
 
         canvas.addMouseMoveListener(e -> handleMouseMove(e));
+
+        // Keyboard shortcuts
+        canvas.addKeyListener(new org.eclipse.swt.events.KeyAdapter() {
+            @Override
+            public void keyPressed(org.eclipse.swt.events.KeyEvent e) {
+                // Cmd-A to select all nodes
+                if (e.character == 'a' && (e.stateMask & SWT.MOD1) != 0) {
+                    selectedNodes.addAll(nodes);
+                    canvas.redraw();
+                }
+            }
+        });
 
         // Right-click for connections
         canvas.addMenuDetectListener(e -> handleRightClick(e));
@@ -1237,28 +1414,111 @@ public class PipelineEditor {
     private void paintCanvas(GC gc) {
         gc.setAntialias(SWT.ON);
 
-        // Draw connections
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        // Draw nodes first (so connections appear on top)
+        for (PipelineNode node : nodes) {
+            node.paint(gc);
+        }
+
+        // Draw connections on top of nodes
         gc.setLineWidth(2);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint();
             Point end = conn.target.getInputPoint();
             gc.drawLine(start.x, start.y, end.x, end.y);
-
-            // Draw arrow
             drawArrow(gc, start, end);
         }
 
-        // Draw connection being made
+        // Draw dangling connections with dashed lines
+        gc.setLineStyle(SWT.LINE_DASH);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+        for (DanglingConnection dangling : danglingConnections) {
+            Point start = dangling.source.getOutputPoint();
+            gc.drawLine(start.x, start.y, dangling.freeEnd.x, dangling.freeEnd.y);
+            drawArrow(gc, start, dangling.freeEnd);
+            // Draw small circles at both ends to make them easier to grab
+            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(start.x - 4, start.y - 4, 8, 8);
+            gc.fillOval(dangling.freeEnd.x - 4, dangling.freeEnd.y - 4, 8, 8);
+        }
+        // Draw reverse dangling connections (target fixed, source free)
+        for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
+            Point end = dangling.target.getInputPoint();
+            gc.drawLine(dangling.freeEnd.x, dangling.freeEnd.y, end.x, end.y);
+            // Draw small circles at both ends to make them easier to grab
+            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(dangling.freeEnd.x - 4, dangling.freeEnd.y - 4, 8, 8);
+            gc.fillOval(end.x - 4, end.y - 4, 8, 8);
+        }
+        // Draw free connections (both ends free)
+        for (FreeConnection free : freeConnections) {
+            gc.drawLine(free.startEnd.x, free.startEnd.y, free.arrowEnd.x, free.arrowEnd.y);
+            drawArrow(gc, free.startEnd, free.arrowEnd);
+            // Draw small circles at both ends to make them easier to grab
+            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(free.startEnd.x - 4, free.startEnd.y - 4, 8, 8);
+            gc.fillOval(free.arrowEnd.x - 4, free.arrowEnd.y - 4, 8, 8);
+        }
+        gc.setLineStyle(SWT.LINE_SOLID);
+
+        // Draw connection being made (from source)
         if (connectionSource != null && connectionEndPoint != null) {
             gc.setForeground(display.getSystemColor(SWT.COLOR_BLUE));
             Point start = connectionSource.getOutputPoint();
             gc.drawLine(start.x, start.y, connectionEndPoint.x, connectionEndPoint.y);
         }
+        // Draw connection being made (from target - reverse direction)
+        if (connectionTarget != null && connectionEndPoint != null) {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_BLUE));
+            Point end = connectionTarget.getInputPoint();
+            gc.drawLine(connectionEndPoint.x, connectionEndPoint.y, end.x, end.y);
+        }
+        // Draw free connection being dragged (both ends unattached)
+        if (freeConnectionFixedEnd != null && connectionEndPoint != null) {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setLineStyle(SWT.LINE_DASH);
+            if (draggingFreeConnectionSource) {
+                // Dragging source end - connectionEndPoint is source, freeConnectionFixedEnd is target (arrow end)
+                gc.drawLine(connectionEndPoint.x, connectionEndPoint.y, freeConnectionFixedEnd.x, freeConnectionFixedEnd.y);
+                drawArrow(gc, connectionEndPoint, freeConnectionFixedEnd);
+                // Draw circles at both ends
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.fillOval(connectionEndPoint.x - 4, connectionEndPoint.y - 4, 8, 8);
+                gc.fillOval(freeConnectionFixedEnd.x - 4, freeConnectionFixedEnd.y - 4, 8, 8);
+            } else {
+                // Dragging target end - freeConnectionFixedEnd is source, connectionEndPoint is target (arrow end)
+                gc.drawLine(freeConnectionFixedEnd.x, freeConnectionFixedEnd.y, connectionEndPoint.x, connectionEndPoint.y);
+                drawArrow(gc, freeConnectionFixedEnd, connectionEndPoint);
+                // Draw circles at both ends
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.fillOval(freeConnectionFixedEnd.x - 4, freeConnectionFixedEnd.y - 4, 8, 8);
+                gc.fillOval(connectionEndPoint.x - 4, connectionEndPoint.y - 4, 8, 8);
+            }
+            gc.setLineStyle(SWT.LINE_SOLID);
+        }
 
-        // Draw nodes
+        // Draw selection highlights
         for (PipelineNode node : nodes) {
-            node.paint(gc);
+            node.drawSelectionHighlight(gc, selectedNodes.contains(node));
+        }
+
+        // Draw selection box if dragging
+        if (isSelectionBoxDragging && selectionBoxStart != null && selectionBoxEnd != null) {
+            int boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
+            int boxY = Math.min(selectionBoxStart.y, selectionBoxEnd.y);
+            int boxWidth = Math.abs(selectionBoxEnd.x - selectionBoxStart.x);
+            int boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
+
+            // Draw selection box with semi-transparent fill
+            gc.setBackground(new Color(0, 120, 215));
+            gc.setAlpha(30);
+            gc.fillRectangle(boxX, boxY, boxWidth, boxHeight);
+            gc.setAlpha(255);
+
+            // Draw selection box border
+            gc.setForeground(new Color(0, 120, 215));
+            gc.setLineWidth(1);
+            gc.drawRectangle(boxX, boxY, boxWidth, boxHeight);
         }
     }
 
@@ -1278,29 +1538,494 @@ public class PipelineEditor {
     private void handleMouseDown(MouseEvent e) {
         if (e.button == 1) {
             Point clickPoint = new Point(e.x, e.y);
+            int radius = 8; // Slightly larger than visual for easier clicking
+            boolean cmdHeld = (e.stateMask & SWT.MOD1) != 0;
 
+            // Debug: Log state at start of click handling
+            System.out.println("DEBUG mouseDown: click at " + clickPoint.x + "," + clickPoint.y +
+                             " danglingConnections=" + danglingConnections.size() +
+                             " reverseDanglingConnections=" + reverseDanglingConnections.size() +
+                             " freeConnections=" + freeConnections.size());
+
+            // First check if clicking on an input connection point (to yank off existing connection)
             for (PipelineNode node : nodes) {
-                if (node.containsPoint(clickPoint)) {
-                    selectedNode = node;
-                    dragOffset = new Point(e.x - node.x, e.y - node.y);
-                    isDragging = true;
+                Point inputPoint = node.getInputPoint();
+                double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
+                                       Math.pow(clickPoint.y - inputPoint.y, 2));
+                if (dist <= radius) {
+                    // Check if there's a connection to this input
+                    Connection connToRemove = null;
+                    for (Connection conn : connections) {
+                        if (conn.target == node) {
+                            connToRemove = conn;
+                            break;
+                        }
+                    }
+                    if (connToRemove != null) {
+                        // Yank off the connection - remove it and start dragging from the source
+                        System.out.println("DEBUG: Yanking regular connection from input point");
+                        connectionSource = connToRemove.source;
+                        connectionEndPoint = clickPoint;
+                        connections.remove(connToRemove);
+                        canvas.redraw();
+                        return;
+                    }
+                    // Check if there's a reverse dangling connection to this input
+                    // If so, we should yank it to create a FreeConnection
+                    ReverseDanglingConnection reverseToYank = null;
+                    for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
+                        if (dangling.target == node) {
+                            reverseToYank = dangling;
+                            break;
+                        }
+                    }
+                    if (reverseToYank != null) {
+                        System.out.println("DEBUG: Yanking reverse dangling connection from input point - creating FreeConnection");
+                        reverseDanglingConnections.remove(reverseToYank);
+                        freeConnections.add(new FreeConnection(reverseToYank.freeEnd, new Point(inputPoint.x, inputPoint.y)));
+                        canvas.redraw();
+                        return;
+                    }
+                    // No existing connection - start a new connection from input point (reverse direction)
+                    System.out.println("DEBUG: Starting new connection from input point (reverse direction)");
+                    connectionTarget = node;
+                    connectionEndPoint = clickPoint;
+                    canvas.redraw();
                     return;
                 }
             }
+
+            // Check if clicking on a dangling connection's free end
+            DanglingConnection danglingToRemove = null;
+            for (DanglingConnection dangling : danglingConnections) {
+                double dist = Math.sqrt(Math.pow(clickPoint.x - dangling.freeEnd.x, 2) +
+                                       Math.pow(clickPoint.y - dangling.freeEnd.y, 2));
+                if (dist <= radius) {
+                    // Pick up this dangling connection
+                    connectionSource = dangling.source;
+                    connectionEndPoint = clickPoint;
+                    danglingToRemove = dangling;
+                    break;
+                }
+            }
+            if (danglingToRemove != null) {
+                danglingConnections.remove(danglingToRemove);
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on a dangling connection's source end (output point of its source node)
+            DanglingConnection danglingSourceToRemove = null;
+            Point danglingSourcePoint = null;
+            Point danglingFreeEnd = null;
+            for (DanglingConnection dangling : danglingConnections) {
+                Point sourcePoint = dangling.source.getOutputPoint();
+                double dist = Math.sqrt(Math.pow(clickPoint.x - sourcePoint.x, 2) +
+                                       Math.pow(clickPoint.y - sourcePoint.y, 2));
+                System.out.println("DEBUG handleMouseDown: Checking dangling source end at " + sourcePoint.x + "," + sourcePoint.y + " vs click " + clickPoint.x + "," + clickPoint.y + " dist=" + dist);
+                if (dist <= radius) {
+                    // Yank off the source end - this becomes a completely free connector
+                    System.out.println("DEBUG handleMouseDown: MATCHED dangling source end, creating FreeConnection");
+                    danglingSourceToRemove = dangling;
+                    danglingSourcePoint = new Point(sourcePoint.x, sourcePoint.y);
+                    danglingFreeEnd = dangling.freeEnd;
+                    break;
+                }
+            }
+            if (danglingSourceToRemove != null) {
+                danglingConnections.remove(danglingSourceToRemove);
+                // Instead of just creating a FreeConnection, set up dragging from the source end
+                // The target end stays fixed, we drag the source end
+                System.out.println("DEBUG handleMouseDown: Yanking source end of DanglingConnection - start dragging with target at " + danglingFreeEnd.x + "," + danglingFreeEnd.y);
+                connectionTarget = null; // No target node
+                connectionSource = null; // No source node
+                connectionEndPoint = clickPoint; // Current drag position
+                // Store the fixed end in a temporary way - we need a new state variable
+                // For now, create a ReverseDanglingConnection-like drag where we drag the source
+                // Actually, let's just use connectionSource = null and connectionTarget = null
+                // and create a FreeConnection on mouse up, but allow dragging
+                // We need to track the OTHER end of the free connection
+                freeConnectionFixedEnd = danglingFreeEnd; // The arrow end stays put
+                draggingFreeConnectionSource = true; // We're dragging the source end
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on a reverse dangling connection's free end
+            ReverseDanglingConnection reverseDanglingToRemove = null;
+            for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
+                double dist = Math.sqrt(Math.pow(clickPoint.x - dangling.freeEnd.x, 2) +
+                                       Math.pow(clickPoint.y - dangling.freeEnd.y, 2));
+                if (dist <= radius) {
+                    // Pick up this reverse dangling connection
+                    connectionTarget = dangling.target;
+                    connectionEndPoint = clickPoint;
+                    reverseDanglingToRemove = dangling;
+                    break;
+                }
+            }
+            if (reverseDanglingToRemove != null) {
+                reverseDanglingConnections.remove(reverseDanglingToRemove);
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on a reverse dangling connection's target end (input point of its target node)
+            ReverseDanglingConnection reverseTargetToRemove = null;
+            Point reverseTargetPoint = null;
+            Point reverseFreeEnd = null;
+            for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
+                Point targetPoint = dangling.target.getInputPoint();
+                double dist = Math.sqrt(Math.pow(clickPoint.x - targetPoint.x, 2) +
+                                       Math.pow(clickPoint.y - targetPoint.y, 2));
+                if (dist <= radius) {
+                    // Yank off the target end - this becomes a completely free connector
+                    reverseTargetToRemove = dangling;
+                    reverseTargetPoint = new Point(targetPoint.x, targetPoint.y);
+                    reverseFreeEnd = dangling.freeEnd;
+                    break;
+                }
+            }
+            if (reverseTargetToRemove != null) {
+                reverseDanglingConnections.remove(reverseTargetToRemove);
+                // Create a free connection with both ends unattached
+                freeConnections.add(new FreeConnection(reverseFreeEnd, reverseTargetPoint));
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on a FreeConnection's start end (circle at the beginning)
+            FreeConnection freeStartToRemove = null;
+            Point freeStartOtherEnd = null;
+            for (FreeConnection free : freeConnections) {
+                double dist = Math.sqrt(Math.pow(clickPoint.x - free.startEnd.x, 2) +
+                                       Math.pow(clickPoint.y - free.startEnd.y, 2));
+                if (dist <= radius) {
+                    System.out.println("DEBUG handleMouseDown: Picking up FreeConnection start end");
+                    freeStartToRemove = free;
+                    freeStartOtherEnd = free.arrowEnd;
+                    break;
+                }
+            }
+            if (freeStartToRemove != null) {
+                freeConnections.remove(freeStartToRemove);
+                // Set up dragging from the start end
+                freeConnectionFixedEnd = freeStartOtherEnd; // The arrow end stays put
+                draggingFreeConnectionSource = true; // We're dragging the start end
+                connectionEndPoint = clickPoint;
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on a FreeConnection's arrow end (arrow at the end)
+            FreeConnection freeArrowToRemove = null;
+            Point freeArrowOtherEnd = null;
+            for (FreeConnection free : freeConnections) {
+                double dist = Math.sqrt(Math.pow(clickPoint.x - free.arrowEnd.x, 2) +
+                                       Math.pow(clickPoint.y - free.arrowEnd.y, 2));
+                if (dist <= radius) {
+                    System.out.println("DEBUG handleMouseDown: Picking up FreeConnection arrow end");
+                    freeArrowToRemove = free;
+                    freeArrowOtherEnd = free.startEnd;
+                    break;
+                }
+            }
+            if (freeArrowToRemove != null) {
+                freeConnections.remove(freeArrowToRemove);
+                // Set up dragging from the arrow end
+                freeConnectionFixedEnd = freeArrowOtherEnd; // The start end stays put
+                draggingFreeConnectionSource = false; // We're dragging the arrow end
+                connectionEndPoint = clickPoint;
+                canvas.redraw();
+                return;
+            }
+
+            // Check if clicking on an output connection point (only to yank existing connections)
+            for (PipelineNode node : nodes) {
+                Point outputPoint = node.getOutputPoint();
+                double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                       Math.pow(clickPoint.y - outputPoint.y, 2));
+                if (dist <= radius) {
+                    // Check if there's a connection from this output
+                    Connection connToRemove = null;
+                    for (Connection conn : connections) {
+                        if (conn.source == node) {
+                            connToRemove = conn;
+                            break;
+                        }
+                    }
+                    if (connToRemove != null) {
+                        // Yank off the connection - remove it and start dragging from the target
+                        System.out.println("DEBUG: Yanking regular connection from output point");
+                        connectionTarget = connToRemove.target;
+                        connectionEndPoint = clickPoint;
+                        connections.remove(connToRemove);
+                        canvas.redraw();
+                        return;
+                    }
+                    // Check if there's a dangling connection from this output
+                    // If so, we should yank it to create a FreeConnection
+                    DanglingConnection danglingToYank = null;
+                    for (DanglingConnection dangling : danglingConnections) {
+                        if (dangling.source == node) {
+                            danglingToYank = dangling;
+                            break;
+                        }
+                    }
+                    if (danglingToYank != null) {
+                        System.out.println("DEBUG: Yanking dangling connection from output point - creating FreeConnection");
+                        danglingConnections.remove(danglingToYank);
+                        freeConnections.add(new FreeConnection(new Point(outputPoint.x, outputPoint.y), danglingToYank.freeEnd));
+                        canvas.redraw();
+                        return;
+                    }
+                    // No existing connection - start a new connection from output point
+                    connectionSource = node;
+                    connectionEndPoint = clickPoint;
+                    canvas.redraw();
+                    return;
+                }
+            }
+
+            // Check for node selection and dragging
+            for (PipelineNode node : nodes) {
+                if (node.containsPoint(clickPoint)) {
+                    // Handle selection
+                    if (cmdHeld) {
+                        // Toggle selection of this node
+                        if (selectedNodes.contains(node)) {
+                            selectedNodes.remove(node);
+                        } else {
+                            selectedNodes.add(node);
+                        }
+                    } else {
+                        // If node is not selected, clear selection and select only this node
+                        if (!selectedNodes.contains(node)) {
+                            selectedNodes.clear();
+                            selectedConnections.clear();
+                            selectedNodes.add(node);
+                        }
+                        // If node is already selected, keep current selection (for dragging multiple)
+                    }
+
+                    // Start dragging
+                    selectedNode = node;
+                    dragOffset = new Point(e.x - node.x, e.y - node.y);
+                    isDragging = true;
+                    canvas.redraw();
+                    return;
+                }
+            }
+
+            // Clicked on empty space - start selection box
+            if (!cmdHeld) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+            }
+            selectionBoxStart = clickPoint;
+            selectionBoxEnd = clickPoint;
+            isSelectionBoxDragging = true;
+            canvas.redraw();
         }
     }
 
     private void handleMouseUp(MouseEvent e) {
         if (connectionSource != null) {
             Point clickPoint = new Point(e.x, e.y);
+            boolean connected = false;
+            PipelineNode targetNode = null;
+
+            // Check if dropped on an input point
             for (PipelineNode node : nodes) {
-                if (node != connectionSource && node.containsPoint(clickPoint)) {
-                    connections.add(new Connection(connectionSource, node));
-                    break;
+                if (node != connectionSource) {
+                    Point inputPoint = node.getInputPoint();
+                    int radius = 8;
+                    double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
+                                           Math.pow(clickPoint.y - inputPoint.y, 2));
+                    if (dist <= radius) {
+                        targetNode = node;
+                        connected = true;
+                        break;
+                    }
                 }
             }
+
+            // If not on input point, check if on node body as fallback
+            if (!connected) {
+                for (PipelineNode node : nodes) {
+                    if (node != connectionSource && node.containsPoint(clickPoint)) {
+                        targetNode = node;
+                        connected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (connected && targetNode != null) {
+                // Create a new connection
+                connections.add(new Connection(connectionSource, targetNode));
+                System.out.println("DEBUG mouseUp: Created regular connection");
+            } else if (connectionEndPoint != null) {
+                // Create a dangling connection
+                danglingConnections.add(new DanglingConnection(connectionSource, connectionEndPoint));
+                System.out.println("DEBUG mouseUp: Created DanglingConnection, source=" + connectionSource + " freeEnd=" + connectionEndPoint.x + "," + connectionEndPoint.y + " total=" + danglingConnections.size());
+            } else {
+                System.out.println("DEBUG mouseUp: No connectionEndPoint, nothing created");
+            }
+
             connectionSource = null;
             connectionEndPoint = null;
+            canvas.redraw();
+
+            if (connected) {
+                executePipeline();
+            }
+        }
+
+        // Handle reverse connection (dragging from target end)
+        if (connectionTarget != null) {
+            Point clickPoint = new Point(e.x, e.y);
+            boolean connected = false;
+            PipelineNode sourceNode = null;
+
+            // Check if dropped on an output point
+            for (PipelineNode node : nodes) {
+                if (node != connectionTarget) {
+                    Point outputPoint = node.getOutputPoint();
+                    int radius = 8;
+                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                           Math.pow(clickPoint.y - outputPoint.y, 2));
+                    if (dist <= radius) {
+                        sourceNode = node;
+                        connected = true;
+                        break;
+                    }
+                }
+            }
+
+            // If not on output point, check if on node body as fallback
+            if (!connected) {
+                for (PipelineNode node : nodes) {
+                    if (node != connectionTarget && node.containsPoint(clickPoint)) {
+                        sourceNode = node;
+                        connected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (connected && sourceNode != null) {
+                // Create a new connection
+                connections.add(new Connection(sourceNode, connectionTarget));
+            } else if (connectionEndPoint != null) {
+                // Create a reverse dangling connection
+                reverseDanglingConnections.add(new ReverseDanglingConnection(connectionTarget, connectionEndPoint));
+            }
+
+            connectionTarget = null;
+            connectionEndPoint = null;
+            canvas.redraw();
+
+            if (connected) {
+                executePipeline();
+            }
+        }
+
+        // Handle free connection dragging (both ends unattached)
+        if (freeConnectionFixedEnd != null) {
+            Point clickPoint = new Point(e.x, e.y);
+            boolean connected = false;
+            int radius = 8;
+
+            if (draggingFreeConnectionSource) {
+                // Dragging the source end - check if dropped on output point
+                PipelineNode sourceNode = null;
+                for (PipelineNode node : nodes) {
+                    Point outputPoint = node.getOutputPoint();
+                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                           Math.pow(clickPoint.y - outputPoint.y, 2));
+                    if (dist <= radius) {
+                        sourceNode = node;
+                        connected = true;
+                        break;
+                    }
+                }
+
+                if (connected && sourceNode != null) {
+                    // Connected to output point - create DanglingConnection
+                    System.out.println("DEBUG mouseUp: Free connection source attached to node, creating DanglingConnection");
+                    danglingConnections.add(new DanglingConnection(sourceNode, freeConnectionFixedEnd));
+                } else {
+                    // Not connected - create FreeConnection at current position
+                    System.out.println("DEBUG mouseUp: Free connection source not attached, creating FreeConnection");
+                    freeConnections.add(new FreeConnection(connectionEndPoint, freeConnectionFixedEnd));
+                }
+            } else {
+                // Dragging the target end - check if dropped on input point
+                PipelineNode targetNode = null;
+                for (PipelineNode node : nodes) {
+                    Point inputPoint = node.getInputPoint();
+                    double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
+                                           Math.pow(clickPoint.y - inputPoint.y, 2));
+                    if (dist <= radius) {
+                        targetNode = node;
+                        connected = true;
+                        break;
+                    }
+                }
+
+                if (connected && targetNode != null) {
+                    // Connected to input point - create ReverseDanglingConnection
+                    System.out.println("DEBUG mouseUp: Free connection target attached to node, creating ReverseDanglingConnection");
+                    reverseDanglingConnections.add(new ReverseDanglingConnection(targetNode, freeConnectionFixedEnd));
+                } else {
+                    // Not connected - create FreeConnection at current position
+                    System.out.println("DEBUG mouseUp: Free connection target not attached, creating FreeConnection");
+                    freeConnections.add(new FreeConnection(freeConnectionFixedEnd, connectionEndPoint));
+                }
+            }
+
+            freeConnectionFixedEnd = null;
+            draggingFreeConnectionSource = false;
+            connectionEndPoint = null;
+            canvas.redraw();
+        }
+
+        // Handle selection box completion
+        if (isSelectionBoxDragging && selectionBoxStart != null && selectionBoxEnd != null) {
+            // Calculate box bounds
+            int boxX = Math.min(selectionBoxStart.x, selectionBoxEnd.x);
+            int boxY = Math.min(selectionBoxStart.y, selectionBoxEnd.y);
+            int boxWidth = Math.abs(selectionBoxEnd.x - selectionBoxStart.x);
+            int boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
+
+            // Select nodes that are completely surrounded by the box
+            for (PipelineNode node : nodes) {
+                // Check if node is completely inside selection box
+                if (node.x >= boxX && node.y >= boxY &&
+                    node.x + node.width <= boxX + boxWidth &&
+                    node.y + node.height <= boxY + boxHeight) {
+                    selectedNodes.add(node);
+                }
+            }
+
+            // Select connections that are completely inside selection box
+            for (Connection conn : connections) {
+                Point start = conn.source.getOutputPoint();
+                Point end = conn.target.getInputPoint();
+                // Check if both endpoints are inside selection box
+                if (start.x >= boxX && start.x <= boxX + boxWidth &&
+                    start.y >= boxY && start.y <= boxY + boxHeight &&
+                    end.x >= boxX && end.x <= boxX + boxWidth &&
+                    end.y >= boxY && end.y <= boxY + boxHeight) {
+                    selectedConnections.add(conn);
+                }
+            }
+
+            // Clear selection box state
+            selectionBoxStart = null;
+            selectionBoxEnd = null;
+            isSelectionBoxDragging = false;
             canvas.redraw();
         }
 
@@ -1310,11 +2035,27 @@ public class PipelineEditor {
 
     private void handleMouseMove(MouseEvent e) {
         if (isDragging && selectedNode != null) {
-            selectedNode.x = e.x - dragOffset.x;
-            selectedNode.y = e.y - dragOffset.y;
+            // Calculate the delta movement
+            int deltaX = e.x - dragOffset.x - selectedNode.x;
+            int deltaY = e.y - dragOffset.y - selectedNode.y;
+
+            // Move all selected nodes by the same delta
+            if (selectedNodes.contains(selectedNode) && selectedNodes.size() > 1) {
+                for (PipelineNode node : selectedNodes) {
+                    node.x += deltaX;
+                    node.y += deltaY;
+                }
+            } else {
+                // Single node drag
+                selectedNode.x = e.x - dragOffset.x;
+                selectedNode.y = e.y - dragOffset.y;
+            }
             canvas.redraw();
-        } else if (connectionSource != null) {
+        } else if (connectionSource != null || connectionTarget != null || freeConnectionFixedEnd != null) {
             connectionEndPoint = new Point(e.x, e.y);
+            canvas.redraw();
+        } else if (isSelectionBoxDragging) {
+            selectionBoxEnd = new Point(e.x, e.y);
             canvas.redraw();
         }
     }
@@ -1325,6 +2066,8 @@ public class PipelineEditor {
             if (node.containsPoint(clickPoint)) {
                 if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).showPropertiesDialog();
+                } else if (node instanceof ImageSourceNode) {
+                    ((ImageSourceNode) node).showPropertiesDialog();
                 }
                 return;
             }
@@ -1339,12 +2082,20 @@ public class PipelineEditor {
                 // Show context menu for the node
                 Menu contextMenu = new Menu(canvas);
 
-                // Edit Properties option (only for ProcessingNode)
+                // Edit Properties option (for ProcessingNode and ImageSourceNode)
                 if (node instanceof ProcessingNode) {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
                     editItem.setText("Edit Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
                         ((ProcessingNode) node).showPropertiesDialog();
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                } else if (node instanceof ImageSourceNode) {
+                    MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editItem.setText("Edit Properties...");
+                    editItem.addListener(SWT.Selection, evt -> {
+                        ((ImageSourceNode) node).showPropertiesDialog();
                     });
 
                     new MenuItem(contextMenu, SWT.SEPARATOR);
@@ -1374,6 +2125,53 @@ public class PipelineEditor {
                 return;
             }
         }
+
+        // Check if right-clicked on a connection
+        for (Connection conn : connections) {
+            Point start = conn.source.getOutputPoint();
+            Point end = conn.target.getInputPoint();
+            if (isPointNearLine(clickPoint, start, end, 5)) {
+                // Show context menu for the connection
+                Menu contextMenu = new Menu(canvas);
+
+                MenuItem deleteItem = new MenuItem(contextMenu, SWT.PUSH);
+                deleteItem.setText("Delete Connection");
+                deleteItem.addListener(SWT.Selection, evt -> {
+                    connections.remove(conn);
+                    canvas.redraw();
+                    executePipeline();
+                });
+
+                contextMenu.setLocation(e.x, e.y);
+                contextMenu.setVisible(true);
+                return;
+            }
+        }
+    }
+
+    // Check if a point is within a certain distance of a line segment
+    private boolean isPointNearLine(Point p, Point lineStart, Point lineEnd, double threshold) {
+        double dx = lineEnd.x - lineStart.x;
+        double dy = lineEnd.y - lineStart.y;
+        double lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared == 0) {
+            // Line segment is a point
+            double dist = Math.sqrt(Math.pow(p.x - lineStart.x, 2) + Math.pow(p.y - lineStart.y, 2));
+            return dist <= threshold;
+        }
+
+        // Calculate the projection of point p onto the line
+        double t = Math.max(0, Math.min(1, ((p.x - lineStart.x) * dx + (p.y - lineStart.y) * dy) / lengthSquared));
+
+        // Find the closest point on the line segment
+        double closestX = lineStart.x + t * dx;
+        double closestY = lineStart.y + t * dy;
+
+        // Calculate distance from p to the closest point
+        double distance = Math.sqrt(Math.pow(p.x - closestX, 2) + Math.pow(p.y - closestY, 2));
+
+        return distance <= threshold;
     }
 
     private void createSamplePipeline() {
@@ -1455,6 +2253,36 @@ public class PipelineEditor {
 
         public Point getInputPoint() {
             return new Point(x, y + height / 2);
+        }
+
+        // Draw connection points (circles) on the node - always visible
+        protected void drawConnectionPoints(GC gc) {
+            int radius = 6;  // Slightly larger for visibility
+
+            // Draw input point on left side (blue tint for input)
+            Point input = getInputPoint();
+            gc.setBackground(new Color(200, 220, 255));  // Light blue fill
+            gc.fillOval(input.x - radius, input.y - radius, radius * 2, radius * 2);
+            gc.setForeground(new Color(70, 100, 180));   // Blue border
+            gc.setLineWidth(2);
+            gc.drawOval(input.x - radius, input.y - radius, radius * 2, radius * 2);
+
+            // Draw output point on right side (orange tint for output)
+            Point output = getOutputPoint();
+            gc.setBackground(new Color(255, 230, 200)); // Light orange fill
+            gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+            gc.setForeground(new Color(200, 120, 50));  // Orange border
+            gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+            gc.setLineWidth(1);  // Reset line width
+        }
+
+        // Draw selection highlight around node
+        protected void drawSelectionHighlight(GC gc, boolean isSelected) {
+            if (isSelected) {
+                gc.setForeground(new Color(0, 120, 215));  // Blue selection color
+                gc.setLineWidth(3);
+                gc.drawRoundRectangle(x - 3, y - 3, width + 6, height + 6, 13, 13);
+            }
         }
 
         public void setOutputMat(Mat mat) {
@@ -1543,6 +2371,18 @@ public class PipelineEditor {
         private boolean loopVideo = true;
         private double fps = 30.0;
 
+        // FPS mode selection
+        // 0 = "Just Once" (0 fps, single shot)
+        // 1 = "Automatic" (video fps or 1 fps for static)
+        // 2-N = specific fps values (e.g., 1, 5, 10, 15, 24, 30, 60)
+        private int fpsMode = 1;  // Default to Automatic
+        private static final String[] FPS_OPTIONS = {
+            "Just Once", "Automatic", "1 fps", "5 fps", "10 fps", "15 fps", "24 fps", "30 fps", "60 fps"
+        };
+        private static final double[] FPS_VALUES = {
+            0.0, -1.0, 1.0, 5.0, 10.0, 15.0, 24.0, 30.0, 60.0
+        };  // -1 means automatic
+
         // Static image repeat (default 1 fps)
         private boolean repeatImage = true;
         private double staticFps = 1.0;
@@ -1561,25 +2401,82 @@ public class PipelineEditor {
         private void createOverlay() {
             overlayComposite = new Composite(parentCanvas, SWT.NONE);
             overlayComposite.setLayout(new GridLayout(1, false));
-            overlayComposite.setBounds(x + 5, y + 25, width - 10, height - 30);
+            // Tighten bounds: start at y+22, use exact thumbnail height + small padding
+            overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
 
-            // Thumbnail label first
+            // Thumbnail label only - Choose button moved to Properties dialog
             Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
             GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
             gd.heightHint = SOURCE_NODE_THUMB_HEIGHT;
             thumbnailLabel.setLayoutData(gd);
             thumbnailLabel.setText("No image");
 
-            // Choose button below thumbnail
-            Button chooseBtn = new Button(overlayComposite, SWT.PUSH);
-            chooseBtn.setText("Choose...");
-            chooseBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-            chooseBtn.addSelectionListener(new SelectionAdapter() {
+            // Add mouse listeners for dragging from thumbnail area
+            MouseListener dragMouseListener = new MouseAdapter() {
                 @Override
-                public void widgetSelected(SelectionEvent e) {
-                    chooseImage();
+                public void mouseDown(MouseEvent e) {
+                    if (e.button == 1) {  // Left click
+                        // Convert to canvas coordinates and forward to canvas
+                        Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
+                        canvasPoint = parentCanvas.toControl(canvasPoint);
+
+                        // Create a synthetic mouse event for the canvas
+                        Event event = new Event();
+                        event.x = canvasPoint.x;
+                        event.y = canvasPoint.y;
+                        event.button = e.button;
+                        event.stateMask = e.stateMask;
+                        parentCanvas.notifyListeners(SWT.MouseDown, event);
+                    }
                 }
-            });
+
+                @Override
+                public void mouseUp(MouseEvent e) {
+                    // Convert to canvas coordinates and forward to canvas
+                    Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
+                    canvasPoint = parentCanvas.toControl(canvasPoint);
+
+                    Event event = new Event();
+                    event.x = canvasPoint.x;
+                    event.y = canvasPoint.y;
+                    event.button = e.button;
+                    event.stateMask = e.stateMask;
+                    parentCanvas.notifyListeners(SWT.MouseUp, event);
+                }
+
+                @Override
+                public void mouseDoubleClick(MouseEvent e) {
+                    showPropertiesDialog();
+                }
+            };
+
+            // Add mouse move listener for dragging
+            MouseMoveListener dragMoveListener = e -> {
+                // Convert to canvas coordinates and forward to canvas
+                Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
+                canvasPoint = parentCanvas.toControl(canvasPoint);
+
+                Event event = new Event();
+                event.x = canvasPoint.x;
+                event.y = canvasPoint.y;
+                event.stateMask = e.stateMask;
+                parentCanvas.notifyListeners(SWT.MouseMove, event);
+            };
+
+            // Apply listeners to both overlay and thumbnail
+            overlayComposite.addMouseListener(dragMouseListener);
+            overlayComposite.addMouseMoveListener(dragMoveListener);
+            thumbnailLabel.addMouseListener(dragMouseListener);
+            thumbnailLabel.addMouseMoveListener(dragMoveListener);
+
+            // Add right-click menu to overlay composite and thumbnail
+            Menu contextMenu = new Menu(overlayComposite);
+            MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
+            editItem.setText("Edit Properties...");
+            editItem.addListener(SWT.Selection, evt -> showPropertiesDialog());
+
+            overlayComposite.setMenu(contextMenu);
+            thumbnailLabel.setMenu(contextMenu);
 
             // Ensure the overlay is visible
             overlayComposite.moveAbove(null);
@@ -1694,7 +2591,21 @@ public class PipelineEditor {
         }
 
         public double getFps() {
-            return isVideo ? fps : staticFps;
+            // Handle FPS based on mode selection
+            double selectedFps = FPS_VALUES[fpsMode];
+            if (selectedFps == -1.0) {
+                // Automatic mode: use video fps or 1 fps for static
+                return isVideo ? fps : 1.0;
+            }
+            return selectedFps;
+        }
+
+        public int getFpsMode() {
+            return fpsMode;
+        }
+
+        public void setFpsMode(int mode) {
+            this.fpsMode = Math.max(0, Math.min(mode, FPS_OPTIONS.length - 1));
         }
 
         private void loadImage(String path) {
@@ -1858,8 +2769,8 @@ public class PipelineEditor {
 
         @Override
         public void paint(GC gc) {
-            // Update overlay position
-            overlayComposite.setBounds(x + 5, y + 25, width - 10, height - 30);
+            // Update overlay position (must match createOverlay)
+            overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
 
             // Draw node background
             gc.setBackground(new Color(230, 240, 255));
@@ -1874,8 +2785,110 @@ public class PipelineEditor {
             gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
             Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
             gc.setFont(boldFont);
-            gc.drawString("Image Source", x + 10, y + 5, true);
+            gc.drawString("Image Source", x + 10, y + 4, true);
             boldFont.dispose();
+
+            // Draw connection points (output only - this is a source node)
+            drawConnectionPoints(gc);
+        }
+
+        @Override
+        protected void drawConnectionPoints(GC gc) {
+            // ImageSourceNode only has output point (it's a source)
+            int radius = 6;
+            Point output = getOutputPoint();
+            gc.setBackground(new Color(255, 230, 200)); // Light orange fill
+            gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+            gc.setForeground(new Color(200, 120, 50));  // Orange border
+            gc.setLineWidth(2);
+            gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+            gc.setLineWidth(1);  // Reset line width
+        }
+
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Image Source Properties");
+            dialog.setLayout(new GridLayout(2, false));
+            dialog.setSize(500, 180);
+
+            // Image/Video source row
+            Label sourceLabel = new Label(dialog, SWT.NONE);
+            sourceLabel.setText("Source:");
+
+            // Source button and display
+            Composite sourceComposite = new Composite(dialog, SWT.NONE);
+            sourceComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            sourceComposite.setLayout(new GridLayout(2, false));
+
+            // Editable text field for path (allows copy/paste)
+            Text pathText = new Text(sourceComposite, SWT.BORDER);
+            String displayPath = imagePath != null ? imagePath : "";
+            pathText.setText(displayPath);
+            pathText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+            // Choose button
+            Button chooseButton = new Button(sourceComposite, SWT.PUSH);
+            chooseButton.setText("Choose...");
+            chooseButton.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    chooseImage();
+                    // Update the path text field
+                    String newPath = imagePath != null ? imagePath : "";
+                    pathText.setText(newPath);
+                }
+            });
+
+            // FPS Mode label
+            Label fpsLabel = new Label(dialog, SWT.NONE);
+            fpsLabel.setText("FPS Mode:");
+
+            // FPS Mode dropdown
+            Combo fpsCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            fpsCombo.setItems(FPS_OPTIONS);
+            fpsCombo.select(fpsMode);
+            fpsCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+            // OK button
+            Button okButton = new Button(dialog, SWT.PUSH);
+            okButton.setText("OK");
+            okButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+            okButton.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    // Get the path from the text field
+                    String newPath = pathText.getText().trim();
+                    if (!newPath.isEmpty() && (imagePath == null || !newPath.equals(imagePath))) {
+                        // Path changed, load the new image
+                        imagePath = newPath;
+                        loadImage(newPath);
+                    }
+                    fpsMode = fpsCombo.getSelectionIndex();
+                    dialog.close();
+                }
+            });
+
+            // Cancel button
+            Button cancelButton = new Button(dialog, SWT.PUSH);
+            cancelButton.setText("Cancel");
+            cancelButton.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    dialog.close();
+                }
+            });
+
+            dialog.setDefaultButton(okButton);
+
+            // Center dialog on parent
+            Rectangle parentBounds = shell.getBounds();
+            Rectangle dialogBounds = dialog.getBounds();
+            dialog.setLocation(
+                parentBounds.x + (parentBounds.width - dialogBounds.width) / 2,
+                parentBounds.y + (parentBounds.height - dialogBounds.height) / 2
+            );
+
+            dialog.open();
         }
 
         public Mat getLoadedImage() {
@@ -1939,6 +2952,9 @@ public class PipelineEditor {
                 gc.drawString("(no output)", x + 10, y + 40, true);
                 System.out.println("DEBUG ProcessingNode.paint: No thumbnail, drawing placeholder");
             }
+
+            // Draw connection points
+            drawConnectionPoints(gc);
         }
 
         public String getName() {
@@ -1987,20 +3003,20 @@ public class PipelineEditor {
         public void showPropertiesDialog() {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Gaussian Blur Properties");
-            dialog.setLayout(new GridLayout(2, false));
+            dialog.setLayout(new GridLayout(3, false));
 
             // Method signature
             Label sigLabel = new Label(dialog, SWT.NONE);
             sigLabel.setText(getDescription());
             sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
             GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-            sigGd.horizontalSpan = 2;
+            sigGd.horizontalSpan = 3;
             sigLabel.setLayoutData(sigGd);
 
             // Separator
             Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
             GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-            sepGd.horizontalSpan = 2;
+            sepGd.horizontalSpan = 3;
             sep.setLayoutData(sepGd);
 
             // Kernel Size X
@@ -2448,6 +3464,39 @@ public class PipelineEditor {
         public Connection(PipelineNode source, PipelineNode target) {
             this.source = source;
             this.target = target;
+        }
+    }
+
+    // Dangling connection with one end free (source fixed, target free)
+    static class DanglingConnection {
+        PipelineNode source;
+        Point freeEnd;
+
+        public DanglingConnection(PipelineNode source, Point freeEnd) {
+            this.source = source;
+            this.freeEnd = new Point(freeEnd.x, freeEnd.y);
+        }
+    }
+
+    // Reverse dangling connection (target fixed, source free)
+    static class ReverseDanglingConnection {
+        PipelineNode target;
+        Point freeEnd;
+
+        public ReverseDanglingConnection(PipelineNode target, Point freeEnd) {
+            this.target = target;
+            this.freeEnd = new Point(freeEnd.x, freeEnd.y);
+        }
+    }
+
+    // Free connection (both ends free, no nodes attached)
+    static class FreeConnection {
+        Point startEnd;  // Non-arrow end
+        Point arrowEnd;  // Arrow end
+
+        public FreeConnection(Point startEnd, Point arrowEnd) {
+            this.startEnd = new Point(startEnd.x, startEnd.y);
+            this.arrowEnd = new Point(arrowEnd.x, arrowEnd.y);
         }
     }
 }
