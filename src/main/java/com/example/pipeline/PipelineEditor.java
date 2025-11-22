@@ -5,6 +5,7 @@ import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.*;
 import org.eclipse.swt.widgets.*;
+import org.eclipse.swt.custom.SashForm;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -28,6 +29,7 @@ public class PipelineEditor {
     private Display display;
     private Canvas canvas;
     private Canvas previewCanvas;
+    private SashForm sashForm;
     private Image previewImage;
 
     private List<PipelineNode> nodes = new ArrayList<>();
@@ -45,6 +47,17 @@ public class PipelineEditor {
     private static final int MAX_RECENT_FILES = 10;
     private static final String RECENT_FILES_KEY = "recentFiles";
     private static final String LAST_FILE_KEY = "lastFile";
+
+    // Thumbnail sizes
+    private static final int PROCESSING_NODE_THUMB_WIDTH = 120;
+    private static final int PROCESSING_NODE_THUMB_HEIGHT = 80;
+    private static final int SOURCE_NODE_THUMB_WIDTH = 280;
+    private static final int SOURCE_NODE_THUMB_HEIGHT = 90;
+
+    // Node container sizes (based on thumbnail + padding for title/borders)
+    private static final int NODE_WIDTH = PROCESSING_NODE_THUMB_WIDTH + 20;  // thumbnail + 10px padding each side
+    private static final int NODE_HEIGHT = PROCESSING_NODE_THUMB_HEIGHT + 40; // thumbnail + 25px title + 15px bottom
+    private static final int SOURCE_NODE_HEIGHT = SOURCE_NODE_THUMB_HEIGHT + 70; // thumbnail + 25px title + 30px button + 15px padding
     private Preferences prefs;
     private List<String> recentFiles = new ArrayList<>();
     private Combo recentFilesCombo;
@@ -71,7 +84,7 @@ public class PipelineEditor {
         shell = new Shell(display);
         shell.setText("OpenCV Pipeline Editor");
         shell.setSize(1400, 800);
-        shell.setLayout(new GridLayout(3, false));
+        shell.setLayout(new GridLayout(2, false));
 
         // Initialize preferences and load recent files
         prefs = Preferences.userNodeForPackage(PipelineEditor.class);
@@ -86,11 +99,18 @@ public class PipelineEditor {
         // Left side - toolbar/palette
         createToolbar();
 
-        // Center - canvas
+        // Right side - SashForm containing canvas and preview panel
+        sashForm = new SashForm(shell, SWT.HORIZONTAL);
+        sashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+        // Center - canvas (inside sashForm)
         createCanvas();
 
-        // Right side - preview panel
+        // Right side - preview panel (inside sashForm)
         createPreviewPanel();
+
+        // Set initial weights (75% canvas, 25% preview)
+        sashForm.setWeights(new int[] {75, 25});
 
         // Load last file or create sample pipeline
         String lastFile = prefs.get(LAST_FILE_KEY, "");
@@ -378,6 +398,28 @@ public class PipelineEditor {
                     String name = nodeObj.get("name").getAsString();
                     ProcessingNode node = createEffectNode(name, x, y);
                     if (node != null) {
+                        // Load node-specific properties
+                        if (node instanceof GaussianBlurNode) {
+                            GaussianBlurNode gbn = (GaussianBlurNode) node;
+                            if (nodeObj.has("kernelSizeX")) gbn.kernelSizeX = nodeObj.get("kernelSizeX").getAsInt();
+                            if (nodeObj.has("kernelSizeY")) gbn.kernelSizeY = nodeObj.get("kernelSizeY").getAsInt();
+                            if (nodeObj.has("sigmaX")) gbn.sigmaX = nodeObj.get("sigmaX").getAsDouble();
+                        } else if (node instanceof GrayscaleNode) {
+                            GrayscaleNode gn = (GrayscaleNode) node;
+                            if (nodeObj.has("conversionIndex")) {
+                                gn.conversionIndex = nodeObj.get("conversionIndex").getAsInt();
+                            }
+                        } else if (node instanceof ThresholdNode) {
+                            ThresholdNode tn = (ThresholdNode) node;
+                            if (nodeObj.has("threshValue")) tn.threshValue = nodeObj.get("threshValue").getAsInt();
+                            if (nodeObj.has("maxValue")) tn.maxValue = nodeObj.get("maxValue").getAsInt();
+                            if (nodeObj.has("typeIndex")) tn.typeIndex = nodeObj.get("typeIndex").getAsInt();
+                            if (nodeObj.has("modifierIndex")) tn.modifierIndex = nodeObj.get("modifierIndex").getAsInt();
+                        } else if (node instanceof GainNode) {
+                            GainNode gn = (GainNode) node;
+                            if (nodeObj.has("gain")) gn.gain = nodeObj.get("gain").getAsDouble();
+                        }
+                        // InvertNode has no properties to load
                         nodes.add(node);
                     }
                 }
@@ -580,6 +622,27 @@ public class PipelineEditor {
                 } else if (node instanceof ProcessingNode) {
                     nodeObj.addProperty("type", "Processing");
                     nodeObj.addProperty("name", ((ProcessingNode) node).getName());
+
+                    // Save node-specific properties
+                    if (node instanceof GaussianBlurNode) {
+                        GaussianBlurNode gbn = (GaussianBlurNode) node;
+                        nodeObj.addProperty("kernelSizeX", gbn.kernelSizeX);
+                        nodeObj.addProperty("kernelSizeY", gbn.kernelSizeY);
+                        nodeObj.addProperty("sigmaX", gbn.sigmaX);
+                    } else if (node instanceof GrayscaleNode) {
+                        GrayscaleNode gn = (GrayscaleNode) node;
+                        nodeObj.addProperty("conversionIndex", gn.conversionIndex);
+                    } else if (node instanceof ThresholdNode) {
+                        ThresholdNode tn = (ThresholdNode) node;
+                        nodeObj.addProperty("threshValue", tn.threshValue);
+                        nodeObj.addProperty("maxValue", tn.maxValue);
+                        nodeObj.addProperty("typeIndex", tn.typeIndex);
+                        nodeObj.addProperty("modifierIndex", tn.modifierIndex);
+                    } else if (node instanceof GainNode) {
+                        GainNode gn = (GainNode) node;
+                        nodeObj.addProperty("gain", gn.gain);
+                    }
+                    // InvertNode has no properties to save
                 }
 
                 nodesArray.add(nodeObj);
@@ -671,6 +734,32 @@ public class PipelineEditor {
                         String name = nodeObj.get("name").getAsString();
                         ProcessingNode node = createEffectNode(name, x, y);
                         if (node != null) {
+                            // Load node-specific properties
+                            if (node instanceof GaussianBlurNode) {
+                                GaussianBlurNode gbn = (GaussianBlurNode) node;
+                                if (nodeObj.has("kernelSizeX")) gbn.kernelSizeX = nodeObj.get("kernelSizeX").getAsInt();
+                                if (nodeObj.has("kernelSizeY")) gbn.kernelSizeY = nodeObj.get("kernelSizeY").getAsInt();
+                                if (nodeObj.has("sigmaX")) gbn.sigmaX = nodeObj.get("sigmaX").getAsDouble();
+                            } else if (node instanceof GrayscaleNode) {
+                                GrayscaleNode gn = (GrayscaleNode) node;
+                                if (nodeObj.has("conversionIndex")) {
+                                    int loadedIndex = nodeObj.get("conversionIndex").getAsInt();
+                                    gn.conversionIndex = loadedIndex;
+                                    System.out.println("DEBUG load: Set GrayscaleNode conversionIndex to " + loadedIndex + " for node=" + System.identityHashCode(gn));
+                                } else {
+                                    System.out.println("DEBUG load: No conversionIndex in JSON for GrayscaleNode");
+                                }
+                            } else if (node instanceof ThresholdNode) {
+                                ThresholdNode tn = (ThresholdNode) node;
+                                if (nodeObj.has("threshValue")) tn.threshValue = nodeObj.get("threshValue").getAsInt();
+                                if (nodeObj.has("maxValue")) tn.maxValue = nodeObj.get("maxValue").getAsInt();
+                                if (nodeObj.has("typeIndex")) tn.typeIndex = nodeObj.get("typeIndex").getAsInt();
+                                if (nodeObj.has("modifierIndex")) tn.modifierIndex = nodeObj.get("modifierIndex").getAsInt();
+                            } else if (node instanceof GainNode) {
+                                GainNode gn = (GainNode) node;
+                                if (nodeObj.has("gain")) gn.gain = nodeObj.get("gain").getAsDouble();
+                            }
+                            // InvertNode has no properties to load
                             nodes.add(node);
                         }
                     }
@@ -719,8 +808,7 @@ public class PipelineEditor {
     }
 
     private void createCanvas() {
-        canvas = new Canvas(shell, SWT.BORDER | SWT.DOUBLE_BUFFERED);
-        canvas.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        canvas = new Canvas(sashForm, SWT.BORDER | SWT.DOUBLE_BUFFERED);
         canvas.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
 
         // Paint handler
@@ -751,10 +839,7 @@ public class PipelineEditor {
     }
 
     private void createPreviewPanel() {
-        Composite previewPanel = new Composite(shell, SWT.BORDER);
-        GridData gd = new GridData(SWT.FILL, SWT.FILL, false, true);
-        gd.widthHint = 300;
-        previewPanel.setLayoutData(gd);
+        Composite previewPanel = new Composite(sashForm, SWT.BORDER);
         previewPanel.setLayout(new GridLayout(1, false));
 
         Label titleLabel = new Label(previewPanel, SWT.NONE);
@@ -1251,8 +1336,41 @@ public class PipelineEditor {
 
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
-                connectionSource = node;
-                connectionEndPoint = clickPoint;
+                // Show context menu for the node
+                Menu contextMenu = new Menu(canvas);
+
+                // Edit Properties option (only for ProcessingNode)
+                if (node instanceof ProcessingNode) {
+                    MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editItem.setText("Edit Properties...");
+                    editItem.addListener(SWT.Selection, evt -> {
+                        ((ProcessingNode) node).showPropertiesDialog();
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                }
+
+                // Start Connection option
+                MenuItem connectItem = new MenuItem(contextMenu, SWT.PUSH);
+                connectItem.setText("Start Connection");
+                connectItem.addListener(SWT.Selection, evt -> {
+                    connectionSource = node;
+                    connectionEndPoint = clickPoint;
+                });
+
+                // Delete Node option
+                MenuItem deleteItem = new MenuItem(contextMenu, SWT.PUSH);
+                deleteItem.setText("Delete Node");
+                deleteItem.addListener(SWT.Selection, evt -> {
+                    // Remove all connections involving this node
+                    connections.removeIf(c -> c.source == node || c.target == node);
+                    nodes.remove(node);
+                    canvas.redraw();
+                    executePipeline();
+                });
+
+                contextMenu.setLocation(e.x, e.y);
+                contextMenu.setVisible(true);
                 return;
             }
         }
@@ -1320,8 +1438,8 @@ public class PipelineEditor {
     abstract static class PipelineNode {
         protected Display display;
         protected int x, y;
-        protected int width = 180;
-        protected int height = 100;  // Increased for thumbnail
+        protected int width = NODE_WIDTH;
+        protected int height = NODE_HEIGHT;
         protected Image thumbnail;
         protected Mat outputMat;
 
@@ -1356,9 +1474,10 @@ public class PipelineEditor {
                 thumbnail.dispose();
             }
 
-            // Create thumbnail (max 60x40)
+            // Create thumbnail
             Mat resized = new Mat();
-            double scale = Math.min(60.0 / outputMat.width(), 40.0 / outputMat.height());
+            double scale = Math.min((double) PROCESSING_NODE_THUMB_WIDTH / outputMat.width(),
+                                    (double) PROCESSING_NODE_THUMB_HEIGHT / outputMat.height());
             Imgproc.resize(outputMat, resized,
                 new Size(outputMat.width() * scale, outputMat.height() * scale));
 
@@ -1434,7 +1553,7 @@ public class PipelineEditor {
             this.parentCanvas = canvas;
             this.x = x;
             this.y = y;
-            this.height = 120;
+            this.height = SOURCE_NODE_HEIGHT;
 
             createOverlay();
         }
@@ -1444,6 +1563,14 @@ public class PipelineEditor {
             overlayComposite.setLayout(new GridLayout(1, false));
             overlayComposite.setBounds(x + 5, y + 25, width - 10, height - 30);
 
+            // Thumbnail label first
+            Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
+            GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
+            gd.heightHint = SOURCE_NODE_THUMB_HEIGHT;
+            thumbnailLabel.setLayoutData(gd);
+            thumbnailLabel.setText("No image");
+
+            // Choose button below thumbnail
             Button chooseBtn = new Button(overlayComposite, SWT.PUSH);
             chooseBtn.setText("Choose...");
             chooseBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -1453,12 +1580,6 @@ public class PipelineEditor {
                     chooseImage();
                 }
             });
-
-            Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
-            GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
-            gd.heightHint = 60; // Increased from 50 to ensure enough room
-            thumbnailLabel.setLayoutData(gd);
-            thumbnailLabel.setText("No image");
 
             // Ensure the overlay is visible
             overlayComposite.moveAbove(null);
@@ -1523,7 +1644,8 @@ public class PipelineEditor {
 
                 // Create thumbnail
                 Mat resized = new Mat();
-                double scale = Math.min(140.0 / firstFrame.width(), 45.0 / firstFrame.height());
+                double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / firstFrame.width(),
+                                        (double) SOURCE_NODE_THUMB_HEIGHT / firstFrame.height());
                 Imgproc.resize(firstFrame, resized,
                     new Size(firstFrame.width() * scale, firstFrame.height() * scale));
 
@@ -1532,10 +1654,10 @@ public class PipelineEditor {
                 }
                 thumbnail = matToSwtImage(resized);
 
-                // Update the label
+                // Update the label (thumbnail is now first child)
                 Control[] children = overlayComposite.getChildren();
-                if (children.length > 1 && children[1] instanceof Label) {
-                    Label label = (Label) children[1];
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
                     label.setText("");
                     label.setImage(thumbnail);
                 }
@@ -1587,7 +1709,8 @@ public class PipelineEditor {
 
             // Create thumbnail
             Mat resized = new Mat();
-            double scale = Math.min(140.0 / loadedImage.width(), 45.0 / loadedImage.height());
+            double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / loadedImage.width(),
+                                    (double) SOURCE_NODE_THUMB_HEIGHT / loadedImage.height());
             Imgproc.resize(loadedImage, resized,
                 new Size(loadedImage.width() * scale, loadedImage.height() * scale));
 
@@ -1613,8 +1736,8 @@ public class PipelineEditor {
                 }
                 Control[] children = overlayComposite.getChildren();
                 System.out.println("DEBUG loadImage: overlayComposite has " + children.length + " children");
-                if (children.length > 1 && children[1] instanceof Label) {
-                    Label label = (Label) children[1];
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
                     label.setText("");
                     label.setImage(thumbToSet);
 
@@ -1680,10 +1803,10 @@ public class PipelineEditor {
                 }
                 thumbnail = matToSwtImage(cached);
 
-                // Update the label
+                // Update the label (thumbnail is now first child)
                 Control[] children = overlayComposite.getChildren();
-                if (children.length > 1 && children[1] instanceof Label) {
-                    Label label = (Label) children[1];
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
                     label.setText("");
                     label.setImage(thumbnail);
                 }
@@ -1926,6 +2049,9 @@ public class PipelineEditor {
             cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
             dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
             dialog.open();
         }
     }
@@ -1972,6 +2098,7 @@ public class PipelineEditor {
 
         @Override
         public void showPropertiesDialog() {
+            System.out.println("DEBUG showPropertiesDialog: conversionIndex=" + conversionIndex + " for this=" + System.identityHashCode(this));
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Color Conversion Properties");
             dialog.setLayout(new GridLayout(2, false));
@@ -2000,6 +2127,9 @@ public class PipelineEditor {
             cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
             dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
             dialog.open();
         }
     }
@@ -2039,6 +2169,9 @@ public class PipelineEditor {
             okBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
             dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
             dialog.open();
         }
     }
@@ -2163,6 +2296,9 @@ public class PipelineEditor {
             cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
             dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
             dialog.open();
         }
     }
@@ -2232,6 +2368,9 @@ public class PipelineEditor {
             cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
             dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
             dialog.open();
         }
     }
