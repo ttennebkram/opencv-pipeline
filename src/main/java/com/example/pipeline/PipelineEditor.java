@@ -445,6 +445,7 @@ public class PipelineEditor {
                             if (nodeObj.has("gain")) gn.gain = nodeObj.get("gain").getAsDouble();
                         }
                         // InvertNode has no properties to load
+                        node.setOnChanged(() -> executePipeline());
                         nodes.add(node);
                     }
                 }
@@ -568,6 +569,7 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Color Convert", () -> addEffectNode("Grayscale"));
         createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
         createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
+        createNodeButton(toolbar, "Canny Edge", () -> addEffectNode("CannyEdge"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -877,6 +879,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("gain")) gn.gain = nodeObj.get("gain").getAsDouble();
                             }
                             // InvertNode has no properties to load
+                            node.setOnChanged(() -> executePipeline());
                             nodes.add(node);
                         }
                     }
@@ -2204,6 +2207,7 @@ public class PipelineEditor {
     private void addEffectNodeAt(String type, int x, int y) {
         ProcessingNode node = createEffectNode(type, x, y);
         if (node != null) {
+            node.setOnChanged(() -> executePipeline());
             nodes.add(node);
             canvas.redraw();
         }
@@ -2225,6 +2229,10 @@ public class PipelineEditor {
                 return new InvertNode(display, shell, x, y);
             case "Gain":
                 return new GainNode(display, shell, x, y);
+            case "CannyEdge":
+            case "Canny Edge":  // backward compatibility
+            case "Edges Canny":  // match Python name
+                return new CannyEdgeNode(display, shell, x, y);
             default:
                 // For any unknown type, create a default GaussianBlur as placeholder
                 System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
@@ -2902,6 +2910,7 @@ public class PipelineEditor {
         protected String name;
         protected Shell shell;
         protected boolean enabled = true;
+        protected Runnable onChanged;  // Callback when properties change
 
         public ProcessingNode(Display display, Shell shell, String name, int x, int y) {
             this.display = display;
@@ -2909,6 +2918,16 @@ public class PipelineEditor {
             this.name = name;
             this.x = x;
             this.y = y;
+        }
+
+        public void setOnChanged(Runnable onChanged) {
+            this.onChanged = onChanged;
+        }
+
+        protected void notifyChanged() {
+            if (onChanged != null) {
+                onChanged.run();
+            }
         }
 
         // Process input Mat and return output Mat
@@ -3072,6 +3091,7 @@ public class PipelineEditor {
                 kernelSizeY = kyScale.getSelection();
                 sigmaX = sigmaScale.getSelection() / 10.0;
                 dialog.dispose();
+                notifyChanged();
             });
 
             Button cancelBtn = new Button(buttonComp, SWT.PUSH);
@@ -3164,6 +3184,7 @@ public class PipelineEditor {
             okBtn.addListener(SWT.Selection, e -> {
                 conversionIndex = combo.getSelectionIndex();
                 dialog.dispose();
+                notifyChanged();
             });
 
             Button cancelBtn = new Button(buttonComp, SWT.PUSH);
@@ -3356,6 +3377,7 @@ public class PipelineEditor {
                 typeIndex = typeCombo.getSelectionIndex();
                 modifierIndex = modCombo.getSelectionIndex();
                 dialog.dispose();
+                notifyChanged();
             });
 
             Button cancelBtn = new Button(buttonComp, SWT.PUSH);
@@ -3442,6 +3464,150 @@ public class PipelineEditor {
                 double logVal = (gainScale.getSelection() - 50) / 50.0;
                 gain = Math.pow(10, logVal);
                 dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Canny Edge Detection node
+    static class CannyEdgeNode extends ProcessingNode {
+        private static final String[] APERTURE_SIZES = {"3", "5", "7"};
+        private static final int[] APERTURE_VALUES = {3, 5, 7};
+
+        private int threshold1 = 30;      // Lower threshold
+        private int threshold2 = 150;     // Upper threshold
+        private int apertureIndex = 0;    // Index into APERTURE_VALUES (default 3)
+        private boolean l2Gradient = false;
+
+        public CannyEdgeNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Canny Edge", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+
+            // Convert to grayscale if needed
+            Mat gray;
+            if (input.channels() == 3) {
+                gray = new Mat();
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input;
+            }
+
+            // Apply Canny edge detection
+            Mat edges = new Mat();
+            Imgproc.Canny(gray, edges, threshold1, threshold2,
+                         APERTURE_VALUES[apertureIndex], l2Gradient);
+
+            // Convert back to BGR for display
+            Mat output = new Mat();
+            Imgproc.cvtColor(edges, output, Imgproc.COLOR_GRAY2BGR);
+
+            // Clean up temp mat if we created it
+            if (gray != input) {
+                gray.release();
+            }
+            edges.release();
+
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.Canny(image, threshold1, threshold2)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Canny Edge Detection Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // Threshold 1 (lower)
+            new Label(dialog, SWT.NONE).setText("Threshold 1 (lower):");
+            Scale t1Scale = new Scale(dialog, SWT.HORIZONTAL);
+            t1Scale.setMinimum(0);
+            t1Scale.setMaximum(500);
+            t1Scale.setSelection(threshold1);
+            t1Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label t1Label = new Label(dialog, SWT.NONE);
+            t1Label.setText(String.valueOf(threshold1));
+            t1Scale.addListener(SWT.Selection, e -> t1Label.setText(String.valueOf(t1Scale.getSelection())));
+
+            // Threshold 2 (upper)
+            new Label(dialog, SWT.NONE).setText("Threshold 2 (upper):");
+            Scale t2Scale = new Scale(dialog, SWT.HORIZONTAL);
+            t2Scale.setMinimum(0);
+            t2Scale.setMaximum(500);
+            t2Scale.setSelection(threshold2);
+            t2Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label t2Label = new Label(dialog, SWT.NONE);
+            t2Label.setText(String.valueOf(threshold2));
+            t2Scale.addListener(SWT.Selection, e -> t2Label.setText(String.valueOf(t2Scale.getSelection())));
+
+            // Aperture Size (dropdown)
+            new Label(dialog, SWT.NONE).setText("Aperture Size:");
+            Combo apertureCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            apertureCombo.setItems(APERTURE_SIZES);
+            apertureCombo.select(apertureIndex);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            apertureCombo.setLayoutData(comboGd);
+
+            // L2 Gradient (checkbox)
+            org.eclipse.swt.widgets.Button l2Check = new org.eclipse.swt.widgets.Button(dialog, SWT.CHECK);
+            l2Check.setText("L2 Gradient");
+            l2Check.setSelection(l2Gradient);
+            GridData checkGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+            checkGd.horizontalSpan = 3;
+            l2Check.setLayoutData(checkGd);
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                threshold1 = t1Scale.getSelection();
+                threshold2 = t2Scale.getSelection();
+                apertureIndex = apertureCombo.getSelectionIndex();
+                l2Gradient = l2Check.getSelection();
+                dialog.dispose();
+                notifyChanged();
             });
 
             Button cancelBtn = new Button(buttonComp, SWT.PUSH);
