@@ -13,6 +13,9 @@ import org.opencv.imgproc.Imgproc;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
@@ -44,6 +47,12 @@ public class PipelineEditor {
     private List<String> recentFiles = new ArrayList<>();
     private Combo recentFilesCombo;
     private Menu openRecentMenu;
+
+    // Threading state
+    private AtomicBoolean pipelineRunning = new AtomicBoolean(false);
+    private List<Thread> nodeThreads = new ArrayList<>();
+    private List<BlockingQueue<Mat>> queues = new ArrayList<>();
+    private Button startStopBtn;
 
     public static void main(String[] args) {
         // Load OpenCV native library
@@ -185,10 +194,7 @@ public class PipelineEditor {
         // On macOS, add Restart to the application menu (after Quit)
         Menu systemMenu = display.getSystemMenu();
         if (systemMenu != null) {
-            // Add separator after Quit
-            new MenuItem(systemMenu, SWT.SEPARATOR);
-
-            // Add Restart item at the end
+            // Add Restart item at the end (no separator - it's a logical group with Quit)
             MenuItem restartItem = new MenuItem(systemMenu, SWT.PUSH);
             restartItem.setText("Restart\tCmd+R");
             restartItem.setAccelerator(SWT.MOD1 + 'R');
@@ -464,7 +470,7 @@ public class PipelineEditor {
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         Label recentLabel = new Label(toolbar, SWT.NONE);
-        recentLabel.setText("Recent Files:");
+        recentLabel.setText("Recent Pipelines:");
         recentLabel.setFont(boldFont);
 
         // Recent files combo
@@ -488,25 +494,29 @@ public class PipelineEditor {
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Run button
+        // Start/Stop button for continuous threaded execution
+        startStopBtn = new Button(toolbar, SWT.PUSH);
+        startStopBtn.setText("Start Pipeline");
+        startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        startStopBtn.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                if (pipelineRunning.get()) {
+                    stopPipeline();
+                } else {
+                    startPipeline();
+                }
+            }
+        });
+
+        // Run once button
         Button runBtn = new Button(toolbar, SWT.PUSH);
-        runBtn.setText("Run Pipeline");
+        runBtn.setText("Run Once");
         runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         runBtn.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 executePipeline();
-            }
-        });
-
-        // Restart button
-        Button restartBtn = new Button(toolbar, SWT.PUSH);
-        restartBtn.setText("Restart");
-        restartBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        restartBtn.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                restartApplication();
             }
         });
     }
@@ -812,6 +822,205 @@ public class PipelineEditor {
         // Update preview and redraw canvas to show thumbnails
         updatePreview(currentMat);
         canvas.redraw();
+    }
+
+    private void startPipeline() {
+        if (pipelineRunning.get()) return;
+
+        // Find source node
+        ImageSourceNode sourceNode = null;
+        for (PipelineNode node : nodes) {
+            if (node instanceof ImageSourceNode) {
+                boolean hasIncoming = false;
+                for (Connection conn : connections) {
+                    if (conn.target == node) {
+                        hasIncoming = true;
+                        break;
+                    }
+                }
+                if (!hasIncoming) {
+                    sourceNode = (ImageSourceNode) node;
+                    break;
+                }
+            }
+        }
+
+        if (sourceNode == null || sourceNode.getLoadedImage() == null) {
+            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+            mb.setText("No Source");
+            mb.setMessage("Please load an image in the source node first.");
+            mb.open();
+            return;
+        }
+
+        // Build ordered list of nodes following connections
+        List<PipelineNode> orderedNodes = new ArrayList<>();
+        orderedNodes.add(sourceNode);
+        PipelineNode current = sourceNode;
+        while (current != null) {
+            PipelineNode next = null;
+            for (Connection conn : connections) {
+                if (conn.source == current) {
+                    next = conn.target;
+                    orderedNodes.add(next);
+                    break;
+                }
+            }
+            current = next;
+        }
+
+        if (orderedNodes.size() < 2) {
+            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+            mb.setText("No Pipeline");
+            mb.setMessage("Connect at least one processing node to the source.");
+            mb.open();
+            return;
+        }
+
+        // Clear old state
+        stopPipeline();
+
+        // Create queues between nodes (N-1 queues for N nodes)
+        queues.clear();
+        for (int i = 0; i < orderedNodes.size() - 1; i++) {
+            queues.add(new LinkedBlockingQueue<>(3)); // Capacity 3 for backpressure
+        }
+
+        pipelineRunning.set(true);
+        final ImageSourceNode finalSource = sourceNode;
+
+        // Create threads for each node
+        for (int i = 0; i < orderedNodes.size(); i++) {
+            final int index = i;
+            final PipelineNode node = orderedNodes.get(i);
+            final BlockingQueue<Mat> inputQueue = (i > 0) ? queues.get(i - 1) : null;
+            final BlockingQueue<Mat> outputQueue = (i < queues.size()) ? queues.get(i) : null;
+
+            Thread t = new Thread(() -> {
+                int basePriority = Thread.currentThread().getPriority();
+                int currentPriority = basePriority;
+                try {
+                    while (pipelineRunning.get() && !Thread.currentThread().isInterrupted()) {
+                        Mat inputMat = null;
+                        Mat outputMat = null;
+
+                        if (node instanceof ImageSourceNode) {
+                            // Source node: generate frames
+                            inputMat = finalSource.getLoadedImage().clone();
+                            outputMat = inputMat;
+                        } else {
+                            // Processing node: read from input queue
+                            inputMat = inputQueue.take();
+                            if (node instanceof ProcessingNode) {
+                                ProcessingNode pn = (ProcessingNode) node;
+                                outputMat = applyProcessing(inputMat, pn.getName());
+                                inputMat.release(); // Release input after processing
+                            } else {
+                                outputMat = inputMat;
+                            }
+                        }
+
+                        // Update thumbnail on UI thread
+                        final Mat thumbMat = outputMat.clone();
+                        display.asyncExec(() -> {
+                            node.setOutputMat(thumbMat);
+                            canvas.redraw();
+
+                            // Update preview if this is the last node
+                            if (outputQueue == null) {
+                                updatePreview(thumbMat);
+                            }
+                        });
+
+                        // Pass to next node
+                        if (outputQueue != null) {
+                            // Adaptive priority: adjust by 1 increment at a time
+                            int queueSize = outputQueue.size();
+
+                            if (queueSize >= 1) {
+                                // Queue backing up - lower priority by 1
+                                if (currentPriority > Thread.MIN_PRIORITY) {
+                                    currentPriority--;
+                                    Thread.currentThread().setPriority(currentPriority);
+                                }
+                            } else {
+                                // Queue empty - raise priority by 1 toward base
+                                if (currentPriority < basePriority) {
+                                    currentPriority++;
+                                    Thread.currentThread().setPriority(currentPriority);
+                                }
+                            }
+
+                            outputQueue.put(outputMat);
+                        } else {
+                            // Last node - cleanup
+                            outputMat.release();
+                        }
+
+                        // Throttle source node to ~30fps
+                        if (node instanceof ImageSourceNode) {
+                            Thread.sleep(33);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            // Set priority based on node type
+            if (node instanceof ImageSourceNode) {
+                t.setPriority(Thread.NORM_PRIORITY + 2); // Higher for source
+            } else {
+                t.setPriority(Thread.NORM_PRIORITY - 1); // Lower for processing
+            }
+            t.setDaemon(true);
+            t.setName("Pipeline-" + node.getClass().getSimpleName() + "-" + i);
+            nodeThreads.add(t);
+        }
+
+        // Start all threads
+        for (Thread t : nodeThreads) {
+            t.start();
+        }
+
+        // Update button
+        startStopBtn.setText("Stop Pipeline");
+    }
+
+    private void stopPipeline() {
+        pipelineRunning.set(false);
+
+        // Interrupt all threads
+        for (Thread t : nodeThreads) {
+            t.interrupt();
+        }
+
+        // Wait for threads to finish (with timeout)
+        for (Thread t : nodeThreads) {
+            try {
+                t.join(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // Clear queues
+        for (BlockingQueue<Mat> queue : queues) {
+            Mat m;
+            while ((m = queue.poll()) != null) {
+                m.release();
+            }
+        }
+
+        nodeThreads.clear();
+        queues.clear();
+
+        // Update button
+        if (startStopBtn != null && !startStopBtn.isDisposed()) {
+            startStopBtn.setText("Start Pipeline");
+        }
     }
 
     private Mat applyProcessing(Mat input, String operation) {
