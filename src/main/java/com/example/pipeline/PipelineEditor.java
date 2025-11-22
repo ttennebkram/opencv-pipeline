@@ -1989,6 +1989,20 @@ public class PipelineEditor {
             dialog.setText("Gaussian Blur Properties");
             dialog.setLayout(new GridLayout(2, false));
 
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 2;
+            sep.setLayoutData(sepGd);
+
             // Kernel Size X
             new Label(dialog, SWT.NONE).setText("Kernel Size X:");
             Scale kxScale = new Scale(dialog, SWT.HORIZONTAL);
@@ -2103,6 +2117,20 @@ public class PipelineEditor {
             dialog.setText("Color Conversion Properties");
             dialog.setLayout(new GridLayout(2, false));
 
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 2;
+            sep.setLayoutData(sepGd);
+
             new Label(dialog, SWT.NONE).setText("Conversion:");
             Combo combo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
             combo.setItems(CONVERSION_NAMES);
@@ -2160,6 +2188,15 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Invert Properties");
             dialog.setLayout(new GridLayout(1, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            sep.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
             new Label(dialog, SWT.NONE).setText("Inverts all pixel values (negative image).\nNo parameters to configure.");
 
@@ -2237,6 +2274,20 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Threshold Properties");
             dialog.setLayout(new GridLayout(2, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 2;
+            sep.setLayoutData(sepGd);
 
             // Threshold value
             new Label(dialog, SWT.NONE).setText("Threshold:");
@@ -2331,6 +2382,20 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Gain Properties");
             dialog.setLayout(new GridLayout(2, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 2;
+            sep.setLayoutData(sepGd);
 
             new Label(dialog, SWT.NONE).setText("Gain (0.1x - 10x):");
             Scale gainScale = new Scale(dialog, SWT.HORIZONTAL);
