@@ -986,6 +986,7 @@ public class PipelineEditor {
         canvas.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseDown(MouseEvent e) {
+                canvas.setFocus();  // Ensure canvas has focus for keyboard events
                 handleMouseDown(e);
             }
 
@@ -1002,14 +1003,91 @@ public class PipelineEditor {
 
         canvas.addMouseMoveListener(e -> handleMouseMove(e));
 
-        // Keyboard shortcuts
-        canvas.addKeyListener(new org.eclipse.swt.events.KeyAdapter() {
-            @Override
-            public void keyPressed(org.eclipse.swt.events.KeyEvent e) {
-                // Cmd-A to select all nodes
-                if (e.character == 'a' && (e.stateMask & SWT.MOD1) != 0) {
-                    selectedNodes.addAll(nodes);
+        // Keyboard shortcuts - use Display filter to catch key events reliably on macOS
+        display.addFilter(SWT.KeyDown, event -> {
+            // Only handle keys when our shell is active
+            if (shell.isDisposed() || !shell.isVisible()) return;
+
+            // Cmd-A to select all nodes
+            if (event.character == 'a' && (event.stateMask & SWT.MOD1) != 0) {
+                selectedNodes.addAll(nodes);
+                canvas.redraw();
+                event.doit = false; // Consume the event
+            }
+            // Delete or Backspace to delete selected nodes and connections
+            // SWT.DEL = 127 (forward delete), SWT.BS = 8 (backspace)
+            else if (event.keyCode == SWT.DEL || event.keyCode == SWT.BS ||
+                     event.character == '\b' || event.character == 127) {
+                boolean hasSelection = !selectedNodes.isEmpty() || !selectedConnections.isEmpty();
+
+                // Delete selected connections first
+                if (!selectedConnections.isEmpty()) {
+                    connections.removeAll(selectedConnections);
+                    selectedConnections.clear();
+                }
+
+                if (!selectedNodes.isEmpty()) {
+                    // Convert connections to dangling connections before removing nodes
+                    List<Connection> connectionsToRemove = new ArrayList<>();
+                    for (Connection conn : connections) {
+                        boolean sourceDeleted = selectedNodes.contains(conn.source);
+                        boolean targetDeleted = selectedNodes.contains(conn.target);
+
+                        if (sourceDeleted && targetDeleted) {
+                            // Both ends deleted - remove the connection entirely
+                            connectionsToRemove.add(conn);
+                        } else if (sourceDeleted) {
+                            // Source deleted - convert to reverse dangling connection
+                            // (has target but dangling source)
+                            Point sourcePoint = conn.source.getOutputPoint();
+                            reverseDanglingConnections.add(new ReverseDanglingConnection(
+                                conn.target, sourcePoint));
+                            connectionsToRemove.add(conn);
+                        } else if (targetDeleted) {
+                            // Target deleted - convert to dangling connection
+                            // (has source but dangling target)
+                            Point targetPoint = conn.target.getInputPoint();
+                            danglingConnections.add(new DanglingConnection(
+                                conn.source, targetPoint));
+                            connectionsToRemove.add(conn);
+                        }
+                    }
+                    connections.removeAll(connectionsToRemove);
+
+                    // Convert dangling connections where the source is deleted to free connections
+                    List<DanglingConnection> danglingToRemove = new ArrayList<>();
+                    for (DanglingConnection dc : danglingConnections) {
+                        if (selectedNodes.contains(dc.source)) {
+                            Point sourcePoint = dc.source.getOutputPoint();
+                            freeConnections.add(new FreeConnection(sourcePoint, dc.freeEnd));
+                            danglingToRemove.add(dc);
+                        }
+                    }
+                    danglingConnections.removeAll(danglingToRemove);
+
+                    // Convert reverse dangling connections where the target is deleted to free connections
+                    List<ReverseDanglingConnection> reverseDanglingToRemove = new ArrayList<>();
+                    for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+                        if (selectedNodes.contains(rdc.target)) {
+                            Point targetPoint = rdc.target.getInputPoint();
+                            freeConnections.add(new FreeConnection(rdc.freeEnd, targetPoint));
+                            reverseDanglingToRemove.add(rdc);
+                        }
+                    }
+                    reverseDanglingConnections.removeAll(reverseDanglingToRemove);
+
+                    // Remove the nodes
+                    nodes.removeAll(selectedNodes);
+
+                    // Clear selection
+                    selectedNodes.clear();
+                }
+
+                // If we had any selection, redraw and re-execute pipeline
+                if (hasSelection) {
                     canvas.redraw();
+                    executePipeline();
+                    event.doit = false; // Consume the event
                 }
             }
         });
@@ -1423,11 +1501,19 @@ public class PipelineEditor {
         }
 
         // Draw connections on top of nodes
-        gc.setLineWidth(2);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint();
             Point end = conn.target.getInputPoint();
+
+            // Highlight selected connections
+            if (selectedConnections.contains(conn)) {
+                gc.setLineWidth(3);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+            } else {
+                gc.setLineWidth(2);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+            }
+
             gc.drawLine(start.x, start.y, end.x, end.y);
             drawArrow(gc, start, end);
         }
@@ -1574,7 +1660,7 @@ public class PipelineEditor {
                         return;
                     }
                     // Check if there's a reverse dangling connection to this input
-                    // If so, we should yank it to create a FreeConnection
+                    // If so, allow dragging the arrow end to reconnect to a different node
                     ReverseDanglingConnection reverseToYank = null;
                     for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
                         if (dangling.target == node) {
@@ -1583,9 +1669,12 @@ public class PipelineEditor {
                         }
                     }
                     if (reverseToYank != null) {
-                        System.out.println("DEBUG: Yanking reverse dangling connection from input point - creating FreeConnection");
+                        System.out.println("DEBUG: Picking up reverse dangling connection arrow end - drag to reconnect");
                         reverseDanglingConnections.remove(reverseToYank);
-                        freeConnections.add(new FreeConnection(reverseToYank.freeEnd, new Point(inputPoint.x, inputPoint.y)));
+                        // Set up dragging the arrow end while the source end stays fixed
+                        freeConnectionFixedEnd = reverseToYank.freeEnd; // The source end stays put
+                        draggingFreeConnectionSource = false; // We're dragging the arrow/target end
+                        connectionEndPoint = clickPoint;
                         canvas.redraw();
                         return;
                     }
