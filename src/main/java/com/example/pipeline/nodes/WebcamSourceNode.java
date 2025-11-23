@@ -27,10 +27,16 @@ public class WebcamSourceNode extends PipelineNode {
     private int resolutionIndex = 1; // Default to 640x480
     private boolean mirrorHorizontal = true;
     private boolean skipAutoInit = false; // Skip auto-init for deserialization
+    private int fpsIndex = 2; // Default to 10 fps
+
+    // FPS options
+    private static final String[] FPS_NAMES = {"1 fps", "5 fps", "10 fps", "15 fps", "30 fps"};
+    private static final double[] FPS_VALUES = {1.0, 5.0, 10.0, 15.0, 30.0};
 
     // Video capture
     private VideoCapture videoCapture = null;
     private boolean isCapturing = false;
+    private volatile boolean thumbnailUpdatePending = false; // Skip updates if one is pending
 
     // Resolution options
     private static final String[] RESOLUTION_NAMES = {
@@ -69,6 +75,8 @@ public class WebcamSourceNode extends PipelineNode {
     public void setResolutionIndex(int v) { resolutionIndex = v; }
     public boolean isMirrorHorizontal() { return mirrorHorizontal; }
     public void setMirrorHorizontal(boolean v) { mirrorHorizontal = v; }
+    public int getFpsIndex() { return fpsIndex; }
+    public void setFpsIndex(int v) { fpsIndex = v; }
 
     private void createOverlay() {
         overlayComposite = new Composite(parentCanvas, SWT.NONE);
@@ -232,6 +240,11 @@ public class WebcamSourceNode extends PipelineNode {
     }
 
     private void updateThumbnail(Mat frame) {
+        // Skip if an update is already pending to prevent queue backup
+        if (thumbnailUpdatePending) {
+            return;
+        }
+
         // Frame is already processed (mirrored if needed), just create thumbnail
         // Create thumbnail Mat (can be done on any thread)
         Mat resized = new Mat();
@@ -255,22 +268,30 @@ public class WebcamSourceNode extends PipelineNode {
         byte[] data = new byte[w * h * 3];
         rgb.get(0, 0, data);
 
-        // Create ImageData (can be done on any thread)
+        // Create ImageData with direct data copy (much faster than setPixel loop)
         PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
         ImageData imageData = new ImageData(w, h, 24, palette);
+
+        // Copy data row by row to handle scanline padding
+        int bytesPerLine = imageData.bytesPerLine;
         for (int y = 0; y < h; y++) {
-            for (int xp = 0; xp < w; xp++) {
-                int srcIdx = (y * w + xp) * 3;
-                int r = data[srcIdx] & 0xFF;
-                int g = data[srcIdx + 1] & 0xFF;
-                int b = data[srcIdx + 2] & 0xFF;
-                imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
+            int srcOffset = y * w * 3;
+            int dstOffset = y * bytesPerLine;
+            for (int x = 0; x < w; x++) {
+                int srcIdx = srcOffset + x * 3;
+                int dstIdx = dstOffset + x * 3;
+                // Direct copy - data is already RGB from cvtColor
+                imageData.data[dstIdx] = data[srcIdx];         // R
+                imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
+                imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
             }
         }
 
         // Update label with thumbnail on UI thread (Image must be created on UI thread)
         if (!display.isDisposed()) {
+            thumbnailUpdatePending = true;
             display.asyncExec(() -> {
+                thumbnailUpdatePending = false;
                 if (overlayComposite.isDisposed()) return;
 
                 // Create Image on UI thread
@@ -322,15 +343,75 @@ public class WebcamSourceNode extends PipelineNode {
     public void setOutputMat(Mat mat) {
         this.outputMat = mat;
         // Update the label-based thumbnail for source nodes
+        // This is called from UI thread via asyncExec, so update directly
         if (mat != null && !mat.empty()) {
-            updateThumbnail(mat);
+            updateThumbnailSync(mat);
         }
     }
 
+    // Synchronous thumbnail update for when already on UI thread
+    private void updateThumbnailSync(Mat frame) {
+        // Create thumbnail Mat
+        Mat resized = new Mat();
+        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
+                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
+        Imgproc.resize(frame, resized,
+            new Size(frame.width() * scale, frame.height() * scale));
+
+        // Convert to RGB
+        Mat rgb = new Mat();
+        if (resized.channels() == 3) {
+            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
+        } else if (resized.channels() == 1) {
+            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
+        } else {
+            rgb = resized;
+        }
+
+        int w = rgb.width();
+        int h = rgb.height();
+        byte[] data = new byte[w * h * 3];
+        rgb.get(0, 0, data);
+
+        // Create ImageData
+        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+        ImageData imageData = new ImageData(w, h, 24, palette);
+
+        int bytesPerLine = imageData.bytesPerLine;
+        for (int y = 0; y < h; y++) {
+            int srcOffset = y * w * 3;
+            int dstOffset = y * bytesPerLine;
+            for (int x = 0; x < w; x++) {
+                int srcIdx = srcOffset + x * 3;
+                int dstIdx = dstOffset + x * 3;
+                imageData.data[dstIdx] = data[srcIdx];
+                imageData.data[dstIdx + 1] = data[srcIdx + 1];
+                imageData.data[dstIdx + 2] = data[srcIdx + 2];
+            }
+        }
+
+        // Update directly on UI thread
+        if (!overlayComposite.isDisposed()) {
+            final Image oldThumbnail = thumbnail;
+            thumbnail = new Image(display, imageData);
+
+            Control[] children = overlayComposite.getChildren();
+            if (children.length > 0 && children[0] instanceof Label) {
+                Label label = (Label) children[0];
+                label.setText("");
+                label.setImage(thumbnail);
+            }
+
+            if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
+                oldThumbnail.dispose();
+            }
+        }
+
+        resized.release();
+    }
+
     public double getFps() {
-        // Limit FPS to prevent UI thread overload from asyncExec calls
-        // TODO: Make this configurable in properties dialog
-        return 1.0;
+        return FPS_VALUES[fpsIndex];
     }
 
     private Image matToSwtImage(Mat mat) {
@@ -463,6 +544,13 @@ public class WebcamSourceNode extends PipelineNode {
         mirrorCheck.setText("Mirror Left/Right");
         mirrorCheck.setSelection(mirrorHorizontal);
 
+        // FPS selector
+        new Label(dialog, SWT.NONE).setText("FPS:");
+        Combo fpsCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+        fpsCombo.setItems(FPS_NAMES);
+        fpsCombo.select(fpsIndex);
+        fpsCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
@@ -476,12 +564,14 @@ public class WebcamSourceNode extends PipelineNode {
             int newCameraIndex = cameraCombo.getSelectionIndex();
             int newResolution = resCombo.getSelectionIndex();
             boolean newMirror = mirrorCheck.getSelection();
+            int newFps = fpsCombo.getSelectionIndex();
 
             boolean needReopen = (newCameraIndex != cameraIndex) || (newResolution != resolutionIndex);
 
             cameraIndex = newCameraIndex;
             resolutionIndex = newResolution;
             mirrorHorizontal = newMirror;
+            fpsIndex = newFps;
 
             if (needReopen) {
                 openCamera();

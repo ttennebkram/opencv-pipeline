@@ -487,6 +487,9 @@ public class PipelineEditor {
                     if (nodeObj.has("mirrorHorizontal")) {
                         node.setMirrorHorizontal(nodeObj.get("mirrorHorizontal").getAsBoolean());
                     }
+                    if (nodeObj.has("fpsIndex")) {
+                        node.setFpsIndex(nodeObj.get("fpsIndex").getAsInt());
+                    }
                     // Re-open camera with deserialized settings on background thread
                     new Thread(() -> node.openCamera()).start();
                     nodes.add(node);
@@ -909,6 +912,7 @@ public class PipelineEditor {
                     nodeObj.addProperty("cameraIndex", wsn.getCameraIndex());
                     nodeObj.addProperty("resolutionIndex", wsn.getResolutionIndex());
                     nodeObj.addProperty("mirrorHorizontal", wsn.isMirrorHorizontal());
+                    nodeObj.addProperty("fpsIndex", wsn.getFpsIndex());
                 } else if (node instanceof ProcessingNode) {
                     nodeObj.addProperty("type", "Processing");
                     nodeObj.addProperty("name", ((ProcessingNode) node).getName());
@@ -2664,6 +2668,15 @@ public class PipelineEditor {
     }
 
     private void handleMouseMove(MouseEvent e) {
+        // Safety check: if no mouse button is pressed, reset drag state
+        // This handles cases where mouseUp was missed (e.g., overlay capture)
+        if ((e.stateMask & SWT.BUTTON_MASK) == 0) {
+            if (isDragging) {
+                isDragging = false;
+                selectedNode = null;
+            }
+        }
+
         if (isDragging && selectedNode != null) {
             // Calculate the delta movement
             int deltaX = e.x - dragOffset.x - selectedNode.x;

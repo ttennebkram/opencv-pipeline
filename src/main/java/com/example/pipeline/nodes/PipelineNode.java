@@ -27,6 +27,7 @@ public abstract class PipelineNode {
     public int height = NODE_HEIGHT;
     protected Image thumbnail;
     protected Mat outputMat;
+    protected volatile boolean thumbnailUpdatePending = false;
 
     public abstract void paint(GC gc);
 
@@ -137,18 +138,22 @@ public abstract class PipelineNode {
         byte[] data = new byte[w * h * 3];
         rgb.get(0, 0, data);
 
-        // Create ImageData with proper scanline padding
+        // Create ImageData with direct data copy (much faster than setPixel loop)
         PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
         ImageData imageData = new ImageData(w, h, 24, palette);
 
         // Copy data row by row to handle scanline padding
+        int bytesPerLine = imageData.bytesPerLine;
         for (int row = 0; row < h; row++) {
+            int srcOffset = row * w * 3;
+            int dstOffset = row * bytesPerLine;
             for (int col = 0; col < w; col++) {
-                int srcIdx = (row * w + col) * 3;
-                int r = data[srcIdx] & 0xFF;
-                int g = data[srcIdx + 1] & 0xFF;
-                int b = data[srcIdx + 2] & 0xFF;
-                imageData.setPixel(col, row, (r << 16) | (g << 8) | b);
+                int srcIdx = srcOffset + col * 3;
+                int dstIdx = dstOffset + col * 3;
+                // Direct copy - data is already RGB from cvtColor
+                imageData.data[dstIdx] = data[srcIdx];         // R
+                imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
+                imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
             }
         }
 
