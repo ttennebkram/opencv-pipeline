@@ -1981,6 +1981,18 @@ public class PipelineEditor {
     private void paintCanvas(GC gc) {
         gc.setAntialias(SWT.ON);
 
+        // Draw grid background
+        Rectangle bounds = canvas.getClientArea();
+        int gridSize = 20;
+        gc.setForeground(new Color(230, 230, 230));
+        gc.setLineWidth(1);
+        for (int x = 0; x < bounds.width; x += gridSize) {
+            gc.drawLine(x, 0, x, bounds.height);
+        }
+        for (int y = 0; y < bounds.height; y += gridSize) {
+            gc.drawLine(0, y, bounds.width, y);
+        }
+
         // Draw nodes first (so connections appear on top)
         for (PipelineNode node : nodes) {
             node.paint(gc);
