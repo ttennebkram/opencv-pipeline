@@ -51,7 +51,7 @@ public class MeanShiftFilterNode extends ProcessingNode {
 
     @Override
     public String getDisplayName() {
-        return "Mean Shift";
+        return "Mean Shift Blur";
     }
 
     @Override

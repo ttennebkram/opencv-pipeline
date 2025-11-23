@@ -45,7 +45,7 @@ public class BilateralFilterNode extends ProcessingNode {
 
     @Override
     public String getDisplayName() {
-        return "Bilateral Filter";
+        return "Bilateral Blur";
     }
 
     @Override
