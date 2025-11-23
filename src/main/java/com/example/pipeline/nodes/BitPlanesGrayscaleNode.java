@@ -14,6 +14,13 @@ import org.opencv.imgproc.Imgproc;
  * Bit Plane Decomposition node for grayscale images.
  */
 public class BitPlanesGrayscaleNode extends ProcessingNode {
+    // Slider constants for logarithmic gain control
+    private static final int GAIN_SLIDER_MIN = 0;
+    private static final int GAIN_SLIDER_MAX = 200;
+    private static final int GAIN_SLIDER_CENTER = 100;
+    private static final double GAIN_SLIDER_SCALE = 100.0;
+    private static final int GAIN_SLIDER_WIDTH = 244;
+
     // 8 bit planes (index 0 = bit 7 MSB, index 7 = bit 0 LSB)
     private boolean[] bitEnabled = {true, true, true, true, true, true, true, true};
     private double[] bitGain = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
@@ -168,16 +175,18 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
             checkButtons[i] = new Button(dialog, SWT.CHECK);
             checkButtons[i].setSelection(bitEnabled[i]);
 
-            // Gain slider (scaled: 1-100 maps to 0.1-10.0)
+            // Gain slider (logarithmic: 0-200 maps to 0.1x-10x)
             gainScales[i] = new Scale(dialog, SWT.HORIZONTAL);
-            gainScales[i].setMinimum(1);
-            gainScales[i].setMaximum(100);
-            gainScales[i].setSelection((int)(bitGain[i] * 10));
-            gainScales[i].setLayoutData(new GridData(150, SWT.DEFAULT));
+            gainScales[i].setMinimum(GAIN_SLIDER_MIN);
+            gainScales[i].setMaximum(GAIN_SLIDER_MAX);
+            // Convert gain to slider: slider = log10(gain) * SCALE + CENTER
+            int sliderVal = (int)(Math.log10(bitGain[i]) * GAIN_SLIDER_SCALE + GAIN_SLIDER_CENTER);
+            gainScales[i].setSelection(sliderVal);
+            gainScales[i].setLayoutData(new GridData(GAIN_SLIDER_WIDTH, SWT.DEFAULT));
 
             // Gain label
             gainLabels[i] = new Label(dialog, SWT.NONE);
-            gainLabels[i].setText(String.format("%.1fx", bitGain[i]));
+            gainLabels[i].setText(String.format("%.2fx", bitGain[i]));
             GridData lblGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
             lblGd.widthHint = 50;
             gainLabels[i].setLayoutData(lblGd);
@@ -185,8 +194,9 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
             // Update label when scale changes
             final int idx = i;
             gainScales[i].addListener(SWT.Selection, e -> {
-                double val = gainScales[idx].getSelection() / 10.0;
-                gainLabels[idx].setText(String.format("%.1fx", val));
+                // Convert slider to gain: gain = 10^((slider - CENTER) / SCALE)
+                double val = Math.pow(10, (gainScales[idx].getSelection() - GAIN_SLIDER_CENTER) / GAIN_SLIDER_SCALE);
+                gainLabels[idx].setText(String.format("%.2fx", val));
             });
         }
 
@@ -202,7 +212,8 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
         okBtn.addListener(SWT.Selection, e -> {
             for (int i = 0; i < 8; i++) {
                 bitEnabled[i] = checkButtons[i].getSelection();
-                bitGain[i] = gainScales[i].getSelection() / 10.0;
+                // Convert slider to gain: gain = 10^((slider - CENTER) / SCALE)
+                bitGain[i] = Math.pow(10, (gainScales[i].getSelection() - GAIN_SLIDER_CENTER) / GAIN_SLIDER_SCALE);
             }
             dialog.dispose();
             notifyChanged();

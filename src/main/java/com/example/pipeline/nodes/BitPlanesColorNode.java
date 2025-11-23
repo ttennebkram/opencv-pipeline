@@ -19,6 +19,13 @@ import java.util.List;
  * Color Bit Plane Decomposition node for RGB images.
  */
 public class BitPlanesColorNode extends ProcessingNode {
+    // Slider constants for logarithmic gain control
+    private static final int GAIN_SLIDER_MIN = 0;
+    private static final int GAIN_SLIDER_MAX = 200;
+    private static final int GAIN_SLIDER_CENTER = 100;
+    private static final double GAIN_SLIDER_SCALE = 100.0;
+    private static final int GAIN_SLIDER_WIDTH = 244;
+
     // 3 channels × 8 bit planes (index 0 = bit 7 MSB, index 7 = bit 0 LSB)
     // Order: Red, Green, Blue
     private boolean[][] bitEnabled = new boolean[3][8];
@@ -192,16 +199,18 @@ public class BitPlanesColorNode extends ProcessingNode {
                 checkButtons[c][i] = new Button(tabContent, SWT.CHECK);
                 checkButtons[c][i].setSelection(bitEnabled[c][i]);
 
-                // Gain slider (scaled: 1-100 maps to 0.1-10.0)
+                // Gain slider (logarithmic: 0-200 maps to 0.1x-10x)
                 gainScales[c][i] = new Scale(tabContent, SWT.HORIZONTAL);
-                gainScales[c][i].setMinimum(1);
-                gainScales[c][i].setMaximum(100);
-                gainScales[c][i].setSelection((int)(bitGain[c][i] * 10));
-                gainScales[c][i].setLayoutData(new GridData(150, SWT.DEFAULT));
+                gainScales[c][i].setMinimum(GAIN_SLIDER_MIN);
+                gainScales[c][i].setMaximum(GAIN_SLIDER_MAX);
+                // Convert gain to slider: slider = log10(gain) * SCALE + CENTER
+                int sliderVal = (int)(Math.log10(bitGain[c][i]) * GAIN_SLIDER_SCALE + GAIN_SLIDER_CENTER);
+                gainScales[c][i].setSelection(sliderVal);
+                gainScales[c][i].setLayoutData(new GridData(GAIN_SLIDER_WIDTH, SWT.DEFAULT));
 
                 // Gain label
                 gainLabels[c][i] = new Label(tabContent, SWT.NONE);
-                gainLabels[c][i].setText(String.format("%.1fx", bitGain[c][i]));
+                gainLabels[c][i].setText(String.format("%.2fx", bitGain[c][i]));
                 GridData lblGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
                 lblGd.widthHint = 50;
                 gainLabels[c][i].setLayoutData(lblGd);
@@ -210,8 +219,9 @@ public class BitPlanesColorNode extends ProcessingNode {
                 final int channel = c;
                 final int idx = i;
                 gainScales[c][i].addListener(SWT.Selection, e -> {
-                    double val = gainScales[channel][idx].getSelection() / 10.0;
-                    gainLabels[channel][idx].setText(String.format("%.1fx", val));
+                    // Convert slider to gain: gain = 10^((slider - CENTER) / SCALE)
+                    double val = Math.pow(10, (gainScales[channel][idx].getSelection() - GAIN_SLIDER_CENTER) / GAIN_SLIDER_SCALE);
+                    gainLabels[channel][idx].setText(String.format("%.2fx", val));
                 });
             }
         }
@@ -229,7 +239,8 @@ public class BitPlanesColorNode extends ProcessingNode {
             for (int c = 0; c < 3; c++) {
                 for (int i = 0; i < 8; i++) {
                     bitEnabled[c][i] = checkButtons[c][i].getSelection();
-                    bitGain[c][i] = gainScales[c][i].getSelection() / 10.0;
+                    // Convert slider to gain: gain = 10^((slider - CENTER) / SCALE)
+                    bitGain[c][i] = Math.pow(10, (gainScales[c][i].getSelection() - GAIN_SLIDER_CENTER) / GAIN_SLIDER_SCALE);
                 }
             }
             dialog.dispose();

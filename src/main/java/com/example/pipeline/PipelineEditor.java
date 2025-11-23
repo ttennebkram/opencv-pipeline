@@ -2630,9 +2630,9 @@ public class PipelineEditor {
             return node;
         }
 
-        // For any unknown type, create a default GaussianBlur as placeholder
-        System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
-        return new GaussianBlurNode(display, shell, x, y);
+        // For any unknown type, create an UnknownNode as placeholder
+        System.err.println("Unknown effect type: " + type + ", creating UnknownNode as placeholder");
+        return new UnknownNode(display, shell, x, y, type);
     }
 
     // Normalize node type names for backward compatibility
@@ -2697,6 +2697,22 @@ public class PipelineEditor {
                 return "BlobDetector";
             case "ORB Features":
                 return "ORBFeatures";
+            case "SIFT Features":
+                return "SIFTFeatures";
+            case "Connected Components":
+                return "ConnectedComponents";
+
+            // Transform
+            case "Warp Affine":
+                return "WarpAffine";
+
+            // Filter
+            case "FFT High-Pass Filter":
+                return "FFTHighPass";
+            case "Bit Planes Grayscale":
+                return "BitPlanesGrayscale";
+            case "Bit Planes Color":
+                return "BitPlanesColor";
 
             default:
                 return type;
