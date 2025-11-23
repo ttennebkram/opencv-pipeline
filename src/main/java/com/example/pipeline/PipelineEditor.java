@@ -6,6 +6,8 @@ import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.custom.SashForm;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -565,11 +567,17 @@ public class PipelineEditor {
         effectsLabel.setFont(boldFont);
 
         createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
+        createNodeButton(toolbar, "Median Blur", () -> addEffectNode("MedianBlur"));
+        createNodeButton(toolbar, "Bilateral Filter", () -> addEffectNode("BilateralFilter"));
         createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
         createNodeButton(toolbar, "Color Convert", () -> addEffectNode("Grayscale"));
         createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
         createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
         createNodeButton(toolbar, "Canny Edge", () -> addEffectNode("CannyEdge"));
+        createNodeButton(toolbar, "Laplacian", () -> addEffectNode("Laplacian"));
+        createNodeButton(toolbar, "Sobel", () -> addEffectNode("Sobel"));
+        createNodeButton(toolbar, "Erode", () -> addEffectNode("Erode"));
+        createNodeButton(toolbar, "Dilate", () -> addEffectNode("Dilate"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -1450,6 +1458,65 @@ public class PipelineEditor {
                 Imgproc.Canny(grayForCanny, output, 100, 200);
                 break;
 
+            case "Invert":
+                // Invert: 255 - pixel value
+                Core.bitwise_not(input, output);
+                break;
+
+            case "MedianBlur":
+                // Median blur with kernel size 5 (must be odd)
+                Imgproc.medianBlur(input, output, 5);
+                break;
+
+            case "BilateralFilter":
+                // Bilateral filter: edge-preserving smoothing
+                // diameter=9, sigmaColor=75, sigmaSpace=75
+                Imgproc.bilateralFilter(input, output, 9, 75, 75);
+                break;
+
+            case "Laplacian":
+                // Laplacian edge detection
+                Mat grayForLaplacian = input;
+                if (input.channels() == 3) {
+                    grayForLaplacian = new Mat();
+                    Imgproc.cvtColor(input, grayForLaplacian, Imgproc.COLOR_BGR2GRAY);
+                }
+                Mat laplacianResult = new Mat();
+                Imgproc.Laplacian(grayForLaplacian, laplacianResult, CvType.CV_64F, 3, 1.0, 0);
+                // Convert to absolute values and back to 8-bit
+                Core.convertScaleAbs(laplacianResult, output);
+                break;
+
+            case "Sobel":
+                // Sobel edge detection (combined X and Y)
+                Mat grayForSobel = input;
+                if (input.channels() == 3) {
+                    grayForSobel = new Mat();
+                    Imgproc.cvtColor(input, grayForSobel, Imgproc.COLOR_BGR2GRAY);
+                }
+                Mat sobelX = new Mat();
+                Mat sobelY = new Mat();
+                Imgproc.Sobel(grayForSobel, sobelX, CvType.CV_64F, 1, 0, 3);
+                Imgproc.Sobel(grayForSobel, sobelY, CvType.CV_64F, 0, 1, 3);
+                Mat absX = new Mat();
+                Mat absY = new Mat();
+                Core.convertScaleAbs(sobelX, absX);
+                Core.convertScaleAbs(sobelY, absY);
+                Core.addWeighted(absX, 0.5, absY, 0.5, 0, output);
+                break;
+
+            case "Erode":
+                // Morphological erosion
+                Mat erodeKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+                Imgproc.erode(input, output, erodeKernel);
+                break;
+
+            case "Dilate":
+                // Morphological dilation
+                Mat dilateKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+                Imgproc.dilate(input, output, dilateKernel);
+                break;
+
             case "Output":
                 // Output node just passes through
                 output = input.clone();
@@ -2322,6 +2389,24 @@ public class PipelineEditor {
             case "Canny Edge":  // backward compatibility
             case "Edges Canny":  // match Python name
                 return new CannyEdgeNode(display, shell, x, y);
+            case "MedianBlur":
+            case "Median Blur":
+                return new MedianBlurNode(display, shell, x, y);
+            case "BilateralFilter":
+            case "Bilateral Filter":
+                return new BilateralFilterNode(display, shell, x, y);
+            case "Laplacian":
+            case "Edges Laplacian":
+                return new LaplacianNode(display, shell, x, y);
+            case "Sobel":
+            case "Gradient Sobel":
+                return new SobelNode(display, shell, x, y);
+            case "Erode":
+            case "Morph Erode":
+                return new ErodeNode(display, shell, x, y);
+            case "Dilate":
+            case "Morph Dilate":
+                return new DilateNode(display, shell, x, y);
             default:
                 // For any unknown type, create a default GaussianBlur as placeholder
                 System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
@@ -3705,6 +3790,706 @@ public class PipelineEditor {
 
             dialog.pack();
             // Position dialog near cursor
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Median Blur node
+    static class MedianBlurNode extends ProcessingNode {
+        private int kernelSize = 5;
+
+        public MedianBlurNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Median Blur", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            // Ensure odd kernel size
+            int ksize = (kernelSize % 2 == 0) ? kernelSize + 1 : kernelSize;
+
+            Mat output = new Mat();
+            Imgproc.medianBlur(input, output, ksize);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.medianBlur(src, ksize)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Median Blur Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // Kernel Size
+            new Label(dialog, SWT.NONE).setText("Kernel Size:");
+            Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
+            kScale.setMinimum(1);
+            kScale.setMaximum(31);
+            kScale.setSelection(kernelSize);
+            kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label kLabel = new Label(dialog, SWT.NONE);
+            kLabel.setText(String.valueOf(kernelSize));
+            kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                kernelSize = kScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Bilateral Filter node
+    static class BilateralFilterNode extends ProcessingNode {
+        private int diameter = 9;
+        private int sigmaColor = 75;
+        private int sigmaSpace = 75;
+
+        public BilateralFilterNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Bilateral Filter", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+            Mat output = new Mat();
+            Imgproc.bilateralFilter(input, output, diameter, sigmaColor, sigmaSpace);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.bilateralFilter(src, d, sigmaColor, sigmaSpace)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Bilateral Filter Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // Diameter
+            new Label(dialog, SWT.NONE).setText("Diameter:");
+            Scale dScale = new Scale(dialog, SWT.HORIZONTAL);
+            dScale.setMinimum(1);
+            dScale.setMaximum(25);
+            dScale.setSelection(diameter);
+            dScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label dLabel = new Label(dialog, SWT.NONE);
+            dLabel.setText(String.valueOf(diameter));
+            dScale.addListener(SWT.Selection, e -> dLabel.setText(String.valueOf(dScale.getSelection())));
+
+            // Sigma Color
+            new Label(dialog, SWT.NONE).setText("Sigma Color:");
+            Scale scScale = new Scale(dialog, SWT.HORIZONTAL);
+            scScale.setMinimum(1);
+            scScale.setMaximum(200);
+            scScale.setSelection(sigmaColor);
+            scScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label scLabel = new Label(dialog, SWT.NONE);
+            scLabel.setText(String.valueOf(sigmaColor));
+            scScale.addListener(SWT.Selection, e -> scLabel.setText(String.valueOf(scScale.getSelection())));
+
+            // Sigma Space
+            new Label(dialog, SWT.NONE).setText("Sigma Space:");
+            Scale ssScale = new Scale(dialog, SWT.HORIZONTAL);
+            ssScale.setMinimum(1);
+            ssScale.setMaximum(200);
+            ssScale.setSelection(sigmaSpace);
+            ssScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label ssLabel = new Label(dialog, SWT.NONE);
+            ssLabel.setText(String.valueOf(sigmaSpace));
+            ssScale.addListener(SWT.Selection, e -> ssLabel.setText(String.valueOf(ssScale.getSelection())));
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                diameter = dScale.getSelection();
+                sigmaColor = scScale.getSelection();
+                sigmaSpace = ssScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Laplacian Edge Detection node
+    static class LaplacianNode extends ProcessingNode {
+        private static final String[] KERNEL_SIZES = {"1", "3", "5", "7"};
+        private int kernelSizeIndex = 1; // Default to 3
+
+        public LaplacianNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Laplacian", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+
+            // Convert to grayscale if needed
+            Mat gray;
+            if (input.channels() == 3) {
+                gray = new Mat();
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input;
+            }
+
+            // Get kernel size
+            int ksize = Integer.parseInt(KERNEL_SIZES[kernelSizeIndex]);
+
+            // Apply Laplacian
+            Mat laplacian = new Mat();
+            Imgproc.Laplacian(gray, laplacian, CvType.CV_64F, ksize, 1, 0);
+
+            // Convert to absolute and 8-bit
+            Mat absLaplacian = new Mat();
+            Core.convertScaleAbs(laplacian, absLaplacian);
+
+            // Convert back to BGR for display
+            Mat output = new Mat();
+            Imgproc.cvtColor(absLaplacian, output, Imgproc.COLOR_GRAY2BGR);
+
+            // Clean up
+            if (gray != input) {
+                gray.release();
+            }
+            laplacian.release();
+            absLaplacian.release();
+
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.Laplacian(src, ddepth)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Laplacian Properties");
+            dialog.setLayout(new GridLayout(2, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 2;
+            sep.setLayoutData(sepGd);
+
+            // Kernel Size dropdown
+            new Label(dialog, SWT.NONE).setText("Kernel Size:");
+            Combo ksizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            ksizeCombo.setItems(KERNEL_SIZES);
+            ksizeCombo.select(kernelSizeIndex);
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 2;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                kernelSizeIndex = ksizeCombo.getSelectionIndex();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Sobel Edge Detection node
+    static class SobelNode extends ProcessingNode {
+        private static final String[] KERNEL_SIZES = {"1", "3", "5", "7"};
+        private int dx = 1;
+        private int dy = 0;
+        private int kernelSizeIndex = 1; // Default to 3
+
+        public SobelNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Sobel", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+
+            // Convert to grayscale if needed
+            Mat gray;
+            if (input.channels() == 3) {
+                gray = new Mat();
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input;
+            }
+
+            int ksize = Integer.parseInt(KERNEL_SIZES[kernelSizeIndex]);
+
+            // Compute gradients
+            Mat gradX = new Mat();
+            Mat gradY = new Mat();
+
+            if (dx > 0) {
+                Imgproc.Sobel(gray, gradX, CvType.CV_64F, dx, 0, ksize);
+            }
+            if (dy > 0) {
+                Imgproc.Sobel(gray, gradY, CvType.CV_64F, 0, dy, ksize);
+            }
+
+            Mat result;
+            if (dx > 0 && dy > 0) {
+                // Combine both gradients
+                Mat absX = new Mat();
+                Mat absY = new Mat();
+                Core.convertScaleAbs(gradX, absX);
+                Core.convertScaleAbs(gradY, absY);
+                result = new Mat();
+                Core.addWeighted(absX, 0.5, absY, 0.5, 0, result);
+                absX.release();
+                absY.release();
+            } else if (dx > 0) {
+                result = new Mat();
+                Core.convertScaleAbs(gradX, result);
+            } else {
+                result = new Mat();
+                Core.convertScaleAbs(gradY, result);
+            }
+
+            // Convert back to BGR for display
+            Mat output = new Mat();
+            Imgproc.cvtColor(result, output, Imgproc.COLOR_GRAY2BGR);
+
+            // Clean up
+            if (gray != input) {
+                gray.release();
+            }
+            if (!gradX.empty()) gradX.release();
+            if (!gradY.empty()) gradY.release();
+            result.release();
+
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.Sobel(src, ddepth, dx, dy, ksize)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Sobel Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // dx
+            new Label(dialog, SWT.NONE).setText("dx (X derivative):");
+            Scale dxScale = new Scale(dialog, SWT.HORIZONTAL);
+            dxScale.setMinimum(0);
+            dxScale.setMaximum(2);
+            dxScale.setSelection(dx);
+            dxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label dxLabel = new Label(dialog, SWT.NONE);
+            dxLabel.setText(String.valueOf(dx));
+            dxScale.addListener(SWT.Selection, e -> dxLabel.setText(String.valueOf(dxScale.getSelection())));
+
+            // dy
+            new Label(dialog, SWT.NONE).setText("dy (Y derivative):");
+            Scale dyScale = new Scale(dialog, SWT.HORIZONTAL);
+            dyScale.setMinimum(0);
+            dyScale.setMaximum(2);
+            dyScale.setSelection(dy);
+            dyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label dyLabel = new Label(dialog, SWT.NONE);
+            dyLabel.setText(String.valueOf(dy));
+            dyScale.addListener(SWT.Selection, e -> dyLabel.setText(String.valueOf(dyScale.getSelection())));
+
+            // Kernel Size
+            new Label(dialog, SWT.NONE).setText("Kernel Size:");
+            Combo ksizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            ksizeCombo.setItems(KERNEL_SIZES);
+            ksizeCombo.select(kernelSizeIndex);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            ksizeCombo.setLayoutData(comboGd);
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                dx = dxScale.getSelection();
+                dy = dyScale.getSelection();
+                // Ensure at least one derivative is non-zero
+                if (dx == 0 && dy == 0) {
+                    dx = 1;
+                }
+                kernelSizeIndex = ksizeCombo.getSelectionIndex();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Erode (Morphological) node
+    static class ErodeNode extends ProcessingNode {
+        private static final String[] SHAPE_NAMES = {"Rectangle", "Ellipse", "Cross"};
+        private static final int[] SHAPE_VALUES = {Imgproc.MORPH_RECT, Imgproc.MORPH_ELLIPSE, Imgproc.MORPH_CROSS};
+
+        private int kernelSize = 5;
+        private int shapeIndex = 0;
+        private int iterations = 1;
+
+        public ErodeNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Erode", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+
+            // Ensure odd kernel size
+            int ksize = (kernelSize % 2 == 0) ? kernelSize + 1 : kernelSize;
+
+            // Create structuring element
+            Mat kernel = Imgproc.getStructuringElement(SHAPE_VALUES[shapeIndex], new Size(ksize, ksize));
+
+            // Apply erosion
+            Mat output = new Mat();
+            Imgproc.erode(input, output, kernel, new org.opencv.core.Point(-1, -1), iterations);
+
+            kernel.release();
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.erode(src, kernel, iterations)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Erode Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // Kernel Size
+            new Label(dialog, SWT.NONE).setText("Kernel Size:");
+            Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
+            kScale.setMinimum(1);
+            kScale.setMaximum(31);
+            kScale.setSelection(kernelSize);
+            kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label kLabel = new Label(dialog, SWT.NONE);
+            kLabel.setText(String.valueOf(kernelSize));
+            kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
+
+            // Kernel Shape
+            new Label(dialog, SWT.NONE).setText("Kernel Shape:");
+            Combo shapeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            shapeCombo.setItems(SHAPE_NAMES);
+            shapeCombo.select(shapeIndex);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            shapeCombo.setLayoutData(comboGd);
+
+            // Iterations
+            new Label(dialog, SWT.NONE).setText("Iterations:");
+            Scale iterScale = new Scale(dialog, SWT.HORIZONTAL);
+            iterScale.setMinimum(1);
+            iterScale.setMaximum(10);
+            iterScale.setSelection(iterations);
+            iterScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label iterLabel = new Label(dialog, SWT.NONE);
+            iterLabel.setText(String.valueOf(iterations));
+            iterScale.addListener(SWT.Selection, e -> iterLabel.setText(String.valueOf(iterScale.getSelection())));
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                kernelSize = kScale.getSelection();
+                shapeIndex = shapeCombo.getSelectionIndex();
+                iterations = iterScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Dilate (Morphological) node
+    static class DilateNode extends ProcessingNode {
+        private static final String[] SHAPE_NAMES = {"Rectangle", "Ellipse", "Cross"};
+        private static final int[] SHAPE_VALUES = {Imgproc.MORPH_RECT, Imgproc.MORPH_ELLIPSE, Imgproc.MORPH_CROSS};
+
+        private int kernelSize = 5;
+        private int shapeIndex = 0;
+        private int iterations = 1;
+
+        public DilateNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Dilate", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) {
+                return input;
+            }
+
+            // Ensure odd kernel size
+            int ksize = (kernelSize % 2 == 0) ? kernelSize + 1 : kernelSize;
+
+            // Create structuring element
+            Mat kernel = Imgproc.getStructuringElement(SHAPE_VALUES[shapeIndex], new Size(ksize, ksize));
+
+            // Apply dilation
+            Mat output = new Mat();
+            Imgproc.dilate(input, output, kernel, new org.opencv.core.Point(-1, -1), iterations);
+
+            kernel.release();
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.dilate(src, kernel, iterations)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Dilate Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Separator
+            Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+            GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sepGd.horizontalSpan = 3;
+            sep.setLayoutData(sepGd);
+
+            // Kernel Size
+            new Label(dialog, SWT.NONE).setText("Kernel Size:");
+            Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
+            kScale.setMinimum(1);
+            kScale.setMaximum(31);
+            kScale.setSelection(kernelSize);
+            kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label kLabel = new Label(dialog, SWT.NONE);
+            kLabel.setText(String.valueOf(kernelSize));
+            kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
+
+            // Kernel Shape
+            new Label(dialog, SWT.NONE).setText("Kernel Shape:");
+            Combo shapeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            shapeCombo.setItems(SHAPE_NAMES);
+            shapeCombo.select(shapeIndex);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            shapeCombo.setLayoutData(comboGd);
+
+            // Iterations
+            new Label(dialog, SWT.NONE).setText("Iterations:");
+            Scale iterScale = new Scale(dialog, SWT.HORIZONTAL);
+            iterScale.setMinimum(1);
+            iterScale.setMaximum(10);
+            iterScale.setSelection(iterations);
+            iterScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+            Label iterLabel = new Label(dialog, SWT.NONE);
+            iterLabel.setText(String.valueOf(iterations));
+            iterScale.addListener(SWT.Selection, e -> iterLabel.setText(String.valueOf(iterScale.getSelection())));
+
+            // Buttons
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                kernelSize = kScale.getSelection();
+                shapeIndex = shapeCombo.getSelectionIndex();
+                iterations = iterScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
             Point cursor = shell.getDisplay().getCursorLocation();
             dialog.setLocation(cursor.x, cursor.y);
             dialog.open();

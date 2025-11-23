@@ -65,7 +65,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <executable>java</executable>
+                    <executable>/Library/Java/JavaVirtualMachines/temurin-21-arm64.jdk/Contents/Home/bin/java</executable>
                     <arguments>
                         <argument>-XstartOnFirstThread</argument>
                         <argument>-classpath</argument>
