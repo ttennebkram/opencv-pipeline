@@ -95,6 +95,8 @@ public class PipelineEditor {
     private Canvas previewCanvas;
     private SashForm sashForm;
     private Image previewImage;
+    private Label statusBar;
+    private Label nodeCountLabel;
 
     private List<PipelineNode> nodes = new ArrayList<>();
     private List<Connection> connections = new ArrayList<>();
@@ -1230,8 +1232,37 @@ public class PipelineEditor {
     }
 
     private void createCanvas() {
-        canvas = new Canvas(sashForm, SWT.BORDER | SWT.DOUBLE_BUFFERED);
+        // Create a composite to hold canvas and status bar
+        Composite canvasContainer = new Composite(sashForm, SWT.NONE);
+        GridLayout containerLayout = new GridLayout(1, false);
+        containerLayout.marginWidth = 0;
+        containerLayout.marginHeight = 0;
+        containerLayout.verticalSpacing = 0;
+        canvasContainer.setLayout(containerLayout);
+
+        canvas = new Canvas(canvasContainer, SWT.BORDER | SWT.DOUBLE_BUFFERED);
+        canvas.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         canvas.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
+
+        // Status bar at bottom of canvas
+        Composite statusComp = new Composite(canvasContainer, SWT.NONE);
+        statusComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        statusComp.setLayout(new GridLayout(2, false));
+        ((GridLayout)statusComp.getLayout()).marginHeight = 2;
+        ((GridLayout)statusComp.getLayout()).marginWidth = 5;
+        statusComp.setBackground(new Color(240, 240, 240));
+
+        statusBar = new Label(statusComp, SWT.NONE);
+        statusBar.setText("Pipeline Stopped");
+        statusBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        statusBar.setBackground(new Color(240, 240, 240));
+        statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
+
+        nodeCountLabel = new Label(statusComp, SWT.NONE);
+        nodeCountLabel.setText("Nodes: 0");
+        nodeCountLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        nodeCountLabel.setBackground(new Color(240, 240, 240));
+        nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
 
         // Paint handler
         canvas.addPaintListener(e -> paintCanvas(e.gc));
@@ -1628,6 +1659,8 @@ public class PipelineEditor {
         }
 
         pipelineRunning.set(true);
+        statusBar.setText("Pipeline Running");
+        statusBar.setForeground(new Color(0, 128, 0)); // Green text
         final PipelineNode finalSource = sourceNode;
         // Get FPS from source node
         double fps = 30.0;
@@ -1786,6 +1819,8 @@ public class PipelineEditor {
 
     private void stopPipeline() {
         pipelineRunning.set(false);
+        statusBar.setText("Pipeline Stopped");
+        statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
         // Interrupt all threads
         for (Thread t : nodeThreads) {
@@ -1978,8 +2013,16 @@ public class PipelineEditor {
         }
     }
 
+    private void updateNodeCount() {
+        if (nodeCountLabel != null && !nodeCountLabel.isDisposed()) {
+            nodeCountLabel.setText("Nodes: " + nodes.size());
+            nodeCountLabel.getParent().layout();
+        }
+    }
+
     private void paintCanvas(GC gc) {
         gc.setAntialias(SWT.ON);
+        updateNodeCount();
 
         // Draw grid background
         Rectangle bounds = canvas.getClientArea();
