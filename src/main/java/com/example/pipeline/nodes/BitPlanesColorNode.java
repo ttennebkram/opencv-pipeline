@@ -150,6 +150,16 @@ public class BitPlanesColorNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Bit Planes Color";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Basic";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
         dialog.setText("Bit Planes Color Properties");

@@ -73,6 +73,16 @@ public class CannyEdgeNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Canny Edges";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Edge Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Canny Edge Detection Properties");

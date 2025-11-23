@@ -95,6 +95,16 @@ public class ConnectedComponentsNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Connected Components";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Connected Components Properties");

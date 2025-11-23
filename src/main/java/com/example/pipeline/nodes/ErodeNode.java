@@ -58,6 +58,16 @@ public class ErodeNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Erode";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Morphological";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Erode Properties");

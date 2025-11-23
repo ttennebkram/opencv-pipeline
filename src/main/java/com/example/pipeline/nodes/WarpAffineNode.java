@@ -83,6 +83,16 @@ public class WarpAffineNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Warp Affine";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Transform";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Warp Affine Properties");

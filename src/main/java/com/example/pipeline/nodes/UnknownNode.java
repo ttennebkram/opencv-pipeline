@@ -32,6 +32,16 @@ public class UnknownNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Unknown";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Other";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         // No properties to edit
     }

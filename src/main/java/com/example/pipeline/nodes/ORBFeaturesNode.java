@@ -84,6 +84,16 @@ public class ORBFeaturesNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "ORB Features";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("ORB Features Properties");

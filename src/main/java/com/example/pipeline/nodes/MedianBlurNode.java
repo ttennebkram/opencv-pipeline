@@ -41,6 +41,16 @@ public class MedianBlurNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Median Blur";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Blur";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Median Blur Properties");

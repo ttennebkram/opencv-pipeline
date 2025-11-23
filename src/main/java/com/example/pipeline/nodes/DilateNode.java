@@ -58,6 +58,16 @@ public class DilateNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Dilate";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Morphological";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Dilate Properties");

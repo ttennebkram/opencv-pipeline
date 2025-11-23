@@ -5,6 +5,10 @@ import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+import java.io.File;
 
 /**
  * Base class for processing nodes with properties dialog support.
@@ -41,6 +45,12 @@ public abstract class ProcessingNode extends PipelineNode {
 
     // Get description for tooltip
     public abstract String getDescription();
+
+    // Get display name for toolbar button (longer, more descriptive)
+    public abstract String getDisplayName();
+
+    // Get category for toolbar grouping (e.g., "Basic", "Blur", "Edge Detection")
+    public abstract String getCategory();
 
     @Override
     public void paint(GC gc) {
@@ -94,5 +104,77 @@ public abstract class ProcessingNode extends PipelineNode {
 
     public Display getDisplay() {
         return display;
+    }
+
+    // Save thumbnail to cache directory
+    public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
+        if (outputMat != null && !outputMat.empty()) {
+            try {
+                File cacheFolder = new File(cacheDir);
+                if (!cacheFolder.exists()) {
+                    cacheFolder.mkdirs();
+                }
+                String thumbPath = cacheDir + File.separator + "node_" + nodeIndex + "_thumb.png";
+                // Save the output mat as thumbnail
+                Mat resized = new Mat();
+                double scale = Math.min((double) PROCESSING_NODE_THUMB_WIDTH / outputMat.width(),
+                                        (double) PROCESSING_NODE_THUMB_HEIGHT / outputMat.height());
+                Imgproc.resize(outputMat, resized,
+                    new Size(outputMat.width() * scale, outputMat.height() * scale));
+                Imgcodecs.imwrite(thumbPath, resized);
+                resized.release();
+            } catch (Exception e) {
+                System.err.println("Failed to save thumbnail: " + e.getMessage());
+            }
+        }
+    }
+
+    // Load thumbnail from cache directory
+    public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
+        String thumbPath = cacheDir + File.separator + "node_" + nodeIndex + "_thumb.png";
+        File thumbFile = new File(thumbPath);
+        if (thumbFile.exists()) {
+            try {
+                Mat loaded = Imgcodecs.imread(thumbPath);
+                if (!loaded.empty()) {
+                    // Convert to RGB for display
+                    Mat rgb = new Mat();
+                    Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_BGR2RGB);
+
+                    int w = rgb.width();
+                    int h = rgb.height();
+                    byte[] data = new byte[w * h * 3];
+                    rgb.get(0, 0, data);
+
+                    PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+                    ImageData imageData = new ImageData(w, h, 24, palette);
+
+                    int bytesPerLine = imageData.bytesPerLine;
+                    for (int row = 0; row < h; row++) {
+                        int srcOffset = row * w * 3;
+                        int dstOffset = row * bytesPerLine;
+                        for (int col = 0; col < w; col++) {
+                            int srcIdx = srcOffset + col * 3;
+                            int dstIdx = dstOffset + col * 3;
+                            imageData.data[dstIdx] = data[srcIdx];
+                            imageData.data[dstIdx + 1] = data[srcIdx + 1];
+                            imageData.data[dstIdx + 2] = data[srcIdx + 2];
+                        }
+                    }
+
+                    if (thumbnail != null && !thumbnail.isDisposed()) {
+                        thumbnail.dispose();
+                    }
+                    thumbnail = new Image(display, imageData);
+
+                    loaded.release();
+                    rgb.release();
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to load thumbnail: " + e.getMessage());
+            }
+        }
+        return false;
     }
 }

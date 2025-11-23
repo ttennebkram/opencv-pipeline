@@ -89,6 +89,16 @@ public class SIFTFeaturesNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "SIFT Features";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("SIFT Features Properties");

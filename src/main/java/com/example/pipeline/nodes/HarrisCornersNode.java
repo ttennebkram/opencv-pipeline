@@ -96,6 +96,16 @@ public class HarrisCornersNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Harris Corners";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Harris Corners Properties");

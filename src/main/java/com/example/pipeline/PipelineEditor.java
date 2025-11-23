@@ -53,6 +53,12 @@ public class PipelineEditor {
         NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
         NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
 
+        // Morphological nodes
+        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
+        NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
+        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
+        NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
+
         // Blur nodes
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
         NodeRegistry.register("MedianBlur", "Blur", MedianBlurNode.class);
@@ -65,11 +71,11 @@ public class PipelineEditor {
         NodeRegistry.register("Sobel", "Edge Detection", SobelNode.class);
         NodeRegistry.register("Scharr", "Edge Detection", ScharrNode.class);
 
-        // Morphological nodes
-        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
-        NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
-        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
-        NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
+        // Transform nodes
+        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
+
+        // Filter nodes
+        NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
 
         // Detection nodes
         NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
@@ -81,12 +87,6 @@ public class PipelineEditor {
         NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
         NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
-
-        // Transform nodes
-        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
-
-        // Filter nodes
-        NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
     }
 
     private Shell shell;
@@ -134,7 +134,6 @@ public class PipelineEditor {
 
     private Preferences prefs;
     private List<String> recentFiles = new ArrayList<>();
-    private Combo recentFilesCombo;
     private Menu openRecentMenu;
 
     // Threading state
@@ -154,6 +153,8 @@ public class PipelineEditor {
     private String currentFilePath = null;
 
     public void run() {
+        // Set application name for macOS menu bar (must be before Display creation)
+        Display.setAppName("OpenCV");
         display = new Display();
 
         // Show splash screen immediately
@@ -434,7 +435,6 @@ public class PipelineEditor {
         saveRecentFiles();
         // Save as last file for next startup
         prefs.put(LAST_FILE_KEY, path);
-        updateRecentFilesCombo(recentFilesCombo);
         updateOpenRecentMenu();
     }
 
@@ -484,27 +484,12 @@ public class PipelineEditor {
                 public void widgetSelected(SelectionEvent e) {
                     recentFiles.clear();
                     saveRecentFiles();
-                    updateRecentFilesCombo(recentFilesCombo);
                     updateOpenRecentMenu();
                 }
             });
         }
     }
 
-    private void updateRecentFilesCombo(Combo combo) {
-        if (combo == null || combo.isDisposed()) return;
-        combo.removeAll();
-        if (recentFiles.isEmpty()) {
-            combo.add("(No recent files)");
-            combo.select(0);
-            combo.setEnabled(false);
-        } else {
-            for (String path : recentFiles) {
-                combo.add(new File(path).getName());
-            }
-            combo.setEnabled(true);
-        }
-    }
 
     private void loadDiagramFromPath(String path) {
         try {
@@ -652,6 +637,15 @@ public class PipelineEditor {
                 }
             }
 
+            // Load thumbnails from cache for ProcessingNodes
+            String cacheDir = getCacheDir(path);
+            for (int i = 0; i < nodes.size(); i++) {
+                PipelineNode node = nodes.get(i);
+                if (node instanceof ProcessingNode) {
+                    ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
+                }
+            }
+
             // Load connections
             JsonArray connsArray = root.getAsJsonArray("connections");
             for (JsonElement elem : connsArray) {
@@ -711,9 +705,6 @@ public class PipelineEditor {
             currentFilePath = path;
             addToRecentFiles(path);
 
-            // Execute pipeline after loading to generate ProcessingNode thumbnails
-            executePipeline();
-
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
 
@@ -760,7 +751,7 @@ public class PipelineEditor {
 
         Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
 
-        // Inputs
+        // Inputs section (not from registry)
         Label inputsLabel = new Label(toolbar, SWT.NONE);
         inputsLabel.setText("Inputs:");
         inputsLabel.setFont(boldFont);
@@ -768,178 +759,46 @@ public class PipelineEditor {
         createNodeButton(toolbar, "File Source", () -> addFileSourceNode());
         createNodeButton(toolbar, "Webcam Source", () -> addWebcamSourceNode());
 
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        // Generate buttons from NodeRegistry grouped by category
+        // Get display names from temp node instances
+        java.util.Map<String, java.util.List<String[]>> categoryNodes = new java.util.LinkedHashMap<>();
 
-        // Basic Effects
-        Label basicLabel = new Label(toolbar, SWT.NONE);
-        basicLabel.setText("Basic:");
-        basicLabel.setFont(boldFont);
+        for (com.example.pipeline.registry.NodeRegistry.NodeInfo info :
+             com.example.pipeline.registry.NodeRegistry.getAllNodes()) {
+            // Create temp node to get display name and category
+            ProcessingNode tempNode = com.example.pipeline.registry.NodeRegistry.createNode(
+                info.name, display, shell, 0, 0);
+            if (tempNode != null) {
+                String displayName = tempNode.getDisplayName();
+                String category = tempNode.getCategory();
+                tempNode.disposeThumbnail();
 
-        createNodeButton(toolbar, "Grayscale/Color", () -> addEffectNode("Grayscale"));
-        createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
-        createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
-        createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
-        createNodeButton(toolbar, "Adaptive Threshold", () -> addEffectNode("AdaptiveThreshold"));
-        createNodeButton(toolbar, "CLAHE", () -> addEffectNode("CLAHE"));
-        createNodeButton(toolbar, "Color In Range", () -> addEffectNode("ColorInRange"));
-        createNodeButton(toolbar, "Bit Planes Grayscale", () -> addEffectNode("BitPlanesGrayscale"));
-        createNodeButton(toolbar, "Bit Planes Color", () -> addEffectNode("BitPlanesColor"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Blur Effects
-        Label blurLabel = new Label(toolbar, SWT.NONE);
-        blurLabel.setText("Blur:");
-        blurLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
-        createNodeButton(toolbar, "Median Blur", () -> addEffectNode("MedianBlur"));
-        createNodeButton(toolbar, "Bilateral Filter", () -> addEffectNode("BilateralFilter"));
-        createNodeButton(toolbar, "Mean Shift", () -> addEffectNode("MeanShift"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Edge Detection
-        Label edgeLabel = new Label(toolbar, SWT.NONE);
-        edgeLabel.setText("Edge Detection:");
-        edgeLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "Canny Edges", () -> addEffectNode("CannyEdge"));
-        createNodeButton(toolbar, "Laplacian Edges", () -> addEffectNode("Laplacian"));
-        createNodeButton(toolbar, "Sobel Edges", () -> addEffectNode("Sobel"));
-        createNodeButton(toolbar, "Scharr Edges", () -> addEffectNode("Scharr"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Morphological
-        Label morphLabel = new Label(toolbar, SWT.NONE);
-        morphLabel.setText("Morphological:");
-        morphLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "Erode", () -> addEffectNode("Erode"));
-        createNodeButton(toolbar, "Dilate", () -> addEffectNode("Dilate"));
-        createNodeButton(toolbar, "Morph Open", () -> addEffectNode("MorphOpen"));
-        createNodeButton(toolbar, "Morph Close", () -> addEffectNode("MorphClose"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Detection
-        Label detectLabel = new Label(toolbar, SWT.NONE);
-        detectLabel.setText("Detection:");
-        detectLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "Hough Circles", () -> addEffectNode("HoughCircles"));
-        createNodeButton(toolbar, "Hough Lines", () -> addEffectNode("HoughLines"));
-        createNodeButton(toolbar, "Contours", () -> addEffectNode("Contours"));
-        createNodeButton(toolbar, "Harris Corners", () -> addEffectNode("HarrisCorners"));
-        createNodeButton(toolbar, "Shi-Tomasi", () -> addEffectNode("ShiTomasi"));
-        createNodeButton(toolbar, "Blob Detector", () -> addEffectNode("BlobDetector"));
-        createNodeButton(toolbar, "ORB Features", () -> addEffectNode("ORBFeatures"));
-        createNodeButton(toolbar, "SIFT Features", () -> addEffectNode("SIFTFeatures"));
-        createNodeButton(toolbar, "Connected Components", () -> addEffectNode("ConnectedComponents"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Transform
-        Label transformLabel = new Label(toolbar, SWT.NONE);
-        transformLabel.setText("Transform:");
-        transformLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "Warp Affine", () -> addEffectNode("WarpAffine"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Filter
-        Label filterLabel = new Label(toolbar, SWT.NONE);
-        filterLabel.setText("Filter:");
-        filterLabel.setFont(boldFont);
-
-        createNodeButton(toolbar, "FFT High-Pass", () -> addEffectNode("FFTFilter"));
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Instructions
-        Label instructions = new Label(toolbar, SWT.WRAP);
-        instructions.setText("Instructions:\n\n" +
-            "• Drag nodes to move\n" +
-            "• Right-click to connect\n" +
-            "• Double-click for properties\n" +
-            "• Click 'Choose...' for image");
-        GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
-        gd.widthHint = 150;
-        instructions.setLayoutData(gd);
-
-        // Separator
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // Recent Files section
-        Label recentLabel = new Label(toolbar, SWT.NONE);
-        recentLabel.setText("Recent Pipelines:");
-        recentLabel.setFont(boldFont);
-
-        // Recent files combo
-        Combo recentCombo = new Combo(toolbar, SWT.DROP_DOWN | SWT.READ_ONLY);
-        recentCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        updateRecentFilesCombo(recentCombo);
-        recentCombo.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                int index = recentCombo.getSelectionIndex();
-                if (index >= 0 && index < recentFiles.size()) {
-                    loadDiagramFromPath(recentFiles.get(index));
-                }
+                categoryNodes.computeIfAbsent(category, k -> new java.util.ArrayList<>())
+                    .add(new String[]{displayName, info.name});
             }
-        });
+        }
 
-        // Store combo reference for updates
-        this.recentFilesCombo = recentCombo;
+        // Create buttons for each category
+        for (java.util.Map.Entry<String, java.util.List<String[]>> entry : categoryNodes.entrySet()) {
+            String category = entry.getKey();
+            java.util.List<String[]> nodeList = entry.getValue();
 
-        // Separator before buttons
-        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            // Separator
+            new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+                .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Start/Stop button for continuous threaded execution
-        startStopBtn = new Button(toolbar, SWT.PUSH);
-        startStopBtn.setText("Start Pipeline");
-        startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        startStopBtn.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                if (pipelineRunning.get()) {
-                    stopPipeline();
-                } else {
-                    startPipeline();
-                }
+            // Category label
+            Label categoryLabel = new Label(toolbar, SWT.NONE);
+            categoryLabel.setText(category + ":");
+            categoryLabel.setFont(boldFont);
+
+            // Buttons for this category
+            for (String[] nodeInfo : nodeList) {
+                String displayName = nodeInfo[0];
+                String registryName = nodeInfo[1];
+                createNodeButton(toolbar, displayName, () -> addEffectNode(registryName));
             }
-        });
-
-        // Run once button
-        Button runBtn = new Button(toolbar, SWT.PUSH);
-        runBtn.setText("Run Once");
-        runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        runBtn.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                executePipeline();
-            }
-        });
+        }
 
         // Set the toolbar as content of scrolled composite
         scrolledToolbar.setContent(toolbar);
@@ -1111,10 +970,14 @@ public class PipelineEditor {
 
             // Save thumbnails to cache directory
             String cacheDir = getCacheDir(path);
+            int nodeIndex = 0;
             for (PipelineNode node : nodes) {
                 if (node instanceof FileSourceNode) {
                     ((FileSourceNode) node).saveThumbnailToCache(cacheDir);
+                } else if (node instanceof ProcessingNode) {
+                    ((ProcessingNode) node).saveThumbnailToCache(cacheDir, nodeIndex);
                 }
+                nodeIndex++;
             }
 
             currentFilePath = path;
@@ -1269,6 +1132,15 @@ public class PipelineEditor {
                     }
                 }
 
+                // Load thumbnails from cache for ProcessingNodes
+                String cacheDir = getCacheDir(path);
+                for (int i = 0; i < nodes.size(); i++) {
+                    PipelineNode node = nodes.get(i);
+                    if (node instanceof ProcessingNode) {
+                        ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
+                    }
+                }
+
                 // Load connections
                 if (root.has("connections")) {
                     JsonArray connsArray = root.getAsJsonArray("connections");
@@ -1326,9 +1198,6 @@ public class PipelineEditor {
 
                 currentFilePath = path;
                 addToRecentFiles(path);
-
-                // Execute pipeline after loading to generate ProcessingNode thumbnails
-                executePipeline();
 
                 canvas.redraw();
                 shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
@@ -1498,7 +1367,61 @@ public class PipelineEditor {
     }
 
     private void createPreviewPanel() {
-        Composite previewPanel = new Composite(sashForm, SWT.BORDER);
+        // Create vertical SashForm for top panel and preview
+        SashForm rightSash = new SashForm(sashForm, SWT.VERTICAL);
+
+        // Top panel - for content moved from left toolbar
+        Composite topPanel = new Composite(rightSash, SWT.BORDER);
+        topPanel.setLayout(new GridLayout(1, false));
+
+        Label topLabel = new Label(topPanel, SWT.NONE);
+        topLabel.setText("Controls");
+        Font topBoldFont = new Font(display, "Arial", 11, SWT.BOLD);
+        topLabel.setFont(topBoldFont);
+
+        // Start/Stop button for continuous threaded execution
+        startStopBtn = new Button(topPanel, SWT.PUSH);
+        startStopBtn.setText("Start Pipeline");
+        startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        startStopBtn.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                if (pipelineRunning.get()) {
+                    stopPipeline();
+                } else {
+                    startPipeline();
+                }
+            }
+        });
+
+        // Single frame button
+        Button runBtn = new Button(topPanel, SWT.PUSH);
+        runBtn.setText("Single Frame");
+        runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        runBtn.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                executePipeline();
+            }
+        });
+
+        // Separator
+        new Label(topPanel, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Instructions
+        Label instructions = new Label(topPanel, SWT.WRAP);
+        instructions.setText("Instructions:\n" +
+            "• Click node name in left panel to create\n" +
+            "• Drag nodes to move\n" +
+            "• Click connection circles to connect\n" +
+            "• Double-click node for properties");
+        GridData instructionsGd = new GridData(SWT.FILL, SWT.FILL, true, true);
+        instructionsGd.widthHint = 150;
+        instructions.setLayoutData(instructionsGd);
+
+        // Bottom panel - Output Preview
+        Composite previewPanel = new Composite(rightSash, SWT.BORDER);
         previewPanel.setLayout(new GridLayout(1, false));
 
         Label titleLabel = new Label(previewPanel, SWT.NONE);
@@ -1529,10 +1452,18 @@ public class PipelineEditor {
                     x, y, scaledWidth, scaledHeight);
             } else {
                 e.gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
-                e.gc.drawString("No output yet", 10, 10, true);
-                e.gc.drawString("Click 'Run Pipeline'", 10, 30, true);
+                if (selectedNodes.size() > 1) {
+                    e.gc.drawString("Select a single node", 10, 10, true);
+                    e.gc.drawString("to preview its output", 10, 30, true);
+                } else {
+                    e.gc.drawString("No output yet", 10, 10, true);
+                    e.gc.drawString("Click 'Start Pipeline'", 10, 30, true);
+                }
             }
         });
+
+        // Set initial weights (30% top panel, 70% preview)
+        rightSash.setWeights(new int[] {30, 70});
     }
 
     private void executePipeline() {
@@ -1677,6 +1608,13 @@ public class PipelineEditor {
             return;
         }
 
+        // If no node is selected, auto-select the terminal node (last in chain)
+        if (selectedNodes.isEmpty()) {
+            PipelineNode terminalNode = orderedNodes.get(orderedNodes.size() - 1);
+            selectedNodes.add(terminalNode);
+            canvas.redraw();
+        }
+
         // Clear old state
         stopPipeline();
 
@@ -1751,8 +1689,11 @@ public class PipelineEditor {
                                 node.setOutputMat(thumbMat);
                                 canvas.redraw();
 
-                                // Update preview if this is the last node
-                                if (outputQueue == null) {
+                                // Update preview if this node is selected
+                                if (selectedNodes.size() == 1 && selectedNodes.contains(node)) {
+                                    updatePreview(thumbMat);
+                                } else if (selectedNodes.isEmpty() && outputQueue == null) {
+                                    // No selection and this is the last node - show its output
                                     updatePreview(thumbMat);
                                 }
                             });
@@ -1962,6 +1903,10 @@ public class PipelineEditor {
     }
 
     private void updatePreview(Mat mat) {
+        if (mat == null || mat.empty()) {
+            return;
+        }
+
         // Dispose old preview image
         if (previewImage != null && !previewImage.isDisposed()) {
             previewImage.dispose();
@@ -1988,6 +1933,24 @@ public class PipelineEditor {
 
         previewImage = new Image(display, imageData);
         previewCanvas.redraw();
+    }
+
+    private void updatePreviewFromSelection() {
+        // If exactly one node is selected, show its output
+        if (selectedNodes.size() == 1) {
+            PipelineNode selected = selectedNodes.iterator().next();
+            Mat outputMat = selected.getOutputMat();
+            if (outputMat != null && !outputMat.empty()) {
+                updatePreview(outputMat);
+            }
+        } else if (selectedNodes.size() > 1) {
+            // Multiple nodes selected - clear preview
+            if (previewImage != null && !previewImage.isDisposed()) {
+                previewImage.dispose();
+                previewImage = null;
+            }
+            previewCanvas.redraw();
+        }
     }
 
     private void paintCanvas(GC gc) {
@@ -2443,6 +2406,10 @@ public class PipelineEditor {
                     selectedNode = node;
                     dragOffset = new Point(e.x - node.x, e.y - node.y);
                     isDragging = true;
+
+                    // Update preview to show selected node's output
+                    updatePreviewFromSelection();
+
                     canvas.redraw();
                     return;
                 }

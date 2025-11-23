@@ -91,6 +91,16 @@ public class ScharrNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Scharr Edges";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Edge Detection";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Scharr Properties");

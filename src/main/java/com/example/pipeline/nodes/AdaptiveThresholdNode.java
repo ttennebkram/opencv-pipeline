@@ -79,6 +79,16 @@ public class AdaptiveThresholdNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Adaptive Threshold";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Basic";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Adaptive Threshold Properties");

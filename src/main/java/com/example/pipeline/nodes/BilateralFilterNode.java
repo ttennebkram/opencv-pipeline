@@ -44,6 +44,16 @@ public class BilateralFilterNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Bilateral Filter";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Blur";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Bilateral Filter Properties");

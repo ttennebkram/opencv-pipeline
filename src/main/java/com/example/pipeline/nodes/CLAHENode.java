@@ -85,6 +85,16 @@ public class CLAHENode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "CLAHE Contrast";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Basic";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("CLAHE Properties");

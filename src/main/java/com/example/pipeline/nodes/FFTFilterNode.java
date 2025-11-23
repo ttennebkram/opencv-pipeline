@@ -204,6 +204,16 @@ public class FFTFilterNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "FFT High-Pass";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Transform";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("FFT High-Pass Filter Properties");

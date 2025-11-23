@@ -54,6 +54,16 @@ public class MorphCloseNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayName() {
+        return "Morph Close";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Morphological";
+    }
+
+    @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Morph Close Properties");
