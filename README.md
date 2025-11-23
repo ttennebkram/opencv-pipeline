@@ -2,6 +2,20 @@
 
 A visual node-based editor for creating OpenCV image processing pipelines. Built with Java, SWT, and OpenCV.
 
+## Quick Start
+
+Download the latest release and run:
+
+```bash
+# Download from releases
+curl -LO https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline.jar
+
+# Run (macOS)
+java -XstartOnFirstThread -jar opencv-pipeline.jar
+```
+
+Requires Java 17+ (ARM64 on macOS).
+
 ## Features
 
 - **Visual Pipeline Editor**: Drag-and-drop nodes on a canvas to build image processing pipelines
@@ -19,20 +33,28 @@ A visual node-based editor for creating OpenCV image processing pipelines. Built
 
 ## Building
 
+Build the executable jar:
+
 ```bash
-mvn clean compile
+mvn clean package
 ```
+
+This creates `target/opencv-pipeline.jar` with all dependencies bundled.
 
 ## Running
 
+### From the jar file
+
 ```bash
-mvn exec:exec
+java -XstartOnFirstThread -jar target/opencv-pipeline.jar
 ```
 
-Or use the provided script:
+Note: The `-XstartOnFirstThread` flag is required on macOS for SWT applications.
+
+### For development
 
 ```bash
-./my-start.sh
+mvn exec:exec
 ```
 
 ## Usage
@@ -77,10 +99,6 @@ Or use the provided script:
 ### Other
 - Resize
 - Gain
-
-## Related Projects
-
-- Python OpenCV effects (source for porting): `/Users/mbennett/Dropbox/dev/webcam-filters/effects/opencv/`
 
 ## License
 
