@@ -228,13 +228,24 @@ public class FileSourceNode extends PipelineNode {
             }
             thumbnail = matToSwtImage(resized);
 
-            // Update the label (thumbnail is now first child)
-            Control[] children = overlayComposite.getChildren();
-            if (children.length > 0 && children[0] instanceof Label) {
-                Label label = (Label) children[0];
-                label.setText("");
-                label.setImage(thumbnail);
-            }
+            // Capture thumbnail reference for asyncExec
+            final Image thumbToSet = thumbnail;
+
+            // Update the label - use asyncExec like loadImage() for consistency
+            display.asyncExec(() -> {
+                if (overlayComposite.isDisposed()) {
+                    return;
+                }
+                if (thumbToSet == null || thumbToSet.isDisposed()) {
+                    return;
+                }
+                Control[] children = overlayComposite.getChildren();
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
+                    label.setText("");
+                    label.setImage(thumbToSet);
+                }
+            });
 
             firstFrame.release();
         }
@@ -261,6 +272,36 @@ public class FileSourceNode extends PipelineNode {
             return loadedImage.clone();
         }
         return null;
+    }
+
+    private void updateVideoThumbnail(Mat frame) {
+        // Create thumbnail from current frame
+        Mat resized = new Mat();
+        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
+                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
+        Imgproc.resize(frame, resized,
+            new Size(frame.width() * scale, frame.height() * scale));
+
+        final Image oldThumbnail = thumbnail;
+        thumbnail = matToSwtImage(resized);
+        resized.release();
+
+        // Update label with new thumbnail and dispose old one on UI thread
+        final Image thumbToSet = thumbnail;
+        if (!display.isDisposed()) {
+            display.asyncExec(() -> {
+                if (overlayComposite.isDisposed()) return;
+                Control[] children = overlayComposite.getChildren();
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
+                    label.setImage(thumbToSet);
+                }
+                // Dispose old thumbnail after setting new one
+                if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
+                    oldThumbnail.dispose();
+                }
+            });
+        }
     }
 
     public boolean isVideoSource() {

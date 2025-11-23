@@ -26,6 +26,7 @@ public class WebcamSourceNode extends PipelineNode {
     private int cameraIndex = -1; // -1 means auto-detect highest
     private int resolutionIndex = 1; // Default to 640x480
     private boolean mirrorHorizontal = true;
+    private boolean skipAutoInit = false; // Skip auto-init for deserialization
 
     // Video capture
     private VideoCapture videoCapture = null;
@@ -54,13 +55,16 @@ public class WebcamSourceNode extends PipelineNode {
 
         createOverlay();
 
-        // Auto-detect and open highest camera index - use asyncExec to let UI initialize first
-        display.asyncExec(() -> initializeCamera());
+        // Auto-detect and open camera on a background thread to avoid blocking UI
+        // but update thumbnail on UI thread via asyncExec
+        new Thread(() -> {
+            initializeCamera();
+        }).start();
     }
 
     // Getters/setters for serialization
     public int getCameraIndex() { return cameraIndex; }
-    public void setCameraIndex(int v) { cameraIndex = v; }
+    public void setCameraIndex(int v) { cameraIndex = v; skipAutoInit = true; }
     public int getResolutionIndex() { return resolutionIndex; }
     public void setResolutionIndex(int v) { resolutionIndex = v; }
     public boolean isMirrorHorizontal() { return mirrorHorizontal; }
@@ -143,6 +147,11 @@ public class WebcamSourceNode extends PipelineNode {
     }
 
     private void initializeCamera() {
+        // Skip auto-init if settings were loaded from deserialization
+        if (skipAutoInit) {
+            return;
+        }
+
         // Find available cameras - on macOS, usually just 0 or 0-1
         int maxCamera = -1;
         int consecutiveFailures = 0;
@@ -174,7 +183,7 @@ public class WebcamSourceNode extends PipelineNode {
         }
     }
 
-    private void openCamera() {
+    public void openCamera() {
         // Release existing capture
         if (videoCapture != null) {
             videoCapture.release();
@@ -199,6 +208,10 @@ public class WebcamSourceNode extends PipelineNode {
                     double[] pixel = frame.get(frame.height() / 2, frame.width() / 2);
                     if (pixel != null && (pixel[0] > 5 || pixel[1] > 5 || pixel[2] > 5)) {
                         System.out.println("Got valid frame on attempt " + (attempt + 1) + ": " + frame.width() + "x" + frame.height());
+                        // Mirror if needed before creating thumbnail
+                        if (mirrorHorizontal) {
+                            Core.flip(frame, frame, 1);
+                        }
                         updateThumbnail(frame);
                         break;
                     }
@@ -219,35 +232,69 @@ public class WebcamSourceNode extends PipelineNode {
     }
 
     private void updateThumbnail(Mat frame) {
-        // Apply mirror if needed
-        Mat processed = frame;
-        if (mirrorHorizontal) {
-            processed = new Mat();
-            Core.flip(frame, processed, 1);
-        }
-
-        // Create thumbnail
+        // Frame is already processed (mirrored if needed), just create thumbnail
+        // Create thumbnail Mat (can be done on any thread)
         Mat resized = new Mat();
-        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / processed.width(),
-                                (double) SOURCE_NODE_THUMB_HEIGHT / processed.height());
-        Imgproc.resize(processed, resized,
-            new Size(processed.width() * scale, processed.height() * scale));
+        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
+                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
+        Imgproc.resize(frame, resized,
+            new Size(frame.width() * scale, frame.height() * scale));
 
-        if (thumbnail != null) {
-            thumbnail.dispose();
+        // Convert to RGB data (can be done on any thread)
+        Mat rgb = new Mat();
+        if (resized.channels() == 3) {
+            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
+        } else if (resized.channels() == 1) {
+            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
+        } else {
+            rgb = resized;
         }
-        thumbnail = matToSwtImage(resized);
 
-        // Trigger canvas redraw to show updated thumbnail
-        display.asyncExec(() -> {
-            if (!parentCanvas.isDisposed()) {
-                parentCanvas.redraw();
+        int w = rgb.width();
+        int h = rgb.height();
+        byte[] data = new byte[w * h * 3];
+        rgb.get(0, 0, data);
+
+        // Create ImageData (can be done on any thread)
+        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+        ImageData imageData = new ImageData(w, h, 24, palette);
+        for (int y = 0; y < h; y++) {
+            for (int xp = 0; xp < w; xp++) {
+                int srcIdx = (y * w + xp) * 3;
+                int r = data[srcIdx] & 0xFF;
+                int g = data[srcIdx + 1] & 0xFF;
+                int b = data[srcIdx + 2] & 0xFF;
+                imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
             }
-        });
-
-        if (mirrorHorizontal) {
-            processed.release();
         }
+
+        // Update label with thumbnail on UI thread (Image must be created on UI thread)
+        if (!display.isDisposed()) {
+            display.asyncExec(() -> {
+                if (overlayComposite.isDisposed()) return;
+
+                // Create Image on UI thread
+                final Image oldThumbnail = thumbnail;
+                thumbnail = new Image(display, imageData);
+
+                // Update the label with the thumbnail
+                Control[] children = overlayComposite.getChildren();
+                if (children.length > 0 && children[0] instanceof Label) {
+                    Label label = (Label) children[0];
+                    label.setText("");
+                    label.setImage(thumbnail);
+                }
+
+                if (!parentCanvas.isDisposed()) {
+                    parentCanvas.redraw();
+                }
+                // Dispose old thumbnail after setting new one
+                if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
+                    oldThumbnail.dispose();
+                }
+            });
+        }
+
         resized.release();
     }
 
@@ -271,13 +318,19 @@ public class WebcamSourceNode extends PipelineNode {
         return true; // Webcam is always a continuous source
     }
 
-    public double getFps() {
-        // Return camera's native FPS
-        if (videoCapture != null && videoCapture.isOpened()) {
-            double fps = videoCapture.get(Videoio.CAP_PROP_FPS);
-            return fps > 0 ? fps : 30.0;
+    @Override
+    public void setOutputMat(Mat mat) {
+        this.outputMat = mat;
+        // Update the label-based thumbnail for source nodes
+        if (mat != null && !mat.empty()) {
+            updateThumbnail(mat);
         }
-        return 30.0;
+    }
+
+    public double getFps() {
+        // Limit FPS to prevent UI thread overload from asyncExec calls
+        // TODO: Make this configurable in properties dialog
+        return 1.0;
     }
 
     private Image matToSwtImage(Mat mat) {
@@ -333,19 +386,7 @@ public class WebcamSourceNode extends PipelineNode {
         gc.drawString("Webcam Source", x + 10, y + 4, true);
         boldFont.dispose();
 
-        // Draw thumbnail directly on canvas (bypassing overlay issues)
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
-            int thumbX = x + (width - bounds.width) / 2;
-            int thumbY = y + 22 + (SOURCE_NODE_THUMB_HEIGHT - bounds.height) / 2;
-            gc.drawImage(thumbnail, thumbX, thumbY);
-        } else {
-            // Draw placeholder text if no thumbnail
-            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("No camera", x + 20, y + 50, true);
-        }
-
-        // Draw connection points
+        // Draw connection points (output only - this is a source node)
         drawConnectionPoints(gc);
     }
 

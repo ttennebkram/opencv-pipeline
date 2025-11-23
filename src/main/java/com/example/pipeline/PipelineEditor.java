@@ -487,6 +487,8 @@ public class PipelineEditor {
                     if (nodeObj.has("mirrorHorizontal")) {
                         node.setMirrorHorizontal(nodeObj.get("mirrorHorizontal").getAsBoolean());
                     }
+                    // Re-open camera with deserialized settings on background thread
+                    new Thread(() -> node.openCamera()).start();
                     nodes.add(node);
                 } else if ("Processing".equals(type)) {
                     String name = nodeObj.get("name").getAsString();
@@ -1658,20 +1660,29 @@ public class PipelineEditor {
 
                         // Update thumbnail on UI thread
                         final Mat thumbMat = outputMat.clone();
-                        display.asyncExec(() -> {
-                            node.setOutputMat(thumbMat);
-                            canvas.redraw();
+                        if (!display.isDisposed()) {
+                            display.asyncExec(() -> {
+                                if (canvas.isDisposed()) {
+                                    thumbMat.release();
+                                    return;
+                                }
+                                node.setOutputMat(thumbMat);
+                                canvas.redraw();
 
-                            // Update preview if this is the last node
-                            if (outputQueue == null) {
-                                updatePreview(thumbMat);
-                            }
-                        });
+                                // Update preview if this is the last node
+                                if (outputQueue == null) {
+                                    updatePreview(thumbMat);
+                                }
+                            });
+                        } else {
+                            thumbMat.release();
+                        }
 
                         // Pass to next node
                         if (outputQueue != null) {
                             // Adaptive priority: adjust by 1 increment at a time
                             int queueSize = outputQueue.size();
+                            System.out.println(node.getClass().getSimpleName() + " putting to queue, size=" + queueSize);
 
                             if (queueSize >= 1) {
                                 // Queue backing up - lower priority by 1
@@ -1688,6 +1699,7 @@ public class PipelineEditor {
                             }
 
                             outputQueue.put(outputMat);
+                            System.out.println(node.getClass().getSimpleName() + " put complete");
                         } else {
                             // Last node - cleanup
                             outputMat.release();
@@ -1701,8 +1713,10 @@ public class PipelineEditor {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
+                    System.err.println("Pipeline thread " + node.getClass().getSimpleName() + " exception:");
                     e.printStackTrace();
                 }
+                System.out.println("Pipeline thread " + node.getClass().getSimpleName() + " exited");
             });
 
             // Set priority based on node type
