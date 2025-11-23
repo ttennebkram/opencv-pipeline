@@ -498,6 +498,61 @@ public class PipelineEditor {
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
+                        } else if (node instanceof BitPlanesGrayscaleNode) {
+                            BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
+                            if (nodeObj.has("bitEnabled")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("bitEnabled");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitEnabled(j, arr.get(j).getAsBoolean());
+                                }
+                            }
+                            if (nodeObj.has("bitGain")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("bitGain");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitGain(j, arr.get(j).getAsDouble());
+                                }
+                            }
+                        } else if (node instanceof BitPlanesColorNode) {
+                            BitPlanesColorNode bpn = (BitPlanesColorNode) node;
+                            // Load Red channel
+                            if (nodeObj.has("redBitEnabled")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("redBitEnabled");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitEnabled(0, j, arr.get(j).getAsBoolean());
+                                }
+                            }
+                            if (nodeObj.has("redBitGain")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("redBitGain");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitGain(0, j, arr.get(j).getAsDouble());
+                                }
+                            }
+                            // Load Green channel
+                            if (nodeObj.has("greenBitEnabled")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("greenBitEnabled");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitEnabled(1, j, arr.get(j).getAsBoolean());
+                                }
+                            }
+                            if (nodeObj.has("greenBitGain")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("greenBitGain");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitGain(1, j, arr.get(j).getAsDouble());
+                                }
+                            }
+                            // Load Blue channel
+                            if (nodeObj.has("blueBitEnabled")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("blueBitEnabled");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitEnabled(2, j, arr.get(j).getAsBoolean());
+                                }
+                            }
+                            if (nodeObj.has("blueBitGain")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("blueBitGain");
+                                for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                    bpn.setBitGain(2, j, arr.get(j).getAsDouble());
+                                }
+                            }
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> executePipeline());
@@ -851,6 +906,45 @@ public class PipelineEditor {
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
+                    } else if (node instanceof BitPlanesGrayscaleNode) {
+                        BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
+                        JsonArray enabledArray = new JsonArray();
+                        JsonArray gainArray = new JsonArray();
+                        for (int j = 0; j < 8; j++) {
+                            enabledArray.add(bpn.getBitEnabled(j));
+                            gainArray.add(bpn.getBitGain(j));
+                        }
+                        nodeObj.add("bitEnabled", enabledArray);
+                        nodeObj.add("bitGain", gainArray);
+                    } else if (node instanceof BitPlanesColorNode) {
+                        BitPlanesColorNode bpn = (BitPlanesColorNode) node;
+                        // Save Red channel
+                        JsonArray redEnabled = new JsonArray();
+                        JsonArray redGain = new JsonArray();
+                        for (int j = 0; j < 8; j++) {
+                            redEnabled.add(bpn.getBitEnabled(0, j));
+                            redGain.add(bpn.getBitGain(0, j));
+                        }
+                        nodeObj.add("redBitEnabled", redEnabled);
+                        nodeObj.add("redBitGain", redGain);
+                        // Save Green channel
+                        JsonArray greenEnabled = new JsonArray();
+                        JsonArray greenGain = new JsonArray();
+                        for (int j = 0; j < 8; j++) {
+                            greenEnabled.add(bpn.getBitEnabled(1, j));
+                            greenGain.add(bpn.getBitGain(1, j));
+                        }
+                        nodeObj.add("greenBitEnabled", greenEnabled);
+                        nodeObj.add("greenBitGain", greenGain);
+                        // Save Blue channel
+                        JsonArray blueEnabled = new JsonArray();
+                        JsonArray blueGain = new JsonArray();
+                        for (int j = 0; j < 8; j++) {
+                            blueEnabled.add(bpn.getBitEnabled(2, j));
+                            blueGain.add(bpn.getBitGain(2, j));
+                        }
+                        nodeObj.add("blueBitEnabled", blueEnabled);
+                        nodeObj.add("blueBitGain", blueGain);
                     }
                     // InvertNode has no properties to save
                 }
@@ -979,6 +1073,7 @@ public class PipelineEditor {
                     } else if ("Processing".equals(type)) {
                         String name = nodeObj.get("name").getAsString();
                         ProcessingNode node = createEffectNode(name, x, y);
+                        System.out.println("Created node for '" + name + "': " + (node != null ? node.getClass().getSimpleName() : "null"));
                         if (node != null) {
                             // Load node-specific properties
                             if (node instanceof GaussianBlurNode) {
@@ -1002,6 +1097,63 @@ public class PipelineEditor {
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
+                            } else if (node instanceof BitPlanesGrayscaleNode) {
+                                BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
+                                System.out.println("Loading BitPlanesGrayscaleNode, has bitEnabled: " + nodeObj.has("bitEnabled") + ", has bitGain: " + nodeObj.has("bitGain"));
+                                if (nodeObj.has("bitEnabled")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("bitEnabled");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitEnabled(j, arr.get(j).getAsBoolean());
+                                    }
+                                }
+                                if (nodeObj.has("bitGain")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("bitGain");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitGain(j, arr.get(j).getAsDouble());
+                                    }
+                                }
+                            } else if (node instanceof BitPlanesColorNode) {
+                                System.out.println("Loading BitPlanesColorNode, has redBitEnabled: " + nodeObj.has("redBitEnabled"));
+                                BitPlanesColorNode bpn = (BitPlanesColorNode) node;
+                                // Load Red channel
+                                if (nodeObj.has("redBitEnabled")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("redBitEnabled");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitEnabled(0, j, arr.get(j).getAsBoolean());
+                                    }
+                                }
+                                if (nodeObj.has("redBitGain")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("redBitGain");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitGain(0, j, arr.get(j).getAsDouble());
+                                    }
+                                }
+                                // Load Green channel
+                                if (nodeObj.has("greenBitEnabled")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("greenBitEnabled");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitEnabled(1, j, arr.get(j).getAsBoolean());
+                                    }
+                                }
+                                if (nodeObj.has("greenBitGain")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("greenBitGain");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitGain(1, j, arr.get(j).getAsDouble());
+                                    }
+                                }
+                                // Load Blue channel
+                                if (nodeObj.has("blueBitEnabled")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("blueBitEnabled");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitEnabled(2, j, arr.get(j).getAsBoolean());
+                                    }
+                                }
+                                if (nodeObj.has("blueBitGain")) {
+                                    JsonArray arr = nodeObj.getAsJsonArray("blueBitGain");
+                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
+                                        bpn.setBitGain(2, j, arr.get(j).getAsDouble());
+                                    }
+                                }
                             }
                             // InvertNode has no properties to load
                             node.setOnChanged(() -> executePipeline());
