@@ -639,6 +639,9 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Hough Lines", () -> addEffectNode("HoughLines"));
         createNodeButton(toolbar, "Contours", () -> addEffectNode("Contours"));
         createNodeButton(toolbar, "Harris Corners", () -> addEffectNode("HarrisCorners"));
+        createNodeButton(toolbar, "Shi-Tomasi", () -> addEffectNode("ShiTomasi"));
+        createNodeButton(toolbar, "Blob Detector", () -> addEffectNode("BlobDetector"));
+        createNodeButton(toolbar, "ORB Features", () -> addEffectNode("ORBFeatures"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -2614,6 +2617,15 @@ public class PipelineEditor {
             case "HarrisCorners":
             case "Harris Corners":
                 return new HarrisCornersNode(display, shell, x, y);
+            case "ShiTomasi":
+            case "Shi-Tomasi":
+                return new ShiTomasiCornersNode(display, shell, x, y);
+            case "BlobDetector":
+            case "Blob Detector":
+                return new BlobDetectorNode(display, shell, x, y);
+            case "ORBFeatures":
+            case "ORB Features":
+                return new ORBFeaturesNode(display, shell, x, y);
             default:
                 // For any unknown type, create a default GaussianBlur as placeholder
                 System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
@@ -6212,6 +6224,472 @@ public class PipelineEditor {
                 ksize = idx == 0 ? 3 : (idx == 1 ? 5 : 7);
                 thresholdPercent = threshScale.getSelection();
                 markerSize = markerScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Shi-Tomasi Corners detection node
+    static class ShiTomasiCornersNode extends ProcessingNode {
+        private int maxCorners = 100;
+        private int qualityLevel = 1; // 0.01 * 100
+        private int minDistance = 10;
+        private int blockSize = 3;
+        private int markerSize = 5;
+        private int colorR = 0, colorG = 255, colorB = 0;
+
+        public ShiTomasiCornersNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Shi-Tomasi", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Detect corners using goodFeaturesToTrack
+            org.opencv.core.MatOfPoint corners = new org.opencv.core.MatOfPoint();
+            double quality = qualityLevel / 100.0;
+            Imgproc.goodFeaturesToTrack(gray, corners, maxCorners, quality, minDistance, new Mat(), blockSize, false, 0.04);
+
+            // Draw corners
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            org.opencv.core.Point[] cornerArray = corners.toArray();
+            for (org.opencv.core.Point corner : cornerArray) {
+                Imgproc.circle(result, corner, markerSize, color, -1);
+            }
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "Shi-Tomasi Corner Detection\ncv2.goodFeaturesToTrack(image, maxCorners, qualityLevel, minDistance)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Shi-Tomasi Corners Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Max Corners
+            new Label(dialog, SWT.NONE).setText("Max Corners:");
+            Scale maxScale = new Scale(dialog, SWT.HORIZONTAL);
+            maxScale.setMinimum(1);
+            maxScale.setMaximum(500);
+            maxScale.setSelection(maxCorners);
+            maxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label maxLabel = new Label(dialog, SWT.NONE);
+            maxLabel.setText(String.valueOf(maxCorners));
+            maxScale.addListener(SWT.Selection, e -> maxLabel.setText(String.valueOf(maxScale.getSelection())));
+
+            // Quality Level
+            new Label(dialog, SWT.NONE).setText("Quality Level %:");
+            Scale qualScale = new Scale(dialog, SWT.HORIZONTAL);
+            qualScale.setMinimum(1);
+            qualScale.setMaximum(100);
+            qualScale.setSelection(qualityLevel);
+            qualScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label qualLabel = new Label(dialog, SWT.NONE);
+            qualLabel.setText(String.valueOf(qualityLevel));
+            qualScale.addListener(SWT.Selection, e -> qualLabel.setText(String.valueOf(qualScale.getSelection())));
+
+            // Min Distance
+            new Label(dialog, SWT.NONE).setText("Min Distance:");
+            Scale distScale = new Scale(dialog, SWT.HORIZONTAL);
+            distScale.setMinimum(1);
+            distScale.setMaximum(100);
+            distScale.setSelection(minDistance);
+            distScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label distLabel = new Label(dialog, SWT.NONE);
+            distLabel.setText(String.valueOf(minDistance));
+            distScale.addListener(SWT.Selection, e -> distLabel.setText(String.valueOf(distScale.getSelection())));
+
+            // Block Size
+            new Label(dialog, SWT.NONE).setText("Block Size:");
+            Scale blockScale = new Scale(dialog, SWT.HORIZONTAL);
+            blockScale.setMinimum(3);
+            blockScale.setMaximum(15);
+            blockScale.setSelection(blockSize);
+            blockScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label blockLabel = new Label(dialog, SWT.NONE);
+            blockLabel.setText(String.valueOf(blockSize));
+            blockScale.addListener(SWT.Selection, e -> blockLabel.setText(String.valueOf(blockScale.getSelection())));
+
+            // Marker Size
+            new Label(dialog, SWT.NONE).setText("Marker Size:");
+            Scale markerScale = new Scale(dialog, SWT.HORIZONTAL);
+            markerScale.setMinimum(1);
+            markerScale.setMaximum(15);
+            markerScale.setSelection(markerSize);
+            markerScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label markerLabel = new Label(dialog, SWT.NONE);
+            markerLabel.setText(String.valueOf(markerSize));
+            markerScale.addListener(SWT.Selection, e -> markerLabel.setText(String.valueOf(markerScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                maxCorners = maxScale.getSelection();
+                qualityLevel = qualScale.getSelection();
+                minDistance = distScale.getSelection();
+                blockSize = blockScale.getSelection();
+                markerSize = markerScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Blob Detection node
+    static class BlobDetectorNode extends ProcessingNode {
+        private int minThreshold = 10;
+        private int maxThreshold = 200;
+        private boolean filterByArea = true;
+        private int minArea = 100;
+        private int maxArea = 5000;
+        private boolean filterByCircularity = false;
+        private int minCircularity = 10; // 0.1 * 100
+        private int colorR = 255, colorG = 0, colorB = 0;
+
+        public BlobDetectorNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Blob Detector", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Set up SimpleBlobDetector parameters
+            org.opencv.features2d.SimpleBlobDetector_Params params = new org.opencv.features2d.SimpleBlobDetector_Params();
+            params.set_minThreshold(minThreshold);
+            params.set_maxThreshold(maxThreshold);
+            params.set_filterByArea(filterByArea);
+            params.set_minArea(minArea);
+            params.set_maxArea(maxArea);
+            params.set_filterByCircularity(filterByCircularity);
+            params.set_minCircularity((float)(minCircularity / 100.0));
+
+            // Create detector and detect blobs
+            org.opencv.features2d.SimpleBlobDetector detector = org.opencv.features2d.SimpleBlobDetector.create(params);
+            org.opencv.core.MatOfKeyPoint keypoints = new org.opencv.core.MatOfKeyPoint();
+            detector.detect(gray, keypoints);
+
+            // Draw keypoints
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            org.opencv.features2d.Features2d.drawKeypoints(result, keypoints, result, color,
+                org.opencv.features2d.Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "Blob Detection\ncv2.SimpleBlobDetector_create(params)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Blob Detector Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Min Threshold
+            new Label(dialog, SWT.NONE).setText("Min Threshold:");
+            Scale minThreshScale = new Scale(dialog, SWT.HORIZONTAL);
+            minThreshScale.setMinimum(0);
+            minThreshScale.setMaximum(255);
+            minThreshScale.setSelection(minThreshold);
+            minThreshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label minThreshLabel = new Label(dialog, SWT.NONE);
+            minThreshLabel.setText(String.valueOf(minThreshold));
+            minThreshScale.addListener(SWT.Selection, e -> minThreshLabel.setText(String.valueOf(minThreshScale.getSelection())));
+
+            // Max Threshold
+            new Label(dialog, SWT.NONE).setText("Max Threshold:");
+            Scale maxThreshScale = new Scale(dialog, SWT.HORIZONTAL);
+            maxThreshScale.setMinimum(0);
+            maxThreshScale.setMaximum(255);
+            maxThreshScale.setSelection(maxThreshold);
+            maxThreshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label maxThreshLabel = new Label(dialog, SWT.NONE);
+            maxThreshLabel.setText(String.valueOf(maxThreshold));
+            maxThreshScale.addListener(SWT.Selection, e -> maxThreshLabel.setText(String.valueOf(maxThreshScale.getSelection())));
+
+            // Filter by Area checkbox
+            Button areaCheck = new Button(dialog, SWT.CHECK);
+            areaCheck.setText("Filter by Area");
+            areaCheck.setSelection(filterByArea);
+            GridData areaGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            areaGd.horizontalSpan = 3;
+            areaCheck.setLayoutData(areaGd);
+
+            // Min Area
+            new Label(dialog, SWT.NONE).setText("Min Area:");
+            Scale minAreaScale = new Scale(dialog, SWT.HORIZONTAL);
+            minAreaScale.setMinimum(1);
+            minAreaScale.setMaximum(10000);
+            minAreaScale.setSelection(minArea);
+            minAreaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label minAreaLabel = new Label(dialog, SWT.NONE);
+            minAreaLabel.setText(String.valueOf(minArea));
+            minAreaScale.addListener(SWT.Selection, e -> minAreaLabel.setText(String.valueOf(minAreaScale.getSelection())));
+
+            // Max Area
+            new Label(dialog, SWT.NONE).setText("Max Area:");
+            Scale maxAreaScale = new Scale(dialog, SWT.HORIZONTAL);
+            maxAreaScale.setMinimum(1);
+            maxAreaScale.setMaximum(50000);
+            maxAreaScale.setSelection(maxArea);
+            maxAreaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label maxAreaLabel = new Label(dialog, SWT.NONE);
+            maxAreaLabel.setText(String.valueOf(maxArea));
+            maxAreaScale.addListener(SWT.Selection, e -> maxAreaLabel.setText(String.valueOf(maxAreaScale.getSelection())));
+
+            // Filter by Circularity checkbox
+            Button circCheck = new Button(dialog, SWT.CHECK);
+            circCheck.setText("Filter by Circularity");
+            circCheck.setSelection(filterByCircularity);
+            GridData circGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            circGd.horizontalSpan = 3;
+            circCheck.setLayoutData(circGd);
+
+            // Min Circularity
+            new Label(dialog, SWT.NONE).setText("Min Circularity %:");
+            Scale circScale = new Scale(dialog, SWT.HORIZONTAL);
+            circScale.setMinimum(1);
+            circScale.setMaximum(100);
+            circScale.setSelection(minCircularity);
+            circScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label circLabel = new Label(dialog, SWT.NONE);
+            circLabel.setText(String.valueOf(minCircularity));
+            circScale.addListener(SWT.Selection, e -> circLabel.setText(String.valueOf(circScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                minThreshold = minThreshScale.getSelection();
+                maxThreshold = maxThreshScale.getSelection();
+                filterByArea = areaCheck.getSelection();
+                minArea = minAreaScale.getSelection();
+                maxArea = maxAreaScale.getSelection();
+                filterByCircularity = circCheck.getSelection();
+                minCircularity = circScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // ORB Features detection node
+    static class ORBFeaturesNode extends ProcessingNode {
+        private int nFeatures = 500;
+        private int fastThreshold = 20;
+        private int nLevels = 8;
+        private boolean showRich = true;
+        private int colorR = 0, colorG = 255, colorB = 0;
+
+        public ORBFeaturesNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "ORB Features", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale for detection
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Create ORB detector
+            org.opencv.features2d.ORB orb = org.opencv.features2d.ORB.create(
+                nFeatures, 1.2f, nLevels, 31, 0, 2, org.opencv.features2d.ORB.HARRIS_SCORE, 31, fastThreshold);
+
+            // Detect keypoints
+            org.opencv.core.MatOfKeyPoint keypoints = new org.opencv.core.MatOfKeyPoint();
+            orb.detect(gray, keypoints);
+
+            // Draw keypoints
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            int flags = showRich ? org.opencv.features2d.Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS : 0;
+            org.opencv.features2d.Features2d.drawKeypoints(result, keypoints, result, color, flags);
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "ORB: Oriented FAST and Rotated BRIEF\ncv2.ORB_create(nfeatures, scaleFactor, nlevels)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("ORB Features Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
+
+            // Max Features
+            new Label(dialog, SWT.NONE).setText("Max Features:");
+            Scale featScale = new Scale(dialog, SWT.HORIZONTAL);
+            featScale.setMinimum(10);
+            featScale.setMaximum(5000);
+            featScale.setSelection(nFeatures);
+            featScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label featLabel = new Label(dialog, SWT.NONE);
+            featLabel.setText(String.valueOf(nFeatures));
+            featScale.addListener(SWT.Selection, e -> featLabel.setText(String.valueOf(featScale.getSelection())));
+
+            // FAST Threshold
+            new Label(dialog, SWT.NONE).setText("FAST Threshold:");
+            Scale fastScale = new Scale(dialog, SWT.HORIZONTAL);
+            fastScale.setMinimum(1);
+            fastScale.setMaximum(100);
+            fastScale.setSelection(fastThreshold);
+            fastScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label fastLabel = new Label(dialog, SWT.NONE);
+            fastLabel.setText(String.valueOf(fastThreshold));
+            fastScale.addListener(SWT.Selection, e -> fastLabel.setText(String.valueOf(fastScale.getSelection())));
+
+            // Pyramid Levels
+            new Label(dialog, SWT.NONE).setText("Pyramid Levels:");
+            Scale levelsScale = new Scale(dialog, SWT.HORIZONTAL);
+            levelsScale.setMinimum(1);
+            levelsScale.setMaximum(16);
+            levelsScale.setSelection(nLevels);
+            levelsScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label levelsLabel = new Label(dialog, SWT.NONE);
+            levelsLabel.setText(String.valueOf(nLevels));
+            levelsScale.addListener(SWT.Selection, e -> levelsLabel.setText(String.valueOf(levelsScale.getSelection())));
+
+            // Show Rich checkbox
+            Button richCheck = new Button(dialog, SWT.CHECK);
+            richCheck.setText("Show Size & Orientation");
+            richCheck.setSelection(showRich);
+            GridData richGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            richGd.horizontalSpan = 3;
+            richCheck.setLayoutData(richGd);
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                nFeatures = featScale.getSelection();
+                fastThreshold = fastScale.getSelection();
+                nLevels = levelsScale.getSelection();
+                showRich = richCheck.getSelection();
                 dialog.dispose();
                 notifyChanged();
             });
