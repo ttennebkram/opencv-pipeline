@@ -9,6 +9,7 @@ import org.eclipse.swt.custom.SashForm;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
@@ -581,6 +582,7 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
         createNodeButton(toolbar, "Adaptive Threshold", () -> addEffectNode("AdaptiveThreshold"));
         createNodeButton(toolbar, "CLAHE", () -> addEffectNode("CLAHE"));
+        createNodeButton(toolbar, "Color In Range", () -> addEffectNode("ColorInRange"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -594,6 +596,7 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
         createNodeButton(toolbar, "Median Blur", () -> addEffectNode("MedianBlur"));
         createNodeButton(toolbar, "Bilateral Filter", () -> addEffectNode("BilateralFilter"));
+        createNodeButton(toolbar, "Mean Shift", () -> addEffectNode("MeanShift"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -604,10 +607,10 @@ public class PipelineEditor {
         edgeLabel.setText("Edge Detection:");
         edgeLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Canny Edge", () -> addEffectNode("CannyEdge"));
-        createNodeButton(toolbar, "Laplacian", () -> addEffectNode("Laplacian"));
-        createNodeButton(toolbar, "Sobel", () -> addEffectNode("Sobel"));
-        createNodeButton(toolbar, "Scharr", () -> addEffectNode("Scharr"));
+        createNodeButton(toolbar, "Canny Edges", () -> addEffectNode("CannyEdge"));
+        createNodeButton(toolbar, "Laplacian Edges", () -> addEffectNode("Laplacian"));
+        createNodeButton(toolbar, "Sobel Edges", () -> addEffectNode("Sobel"));
+        createNodeButton(toolbar, "Scharr Edges", () -> addEffectNode("Scharr"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -622,6 +625,17 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Dilate", () -> addEffectNode("Dilate"));
         createNodeButton(toolbar, "Morph Open", () -> addEffectNode("MorphOpen"));
         createNodeButton(toolbar, "Morph Close", () -> addEffectNode("MorphClose"));
+
+        // Separator
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Detection
+        Label detectLabel = new Label(toolbar, SWT.NONE);
+        detectLabel.setText("Detection:");
+        detectLabel.setFont(boldFont);
+
+        createNodeButton(toolbar, "Hough Circles", () -> addEffectNode("HoughCircles"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -2579,6 +2593,16 @@ public class PipelineEditor {
             case "CLAHE":
             case "CLAHE: Contrast Enhancement":
                 return new CLAHENode(display, shell, x, y);
+            case "ColorInRange":
+            case "Color In Range":
+                return new ColorInRangeNode(display, shell, x, y);
+            case "MeanShift":
+            case "Mean Shift":
+            case "Mean Shift Filter":
+                return new MeanShiftFilterNode(display, shell, x, y);
+            case "HoughCircles":
+            case "Hough Circles":
+                return new HoughCirclesNode(display, shell, x, y);
             default:
                 // For any unknown type, create a default GaussianBlur as placeholder
                 System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
@@ -5286,6 +5310,470 @@ public class PipelineEditor {
                 clipLimit = clipScale.getSelection() / 10.0;
                 tileSize = tileScale.getSelection();
                 colorModeIndex = modeCombo.getSelectionIndex();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Color In Range node - HSV/BGR color filtering
+    static class ColorInRangeNode extends ProcessingNode {
+        private boolean useHSV = true;
+        private int hLow = 0, hHigh = 179;
+        private int sLow = 0, sHigh = 255;
+        private int vLow = 0, vHigh = 255;
+        private int outputMode = 0; // 0=mask, 1=masked, 2=inverse
+
+        private static final String[] OUTPUT_MODES = {"Mask Only", "Keep In-Range", "Keep Out-of-Range"};
+
+        public ColorInRangeNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Color In Range", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Ensure input is color
+            Mat colorInput = input;
+            if (input.channels() == 1) {
+                colorInput = new Mat();
+                Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
+            }
+
+            // Convert to HSV if needed
+            Mat converted = new Mat();
+            if (useHSV) {
+                Imgproc.cvtColor(colorInput, converted, Imgproc.COLOR_BGR2HSV);
+            } else {
+                converted = colorInput.clone();
+            }
+
+            // Create lower and upper bounds
+            Scalar lower = new Scalar(hLow, sLow, vLow);
+            Scalar upper = new Scalar(hHigh, sHigh, vHigh);
+
+            // Create mask
+            Mat mask = new Mat();
+            Core.inRange(converted, lower, upper, mask);
+
+            Mat result = new Mat();
+            switch (outputMode) {
+                case 0: // Mask only
+                    Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
+                    break;
+                case 1: // Keep in-range
+                    result = new Mat();
+                    colorInput.copyTo(result, mask);
+                    break;
+                case 2: // Keep out-of-range (inverse)
+                    Mat invMask = new Mat();
+                    Core.bitwise_not(mask, invMask);
+                    result = new Mat();
+                    colorInput.copyTo(result, invMask);
+                    break;
+                default:
+                    Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
+            }
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.inRange(src, lowerb, upperb)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Color In Range Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Color space checkbox
+            Button hsvCheck = new Button(dialog, SWT.CHECK);
+            hsvCheck.setText("Use HSV (uncheck for BGR)");
+            hsvCheck.setSelection(useHSV);
+            GridData checkGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            checkGd.horizontalSpan = 3;
+            hsvCheck.setLayoutData(checkGd);
+
+            // H/B Low
+            new Label(dialog, SWT.NONE).setText(useHSV ? "H Low:" : "B Low:");
+            Scale hLowScale = new Scale(dialog, SWT.HORIZONTAL);
+            hLowScale.setMinimum(0);
+            hLowScale.setMaximum(255);
+            hLowScale.setSelection(hLow);
+            hLowScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label hLowLabel = new Label(dialog, SWT.NONE);
+            hLowLabel.setText(String.valueOf(hLow));
+            hLowScale.addListener(SWT.Selection, e -> hLowLabel.setText(String.valueOf(hLowScale.getSelection())));
+
+            // H/B High
+            new Label(dialog, SWT.NONE).setText(useHSV ? "H High:" : "B High:");
+            Scale hHighScale = new Scale(dialog, SWT.HORIZONTAL);
+            hHighScale.setMinimum(0);
+            hHighScale.setMaximum(255);
+            hHighScale.setSelection(hHigh);
+            hHighScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label hHighLabel = new Label(dialog, SWT.NONE);
+            hHighLabel.setText(String.valueOf(hHigh));
+            hHighScale.addListener(SWT.Selection, e -> hHighLabel.setText(String.valueOf(hHighScale.getSelection())));
+
+            // S/G Low
+            new Label(dialog, SWT.NONE).setText(useHSV ? "S Low:" : "G Low:");
+            Scale sLowScale = new Scale(dialog, SWT.HORIZONTAL);
+            sLowScale.setMinimum(0);
+            sLowScale.setMaximum(255);
+            sLowScale.setSelection(sLow);
+            sLowScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label sLowLabel = new Label(dialog, SWT.NONE);
+            sLowLabel.setText(String.valueOf(sLow));
+            sLowScale.addListener(SWT.Selection, e -> sLowLabel.setText(String.valueOf(sLowScale.getSelection())));
+
+            // S/G High
+            new Label(dialog, SWT.NONE).setText(useHSV ? "S High:" : "G High:");
+            Scale sHighScale = new Scale(dialog, SWT.HORIZONTAL);
+            sHighScale.setMinimum(0);
+            sHighScale.setMaximum(255);
+            sHighScale.setSelection(sHigh);
+            sHighScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label sHighLabel = new Label(dialog, SWT.NONE);
+            sHighLabel.setText(String.valueOf(sHigh));
+            sHighScale.addListener(SWT.Selection, e -> sHighLabel.setText(String.valueOf(sHighScale.getSelection())));
+
+            // V/R Low
+            new Label(dialog, SWT.NONE).setText(useHSV ? "V Low:" : "R Low:");
+            Scale vLowScale = new Scale(dialog, SWT.HORIZONTAL);
+            vLowScale.setMinimum(0);
+            vLowScale.setMaximum(255);
+            vLowScale.setSelection(vLow);
+            vLowScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label vLowLabel = new Label(dialog, SWT.NONE);
+            vLowLabel.setText(String.valueOf(vLow));
+            vLowScale.addListener(SWT.Selection, e -> vLowLabel.setText(String.valueOf(vLowScale.getSelection())));
+
+            // V/R High
+            new Label(dialog, SWT.NONE).setText(useHSV ? "V High:" : "R High:");
+            Scale vHighScale = new Scale(dialog, SWT.HORIZONTAL);
+            vHighScale.setMinimum(0);
+            vHighScale.setMaximum(255);
+            vHighScale.setSelection(vHigh);
+            vHighScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label vHighLabel = new Label(dialog, SWT.NONE);
+            vHighLabel.setText(String.valueOf(vHigh));
+            vHighScale.addListener(SWT.Selection, e -> vHighLabel.setText(String.valueOf(vHighScale.getSelection())));
+
+            // Output mode
+            new Label(dialog, SWT.NONE).setText("Output:");
+            Combo modeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            modeCombo.setItems(OUTPUT_MODES);
+            modeCombo.select(outputMode);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            modeCombo.setLayoutData(comboGd);
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                useHSV = hsvCheck.getSelection();
+                hLow = hLowScale.getSelection();
+                hHigh = hHighScale.getSelection();
+                sLow = sLowScale.getSelection();
+                sHigh = sHighScale.getSelection();
+                vLow = vLowScale.getSelection();
+                vHigh = vHighScale.getSelection();
+                outputMode = modeCombo.getSelectionIndex();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Mean Shift Filter node - color segmentation
+    static class MeanShiftFilterNode extends ProcessingNode {
+        private int spatialRadius = 20;
+        private int colorRadius = 40;
+        private int maxLevel = 1;
+
+        public MeanShiftFilterNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Mean Shift", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Ensure input is color
+            Mat colorInput = input;
+            if (input.channels() == 1) {
+                colorInput = new Mat();
+                Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
+            }
+
+            Mat output = new Mat();
+            Imgproc.pyrMeanShiftFiltering(colorInput, output, spatialRadius, colorRadius, maxLevel);
+            return output;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.pyrMeanShiftFiltering(src, sp, sr)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Mean Shift Filter Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Spatial Radius
+            new Label(dialog, SWT.NONE).setText("Spatial Radius:");
+            Scale spatialScale = new Scale(dialog, SWT.HORIZONTAL);
+            spatialScale.setMinimum(1);
+            spatialScale.setMaximum(100);
+            spatialScale.setSelection(spatialRadius);
+            spatialScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label spatialLabel = new Label(dialog, SWT.NONE);
+            spatialLabel.setText(String.valueOf(spatialRadius));
+            spatialScale.addListener(SWT.Selection, e -> spatialLabel.setText(String.valueOf(spatialScale.getSelection())));
+
+            // Color Radius
+            new Label(dialog, SWT.NONE).setText("Color Radius:");
+            Scale colorScale = new Scale(dialog, SWT.HORIZONTAL);
+            colorScale.setMinimum(1);
+            colorScale.setMaximum(100);
+            colorScale.setSelection(colorRadius);
+            colorScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label colorLabel = new Label(dialog, SWT.NONE);
+            colorLabel.setText(String.valueOf(colorRadius));
+            colorScale.addListener(SWT.Selection, e -> colorLabel.setText(String.valueOf(colorScale.getSelection())));
+
+            // Max Level
+            new Label(dialog, SWT.NONE).setText("Max Pyramid Level:");
+            Scale levelScale = new Scale(dialog, SWT.HORIZONTAL);
+            levelScale.setMinimum(0);
+            levelScale.setMaximum(4);
+            levelScale.setSelection(maxLevel);
+            levelScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label levelLabel = new Label(dialog, SWT.NONE);
+            levelLabel.setText(String.valueOf(maxLevel));
+            levelScale.addListener(SWT.Selection, e -> levelLabel.setText(String.valueOf(levelScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                spatialRadius = spatialScale.getSelection();
+                colorRadius = colorScale.getSelection();
+                maxLevel = levelScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Hough Circles detection node
+    static class HoughCirclesNode extends ProcessingNode {
+        private int minDist = 50;
+        private int param1 = 100;  // Canny high threshold
+        private int param2 = 30;   // Accumulator threshold
+        private int minRadius = 10;
+        private int maxRadius = 100;
+        private int thickness = 2;
+        private boolean drawCenter = true;
+        private int colorR = 0, colorG = 255, colorB = 0;
+
+        public HoughCirclesNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Hough Circles", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale for detection
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Apply Gaussian blur to reduce noise
+            Imgproc.GaussianBlur(gray, gray, new org.opencv.core.Size(9, 9), 2);
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Detect circles
+            Mat circles = new Mat();
+            Imgproc.HoughCircles(gray, circles, Imgproc.HOUGH_GRADIENT, 1, minDist,
+                param1, param2, minRadius, maxRadius);
+
+            // Draw circles
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            for (int i = 0; i < circles.cols(); i++) {
+                double[] c = circles.get(0, i);
+                org.opencv.core.Point center = new org.opencv.core.Point(c[0], c[1]);
+                int radius = (int) Math.round(c[2]);
+
+                // Draw circle outline
+                Imgproc.circle(result, center, radius, color, thickness);
+
+                // Draw center point
+                if (drawCenter) {
+                    Imgproc.circle(result, center, 2, color, 3);
+                }
+            }
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.HoughCircles(image, method, dp, minDist)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Hough Circles Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Min Distance
+            new Label(dialog, SWT.NONE).setText("Min Distance:");
+            Scale distScale = new Scale(dialog, SWT.HORIZONTAL);
+            distScale.setMinimum(1);
+            distScale.setMaximum(200);
+            distScale.setSelection(minDist);
+            distScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label distLabel = new Label(dialog, SWT.NONE);
+            distLabel.setText(String.valueOf(minDist));
+            distScale.addListener(SWT.Selection, e -> distLabel.setText(String.valueOf(distScale.getSelection())));
+
+            // Param1 (Canny threshold)
+            new Label(dialog, SWT.NONE).setText("Canny Threshold:");
+            Scale p1Scale = new Scale(dialog, SWT.HORIZONTAL);
+            p1Scale.setMinimum(1);
+            p1Scale.setMaximum(300);
+            p1Scale.setSelection(param1);
+            p1Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label p1Label = new Label(dialog, SWT.NONE);
+            p1Label.setText(String.valueOf(param1));
+            p1Scale.addListener(SWT.Selection, e -> p1Label.setText(String.valueOf(p1Scale.getSelection())));
+
+            // Param2 (Accumulator threshold)
+            new Label(dialog, SWT.NONE).setText("Accum Threshold:");
+            Scale p2Scale = new Scale(dialog, SWT.HORIZONTAL);
+            p2Scale.setMinimum(1);
+            p2Scale.setMaximum(100);
+            p2Scale.setSelection(param2);
+            p2Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label p2Label = new Label(dialog, SWT.NONE);
+            p2Label.setText(String.valueOf(param2));
+            p2Scale.addListener(SWT.Selection, e -> p2Label.setText(String.valueOf(p2Scale.getSelection())));
+
+            // Min Radius
+            new Label(dialog, SWT.NONE).setText("Min Radius:");
+            Scale minRScale = new Scale(dialog, SWT.HORIZONTAL);
+            minRScale.setMinimum(0);
+            minRScale.setMaximum(200);
+            minRScale.setSelection(minRadius);
+            minRScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label minRLabel = new Label(dialog, SWT.NONE);
+            minRLabel.setText(String.valueOf(minRadius));
+            minRScale.addListener(SWT.Selection, e -> minRLabel.setText(String.valueOf(minRScale.getSelection())));
+
+            // Max Radius
+            new Label(dialog, SWT.NONE).setText("Max Radius:");
+            Scale maxRScale = new Scale(dialog, SWT.HORIZONTAL);
+            maxRScale.setMinimum(0);
+            maxRScale.setMaximum(500);
+            maxRScale.setSelection(maxRadius);
+            maxRScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label maxRLabel = new Label(dialog, SWT.NONE);
+            maxRLabel.setText(String.valueOf(maxRadius));
+            maxRScale.addListener(SWT.Selection, e -> maxRLabel.setText(String.valueOf(maxRScale.getSelection())));
+
+            // Thickness
+            new Label(dialog, SWT.NONE).setText("Line Thickness:");
+            Scale thickScale = new Scale(dialog, SWT.HORIZONTAL);
+            thickScale.setMinimum(1);
+            thickScale.setMaximum(10);
+            thickScale.setSelection(thickness);
+            thickScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label thickLabel = new Label(dialog, SWT.NONE);
+            thickLabel.setText(String.valueOf(thickness));
+            thickScale.addListener(SWT.Selection, e -> thickLabel.setText(String.valueOf(thickScale.getSelection())));
+
+            // Draw center checkbox
+            Button centerCheck = new Button(dialog, SWT.CHECK);
+            centerCheck.setText("Draw Center Point");
+            centerCheck.setSelection(drawCenter);
+            GridData checkGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            checkGd.horizontalSpan = 3;
+            centerCheck.setLayoutData(checkGd);
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                minDist = distScale.getSelection();
+                param1 = p1Scale.getSelection();
+                param2 = p2Scale.getSelection();
+                minRadius = minRScale.getSelection();
+                maxRadius = maxRScale.getSelection();
+                thickness = thickScale.getSelection();
+                drawCenter = centerCheck.getSelection();
                 dialog.dispose();
                 notifyChanged();
             });
