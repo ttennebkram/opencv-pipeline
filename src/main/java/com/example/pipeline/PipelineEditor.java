@@ -50,6 +50,8 @@ public class PipelineEditor {
         NodeRegistry.register("AdaptiveThreshold", "Basic", AdaptiveThresholdNode.class);
         NodeRegistry.register("CLAHE", "Basic", CLAHENode.class);
         NodeRegistry.register("ColorInRange", "Basic", ColorInRangeNode.class);
+        NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
+        NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
 
         // Blur nodes
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
@@ -626,6 +628,8 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Adaptive Threshold", () -> addEffectNode("AdaptiveThreshold"));
         createNodeButton(toolbar, "CLAHE", () -> addEffectNode("CLAHE"));
         createNodeButton(toolbar, "Color In Range", () -> addEffectNode("ColorInRange"));
+        createNodeButton(toolbar, "Bit Planes Grayscale", () -> addEffectNode("BitPlanesGrayscale"));
+        createNodeButton(toolbar, "Bit Planes Color", () -> addEffectNode("BitPlanesColor"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
