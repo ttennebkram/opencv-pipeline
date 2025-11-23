@@ -438,8 +438,10 @@ public class PipelineEditor {
         try {
             // Clear existing
             for (PipelineNode node : nodes) {
-                if (node instanceof ImageSourceNode) {
-                    ((ImageSourceNode) node).getOverlayComposite().dispose();
+                if (node instanceof FileSourceNode) {
+                    ((FileSourceNode) node).getOverlayComposite().dispose();
+                } else if (node instanceof WebcamSourceNode) {
+                    ((WebcamSourceNode) node).getOverlayComposite().dispose();
                 }
             }
             nodes.clear();
@@ -463,8 +465,8 @@ public class PipelineEditor {
                 int y = nodeObj.get("y").getAsInt();
                 String type = nodeObj.get("type").getAsString();
 
-                if ("ImageSource".equals(type)) {
-                    ImageSourceNode node = new ImageSourceNode(shell, display, canvas, x, y);
+                if ("FileSource".equals(type)) {
+                    FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
                     if (nodeObj.has("imagePath")) {
                         String imgPath = nodeObj.get("imagePath").getAsString();
                         node.setImagePath(imgPath);
@@ -472,6 +474,18 @@ public class PipelineEditor {
                     }
                     if (nodeObj.has("fpsMode")) {
                         node.setFpsMode(nodeObj.get("fpsMode").getAsInt());
+                    }
+                    nodes.add(node);
+                } else if ("WebcamSource".equals(type)) {
+                    WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
+                    if (nodeObj.has("cameraIndex")) {
+                        node.setCameraIndex(nodeObj.get("cameraIndex").getAsInt());
+                    }
+                    if (nodeObj.has("resolutionIndex")) {
+                        node.setResolutionIndex(nodeObj.get("resolutionIndex").getAsInt());
+                    }
+                    if (nodeObj.has("mirrorHorizontal")) {
+                        node.setMirrorHorizontal(nodeObj.get("mirrorHorizontal").getAsBoolean());
                     }
                     nodes.add(node);
                 } else if ("Processing".equals(type)) {
@@ -637,8 +651,10 @@ public class PipelineEditor {
     private void newDiagram() {
         // Clear existing
         for (PipelineNode node : nodes) {
-            if (node instanceof ImageSourceNode) {
-                ((ImageSourceNode) node).getOverlayComposite().dispose();
+            if (node instanceof FileSourceNode) {
+                ((FileSourceNode) node).getOverlayComposite().dispose();
+            } else if (node instanceof WebcamSourceNode) {
+                ((WebcamSourceNode) node).getOverlayComposite().dispose();
             }
         }
         nodes.clear();
@@ -668,7 +684,8 @@ public class PipelineEditor {
         inputsLabel.setText("Inputs:");
         inputsLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Image Source", () -> addImageSourceNode());
+        createNodeButton(toolbar, "File Source", () -> addFileSourceNode());
+        createNodeButton(toolbar, "Webcam Source", () -> addWebcamSourceNode());
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -877,13 +894,19 @@ public class PipelineEditor {
                 nodeObj.addProperty("x", node.x);
                 nodeObj.addProperty("y", node.y);
 
-                if (node instanceof ImageSourceNode) {
-                    nodeObj.addProperty("type", "ImageSource");
-                    ImageSourceNode isn = (ImageSourceNode) node;
+                if (node instanceof FileSourceNode) {
+                    nodeObj.addProperty("type", "FileSource");
+                    FileSourceNode isn = (FileSourceNode) node;
                     if (isn.getImagePath() != null) {
                         nodeObj.addProperty("imagePath", isn.getImagePath());
                     }
                     nodeObj.addProperty("fpsMode", isn.getFpsMode());
+                } else if (node instanceof WebcamSourceNode) {
+                    nodeObj.addProperty("type", "WebcamSource");
+                    WebcamSourceNode wsn = (WebcamSourceNode) node;
+                    nodeObj.addProperty("cameraIndex", wsn.getCameraIndex());
+                    nodeObj.addProperty("resolutionIndex", wsn.getResolutionIndex());
+                    nodeObj.addProperty("mirrorHorizontal", wsn.isMirrorHorizontal());
                 } else if (node instanceof ProcessingNode) {
                     nodeObj.addProperty("type", "Processing");
                     nodeObj.addProperty("name", ((ProcessingNode) node).getName());
@@ -1007,8 +1030,8 @@ public class PipelineEditor {
             // Save thumbnails to cache directory
             String cacheDir = getCacheDir(path);
             for (PipelineNode node : nodes) {
-                if (node instanceof ImageSourceNode) {
-                    ((ImageSourceNode) node).saveThumbnailToCache(cacheDir);
+                if (node instanceof FileSourceNode) {
+                    ((FileSourceNode) node).saveThumbnailToCache(cacheDir);
                 }
             }
 
@@ -1035,8 +1058,10 @@ public class PipelineEditor {
             try {
                 // Clear existing
                 for (PipelineNode node : nodes) {
-                    if (node instanceof ImageSourceNode) {
-                        ((ImageSourceNode) node).getOverlayComposite().dispose();
+                    if (node instanceof FileSourceNode) {
+                        ((FileSourceNode) node).getOverlayComposite().dispose();
+                    } else if (node instanceof WebcamSourceNode) {
+                        ((WebcamSourceNode) node).getOverlayComposite().dispose();
                     }
                 }
                 nodes.clear();
@@ -1060,8 +1085,8 @@ public class PipelineEditor {
                     int y = nodeObj.get("y").getAsInt();
                     String type = nodeObj.get("type").getAsString();
 
-                    if ("ImageSource".equals(type)) {
-                        ImageSourceNode node = new ImageSourceNode(shell, display, canvas, x, y);
+                    if ("FileSource".equals(type)) {
+                        FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
                         if (nodeObj.has("imagePath")) {
                             String imgPath = nodeObj.get("imagePath").getAsString();
                             node.setImagePath(imgPath);
@@ -1430,10 +1455,10 @@ public class PipelineEditor {
         // Find all nodes and build execution order
         // For now, simple linear execution following connections
 
-        // Find source node (ImageSourceNode with no incoming connections)
+        // Find source node (FileSourceNode or WebcamSourceNode with no incoming connections)
         PipelineNode sourceNode = null;
         for (PipelineNode node : nodes) {
-            if (node instanceof ImageSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -1449,15 +1474,17 @@ public class PipelineEditor {
         }
 
         if (sourceNode == null) {
-            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
-            mb.setText("No Source");
-            mb.setMessage("No image source node found in the pipeline.");
-            mb.open();
+            // No source node - silently return (may be loading empty diagram)
             return;
         }
 
-        ImageSourceNode imgSource = (ImageSourceNode) sourceNode;
-        Mat currentMat = imgSource.getLoadedImage();
+        // Get current frame from source
+        Mat currentMat = null;
+        if (sourceNode instanceof FileSourceNode) {
+            currentMat = ((FileSourceNode) sourceNode).getLoadedImage();
+        } else if (sourceNode instanceof WebcamSourceNode) {
+            currentMat = ((WebcamSourceNode) sourceNode).getNextFrame();
+        }
 
         if (currentMat == null || currentMat.empty()) {
             return;
@@ -1503,10 +1530,10 @@ public class PipelineEditor {
     private void startPipeline() {
         if (pipelineRunning.get()) return;
 
-        // Find source node
-        ImageSourceNode sourceNode = null;
+        // Find source node (FileSourceNode or WebcamSourceNode)
+        PipelineNode sourceNode = null;
         for (PipelineNode node : nodes) {
-            if (node instanceof ImageSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -1515,24 +1542,37 @@ public class PipelineEditor {
                     }
                 }
                 if (!hasIncoming) {
-                    sourceNode = (ImageSourceNode) node;
+                    sourceNode = node;
                     break;
                 }
             }
         }
 
-        if (sourceNode == null || sourceNode.getLoadedImage() == null) {
+        // Validate source node
+        if (sourceNode == null) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
             mb.setText("No Source");
-            mb.setMessage("Please load an image in the source node first.");
+            mb.setMessage("Please add a source node (Image Source or Webcam).");
             mb.open();
             return;
+        }
+
+        if (sourceNode instanceof FileSourceNode) {
+            FileSourceNode isn = (FileSourceNode) sourceNode;
+            if (isn.getLoadedImage() == null) {
+                MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+                mb.setText("No Source");
+                mb.setMessage("Please load an image in the source node first.");
+                mb.open();
+                return;
+            }
         }
 
         // Build ordered list of nodes following connections
         List<PipelineNode> orderedNodes = new ArrayList<>();
         orderedNodes.add(sourceNode);
         PipelineNode current = sourceNode;
+
         while (current != null) {
             PipelineNode next = null;
             for (Connection conn : connections) {
@@ -1563,8 +1603,15 @@ public class PipelineEditor {
         }
 
         pipelineRunning.set(true);
-        final ImageSourceNode finalSource = sourceNode;
-        final long frameDelayMs = (long) (1000.0 / finalSource.getFps());
+        final PipelineNode finalSource = sourceNode;
+        // Get FPS from source node
+        double fps = 30.0;
+        if (sourceNode instanceof FileSourceNode) {
+            fps = ((FileSourceNode) sourceNode).getFps();
+        } else if (sourceNode instanceof WebcamSourceNode) {
+            fps = ((WebcamSourceNode) sourceNode).getFps();
+        }
+        final long frameDelayMs = (long) (1000.0 / fps);
 
         // Create threads for each node
         for (int i = 0; i < orderedNodes.size(); i++) {
@@ -1581,9 +1628,17 @@ public class PipelineEditor {
                         Mat inputMat = null;
                         Mat outputMat = null;
 
-                        if (node instanceof ImageSourceNode) {
-                            // Source node: get next frame (video or static image)
-                            inputMat = finalSource.getNextFrame();
+                        if (node instanceof FileSourceNode) {
+                            // File source node: get next frame (video or static image)
+                            inputMat = ((FileSourceNode) node).getNextFrame();
+                            if (inputMat == null) {
+                                Thread.sleep(frameDelayMs);
+                                continue;
+                            }
+                            outputMat = inputMat;
+                        } else if (node instanceof WebcamSourceNode) {
+                            // Webcam source node: get next frame from camera
+                            inputMat = ((WebcamSourceNode) node).getNextFrame();
                             if (inputMat == null) {
                                 Thread.sleep(frameDelayMs);
                                 continue;
@@ -1639,7 +1694,7 @@ public class PipelineEditor {
                         }
 
                         // Throttle source node based on video FPS
-                        if (node instanceof ImageSourceNode) {
+                        if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
                             Thread.sleep(frameDelayMs);
                         }
                     }
@@ -1651,7 +1706,7 @@ public class PipelineEditor {
             });
 
             // Set priority based on node type
-            if (node instanceof ImageSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
                 t.setPriority(Thread.NORM_PRIORITY + 2); // Higher for source
             } else {
                 t.setPriority(Thread.NORM_PRIORITY - 1); // Lower for processing
@@ -2627,8 +2682,8 @@ public class PipelineEditor {
             if (node.containsPoint(clickPoint)) {
                 if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).showPropertiesDialog();
-                } else if (node instanceof ImageSourceNode) {
-                    ((ImageSourceNode) node).showPropertiesDialog();
+                } else if (node instanceof FileSourceNode) {
+                    ((FileSourceNode) node).showPropertiesDialog();
                 }
                 return;
             }
@@ -2643,7 +2698,7 @@ public class PipelineEditor {
                 // Show context menu for the node
                 Menu contextMenu = new Menu(canvas);
 
-                // Edit Properties option (for ProcessingNode and ImageSourceNode)
+                // Edit Properties option (for ProcessingNode and FileSourceNode)
                 if (node instanceof ProcessingNode) {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
                     editItem.setText("Edit Properties...");
@@ -2652,11 +2707,11 @@ public class PipelineEditor {
                     });
 
                     new MenuItem(contextMenu, SWT.SEPARATOR);
-                } else if (node instanceof ImageSourceNode) {
+                } else if (node instanceof FileSourceNode) {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
                     editItem.setText("Edit Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
-                        ((ImageSourceNode) node).showPropertiesDialog();
+                        ((FileSourceNode) node).showPropertiesDialog();
                     });
 
                     new MenuItem(contextMenu, SWT.SEPARATOR);
@@ -2736,7 +2791,7 @@ public class PipelineEditor {
     }
 
     private void createSamplePipeline() {
-        addImageSourceNodeAt(50, 100);
+        addFileSourceNodeAt(50, 100);
         addEffectNodeAt("Grayscale", 300, 100);
         addEffectNodeAt("GaussianBlur", 500, 100);
         addEffectNodeAt("Threshold", 700, 100);
@@ -2748,12 +2803,22 @@ public class PipelineEditor {
         }
     }
 
-    private void addImageSourceNode() {
-        addImageSourceNodeAt(50 + nodes.size() * 30, 50 + nodes.size() * 30);
+    private void addFileSourceNode() {
+        addFileSourceNodeAt(50 + nodes.size() * 30, 50 + nodes.size() * 30);
     }
 
-    private void addImageSourceNodeAt(int x, int y) {
-        ImageSourceNode node = new ImageSourceNode(shell, display, canvas, x, y);
+    private void addFileSourceNodeAt(int x, int y) {
+        FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
+        nodes.add(node);
+        canvas.redraw();
+    }
+
+    private void addWebcamSourceNode() {
+        addWebcamSourceNodeAt(50 + nodes.size() * 30, 50 + nodes.size() * 30);
+    }
+
+    private void addWebcamSourceNodeAt(int x, int y) {
+        WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
         nodes.add(node);
         canvas.redraw();
     }

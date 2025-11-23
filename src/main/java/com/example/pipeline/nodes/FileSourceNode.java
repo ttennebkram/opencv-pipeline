@@ -16,9 +16,9 @@ import org.opencv.videoio.Videoio;
 import java.io.File;
 
 /**
- * Image source node with file chooser and thumbnail.
+ * File source node with file chooser and thumbnail.
  */
-public class ImageSourceNode extends PipelineNode {
+public class FileSourceNode extends PipelineNode {
     private Shell shell;
     private Canvas parentCanvas;
     private String imagePath = null;
@@ -56,7 +56,7 @@ public class ImageSourceNode extends PipelineNode {
     private static final int SOURCE_NODE_THUMB_HEIGHT = 80;
     private static final int SOURCE_NODE_THUMB_WIDTH = 100;
 
-    public ImageSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
+    public FileSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
         this.shell = shell;
         this.display = display;
         this.parentCanvas = canvas;
@@ -442,7 +442,7 @@ public class ImageSourceNode extends PipelineNode {
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString("Image Source", x + 10, y + 4, true);
+        gc.drawString("File Source", x + 10, y + 4, true);
         boldFont.dispose();
 
         // Draw connection points (output only - this is a source node)
