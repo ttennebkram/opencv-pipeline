@@ -27,11 +27,17 @@
             <version>4.9.0-0</version>
         </dependency>
 
-        <!-- SWT for macOS -->
+        <!-- SWT for macOS - exclude parent to suppress invalid POM warning -->
         <dependency>
             <groupId>org.eclipse.platform</groupId>
             <artifactId>org.eclipse.swt.cocoa.macosx.aarch64</artifactId>
             <version>${swt.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.eclipse.platform</groupId>
+                    <artifactId>org.eclipse.swt</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Gson for JSON serialization -->

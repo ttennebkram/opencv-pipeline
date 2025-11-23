@@ -636,6 +636,9 @@ public class PipelineEditor {
         detectLabel.setFont(boldFont);
 
         createNodeButton(toolbar, "Hough Circles", () -> addEffectNode("HoughCircles"));
+        createNodeButton(toolbar, "Hough Lines", () -> addEffectNode("HoughLines"));
+        createNodeButton(toolbar, "Contours", () -> addEffectNode("Contours"));
+        createNodeButton(toolbar, "Harris Corners", () -> addEffectNode("HarrisCorners"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
@@ -2603,6 +2606,14 @@ public class PipelineEditor {
             case "HoughCircles":
             case "Hough Circles":
                 return new HoughCirclesNode(display, shell, x, y);
+            case "HoughLines":
+            case "Hough Lines":
+                return new HoughLinesNode(display, shell, x, y);
+            case "Contours":
+                return new ContoursNode(display, shell, x, y);
+            case "HarrisCorners":
+            case "Harris Corners":
+                return new HarrisCornersNode(display, shell, x, y);
             default:
                 // For any unknown type, create a default GaussianBlur as placeholder
                 System.err.println("Unknown effect type: " + type + ", creating GaussianBlur as placeholder");
@@ -5774,6 +5785,433 @@ public class PipelineEditor {
                 maxRadius = maxRScale.getSelection();
                 thickness = thickScale.getSelection();
                 drawCenter = centerCheck.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Hough Lines detection node
+    static class HoughLinesNode extends ProcessingNode {
+        private int threshold = 50;
+        private int minLineLength = 50;
+        private int maxLineGap = 10;
+        private int cannyThresh1 = 50;
+        private int cannyThresh2 = 150;
+        private int thickness = 2;
+        private int colorR = 255, colorG = 0, colorB = 0;
+
+        public HoughLinesNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Hough Lines", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale for detection
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Apply Canny edge detection
+            Mat edges = new Mat();
+            Imgproc.Canny(gray, edges, cannyThresh1, cannyThresh2);
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Detect lines using probabilistic Hough transform
+            Mat lines = new Mat();
+            Imgproc.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
+
+            // Draw lines
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            for (int i = 0; i < lines.rows(); i++) {
+                double[] l = lines.get(i, 0);
+                Imgproc.line(result,
+                    new org.opencv.core.Point(l[0], l[1]),
+                    new org.opencv.core.Point(l[2], l[3]),
+                    color, thickness);
+            }
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.HoughLinesP(image, rho, theta, threshold)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Hough Lines Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Canny Threshold 1
+            new Label(dialog, SWT.NONE).setText("Canny Thresh 1:");
+            Scale c1Scale = new Scale(dialog, SWT.HORIZONTAL);
+            c1Scale.setMinimum(0);
+            c1Scale.setMaximum(255);
+            c1Scale.setSelection(cannyThresh1);
+            c1Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label c1Label = new Label(dialog, SWT.NONE);
+            c1Label.setText(String.valueOf(cannyThresh1));
+            c1Scale.addListener(SWT.Selection, e -> c1Label.setText(String.valueOf(c1Scale.getSelection())));
+
+            // Canny Threshold 2
+            new Label(dialog, SWT.NONE).setText("Canny Thresh 2:");
+            Scale c2Scale = new Scale(dialog, SWT.HORIZONTAL);
+            c2Scale.setMinimum(0);
+            c2Scale.setMaximum(255);
+            c2Scale.setSelection(cannyThresh2);
+            c2Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label c2Label = new Label(dialog, SWT.NONE);
+            c2Label.setText(String.valueOf(cannyThresh2));
+            c2Scale.addListener(SWT.Selection, e -> c2Label.setText(String.valueOf(c2Scale.getSelection())));
+
+            // Threshold
+            new Label(dialog, SWT.NONE).setText("Hough Threshold:");
+            Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
+            threshScale.setMinimum(1);
+            threshScale.setMaximum(200);
+            threshScale.setSelection(threshold);
+            threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label threshLabel = new Label(dialog, SWT.NONE);
+            threshLabel.setText(String.valueOf(threshold));
+            threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
+
+            // Min Line Length
+            new Label(dialog, SWT.NONE).setText("Min Line Length:");
+            Scale minLenScale = new Scale(dialog, SWT.HORIZONTAL);
+            minLenScale.setMinimum(1);
+            minLenScale.setMaximum(200);
+            minLenScale.setSelection(minLineLength);
+            minLenScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label minLenLabel = new Label(dialog, SWT.NONE);
+            minLenLabel.setText(String.valueOf(minLineLength));
+            minLenScale.addListener(SWT.Selection, e -> minLenLabel.setText(String.valueOf(minLenScale.getSelection())));
+
+            // Max Line Gap
+            new Label(dialog, SWT.NONE).setText("Max Line Gap:");
+            Scale gapScale = new Scale(dialog, SWT.HORIZONTAL);
+            gapScale.setMinimum(1);
+            gapScale.setMaximum(100);
+            gapScale.setSelection(maxLineGap);
+            gapScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label gapLabel = new Label(dialog, SWT.NONE);
+            gapLabel.setText(String.valueOf(maxLineGap));
+            gapScale.addListener(SWT.Selection, e -> gapLabel.setText(String.valueOf(gapScale.getSelection())));
+
+            // Thickness
+            new Label(dialog, SWT.NONE).setText("Line Thickness:");
+            Scale thickScale = new Scale(dialog, SWT.HORIZONTAL);
+            thickScale.setMinimum(1);
+            thickScale.setMaximum(10);
+            thickScale.setSelection(thickness);
+            thickScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label thickLabel = new Label(dialog, SWT.NONE);
+            thickLabel.setText(String.valueOf(thickness));
+            thickScale.addListener(SWT.Selection, e -> thickLabel.setText(String.valueOf(thickScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                cannyThresh1 = c1Scale.getSelection();
+                cannyThresh2 = c2Scale.getSelection();
+                threshold = threshScale.getSelection();
+                minLineLength = minLenScale.getSelection();
+                maxLineGap = gapScale.getSelection();
+                thickness = thickScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Contours detection node
+    static class ContoursNode extends ProcessingNode {
+        private int thresholdValue = 127;
+        private int retrievalMode = 0; // 0=EXTERNAL, 1=LIST, 2=CCOMP, 3=TREE
+        private int thickness = 2;
+        private int colorR = 0, colorG = 255, colorB = 0;
+
+        private static final String[] RETRIEVAL_MODES = {"External", "List", "Two-level", "Tree"};
+        private static final int[] RETRIEVAL_VALUES = {
+            Imgproc.RETR_EXTERNAL, Imgproc.RETR_LIST, Imgproc.RETR_CCOMP, Imgproc.RETR_TREE
+        };
+
+        public ContoursNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Contours", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Apply threshold
+            Mat binary = new Mat();
+            Imgproc.threshold(gray, binary, thresholdValue, 255, Imgproc.THRESH_BINARY);
+
+            // Find contours
+            java.util.List<org.opencv.core.MatOfPoint> contours = new java.util.ArrayList<>();
+            Mat hierarchy = new Mat();
+            Imgproc.findContours(binary, contours, hierarchy,
+                RETRIEVAL_VALUES[retrievalMode], Imgproc.CHAIN_APPROX_SIMPLE);
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Draw contours
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            Imgproc.drawContours(result, contours, -1, color, thickness);
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.findContours(image, mode, method)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Contours Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Threshold
+            new Label(dialog, SWT.NONE).setText("Threshold:");
+            Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
+            threshScale.setMinimum(0);
+            threshScale.setMaximum(255);
+            threshScale.setSelection(thresholdValue);
+            threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label threshLabel = new Label(dialog, SWT.NONE);
+            threshLabel.setText(String.valueOf(thresholdValue));
+            threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
+
+            // Retrieval Mode
+            new Label(dialog, SWT.NONE).setText("Retrieval Mode:");
+            Combo modeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            modeCombo.setItems(RETRIEVAL_MODES);
+            modeCombo.select(retrievalMode);
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            modeCombo.setLayoutData(comboGd);
+
+            // Thickness
+            new Label(dialog, SWT.NONE).setText("Line Thickness:");
+            Scale thickScale = new Scale(dialog, SWT.HORIZONTAL);
+            thickScale.setMinimum(1);
+            thickScale.setMaximum(10);
+            thickScale.setSelection(thickness);
+            thickScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label thickLabel = new Label(dialog, SWT.NONE);
+            thickLabel.setText(String.valueOf(thickness));
+            thickScale.addListener(SWT.Selection, e -> thickLabel.setText(String.valueOf(thickScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                thresholdValue = threshScale.getSelection();
+                retrievalMode = modeCombo.getSelectionIndex();
+                thickness = thickScale.getSelection();
+                dialog.dispose();
+                notifyChanged();
+            });
+
+            Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+            cancelBtn.setText("Cancel");
+            cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+            dialog.pack();
+            Point cursor = shell.getDisplay().getCursorLocation();
+            dialog.setLocation(cursor.x, cursor.y);
+            dialog.open();
+        }
+    }
+
+    // Harris Corners detection node
+    static class HarrisCornersNode extends ProcessingNode {
+        private int blockSize = 2;
+        private int ksize = 3;
+        private int thresholdPercent = 1; // 0.01 * 100
+        private int markerSize = 5;
+        private int colorR = 255, colorG = 0, colorB = 0;
+
+        public HarrisCornersNode(Display display, Shell shell, int x, int y) {
+            super(display, shell, "Harris Corners", x, y);
+        }
+
+        @Override
+        public Mat process(Mat input) {
+            if (!enabled || input == null || input.empty()) return input;
+
+            // Convert to grayscale
+            Mat gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Convert to float
+            Mat grayFloat = new Mat();
+            gray.convertTo(grayFloat, CvType.CV_32F);
+
+            // Apply Harris corner detection
+            Mat harris = new Mat();
+            Imgproc.cornerHarris(grayFloat, harris, blockSize, ksize, 0.04);
+
+            // Normalize and convert to byte for thresholding
+            Mat harrisNorm = new Mat();
+            Core.normalize(harris, harrisNorm, 0, 255, Core.NORM_MINMAX);
+            Mat harrisNormScaled = new Mat();
+            harrisNorm.convertTo(harrisNormScaled, CvType.CV_8U);
+
+            // Create output image (color)
+            Mat result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Find and draw corners
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            double threshold = thresholdPercent * 2.55; // Convert percent to 0-255 range
+
+            for (int i = 0; i < harrisNormScaled.rows(); i++) {
+                for (int j = 0; j < harrisNormScaled.cols(); j++) {
+                    if (harrisNormScaled.get(i, j)[0] > threshold) {
+                        Imgproc.circle(result, new org.opencv.core.Point(j, i), markerSize, color, -1);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        @Override
+        public String getDescription() {
+            return "cv2.cornerHarris(src, blockSize, ksize, k)";
+        }
+
+        @Override
+        public void showPropertiesDialog() {
+            Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+            dialog.setText("Harris Corners Properties");
+            dialog.setLayout(new GridLayout(3, false));
+
+            // Block Size
+            new Label(dialog, SWT.NONE).setText("Block Size:");
+            Scale blockScale = new Scale(dialog, SWT.HORIZONTAL);
+            blockScale.setMinimum(2);
+            blockScale.setMaximum(10);
+            blockScale.setSelection(blockSize);
+            blockScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label blockLabel = new Label(dialog, SWT.NONE);
+            blockLabel.setText(String.valueOf(blockSize));
+            blockScale.addListener(SWT.Selection, e -> blockLabel.setText(String.valueOf(blockScale.getSelection())));
+
+            // Aperture Size (ksize)
+            new Label(dialog, SWT.NONE).setText("Aperture Size:");
+            Combo ksizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+            ksizeCombo.setItems(new String[]{"3", "5", "7"});
+            ksizeCombo.select(ksize == 3 ? 0 : (ksize == 5 ? 1 : 2));
+            GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+            comboGd.horizontalSpan = 2;
+            ksizeCombo.setLayoutData(comboGd);
+
+            // Threshold
+            new Label(dialog, SWT.NONE).setText("Threshold %:");
+            Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
+            threshScale.setMinimum(1);
+            threshScale.setMaximum(100);
+            threshScale.setSelection(thresholdPercent);
+            threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label threshLabel = new Label(dialog, SWT.NONE);
+            threshLabel.setText(String.valueOf(thresholdPercent));
+            threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
+
+            // Marker Size
+            new Label(dialog, SWT.NONE).setText("Marker Size:");
+            Scale markerScale = new Scale(dialog, SWT.HORIZONTAL);
+            markerScale.setMinimum(1);
+            markerScale.setMaximum(15);
+            markerScale.setSelection(markerSize);
+            markerScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+            Label markerLabel = new Label(dialog, SWT.NONE);
+            markerLabel.setText(String.valueOf(markerSize));
+            markerScale.addListener(SWT.Selection, e -> markerLabel.setText(String.valueOf(markerScale.getSelection())));
+
+            Composite buttonComp = new Composite(dialog, SWT.NONE);
+            buttonComp.setLayout(new GridLayout(2, true));
+            GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+            gd.horizontalSpan = 3;
+            buttonComp.setLayoutData(gd);
+
+            Button okBtn = new Button(buttonComp, SWT.PUSH);
+            okBtn.setText("OK");
+            okBtn.addListener(SWT.Selection, e -> {
+                blockSize = blockScale.getSelection();
+                int idx = ksizeCombo.getSelectionIndex();
+                ksize = idx == 0 ? 3 : (idx == 1 ? 5 : 7);
+                thresholdPercent = threshScale.getSelection();
+                markerSize = markerScale.getSelection();
                 dialog.dispose();
                 notifyChanged();
             });
