@@ -576,7 +576,7 @@ public class PipelineEditor {
         basicLabel.setText("Basic:");
         basicLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Grayscale", () -> addEffectNode("Grayscale"));
+        createNodeButton(toolbar, "Grayscale/Color", () -> addEffectNode("Grayscale"));
         createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
         createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
         createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
@@ -3200,7 +3200,15 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Image Source Properties");
             dialog.setLayout(new GridLayout(2, false));
-            dialog.setSize(500, 180);
+            dialog.setSize(500, 200);
+
+            // Description
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText("Read from File\ncv2.imread(filename) / cv2.VideoCapture(filename)");
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 2;
+            sigLabel.setLayoutData(sigGd);
 
             // Image/Video source row
             Label sourceLabel = new Label(dialog, SWT.NONE);
@@ -3395,7 +3403,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.GaussianBlur(src, ksize, sigmaX)";
+            return "Gaussian Blur\ncv2.GaussianBlur(src, ksize, sigmaX)";
         }
 
         @Override
@@ -3523,7 +3531,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.cvtColor(src, code)";
+            return "Grayscale or Color Conversion\ncv2.cvtColor(src, code)";
         }
 
         @Override
@@ -3596,7 +3604,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "255 - pixel value";
+            return "Invert Colors\ncv2.bitwise_not(src)";
         }
 
         @Override
@@ -3682,7 +3690,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.threshold(src, thresh, maxval, type)";
+            return "Binary Threshold\ncv2.threshold(src, thresh, maxval, type)";
         }
 
         @Override
@@ -3797,7 +3805,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.multiply(src, gain)";
+            return "Brightness/Gain Adjustment\ncv2.multiply(src, gain)";
         }
 
         @Override
@@ -3913,7 +3921,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.Canny(image, threshold1, threshold2)";
+            return "Canny Edge Detection\ncv2.Canny(image, threshold1, threshold2)";
         }
 
         @Override
@@ -4030,7 +4038,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.medianBlur(src, ksize)";
+            return "Median Blur\ncv2.medianBlur(src, ksize)";
         }
 
         @Override
@@ -4113,7 +4121,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.bilateralFilter(src, d, sigmaColor, sigmaSpace)";
+            return "Bilateral Filter\ncv2.bilateralFilter(src, d, sigmaColor, sigmaSpace)";
         }
 
         @Override
@@ -4251,7 +4259,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.Laplacian(src, ddepth)";
+            return "Laplacian Edge Detection\ncv2.Laplacian(src, ddepth)";
         }
 
         @Override
@@ -4381,7 +4389,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.Sobel(src, ddepth, dx, dy, ksize)";
+            return "Sobel Edge Detection\ncv2.Sobel(src, ddepth, dx, dy, ksize)";
         }
 
         @Override
@@ -4504,7 +4512,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.erode(src, kernel, iterations)";
+            return "Morphological Erosion\ncv2.erode(src, kernel, iterations)";
         }
 
         @Override
@@ -4623,7 +4631,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.dilate(src, kernel, iterations)";
+            return "Morphological Dilation\ncv2.dilate(src, kernel, iterations)";
         }
 
         @Override
@@ -4738,7 +4746,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.morphologyEx(src, cv2.MORPH_OPEN, kernel)";
+            return "Morphological Opening\ncv2.morphologyEx(src, cv2.MORPH_OPEN, kernel)";
         }
 
         @Override
@@ -4847,7 +4855,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.morphologyEx(src, cv2.MORPH_CLOSE, kernel)";
+            return "Morphological Closing\ncv2.morphologyEx(src, cv2.MORPH_CLOSE, kernel)";
         }
 
         @Override
@@ -4996,7 +5004,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.Scharr(src, ddepth, dx, dy)";
+            return "Scharr Edge Detection\ncv2.Scharr(src, ddepth, dx, dy)";
         }
 
         @Override
@@ -5100,7 +5108,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.adaptiveThreshold(src, maxValue, method, type, blockSize, C)";
+            return "Adaptive Threshold\ncv2.adaptiveThreshold(src, maxValue, method, type, blockSize, C)";
         }
 
         @Override
@@ -5264,7 +5272,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.createCLAHE(clipLimit, tileGridSize)";
+            return "CLAHE: Contrast Limited Adaptive Histogram Equalization\ncv2.createCLAHE(clipLimit, tileGridSize)";
         }
 
         @Override
@@ -5413,7 +5421,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.inRange(src, lowerb, upperb)";
+            return "Color Range Filter\ncv2.inRange(src, lowerb, upperb)";
         }
 
         @Override
@@ -5421,6 +5429,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Color In Range Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Color space checkbox
             Button hsvCheck = new Button(dialog, SWT.CHECK);
@@ -5565,7 +5581,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.pyrMeanShiftFiltering(src, sp, sr)";
+            return "Mean Shift Filtering\ncv2.pyrMeanShiftFiltering(src, sp, sr)";
         }
 
         @Override
@@ -5573,6 +5589,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Mean Shift Filter Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Spatial Radius
             new Label(dialog, SWT.NONE).setText("Spatial Radius:");
@@ -5698,7 +5722,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.HoughCircles(image, method, dp, minDist)";
+            return "Hough Circle Detection\ncv2.HoughCircles(image, method, dp, minDist)";
         }
 
         @Override
@@ -5706,6 +5730,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Hough Circles Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Min Distance
             new Label(dialog, SWT.NONE).setText("Min Distance:");
@@ -5869,7 +5901,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.HoughLinesP(image, rho, theta, threshold)";
+            return "Hough Line Detection\ncv2.HoughLinesP(image, rho, theta, threshold)";
         }
 
         @Override
@@ -5877,6 +5909,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Hough Lines Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Canny Threshold 1
             new Label(dialog, SWT.NONE).setText("Canny Thresh 1:");
@@ -6029,7 +6069,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.findContours(image, mode, method)";
+            return "Contour Detection\ncv2.findContours(image, mode, method)";
         }
 
         @Override
@@ -6037,6 +6077,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Contours Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Threshold
             new Label(dialog, SWT.NONE).setText("Threshold:");
@@ -6159,7 +6207,7 @@ public class PipelineEditor {
 
         @Override
         public String getDescription() {
-            return "cv2.cornerHarris(src, blockSize, ksize, k)";
+            return "Harris Corner Detection\ncv2.cornerHarris(src, blockSize, ksize, k)";
         }
 
         @Override
@@ -6167,6 +6215,14 @@ public class PipelineEditor {
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Harris Corners Properties");
             dialog.setLayout(new GridLayout(3, false));
+
+            // Method signature
+            Label sigLabel = new Label(dialog, SWT.NONE);
+            sigLabel.setText(getDescription());
+            sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+            GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+            sigGd.horizontalSpan = 3;
+            sigLabel.setLayoutData(sigGd);
 
             // Block Size
             new Label(dialog, SWT.NONE).setText("Block Size:");
