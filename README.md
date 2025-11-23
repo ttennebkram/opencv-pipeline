@@ -71,6 +71,17 @@ mvn exec:exec
 - Webcam
 - File (image/video)
 
+### Basic
+- Grayscale
+- Invert
+- Threshold
+- Adaptive Threshold
+- Gain
+- CLAHE
+- Color In Range
+- Bit Planes Grayscale
+- Bit Planes Color
+
 ### Blur
 - Gaussian Blur
 - Median Blur
@@ -82,23 +93,27 @@ mvn exec:exec
 - Canny Edge
 - Sobel
 - Laplacian
+- Scharr
 
-### Color
-- Grayscale
-- HSV
-- Threshold
-- Adaptive Threshold
-- Invert
-
-### Morphology
+### Morphological
 - Erode
 - Dilate
 - Morph Open
 - Morph Close
 
-### Other
-- Resize
-- Gain
+### Detection
+- Blob Detector
+- Connected Components
+- Hough Circles
+- Hough Lines
+- Harris Corners
+- Shi-Tomasi Corners
+- Contours
+- SIFT Features
+
+### Transform
+- Warp Affine
+- FFT Filter
 
 ## License
 
