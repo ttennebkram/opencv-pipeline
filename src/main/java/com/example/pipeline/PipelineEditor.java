@@ -155,10 +155,21 @@ public class PipelineEditor {
 
     public void run() {
         display = new Display();
+
+        // Show splash screen immediately
+        Shell splash = showSplashScreen();
+
         shell = new Shell(display);
         shell.setText("OpenCV Pipeline Editor");
         shell.setSize(1400, 800);
         shell.setLayout(new GridLayout(2, false));
+
+        // Center main window on screen
+        Rectangle screenBounds = display.getPrimaryMonitor().getBounds();
+        Rectangle shellBounds = shell.getBounds();
+        int x = screenBounds.x + (screenBounds.width - shellBounds.width) / 2;
+        int y = screenBounds.y + (screenBounds.height - shellBounds.height) / 2;
+        shell.setLocation(x, y);
 
         // Initialize preferences and load recent files
         prefs = Preferences.userNodeForPackage(PipelineEditor.class);
@@ -194,13 +205,74 @@ public class PipelineEditor {
             createSamplePipeline();
         }
 
+        // Close splash and open main window
+        if (splash != null && !splash.isDisposed()) {
+            splash.close();
+        }
         shell.open();
+
         while (!shell.isDisposed()) {
             if (!display.readAndDispatch()) {
                 display.sleep();
             }
         }
         display.dispose();
+    }
+
+    private Shell showSplashScreen() {
+        Shell splash = new Shell(display, SWT.NO_TRIM | SWT.ON_TOP);
+
+        // Create splash content
+        splash.setLayout(new GridLayout(1, false));
+        splash.setBackground(new Color(45, 45, 48)); // Dark background
+
+        // Title
+        Label titleLabel = new Label(splash, SWT.CENTER);
+        titleLabel.setText("OpenCV Pipeline Editor");
+        titleLabel.setFont(new Font(display, "Arial", 24, SWT.BOLD));
+        titleLabel.setForeground(new Color(255, 255, 255));
+        titleLabel.setBackground(splash.getBackground());
+        titleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+
+        // Subtitle
+        Label subtitleLabel = new Label(splash, SWT.CENTER);
+        subtitleLabel.setText("Visual Image Processing");
+        subtitleLabel.setFont(new Font(display, "Arial", 12, SWT.NORMAL));
+        subtitleLabel.setForeground(new Color(180, 180, 180));
+        subtitleLabel.setBackground(splash.getBackground());
+        subtitleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+
+        // Spacer
+        Label spacer = new Label(splash, SWT.NONE);
+        spacer.setBackground(splash.getBackground());
+        GridData spacerGd = new GridData(SWT.FILL, SWT.FILL, true, true);
+        spacerGd.heightHint = 20;
+        spacer.setLayoutData(spacerGd);
+
+        // Loading message
+        Label loadingLabel = new Label(splash, SWT.CENTER);
+        loadingLabel.setText("Loading...");
+        loadingLabel.setFont(new Font(display, "Arial", 10, SWT.ITALIC));
+        loadingLabel.setForeground(new Color(120, 120, 120));
+        loadingLabel.setBackground(splash.getBackground());
+        loadingLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+
+        // Size and center splash
+        splash.setSize(350, 180);
+        Rectangle screenBounds = display.getPrimaryMonitor().getBounds();
+        Rectangle splashBounds = splash.getBounds();
+        int x = screenBounds.x + (screenBounds.width - splashBounds.width) / 2;
+        int y = screenBounds.y + (screenBounds.height - splashBounds.height) / 2;
+        splash.setLocation(x, y);
+
+        splash.open();
+
+        // Process events to show splash immediately
+        while (display.readAndDispatch()) {
+            // Process all pending events
+        }
+
+        return splash;
     }
 
     private void createMenuBar() {
