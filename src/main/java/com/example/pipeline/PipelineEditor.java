@@ -139,7 +139,6 @@ public class PipelineEditor {
     // Threading state
     private AtomicBoolean pipelineRunning = new AtomicBoolean(false);
     private List<Thread> nodeThreads = new ArrayList<>();
-    private List<BlockingQueue<Mat>> queues = new ArrayList<>();
     private Button startStopBtn;
 
     public static void main(String[] args) {
@@ -1623,10 +1622,9 @@ public class PipelineEditor {
         // Clear old state
         stopPipeline();
 
-        // Create queues between nodes (N-1 queues for N nodes)
-        queues.clear();
-        for (int i = 0; i < orderedNodes.size() - 1; i++) {
-            queues.add(new LinkedBlockingQueue<>(3)); // Capacity 3 for backpressure
+        // Create queues on connections
+        for (Connection conn : connections) {
+            conn.createQueue();
         }
 
         pipelineRunning.set(true);
@@ -1644,8 +1642,27 @@ public class PipelineEditor {
         for (int i = 0; i < orderedNodes.size(); i++) {
             final int index = i;
             final PipelineNode node = orderedNodes.get(i);
-            final BlockingQueue<Mat> inputQueue = (i > 0) ? queues.get(i - 1) : null;
-            final BlockingQueue<Mat> outputQueue = (i < queues.size()) ? queues.get(i) : null;
+
+            // Find input connection (connection where this node is target)
+            Connection inputConn = null;
+            for (Connection conn : connections) {
+                if (conn.target == node) {
+                    inputConn = conn;
+                    break;
+                }
+            }
+
+            // Find output connection (connection where this node is source)
+            Connection outputConn = null;
+            for (Connection conn : connections) {
+                if (conn.source == node) {
+                    outputConn = conn;
+                    break;
+                }
+            }
+
+            final BlockingQueue<Mat> inputQueue = (inputConn != null) ? inputConn.getQueue() : null;
+            final BlockingQueue<Mat> outputQueue = (outputConn != null) ? outputConn.getQueue() : null;
 
             Thread t = new Thread(() -> {
                 int basePriority = Thread.currentThread().getPriority();
@@ -1784,16 +1801,19 @@ public class PipelineEditor {
             }
         }
 
-        // Clear queues
-        for (BlockingQueue<Mat> queue : queues) {
-            Mat m;
-            while ((m = queue.poll()) != null) {
-                m.release();
+        // Clear queues on connections
+        for (Connection conn : connections) {
+            BlockingQueue<Mat> queue = conn.getQueue();
+            if (queue != null) {
+                Mat m;
+                while ((m = queue.poll()) != null) {
+                    m.release();
+                }
             }
+            conn.clearQueue();
         }
 
         nodeThreads.clear();
-        queues.clear();
 
         // Update button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
@@ -1982,6 +2002,20 @@ public class PipelineEditor {
 
             gc.drawLine(start.x, start.y, end.x, end.y);
             drawArrow(gc, start, end);
+
+            // Draw queue size if pipeline is running
+            if (conn.isActive()) {
+                int queueSize = conn.getQueueSize();
+                int midX = (start.x + end.x) / 2;
+                int midY = (start.y + end.y) / 2;
+                String sizeText = String.valueOf(queueSize);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
+                Point textExtent = gc.textExtent(sizeText);
+                gc.fillRoundRectangle(midX - textExtent.x/2 - 3, midY - textExtent.y/2 - 2,
+                    textExtent.x + 6, textExtent.y + 4, 6, 6);
+                gc.drawString(sizeText, midX - textExtent.x/2, midY - textExtent.y/2, true);
+            }
         }
 
         // Draw dangling connections with dashed lines
