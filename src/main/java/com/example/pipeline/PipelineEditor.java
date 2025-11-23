@@ -84,6 +84,9 @@ public class PipelineEditor {
 
         // Transform nodes
         NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
+
+        // Filter nodes
+        NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
     }
 
     private Shell shell;
@@ -689,6 +692,30 @@ public class PipelineEditor {
         createNodeButton(toolbar, "Shi-Tomasi", () -> addEffectNode("ShiTomasi"));
         createNodeButton(toolbar, "Blob Detector", () -> addEffectNode("BlobDetector"));
         createNodeButton(toolbar, "ORB Features", () -> addEffectNode("ORBFeatures"));
+        createNodeButton(toolbar, "SIFT Features", () -> addEffectNode("SIFTFeatures"));
+        createNodeButton(toolbar, "Connected Components", () -> addEffectNode("ConnectedComponents"));
+
+        // Separator
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Transform
+        Label transformLabel = new Label(toolbar, SWT.NONE);
+        transformLabel.setText("Transform:");
+        transformLabel.setFont(boldFont);
+
+        createNodeButton(toolbar, "Warp Affine", () -> addEffectNode("WarpAffine"));
+
+        // Separator
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Filter
+        Label filterLabel = new Label(toolbar, SWT.NONE);
+        filterLabel.setText("Filter:");
+        filterLabel.setFont(boldFont);
+
+        createNodeButton(toolbar, "FFT High-Pass", () -> addEffectNode("FFTFilter"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
