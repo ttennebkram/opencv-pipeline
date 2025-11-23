@@ -77,6 +77,11 @@ public class PipelineEditor {
         NodeRegistry.register("ShiTomasi", "Detection", ShiTomasiCornersNode.class);
         NodeRegistry.register("BlobDetector", "Detection", BlobDetectorNode.class);
         NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
+        NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
+        NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
+
+        // Transform nodes
+        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
     }
 
     private Shell shell;
