@@ -752,7 +752,11 @@ public class PipelineEditor {
         scrolledToolbar.setExpandVertical(true);
 
         Composite toolbar = new Composite(scrolledToolbar, SWT.NONE);
-        toolbar.setLayout(new GridLayout(1, false));
+        GridLayout toolbarLayout = new GridLayout(1, false);
+        toolbarLayout.verticalSpacing = 0;  // No spacing between items
+        toolbarLayout.marginHeight = 5;     // Reduce top/bottom margins
+        toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
+        toolbar.setLayout(toolbarLayout);
 
         Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
 
@@ -1341,7 +1345,9 @@ public class PipelineEditor {
     private void createNodeButton(Composite parent, String text, Runnable action) {
         Button btn = new Button(parent, SWT.PUSH);
         btn.setText(text);
-        btn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        gd.heightHint = 22;  // Compact button height
+        btn.setLayoutData(gd);
         btn.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
