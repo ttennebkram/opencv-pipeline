@@ -749,6 +749,11 @@ public class PipelineEditor {
         toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
         toolbar.setLayout(toolbarLayout);
 
+        // Set green background for toolbar
+        Color toolbarGreen = new Color(200, 235, 200);
+        toolbar.setBackground(toolbarGreen);
+        scrolledToolbar.setBackground(toolbarGreen);
+
         Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
 
         // Inputs section (not from registry)
@@ -1425,7 +1430,7 @@ public class PipelineEditor {
         previewPanel.setLayout(new GridLayout(1, false));
 
         Label titleLabel = new Label(previewPanel, SWT.NONE);
-        titleLabel.setText("Output Preview");
+        titleLabel.setText("Output Preview of Selected Node");
         Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
         titleLabel.setFont(boldFont);
 
