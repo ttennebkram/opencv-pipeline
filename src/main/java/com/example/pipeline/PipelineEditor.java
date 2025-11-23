@@ -61,6 +61,9 @@ public class PipelineEditor {
     // Selection state
     private Set<PipelineNode> selectedNodes = new HashSet<>();
     private Set<Connection> selectedConnections = new HashSet<>();
+    private Set<DanglingConnection> selectedDanglingConnections = new HashSet<>();
+    private Set<ReverseDanglingConnection> selectedReverseDanglingConnections = new HashSet<>();
+    private Set<FreeConnection> selectedFreeConnections = new HashSet<>();
     private Point selectionBoxStart = null;
     private Point selectionBoxEnd = null;
     private boolean isSelectionBoxDragging = false;
@@ -545,8 +548,13 @@ public class PipelineEditor {
     }
 
     private void createToolbar() {
-        Composite toolbar = new Composite(shell, SWT.BORDER);
-        toolbar.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, true));
+        // Create scrollable container for the toolbar
+        org.eclipse.swt.custom.ScrolledComposite scrolledToolbar = new org.eclipse.swt.custom.ScrolledComposite(shell, SWT.V_SCROLL | SWT.BORDER);
+        scrolledToolbar.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, true));
+        scrolledToolbar.setExpandHorizontal(true);
+        scrolledToolbar.setExpandVertical(true);
+
+        Composite toolbar = new Composite(scrolledToolbar, SWT.NONE);
         toolbar.setLayout(new GridLayout(1, false));
 
         Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
@@ -562,39 +570,62 @@ public class PipelineEditor {
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Effects
-        Label effectsLabel = new Label(toolbar, SWT.NONE);
-        effectsLabel.setText("Effects:");
-        effectsLabel.setFont(boldFont);
+        // Basic Effects
+        Label basicLabel = new Label(toolbar, SWT.NONE);
+        basicLabel.setText("Basic:");
+        basicLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
-        createNodeButton(toolbar, "Median Blur", () -> addEffectNode("MedianBlur"));
-        createNodeButton(toolbar, "Bilateral Filter", () -> addEffectNode("BilateralFilter"));
-        createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
-        createNodeButton(toolbar, "Color Convert", () -> addEffectNode("Grayscale"));
+        createNodeButton(toolbar, "Grayscale", () -> addEffectNode("Grayscale"));
         createNodeButton(toolbar, "Invert", () -> addEffectNode("Invert"));
         createNodeButton(toolbar, "Gain", () -> addEffectNode("Gain"));
-        createNodeButton(toolbar, "Canny Edge", () -> addEffectNode("CannyEdge"));
-        createNodeButton(toolbar, "Laplacian", () -> addEffectNode("Laplacian"));
-        createNodeButton(toolbar, "Sobel", () -> addEffectNode("Sobel"));
-        createNodeButton(toolbar, "Erode", () -> addEffectNode("Erode"));
-        createNodeButton(toolbar, "Dilate", () -> addEffectNode("Dilate"));
+        createNodeButton(toolbar, "Threshold", () -> addEffectNode("Threshold"));
+        createNodeButton(toolbar, "Adaptive Threshold", () -> addEffectNode("AdaptiveThreshold"));
+        createNodeButton(toolbar, "CLAHE", () -> addEffectNode("CLAHE"));
 
         // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Outputs
-        Label outputsLabel = new Label(toolbar, SWT.NONE);
-        outputsLabel.setText("Outputs:");
-        outputsLabel.setFont(boldFont);
+        // Blur Effects
+        Label blurLabel = new Label(toolbar, SWT.NONE);
+        blurLabel.setText("Blur:");
+        blurLabel.setFont(boldFont);
 
-        // createNodeButton(toolbar, "Output", () -> addEffectNode("Output"));
+        createNodeButton(toolbar, "Gaussian Blur", () -> addEffectNode("GaussianBlur"));
+        createNodeButton(toolbar, "Median Blur", () -> addEffectNode("MedianBlur"));
+        createNodeButton(toolbar, "Bilateral Filter", () -> addEffectNode("BilateralFilter"));
 
         // Separator
-        Label sep = new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL);
-        sep.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+        // Edge Detection
+        Label edgeLabel = new Label(toolbar, SWT.NONE);
+        edgeLabel.setText("Edge Detection:");
+        edgeLabel.setFont(boldFont);
+
+        createNodeButton(toolbar, "Canny Edge", () -> addEffectNode("CannyEdge"));
+        createNodeButton(toolbar, "Laplacian", () -> addEffectNode("Laplacian"));
+        createNodeButton(toolbar, "Sobel", () -> addEffectNode("Sobel"));
+        createNodeButton(toolbar, "Scharr", () -> addEffectNode("Scharr"));
+
+        // Separator
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Morphological
+        Label morphLabel = new Label(toolbar, SWT.NONE);
+        morphLabel.setText("Morphological:");
+        morphLabel.setFont(boldFont);
+
+        createNodeButton(toolbar, "Erode", () -> addEffectNode("Erode"));
+        createNodeButton(toolbar, "Dilate", () -> addEffectNode("Dilate"));
+        createNodeButton(toolbar, "Morph Open", () -> addEffectNode("MorphOpen"));
+        createNodeButton(toolbar, "Morph Close", () -> addEffectNode("MorphClose"));
+
+        // Separator
+        new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
+            .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         // Instructions
         Label instructions = new Label(toolbar, SWT.WRAP);
@@ -607,14 +638,11 @@ public class PipelineEditor {
         gd.widthHint = 150;
         instructions.setLayoutData(gd);
 
-        // Spacer to push remaining items to bottom
-        Label spacer = new Label(toolbar, SWT.NONE);
-        spacer.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-
-        // Recent Files section
+        // Separator
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+        // Recent Files section
         Label recentLabel = new Label(toolbar, SWT.NONE);
         recentLabel.setText("Recent Pipelines:");
         recentLabel.setFont(boldFont);
@@ -636,7 +664,7 @@ public class PipelineEditor {
         // Store combo reference for updates
         this.recentFilesCombo = recentCombo;
 
-        // Separator before Restart
+        // Separator before buttons
         new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -665,6 +693,10 @@ public class PipelineEditor {
                 executePipeline();
             }
         });
+
+        // Set the toolbar as content of scrolled composite
+        scrolledToolbar.setContent(toolbar);
+        scrolledToolbar.setMinSize(toolbar.computeSize(SWT.DEFAULT, SWT.DEFAULT));
     }
 
     private void saveDiagramAs() {
@@ -777,18 +809,12 @@ public class PipelineEditor {
             }
             root.add("freeConnections", freeArray);
 
-            System.out.println("DEBUG save: Saving " + connections.size() + " connections, " +
-                danglingConnections.size() + " dangling, " +
-                reverseDanglingConnections.size() + " reverse dangling, " +
-                freeConnections.size() + " free connections to " + path);
-
             // Write to file
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             try (FileWriter writer = new FileWriter(path)) {
                 gson.toJson(root, writer);
             }
 
-            System.out.println("DEBUG save: File written successfully");
 
             // Save thumbnails to cache directory
             String cacheDir = getCacheDir(path);
@@ -850,12 +876,10 @@ public class PipelineEditor {
                         ImageSourceNode node = new ImageSourceNode(shell, display, canvas, x, y);
                         if (nodeObj.has("imagePath")) {
                             String imgPath = nodeObj.get("imagePath").getAsString();
-                            System.out.println("DEBUG load: Found imagePath in JSON: " + imgPath);
                             node.imagePath = imgPath;
                             // Load the media (creates thumbnail and loads image for execution)
                             node.loadMedia(imgPath);
                         } else {
-                            System.out.println("DEBUG load: No imagePath in JSON for ImageSource node");
                         }
                         nodes.add(node);
                     } else if ("Processing".equals(type)) {
@@ -873,9 +897,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("conversionIndex")) {
                                     int loadedIndex = nodeObj.get("conversionIndex").getAsInt();
                                     gn.conversionIndex = loadedIndex;
-                                    System.out.println("DEBUG load: Set GrayscaleNode conversionIndex to " + loadedIndex + " for node=" + System.identityHashCode(gn));
                                 } else {
-                                    System.out.println("DEBUG load: No conversionIndex in JSON for GrayscaleNode");
                                 }
                             } else if (node instanceof ThresholdNode) {
                                 ThresholdNode tn = (ThresholdNode) node;
@@ -948,11 +970,6 @@ public class PipelineEditor {
                         freeConnections.add(new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY)));
                     }
                 }
-
-                System.out.println("DEBUG load: Loaded " + connections.size() + " connections, " +
-                    danglingConnections.size() + " dangling, " +
-                    reverseDanglingConnections.size() + " reverse dangling, " +
-                    freeConnections.size() + " free connections from " + path);
 
                 currentFilePath = path;
                 addToRecentFiles(path);
@@ -1027,12 +1044,32 @@ public class PipelineEditor {
             // SWT.DEL = 127 (forward delete), SWT.BS = 8 (backspace)
             else if (event.keyCode == SWT.DEL || event.keyCode == SWT.BS ||
                      event.character == '\b' || event.character == 127) {
-                boolean hasSelection = !selectedNodes.isEmpty() || !selectedConnections.isEmpty();
+                boolean hasSelection = !selectedNodes.isEmpty() || !selectedConnections.isEmpty() ||
+                    !selectedDanglingConnections.isEmpty() || !selectedReverseDanglingConnections.isEmpty() ||
+                    !selectedFreeConnections.isEmpty();
 
                 // Delete selected connections first
                 if (!selectedConnections.isEmpty()) {
                     connections.removeAll(selectedConnections);
                     selectedConnections.clear();
+                }
+
+                // Delete selected dangling connections
+                if (!selectedDanglingConnections.isEmpty()) {
+                    danglingConnections.removeAll(selectedDanglingConnections);
+                    selectedDanglingConnections.clear();
+                }
+
+                // Delete selected reverse dangling connections
+                if (!selectedReverseDanglingConnections.isEmpty()) {
+                    reverseDanglingConnections.removeAll(selectedReverseDanglingConnections);
+                    selectedReverseDanglingConnections.clear();
+                }
+
+                // Delete selected free connections
+                if (!selectedFreeConnections.isEmpty()) {
+                    freeConnections.removeAll(selectedFreeConnections);
+                    selectedFreeConnections.clear();
                 }
 
                 if (!selectedNodes.isEmpty()) {
@@ -1177,10 +1214,8 @@ public class PipelineEditor {
         Mat currentMat = imgSource.getLoadedImage();
 
         if (currentMat == null || currentMat.empty()) {
-            System.out.println("DEBUG executePipeline: No image loaded in source node, skipping execution");
             return;
         }
-        System.out.println("DEBUG executePipeline: Starting execution with image " + currentMat.width() + "x" + currentMat.height());
 
         // Clone the mat so we don't modify the original
         currentMat = currentMat.clone();
@@ -1205,12 +1240,10 @@ public class PipelineEditor {
             // Execute the processing
             if (nextNode instanceof ProcessingNode) {
                 ProcessingNode procNode = (ProcessingNode) nextNode;
-                System.out.println("DEBUG executePipeline: Processing node " + procNode.getName());
                 // Use the node's process method instead of hardcoded switch
                 currentMat = procNode.process(currentMat);
                 // Set output on this node for thumbnail
                 nextNode.setOutputMat(currentMat);
-                System.out.println("DEBUG executePipeline: Set output mat for " + procNode.getName() + ", size=" + currentMat.width() + "x" + currentMat.height());
             }
 
             currentNode = nextNode;
@@ -1588,35 +1621,62 @@ public class PipelineEditor {
 
         // Draw dangling connections with dashed lines
         gc.setLineStyle(SWT.LINE_DASH);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
         for (DanglingConnection dangling : danglingConnections) {
             Point start = dangling.source.getOutputPoint();
+            // Highlight selected dangling connections
+            if (selectedDanglingConnections.contains(dangling)) {
+                gc.setLineWidth(3);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+            } else {
+                gc.setLineWidth(2);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            }
             gc.drawLine(start.x, start.y, dangling.freeEnd.x, dangling.freeEnd.y);
             drawArrow(gc, start, dangling.freeEnd);
             // Draw small circles at both ends to make them easier to grab
-            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(start.x - 4, start.y - 4, 8, 8);
             gc.fillOval(dangling.freeEnd.x - 4, dangling.freeEnd.y - 4, 8, 8);
         }
         // Draw reverse dangling connections (target fixed, source free)
         for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
             Point end = dangling.target.getInputPoint();
+            // Highlight selected reverse dangling connections
+            if (selectedReverseDanglingConnections.contains(dangling)) {
+                gc.setLineWidth(3);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+            } else {
+                gc.setLineWidth(2);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            }
             gc.drawLine(dangling.freeEnd.x, dangling.freeEnd.y, end.x, end.y);
             // Draw small circles at both ends to make them easier to grab
-            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(dangling.freeEnd.x - 4, dangling.freeEnd.y - 4, 8, 8);
             gc.fillOval(end.x - 4, end.y - 4, 8, 8);
         }
         // Draw free connections (both ends free)
         for (FreeConnection free : freeConnections) {
+            // Highlight selected free connections
+            if (selectedFreeConnections.contains(free)) {
+                gc.setLineWidth(3);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+            } else {
+                gc.setLineWidth(2);
+                gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+            }
             gc.drawLine(free.startEnd.x, free.startEnd.y, free.arrowEnd.x, free.arrowEnd.y);
             drawArrow(gc, free.startEnd, free.arrowEnd);
             // Draw small circles at both ends to make them easier to grab
-            gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(free.startEnd.x - 4, free.startEnd.y - 4, 8, 8);
             gc.fillOval(free.arrowEnd.x - 4, free.arrowEnd.y - 4, 8, 8);
         }
         gc.setLineStyle(SWT.LINE_SOLID);
+        gc.setLineWidth(1);
 
         // Draw connection being made (from source)
         if (connectionSource != null && connectionEndPoint != null) {
@@ -1692,17 +1752,40 @@ public class PipelineEditor {
         gc.drawLine(end.x, end.y, x2, y2);
     }
 
+    // Helper method to calculate distance from point to line segment
+    private double pointToLineDistance(Point p, Point lineStart, Point lineEnd) {
+        double dx = lineEnd.x - lineStart.x;
+        double dy = lineEnd.y - lineStart.y;
+        double lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared == 0) {
+            // Line segment is actually a point
+            return Math.sqrt(Math.pow(p.x - lineStart.x, 2) + Math.pow(p.y - lineStart.y, 2));
+        }
+
+        // Calculate projection parameter t
+        double t = ((p.x - lineStart.x) * dx + (p.y - lineStart.y) * dy) / lengthSquared;
+        t = Math.max(0, Math.min(1, t)); // Clamp to [0, 1]
+
+        // Find closest point on line segment
+        double closestX = lineStart.x + t * dx;
+        double closestY = lineStart.y + t * dy;
+
+        return Math.sqrt(Math.pow(p.x - closestX, 2) + Math.pow(p.y - closestY, 2));
+    }
+
+    // Helper method to clear all dangling connection selections
+    private void clearDanglingSelections() {
+        selectedDanglingConnections.clear();
+        selectedReverseDanglingConnections.clear();
+        selectedFreeConnections.clear();
+    }
+
     private void handleMouseDown(MouseEvent e) {
         if (e.button == 1) {
             Point clickPoint = new Point(e.x, e.y);
             int radius = 8; // Slightly larger than visual for easier clicking
             boolean cmdHeld = (e.stateMask & SWT.MOD1) != 0;
-
-            // Debug: Log state at start of click handling
-            System.out.println("DEBUG mouseDown: click at " + clickPoint.x + "," + clickPoint.y +
-                             " danglingConnections=" + danglingConnections.size() +
-                             " reverseDanglingConnections=" + reverseDanglingConnections.size() +
-                             " freeConnections=" + freeConnections.size());
 
             // First check if clicking on an input connection point (to yank off existing connection)
             for (PipelineNode node : nodes) {
@@ -1720,7 +1803,6 @@ public class PipelineEditor {
                     }
                     if (connToRemove != null) {
                         // Yank off the connection - remove it and start dragging from the source
-                        System.out.println("DEBUG: Yanking regular connection from input point");
                         connectionSource = connToRemove.source;
                         connectionEndPoint = clickPoint;
                         connections.remove(connToRemove);
@@ -1737,7 +1819,6 @@ public class PipelineEditor {
                         }
                     }
                     if (reverseToYank != null) {
-                        System.out.println("DEBUG: Picking up reverse dangling connection arrow end - drag to reconnect");
                         reverseDanglingConnections.remove(reverseToYank);
                         // Set up dragging the arrow end while the source end stays fixed
                         freeConnectionFixedEnd = reverseToYank.freeEnd; // The source end stays put
@@ -1747,7 +1828,6 @@ public class PipelineEditor {
                         return;
                     }
                     // No existing connection - start a new connection from input point (reverse direction)
-                    System.out.println("DEBUG: Starting new connection from input point (reverse direction)");
                     connectionTarget = node;
                     connectionEndPoint = clickPoint;
                     canvas.redraw();
@@ -1782,10 +1862,8 @@ public class PipelineEditor {
                 Point sourcePoint = dangling.source.getOutputPoint();
                 double dist = Math.sqrt(Math.pow(clickPoint.x - sourcePoint.x, 2) +
                                        Math.pow(clickPoint.y - sourcePoint.y, 2));
-                System.out.println("DEBUG handleMouseDown: Checking dangling source end at " + sourcePoint.x + "," + sourcePoint.y + " vs click " + clickPoint.x + "," + clickPoint.y + " dist=" + dist);
                 if (dist <= radius) {
                     // Yank off the source end - this becomes a completely free connector
-                    System.out.println("DEBUG handleMouseDown: MATCHED dangling source end, creating FreeConnection");
                     danglingSourceToRemove = dangling;
                     danglingSourcePoint = new Point(sourcePoint.x, sourcePoint.y);
                     danglingFreeEnd = dangling.freeEnd;
@@ -1796,7 +1874,6 @@ public class PipelineEditor {
                 danglingConnections.remove(danglingSourceToRemove);
                 // Instead of just creating a FreeConnection, set up dragging from the source end
                 // The target end stays fixed, we drag the source end
-                System.out.println("DEBUG handleMouseDown: Yanking source end of DanglingConnection - start dragging with target at " + danglingFreeEnd.x + "," + danglingFreeEnd.y);
                 connectionTarget = null; // No target node
                 connectionSource = null; // No source node
                 connectionEndPoint = clickPoint; // Current drag position
@@ -1861,7 +1938,6 @@ public class PipelineEditor {
                 double dist = Math.sqrt(Math.pow(clickPoint.x - free.startEnd.x, 2) +
                                        Math.pow(clickPoint.y - free.startEnd.y, 2));
                 if (dist <= radius) {
-                    System.out.println("DEBUG handleMouseDown: Picking up FreeConnection start end");
                     freeStartToRemove = free;
                     freeStartOtherEnd = free.arrowEnd;
                     break;
@@ -1884,7 +1960,6 @@ public class PipelineEditor {
                 double dist = Math.sqrt(Math.pow(clickPoint.x - free.arrowEnd.x, 2) +
                                        Math.pow(clickPoint.y - free.arrowEnd.y, 2));
                 if (dist <= radius) {
-                    System.out.println("DEBUG handleMouseDown: Picking up FreeConnection arrow end");
                     freeArrowToRemove = free;
                     freeArrowOtherEnd = free.startEnd;
                     break;
@@ -1916,7 +1991,6 @@ public class PipelineEditor {
                     }
                     if (connToRemove != null) {
                         // Yank off the connection - remove it and start dragging from the target
-                        System.out.println("DEBUG: Yanking regular connection from output point");
                         connectionTarget = connToRemove.target;
                         connectionEndPoint = clickPoint;
                         connections.remove(connToRemove);
@@ -1933,7 +2007,6 @@ public class PipelineEditor {
                         }
                     }
                     if (danglingToYank != null) {
-                        System.out.println("DEBUG: Yanking dangling connection from output point - creating FreeConnection");
                         danglingConnections.remove(danglingToYank);
                         freeConnections.add(new FreeConnection(new Point(outputPoint.x, outputPoint.y), danglingToYank.freeEnd));
                         canvas.redraw();
@@ -1963,6 +2036,7 @@ public class PipelineEditor {
                         if (!selectedNodes.contains(node)) {
                             selectedNodes.clear();
                             selectedConnections.clear();
+                            clearDanglingSelections();
                             selectedNodes.add(node);
                         }
                         // If node is already selected, keep current selection (for dragging multiple)
@@ -1977,10 +2051,98 @@ public class PipelineEditor {
                 }
             }
 
+            // Check for connection line selection (clicking on the line itself, not endpoints)
+            double clickThreshold = 5.0; // Distance threshold for click detection
+
+            // Check regular connections
+            for (Connection conn : connections) {
+                Point start = conn.source.getOutputPoint();
+                Point end = conn.target.getInputPoint();
+                if (pointToLineDistance(clickPoint, start, end) <= clickThreshold) {
+                    if (cmdHeld) {
+                        if (selectedConnections.contains(conn)) {
+                            selectedConnections.remove(conn);
+                        } else {
+                            selectedConnections.add(conn);
+                        }
+                    } else {
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        clearDanglingSelections();
+                        selectedConnections.add(conn);
+                    }
+                    canvas.redraw();
+                    return;
+                }
+            }
+
+            // Check dangling connections
+            for (DanglingConnection dangling : danglingConnections) {
+                Point start = dangling.source.getOutputPoint();
+                if (pointToLineDistance(clickPoint, start, dangling.freeEnd) <= clickThreshold) {
+                    if (cmdHeld) {
+                        if (selectedDanglingConnections.contains(dangling)) {
+                            selectedDanglingConnections.remove(dangling);
+                        } else {
+                            selectedDanglingConnections.add(dangling);
+                        }
+                    } else {
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        clearDanglingSelections();
+                        selectedDanglingConnections.add(dangling);
+                    }
+                    canvas.redraw();
+                    return;
+                }
+            }
+
+            // Check reverse dangling connections
+            for (ReverseDanglingConnection dangling : reverseDanglingConnections) {
+                Point end = dangling.target.getInputPoint();
+                if (pointToLineDistance(clickPoint, dangling.freeEnd, end) <= clickThreshold) {
+                    if (cmdHeld) {
+                        if (selectedReverseDanglingConnections.contains(dangling)) {
+                            selectedReverseDanglingConnections.remove(dangling);
+                        } else {
+                            selectedReverseDanglingConnections.add(dangling);
+                        }
+                    } else {
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        clearDanglingSelections();
+                        selectedReverseDanglingConnections.add(dangling);
+                    }
+                    canvas.redraw();
+                    return;
+                }
+            }
+
+            // Check free connections
+            for (FreeConnection free : freeConnections) {
+                if (pointToLineDistance(clickPoint, free.startEnd, free.arrowEnd) <= clickThreshold) {
+                    if (cmdHeld) {
+                        if (selectedFreeConnections.contains(free)) {
+                            selectedFreeConnections.remove(free);
+                        } else {
+                            selectedFreeConnections.add(free);
+                        }
+                    } else {
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        clearDanglingSelections();
+                        selectedFreeConnections.add(free);
+                    }
+                    canvas.redraw();
+                    return;
+                }
+            }
+
             // Clicked on empty space - start selection box
             if (!cmdHeld) {
                 selectedNodes.clear();
                 selectedConnections.clear();
+                clearDanglingSelections();
             }
             selectionBoxStart = clickPoint;
             selectionBoxEnd = clickPoint;
@@ -2024,13 +2186,10 @@ public class PipelineEditor {
             if (connected && targetNode != null) {
                 // Create a new connection
                 connections.add(new Connection(connectionSource, targetNode));
-                System.out.println("DEBUG mouseUp: Created regular connection");
             } else if (connectionEndPoint != null) {
                 // Create a dangling connection
                 danglingConnections.add(new DanglingConnection(connectionSource, connectionEndPoint));
-                System.out.println("DEBUG mouseUp: Created DanglingConnection, source=" + connectionSource + " freeEnd=" + connectionEndPoint.x + "," + connectionEndPoint.y + " total=" + danglingConnections.size());
             } else {
-                System.out.println("DEBUG mouseUp: No connectionEndPoint, nothing created");
             }
 
             connectionSource = null;
@@ -2113,11 +2272,9 @@ public class PipelineEditor {
 
                 if (connected && sourceNode != null) {
                     // Connected to output point - create DanglingConnection
-                    System.out.println("DEBUG mouseUp: Free connection source attached to node, creating DanglingConnection");
                     danglingConnections.add(new DanglingConnection(sourceNode, freeConnectionFixedEnd));
                 } else {
                     // Not connected - create FreeConnection at current position
-                    System.out.println("DEBUG mouseUp: Free connection source not attached, creating FreeConnection");
                     freeConnections.add(new FreeConnection(connectionEndPoint, freeConnectionFixedEnd));
                 }
             } else {
@@ -2136,11 +2293,9 @@ public class PipelineEditor {
 
                 if (connected && targetNode != null) {
                     // Connected to input point - create ReverseDanglingConnection
-                    System.out.println("DEBUG mouseUp: Free connection target attached to node, creating ReverseDanglingConnection");
                     reverseDanglingConnections.add(new ReverseDanglingConnection(targetNode, freeConnectionFixedEnd));
                 } else {
                     // Not connected - create FreeConnection at current position
-                    System.out.println("DEBUG mouseUp: Free connection target not attached, creating FreeConnection");
                     freeConnections.add(new FreeConnection(freeConnectionFixedEnd, connectionEndPoint));
                 }
             }
@@ -2490,9 +2645,7 @@ public class PipelineEditor {
         }
 
         protected void updateThumbnail() {
-            System.out.println("DEBUG updateThumbnail: Called, outputMat=" + (outputMat != null ? outputMat.width() + "x" + outputMat.height() : "null"));
             if (outputMat == null || outputMat.empty()) {
-                System.out.println("DEBUG updateThumbnail: outputMat is null or empty, returning");
                 return;
             }
 
@@ -2539,7 +2692,6 @@ public class PipelineEditor {
             }
 
             thumbnail = new Image(display, imageData);
-            System.out.println("DEBUG updateThumbnail: Created thumbnail " + thumbnail.getBounds().width + "x" + thumbnail.getBounds().height);
         }
 
         protected void drawThumbnail(GC gc, int thumbX, int thumbY) {
@@ -2808,14 +2960,11 @@ public class PipelineEditor {
         }
 
         private void loadImage(String path) {
-            System.out.println("DEBUG loadImage: Loading image from " + path);
             loadedImage = Imgcodecs.imread(path);
 
             if (loadedImage.empty()) {
-                System.out.println("DEBUG loadImage: Image is empty! File may not exist: " + path);
                 return;
             }
-            System.out.println("DEBUG loadImage: Loaded image " + loadedImage.width() + "x" + loadedImage.height());
 
             // Create thumbnail
             Mat resized = new Mat();
@@ -2841,11 +2990,9 @@ public class PipelineEditor {
                     return;
                 }
                 if (thumbToSet == null || thumbToSet.isDisposed()) {
-                    System.out.println("DEBUG loadImage: ERROR - thumbnail is null or disposed in asyncExec!");
                     return;
                 }
                 Control[] children = overlayComposite.getChildren();
-                System.out.println("DEBUG loadImage: overlayComposite has " + children.length + " children");
                 if (children.length > 0 && children[0] instanceof Label) {
                     Label label = (Label) children[0];
                     label.setText("");
@@ -2871,9 +3018,7 @@ public class PipelineEditor {
                         parentCanvas.update();
                     }
 
-                    System.out.println("DEBUG loadImage: Set thumbnail on label, bounds=" + thumbToSet.getBounds() + ", label bounds=" + label.getBounds() + ", composite bounds=" + overlayComposite.getBounds() + ", visible=" + overlayComposite.isVisible());
                 } else {
-                    System.out.println("DEBUG loadImage: Could not find label at index 1");
                 }
             });
         }
@@ -3132,7 +3277,6 @@ public class PipelineEditor {
 
         @Override
         public void paint(GC gc) {
-            System.out.println("DEBUG ProcessingNode.paint: " + name + ", thumbnail=" + (thumbnail != null ? (thumbnail.isDisposed() ? "disposed" : thumbnail.getBounds().width + "x" + thumbnail.getBounds().height) : "null"));
             // Draw node background
             gc.setBackground(new Color(230, 255, 230));
             gc.fillRoundRectangle(x, y, width, height, 10, 10);
@@ -3155,12 +3299,10 @@ public class PipelineEditor {
                 int thumbX = x + (width - bounds.width) / 2;
                 int thumbY = y + 25;
                 gc.drawImage(thumbnail, thumbX, thumbY);
-                System.out.println("DEBUG ProcessingNode.paint: Drew thumbnail at " + thumbX + "," + thumbY);
             } else {
                 // Draw placeholder
                 gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
                 gc.drawString("(no output)", x + 10, y + 40, true);
-                System.out.println("DEBUG ProcessingNode.paint: No thumbnail, drawing placeholder");
             }
 
             // Draw connection points
@@ -3339,7 +3481,6 @@ public class PipelineEditor {
 
         @Override
         public void showPropertiesDialog() {
-            System.out.println("DEBUG showPropertiesDialog: conversionIndex=" + conversionIndex + " for this=" + System.identityHashCode(this));
             Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
             dialog.setText("Color Conversion Properties");
             dialog.setLayout(new GridLayout(2, false));
