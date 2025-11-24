@@ -486,8 +486,8 @@ public class PipelineEditor {
                     if (nodeObj.has("fpsIndex")) {
                         node.setFpsIndex(nodeObj.get("fpsIndex").getAsInt());
                     }
-                    // Re-open camera with deserialized settings on background thread
-                    new Thread(() -> node.openCamera()).start();
+                    // Initialize camera after all properties are loaded
+                    node.initAfterLoad();
                     nodes.add(node);
                 } else if ("BlankSource".equals(type)) {
                     BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
@@ -615,11 +615,13 @@ public class PipelineEditor {
                 }
             }
 
-            // Load thumbnails from cache for ProcessingNodes
+            // Load thumbnails from cache for ProcessingNodes and WebcamSourceNodes
             String cacheDir = getCacheDir(path);
             for (int i = 0; i < nodes.size(); i++) {
                 PipelineNode node = nodes.get(i);
-                if (node instanceof ProcessingNode) {
+                if (node instanceof WebcamSourceNode) {
+                    ((WebcamSourceNode) node).loadThumbnailFromCache(cacheDir, i);
+                } else if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
                 }
             }
@@ -987,6 +989,8 @@ public class PipelineEditor {
             for (PipelineNode node : nodes) {
                 if (node instanceof FileSourceNode) {
                     ((FileSourceNode) node).saveThumbnailToCache(cacheDir);
+                } else if (node instanceof WebcamSourceNode) {
+                    ((WebcamSourceNode) node).saveThumbnailToCache(cacheDir, nodeIndex);
                 } else if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).saveThumbnailToCache(cacheDir, nodeIndex);
                 }
@@ -1166,11 +1170,13 @@ public class PipelineEditor {
                     }
                 }
 
-                // Load thumbnails from cache for ProcessingNodes
+                // Load thumbnails from cache for ProcessingNodes and WebcamSourceNodes
                 String cacheDir = getCacheDir(path);
                 for (int i = 0; i < nodes.size(); i++) {
                     PipelineNode node = nodes.get(i);
-                    if (node instanceof ProcessingNode) {
+                    if (node instanceof WebcamSourceNode) {
+                        ((WebcamSourceNode) node).loadThumbnailFromCache(cacheDir, i);
+                    } else if (node instanceof ProcessingNode) {
                         ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
                     }
                 }
@@ -1650,24 +1656,8 @@ public class PipelineEditor {
             }
         }
 
-        // Count pipelines (source nodes with at least one connection)
-        int pipelineCount = 0;
-        for (PipelineNode sourceNode : sourceNodes) {
-            for (Connection conn : connections) {
-                if (conn.source == sourceNode) {
-                    pipelineCount++;
-                    break;
-                }
-            }
-        }
-
-        if (pipelineCount == 0) {
-            MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
-            mb.setText("No Pipeline");
-            mb.setMessage("Connect at least one processing node to a source.");
-            mb.open();
-            return;
-        }
+        // Each source node is a pipeline
+        int pipelineCount = sourceNodes.size();
 
         // If no node is selected, auto-select the terminal node of the first pipeline
         if (selectedNodes.isEmpty()) {
@@ -2750,10 +2740,8 @@ public class PipelineEditor {
             if (node.containsPoint(clickPoint)) {
                 if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).showPropertiesDialog();
-                } else if (node instanceof FileSourceNode) {
-                    ((FileSourceNode) node).showPropertiesDialog();
-                } else if (node instanceof BlankSourceNode) {
-                    ((BlankSourceNode) node).showPropertiesDialog();
+                } else if (node instanceof SourceNode) {
+                    ((SourceNode) node).showPropertiesDialog();
                 }
                 return;
             }

@@ -19,11 +19,8 @@ import java.io.File;
  * File source node with file chooser and thumbnail.
  */
 public class FileSourceNode extends SourceNode {
-    private Canvas parentCanvas;
     private String imagePath = null;
-    private Image thumbnail = null;
     private Mat loadedImage = null;
-    private Composite overlayComposite;
 
     // Video support
     private VideoCapture videoCapture = null;
@@ -32,38 +29,26 @@ public class FileSourceNode extends SourceNode {
     private double fps = 30.0;
 
     // FPS mode selection
-    // 0 = "Just Once" (0 fps, single shot)
-    // 1 = "Automatic" (video fps or 1 fps for static)
-    // 2-N = specific fps values (e.g., 1, 5, 10, 15, 24, 30, 60)
     private int fpsMode = 1;  // Default to Automatic
     private static final String[] FPS_OPTIONS = {
         "Just Once", "Automatic", "1 fps", "5 fps", "10 fps", "15 fps", "24 fps", "30 fps", "60 fps"
     };
     private static final double[] FPS_VALUES = {
         0.0, -1.0, 1.0, 5.0, 10.0, 15.0, 24.0, 30.0, 60.0
-    };  // -1 means automatic
-
-    // Static image repeat (default 1 fps)
-    private boolean repeatImage = true;
-    private double staticFps = 1.0;
+    };
 
     // Thumbnail caching support
     private Mat thumbnailMat = null;
 
-    // Constants - these should match PipelineEditor values
+    // Constants
     private static final int SOURCE_NODE_HEIGHT = 120;
-    private static final int SOURCE_NODE_THUMB_HEIGHT = 80;
-    private static final int SOURCE_NODE_THUMB_WIDTH = 100;
 
     public FileSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
         this.shell = shell;
         this.display = display;
-        this.parentCanvas = canvas;
         this.x = x;
         this.y = y;
         this.height = SOURCE_NODE_HEIGHT;
-
-        createOverlay();
     }
 
     // Getters/setters for serialization
@@ -73,91 +58,6 @@ public class FileSourceNode extends SourceNode {
     public void setFpsMode(int mode) { this.fpsMode = Math.max(0, Math.min(mode, FPS_OPTIONS.length - 1)); }
     public boolean isLoopVideo() { return loopVideo; }
     public void setLoopVideo(boolean v) { loopVideo = v; }
-
-    private void createOverlay() {
-        overlayComposite = new Composite(parentCanvas, SWT.NONE);
-        overlayComposite.setLayout(new GridLayout(1, false));
-        // Tighten bounds: start at y+22, use exact thumbnail height + small padding
-        overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
-
-        // Thumbnail label only - Choose button moved to Properties dialog
-        Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
-        GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
-        gd.heightHint = SOURCE_NODE_THUMB_HEIGHT;
-        thumbnailLabel.setLayoutData(gd);
-        thumbnailLabel.setText("No image");
-
-        // Add mouse listeners for dragging from thumbnail area
-        MouseListener dragMouseListener = new MouseAdapter() {
-            @Override
-            public void mouseDown(MouseEvent e) {
-                if (e.button == 1) {  // Left click
-                    // Convert to canvas coordinates and forward to canvas
-                    Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-                    canvasPoint = parentCanvas.toControl(canvasPoint);
-
-                    // Create a synthetic mouse event for the canvas
-                    Event event = new Event();
-                    event.x = canvasPoint.x;
-                    event.y = canvasPoint.y;
-                    event.button = e.button;
-                    event.stateMask = e.stateMask;
-                    parentCanvas.notifyListeners(SWT.MouseDown, event);
-                }
-            }
-
-            @Override
-            public void mouseUp(MouseEvent e) {
-                // Convert to canvas coordinates and forward to canvas
-                Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-                canvasPoint = parentCanvas.toControl(canvasPoint);
-
-                Event event = new Event();
-                event.x = canvasPoint.x;
-                event.y = canvasPoint.y;
-                event.button = e.button;
-                event.stateMask = e.stateMask;
-                parentCanvas.notifyListeners(SWT.MouseUp, event);
-            }
-
-            @Override
-            public void mouseDoubleClick(MouseEvent e) {
-                showPropertiesDialog();
-            }
-        };
-
-        // Add mouse move listener for dragging
-        MouseMoveListener dragMoveListener = e -> {
-            // Convert to canvas coordinates and forward to canvas
-            Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-            canvasPoint = parentCanvas.toControl(canvasPoint);
-
-            Event event = new Event();
-            event.x = canvasPoint.x;
-            event.y = canvasPoint.y;
-            event.stateMask = e.stateMask;
-            parentCanvas.notifyListeners(SWT.MouseMove, event);
-        };
-
-        // Apply listeners to both overlay and thumbnail
-        overlayComposite.addMouseListener(dragMouseListener);
-        overlayComposite.addMouseMoveListener(dragMoveListener);
-        thumbnailLabel.addMouseListener(dragMouseListener);
-        thumbnailLabel.addMouseMoveListener(dragMoveListener);
-
-        // Add right-click menu to overlay composite and thumbnail
-        Menu contextMenu = new Menu(overlayComposite);
-        MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
-        editItem.setText("Edit Properties...");
-        editItem.addListener(SWT.Selection, evt -> showPropertiesDialog());
-
-        overlayComposite.setMenu(contextMenu);
-        thumbnailLabel.setMenu(contextMenu);
-
-        // Ensure the overlay is visible
-        overlayComposite.moveAbove(null);
-        overlayComposite.layout();
-    }
 
     private void chooseImage() {
         FileDialog dialog = new FileDialog(shell, SWT.OPEN);
@@ -183,7 +83,6 @@ public class FileSourceNode extends SourceNode {
     }
 
     public void loadMedia(String path) {
-        // Check if it's a video file
         String lower = path.toLowerCase();
         if (lower.endsWith(".mp4") || lower.endsWith(".avi") ||
             lower.endsWith(".mov") || lower.endsWith(".mkv") ||
@@ -195,7 +94,6 @@ public class FileSourceNode extends SourceNode {
     }
 
     private void loadVideo(String path) {
-        // Release any existing video capture
         if (videoCapture != null) {
             videoCapture.release();
         }
@@ -214,38 +112,7 @@ public class FileSourceNode extends SourceNode {
         Mat firstFrame = new Mat();
         if (videoCapture.read(firstFrame) && !firstFrame.empty()) {
             loadedImage = firstFrame.clone();
-
-            // Create thumbnail
-            Mat resized = new Mat();
-            double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / firstFrame.width(),
-                                    (double) SOURCE_NODE_THUMB_HEIGHT / firstFrame.height());
-            Imgproc.resize(firstFrame, resized,
-                new Size(firstFrame.width() * scale, firstFrame.height() * scale));
-
-            if (thumbnail != null) {
-                thumbnail.dispose();
-            }
-            thumbnail = matToSwtImage(resized);
-
-            // Capture thumbnail reference for asyncExec
-            final Image thumbToSet = thumbnail;
-
-            // Update the label - use asyncExec like loadImage() for consistency
-            display.asyncExec(() -> {
-                if (overlayComposite.isDisposed()) {
-                    return;
-                }
-                if (thumbToSet == null || thumbToSet.isDisposed()) {
-                    return;
-                }
-                Control[] children = overlayComposite.getChildren();
-                if (children.length > 0 && children[0] instanceof Label) {
-                    Label label = (Label) children[0];
-                    label.setText("");
-                    label.setImage(thumbToSet);
-                }
-            });
-
+            setOutputMat(firstFrame);
             firstFrame.release();
         }
 
@@ -259,7 +126,6 @@ public class FileSourceNode extends SourceNode {
             if (videoCapture.read(frame)) {
                 return frame;
             } else if (loopVideo) {
-                // Loop back to start
                 videoCapture.set(Videoio.CAP_PROP_POS_FRAMES, 0);
                 if (videoCapture.read(frame)) {
                     return frame;
@@ -273,45 +139,13 @@ public class FileSourceNode extends SourceNode {
         return null;
     }
 
-    private void updateVideoThumbnail(Mat frame) {
-        // Create thumbnail from current frame
-        Mat resized = new Mat();
-        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
-                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
-        Imgproc.resize(frame, resized,
-            new Size(frame.width() * scale, frame.height() * scale));
-
-        final Image oldThumbnail = thumbnail;
-        thumbnail = matToSwtImage(resized);
-        resized.release();
-
-        // Update label with new thumbnail and dispose old one on UI thread
-        final Image thumbToSet = thumbnail;
-        if (!display.isDisposed()) {
-            display.asyncExec(() -> {
-                if (overlayComposite.isDisposed()) return;
-                Control[] children = overlayComposite.getChildren();
-                if (children.length > 0 && children[0] instanceof Label) {
-                    Label label = (Label) children[0];
-                    label.setImage(thumbToSet);
-                }
-                // Dispose old thumbnail after setting new one
-                if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
-                    oldThumbnail.dispose();
-                }
-            });
-        }
-    }
-
     public boolean isVideoSource() {
         return isVideo;
     }
 
     public double getFps() {
-        // Handle FPS based on mode selection
         double selectedFps = FPS_VALUES[fpsMode];
         if (selectedFps == -1.0) {
-            // Automatic mode: use video fps or 1 fps for static
             return isVideo ? fps : 1.0;
         }
         return selectedFps;
@@ -319,64 +153,10 @@ public class FileSourceNode extends SourceNode {
 
     private void loadImage(String path) {
         loadedImage = Imgcodecs.imread(path);
-
         if (loadedImage.empty()) {
             return;
         }
-
-        // Create thumbnail
-        Mat resized = new Mat();
-        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / loadedImage.width(),
-                                (double) SOURCE_NODE_THUMB_HEIGHT / loadedImage.height());
-        Imgproc.resize(loadedImage, resized,
-            new Size(loadedImage.width() * scale, loadedImage.height() * scale));
-
-        // Store the thumbnail Mat for caching
-        thumbnailMat = resized;
-
-        if (thumbnail != null) {
-            thumbnail.dispose();
-        }
-        thumbnail = matToSwtImage(resized);
-
-        // Capture the thumbnail reference for the asyncExec closure
-        final Image thumbToSet = thumbnail;
-
-        // Update the label - use asyncExec to defer until after UI is fully initialized
-        display.asyncExec(() -> {
-            if (overlayComposite.isDisposed()) {
-                return;
-            }
-            if (thumbToSet == null || thumbToSet.isDisposed()) {
-                return;
-            }
-            Control[] children = overlayComposite.getChildren();
-            if (children.length > 0 && children[0] instanceof Label) {
-                Label label = (Label) children[0];
-                label.setText("");
-                label.setImage(thumbToSet);
-
-                // Force pack to resize label for the image
-                label.pack();
-
-                // Force complete layout refresh
-                overlayComposite.layout(true, true);
-
-                // Make sure it's visible and on top
-                overlayComposite.setVisible(true);
-                overlayComposite.moveAbove(null);
-
-                // Force full repaint
-                label.redraw();
-                label.update();
-                overlayComposite.redraw();
-                overlayComposite.update();
-                if (parentCanvas != null && !parentCanvas.isDisposed()) {
-                    parentCanvas.redraw();
-                    parentCanvas.update();
-                }
-            }
-        });
+        setOutputMat(loadedImage);
     }
 
     public void saveThumbnailToCache(String cacheDir) {
@@ -406,18 +186,35 @@ public class FileSourceNode extends SourceNode {
             if (cached.empty()) return false;
 
             thumbnailMat = cached;
-            if (thumbnail != null) {
+            // Convert to SWT Image for thumbnail
+            Mat rgb = new Mat();
+            if (cached.channels() == 3) {
+                Imgproc.cvtColor(cached, rgb, Imgproc.COLOR_BGR2RGB);
+            } else {
+                rgb = cached;
+            }
+
+            int w = rgb.width();
+            int h = rgb.height();
+            byte[] data = new byte[w * h * 3];
+            rgb.get(0, 0, data);
+
+            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+            ImageData imageData = new ImageData(w, h, 24, palette);
+            for (int y = 0; y < h; y++) {
+                for (int xp = 0; xp < w; xp++) {
+                    int srcIdx = (y * w + xp) * 3;
+                    int r = data[srcIdx] & 0xFF;
+                    int g = data[srcIdx + 1] & 0xFF;
+                    int b = data[srcIdx + 2] & 0xFF;
+                    imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
+                }
+            }
+
+            if (thumbnail != null && !thumbnail.isDisposed()) {
                 thumbnail.dispose();
             }
-            thumbnail = matToSwtImage(cached);
-
-            // Update the label (thumbnail is now first child)
-            Control[] children = overlayComposite.getChildren();
-            if (children.length > 0 && children[0] instanceof Label) {
-                Label label = (Label) children[0];
-                label.setText("");
-                label.setImage(thumbnail);
-            }
+            thumbnail = new Image(display, imageData);
             return true;
         } catch (Exception e) {
             return false;
@@ -425,50 +222,13 @@ public class FileSourceNode extends SourceNode {
     }
 
     private String getThumbnailCachePath(String cacheDir) {
-        // Create a simple hash from the image path
         int hash = imagePath.hashCode();
         String ext = imagePath.toLowerCase().endsWith(".png") ? ".png" : ".jpg";
         return cacheDir + File.separator + "thumb_" + Math.abs(hash) + ext;
     }
 
-    private Image matToSwtImage(Mat mat) {
-        Mat rgb = new Mat();
-        if (mat.channels() == 3) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (mat.channels() == 1) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_GRAY2RGB);
-        } else {
-            rgb = mat;
-        }
-
-        int w = rgb.width();
-        int h = rgb.height();
-        byte[] data = new byte[w * h * 3];
-        rgb.get(0, 0, data);
-
-        // Create ImageData with proper scanline padding
-        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-        ImageData imageData = new ImageData(w, h, 24, palette);
-
-        // Copy data row by row to handle scanline padding
-        for (int y = 0; y < h; y++) {
-            for (int xp = 0; xp < w; xp++) {
-                int srcIdx = (y * w + xp) * 3;
-                int r = data[srcIdx] & 0xFF;
-                int g = data[srcIdx + 1] & 0xFF;
-                int b = data[srcIdx + 2] & 0xFF;
-                imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
-            }
-        }
-
-        return new Image(display, imageData);
-    }
-
     @Override
     public void paint(GC gc) {
-        // Update overlay position (must match createOverlay)
-        overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
-
         // Draw node background
         gc.setBackground(new Color(230, 240, 255));
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
@@ -485,21 +245,32 @@ public class FileSourceNode extends SourceNode {
         gc.drawString("File Source", x + 10, y + 4, true);
         boldFont.dispose();
 
+        // Draw thumbnail if available
+        if (thumbnail != null && !thumbnail.isDisposed()) {
+            Rectangle bounds = thumbnail.getBounds();
+            int thumbX = x + (width - bounds.width) / 2;
+            int thumbY = y + 25;
+            gc.drawImage(thumbnail, thumbX, thumbY);
+        } else {
+            // Draw placeholder
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.drawString("(no image)", x + 10, y + 40, true);
+        }
+
         // Draw connection points (output only - this is a source node)
         drawConnectionPoints(gc);
     }
 
     @Override
     protected void drawConnectionPoints(GC gc) {
-        // ImageSourceNode only has output point (it's a source)
         int radius = 6;
         Point output = getOutputPoint();
-        gc.setBackground(new Color(255, 230, 200)); // Light orange fill
+        gc.setBackground(new Color(255, 230, 200));
         gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
-        gc.setForeground(new Color(200, 120, 50));  // Orange border
+        gc.setForeground(new Color(200, 120, 50));
         gc.setLineWidth(2);
         gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
-        gc.setLineWidth(1);  // Reset line width
+        gc.setLineWidth(1);
     }
 
     public void showPropertiesDialog() {
@@ -517,64 +288,56 @@ public class FileSourceNode extends SourceNode {
         sigLabel.setLayoutData(sigGd);
 
         // Image/Video source row
-        Label sourceLabel = new Label(dialog, SWT.NONE);
-        sourceLabel.setText("Source:");
+        new Label(dialog, SWT.NONE).setText("Source:");
 
-        // Source button and display
         Composite sourceComposite = new Composite(dialog, SWT.NONE);
         sourceComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         sourceComposite.setLayout(new GridLayout(2, false));
 
-        // Editable text field for path (allows copy/paste)
         Text pathText = new Text(sourceComposite, SWT.BORDER);
-        String displayPath = imagePath != null ? imagePath : "";
-        pathText.setText(displayPath);
+        pathText.setText(imagePath != null ? imagePath : "");
         pathText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Choose button
         Button chooseButton = new Button(sourceComposite, SWT.PUSH);
         chooseButton.setText("Choose...");
         chooseButton.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 chooseImage();
-                // Update the path text field
-                String newPath = imagePath != null ? imagePath : "";
-                pathText.setText(newPath);
+                pathText.setText(imagePath != null ? imagePath : "");
             }
         });
 
-        // FPS Mode label
-        Label fpsLabel = new Label(dialog, SWT.NONE);
-        fpsLabel.setText("FPS Mode:");
-
-        // FPS Mode dropdown
+        // FPS Mode
+        new Label(dialog, SWT.NONE).setText("FPS Mode:");
         Combo fpsCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
         fpsCombo.setItems(FPS_OPTIONS);
         fpsCombo.select(fpsMode);
         fpsCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // OK button
-        Button okButton = new Button(dialog, SWT.PUSH);
+        // Buttons
+        Composite buttonComp = new Composite(dialog, SWT.NONE);
+        buttonComp.setLayout(new GridLayout(2, true));
+        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+        gd.horizontalSpan = 2;
+        buttonComp.setLayoutData(gd);
+
+        Button okButton = new Button(buttonComp, SWT.PUSH);
         okButton.setText("OK");
-        okButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
         okButton.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                // Get the path from the text field
                 String newPath = pathText.getText().trim();
                 if (!newPath.isEmpty() && (imagePath == null || !newPath.equals(imagePath))) {
-                    // Path changed, load the new image
                     imagePath = newPath;
-                    loadImage(newPath);
+                    loadMedia(newPath);
                 }
                 fpsMode = fpsCombo.getSelectionIndex();
                 dialog.close();
             }
         });
 
-        // Cancel button
-        Button cancelButton = new Button(dialog, SWT.PUSH);
+        Button cancelButton = new Button(buttonComp, SWT.PUSH);
         cancelButton.setText("Cancel");
         cancelButton.addSelectionListener(new SelectionAdapter() {
             @Override
@@ -584,15 +347,9 @@ public class FileSourceNode extends SourceNode {
         });
 
         dialog.setDefaultButton(okButton);
-
-        // Center dialog on parent
-        Rectangle parentBounds = shell.getBounds();
-        Rectangle dialogBounds = dialog.getBounds();
-        dialog.setLocation(
-            parentBounds.x + (parentBounds.width - dialogBounds.width) / 2,
-            parentBounds.y + (parentBounds.height - dialogBounds.height) / 2
-        );
-
+        dialog.pack();
+        Point cursor = shell.getDisplay().getCursorLocation();
+        dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
     }
 
@@ -600,17 +357,8 @@ public class FileSourceNode extends SourceNode {
         return loadedImage;
     }
 
-    public Composite getOverlayComposite() {
-        return overlayComposite;
-    }
-
+    @Override
     public void dispose() {
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            thumbnail.dispose();
-        }
-        if (overlayComposite != null && !overlayComposite.isDisposed()) {
-            overlayComposite.dispose();
-        }
         if (videoCapture != null) {
             videoCapture.release();
         }
@@ -632,26 +380,21 @@ public class FileSourceNode extends SourceNode {
                 try {
                     Mat frame = getNextFrame();
                     if (frame != null) {
-                        // Update thumbnail
                         setOutputMat(frame);
                         notifyFrame(frame);
-                        // Put frame on output queue (blocks if full)
                         if (outputQueue != null) {
                             outputQueue.put(frame);
                         }
                     } else if (frame == null && !isVideo) {
-                        // Static image with no repeat - stop after first frame
                         if (!firstFrame && fps == 0) {
                             break;
                         }
                     }
                     firstFrame = false;
 
-                    // Throttle frame rate (skip if "Just Once" mode)
                     if (frameDelayMs > 0) {
                         Thread.sleep(frameDelayMs);
                     } else if (fps == 0 && !firstFrame) {
-                        // "Just Once" mode - wait briefly then exit
                         Thread.sleep(100);
                         break;
                     }

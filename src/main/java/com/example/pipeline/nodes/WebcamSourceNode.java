@@ -1,15 +1,12 @@
 package com.example.pipeline.nodes;
 
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
-import org.opencv.core.Size;
-import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoCapture;
 import org.opencv.videoio.Videoio;
 
@@ -17,16 +14,13 @@ import org.opencv.videoio.Videoio;
  * Webcam source node that captures from a camera device.
  */
 public class WebcamSourceNode extends SourceNode {
-    private Canvas parentCanvas;
-    private Composite overlayComposite;
-    private Image thumbnail = null;
 
     // Webcam settings
     private int cameraIndex = -1; // -1 means auto-detect highest
     private int resolutionIndex = 1; // Default to 640x480
     private boolean mirrorHorizontal = true;
     private boolean skipAutoInit = false; // Skip auto-init for deserialization
-    private int fpsIndex = 2; // Default to 10 fps
+    private int fpsIndex = 0; // Default to 1 fps
 
     // FPS options
     private static final String[] FPS_NAMES = {"1 fps", "5 fps", "10 fps", "15 fps", "30 fps"};
@@ -35,7 +29,12 @@ public class WebcamSourceNode extends SourceNode {
     // Video capture
     private VideoCapture videoCapture = null;
     private boolean isCapturing = false;
-    private volatile boolean thumbnailUpdatePending = false; // Skip updates if one is pending
+
+    // Cached list of available cameras (populated on init)
+    private java.util.List<String> availableCameras = new java.util.ArrayList<>();
+
+    // Canvas reference for redraw after thumbnail update
+    private Canvas canvas;
 
     // Resolution options
     private static final String[] RESOLUTION_NAMES = {
@@ -47,29 +46,78 @@ public class WebcamSourceNode extends SourceNode {
 
     // Constants
     private static final int SOURCE_NODE_HEIGHT = 120;
-    private static final int SOURCE_NODE_THUMB_HEIGHT = 80;
-    private static final int SOURCE_NODE_THUMB_WIDTH = 100;
 
     public WebcamSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
         this.shell = shell;
         this.display = display;
-        this.parentCanvas = canvas;
+        this.canvas = canvas;
         this.x = x;
         this.y = y;
         this.height = SOURCE_NODE_HEIGHT;
 
-        createOverlay();
-
-        // Auto-detect and open camera on a background thread to avoid blocking UI
-        // but update thumbnail on UI thread via asyncExec
-        new Thread(() -> {
-            initializeCamera();
-        }).start();
+        // Defer initialization - will be triggered by initAfterLoad() or immediately for new nodes
+        display.asyncExec(() -> {
+            // Check if we're being deserialized (skipAutoInit will be set by setters)
+            display.timerExec(100, () -> {
+                if (!skipAutoInit) {
+                    // New node - auto-detect and open camera
+                    new Thread(() -> {
+                        initializeCamera();
+                    }).start();
+                }
+            });
+        });
     }
 
     // Getters/setters for serialization
     public int getCameraIndex() { return cameraIndex; }
-    public void setCameraIndex(int v) { cameraIndex = v; skipAutoInit = true; }
+    public void setCameraIndex(int v) {
+        cameraIndex = v;
+        skipAutoInit = true;
+    }
+
+    /**
+     * Called after all properties are loaded from JSON to initialize camera.
+     */
+    public void initAfterLoad() {
+        new Thread(() -> {
+            // Detect available cameras for properties dialog
+            availableCameras.clear();
+            for (int i = 0; i <= 1; i++) {
+                VideoCapture test = new VideoCapture(i);
+                if (test.isOpened()) {
+                    availableCameras.add("Camera " + i);
+                }
+                test.release();
+            }
+            // Open the saved camera (skip thumbnail capture since we'll load from cache)
+            if (cameraIndex >= 0) {
+                openCameraSkipThumbnail();
+            }
+        }).start();
+    }
+
+    /**
+     * Open camera without capturing initial thumbnail (used when loading from cache).
+     */
+    private void openCameraSkipThumbnail() {
+        if (videoCapture != null) {
+            videoCapture.release();
+        }
+
+        System.out.println("Opening camera " + cameraIndex + " (skip thumbnail)");
+        videoCapture = new VideoCapture(cameraIndex);
+        if (videoCapture.isOpened()) {
+            int[] res = RESOLUTIONS[resolutionIndex];
+            videoCapture.set(Videoio.CAP_PROP_FRAME_WIDTH, res[0]);
+            videoCapture.set(Videoio.CAP_PROP_FRAME_HEIGHT, res[1]);
+            isCapturing = true;
+            System.out.println("Camera opened successfully, resolution: " + res[0] + "x" + res[1]);
+        } else {
+            System.err.println("Failed to open camera " + cameraIndex);
+            isCapturing = false;
+        }
+    }
     public int getResolutionIndex() { return resolutionIndex; }
     public void setResolutionIndex(int v) { resolutionIndex = v; }
     public boolean isMirrorHorizontal() { return mirrorHorizontal; }
@@ -77,108 +125,31 @@ public class WebcamSourceNode extends SourceNode {
     public int getFpsIndex() { return fpsIndex; }
     public void setFpsIndex(int v) { fpsIndex = v; }
 
-    private void createOverlay() {
-        overlayComposite = new Composite(parentCanvas, SWT.NONE);
-        overlayComposite.setBackground(new Color(230, 240, 255)); // Match node background
-        overlayComposite.setLayout(new GridLayout(1, false));
-        overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
-
-        // Thumbnail label
-        Label thumbnailLabel = new Label(overlayComposite, SWT.BORDER | SWT.CENTER);
-        GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
-        gd.heightHint = SOURCE_NODE_THUMB_HEIGHT;
-        thumbnailLabel.setLayoutData(gd);
-        thumbnailLabel.setText("Webcam");
-        thumbnailLabel.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
-
-        // Add mouse listeners for dragging
-        MouseListener dragMouseListener = new MouseAdapter() {
-            @Override
-            public void mouseDown(MouseEvent e) {
-                if (e.button == 1) {
-                    Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-                    canvasPoint = parentCanvas.toControl(canvasPoint);
-                    Event event = new Event();
-                    event.x = canvasPoint.x;
-                    event.y = canvasPoint.y;
-                    event.button = e.button;
-                    event.stateMask = e.stateMask;
-                    parentCanvas.notifyListeners(SWT.MouseDown, event);
-                }
-            }
-
-            @Override
-            public void mouseUp(MouseEvent e) {
-                Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-                canvasPoint = parentCanvas.toControl(canvasPoint);
-                Event event = new Event();
-                event.x = canvasPoint.x;
-                event.y = canvasPoint.y;
-                event.button = e.button;
-                event.stateMask = e.stateMask;
-                parentCanvas.notifyListeners(SWT.MouseUp, event);
-            }
-
-            @Override
-            public void mouseDoubleClick(MouseEvent e) {
-                showPropertiesDialog();
-            }
-        };
-
-        MouseMoveListener dragMoveListener = e -> {
-            Point canvasPoint = overlayComposite.toDisplay(e.x, e.y);
-            canvasPoint = parentCanvas.toControl(canvasPoint);
-            Event event = new Event();
-            event.x = canvasPoint.x;
-            event.y = canvasPoint.y;
-            event.stateMask = e.stateMask;
-            parentCanvas.notifyListeners(SWT.MouseMove, event);
-        };
-
-        overlayComposite.addMouseListener(dragMouseListener);
-        overlayComposite.addMouseMoveListener(dragMoveListener);
-        thumbnailLabel.addMouseListener(dragMouseListener);
-        thumbnailLabel.addMouseMoveListener(dragMoveListener);
-
-        // Context menu
-        Menu contextMenu = new Menu(overlayComposite);
-        MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
-        editItem.setText("Edit Properties...");
-        editItem.addListener(SWT.Selection, evt -> showPropertiesDialog());
-
-        overlayComposite.setMenu(contextMenu);
-        thumbnailLabel.setMenu(contextMenu);
-
-        overlayComposite.moveAbove(null);
-        overlayComposite.layout();
-    }
-
     private void initializeCamera() {
-        // Skip auto-init if settings were loaded from deserialization
-        if (skipAutoInit) {
-            return;
-        }
-
         // Find available cameras - on macOS, usually just 0 or 0-1
+        // Only check 0 and 1 to avoid OpenCV hanging on non-existent cameras
         int maxCamera = -1;
-        int consecutiveFailures = 0;
+        availableCameras.clear();
 
-        for (int i = 0; i <= 10; i++) {
+        for (int i = 0; i <= 1; i++) {
             VideoCapture test = new VideoCapture(i);
             boolean opened = test.isOpened();
             test.release();
 
             if (opened) {
                 maxCamera = i;
-                consecutiveFailures = 0;
+                availableCameras.add("Camera " + i);
                 System.out.println("Found camera at index " + i);
-            } else {
-                consecutiveFailures++;
-                // Stop after 3 consecutive failures to avoid OpenCV errors
-                if (consecutiveFailures >= 3) {
-                    break;
-                }
             }
+        }
+
+        // Skip auto-selection if settings were loaded from deserialization
+        if (skipAutoInit) {
+            // Just open the camera with saved settings
+            if (cameraIndex >= 0) {
+                openCamera();
+            }
+            return;
         }
 
         if (maxCamera >= 0) {
@@ -207,25 +178,31 @@ public class WebcamSourceNode extends SourceNode {
             System.out.println("Camera opened successfully, resolution: " + res[0] + "x" + res[1]);
 
             // Capture first non-black frame for thumbnail
-            // Webcams often return black frames initially while warming up
             Mat frame = new Mat();
             for (int attempt = 0; attempt < 10; attempt++) {
                 if (videoCapture.read(frame) && !frame.empty()) {
                     // Check if frame is not all black (sample center pixel)
                     double[] pixel = frame.get(frame.height() / 2, frame.width() / 2);
                     if (pixel != null && (pixel[0] > 5 || pixel[1] > 5 || pixel[2] > 5)) {
-                        System.out.println("Got valid frame on attempt " + (attempt + 1) + ": " + frame.width() + "x" + frame.height());
+                        System.out.println("Got valid frame on attempt " + (attempt + 1));
                         // Mirror if needed before creating thumbnail
                         if (mirrorHorizontal) {
                             Core.flip(frame, frame, 1);
                         }
-                        updateThumbnail(frame);
+                        setOutputMat(frame);
+                        // Trigger canvas redraw on UI thread
+                        if (canvas != null && !canvas.isDisposed()) {
+                            display.asyncExec(() -> {
+                                if (!canvas.isDisposed()) {
+                                    canvas.redraw();
+                                }
+                            });
+                        }
                         break;
                     }
-                    System.out.println("Frame " + (attempt + 1) + " is black, retrying...");
                 }
                 try {
-                    Thread.sleep(100); // Wait 100ms between attempts
+                    Thread.sleep(100);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -236,86 +213,6 @@ public class WebcamSourceNode extends SourceNode {
             System.err.println("Failed to open camera " + cameraIndex);
             isCapturing = false;
         }
-    }
-
-    private void updateThumbnail(Mat frame) {
-        // Skip if an update is already pending to prevent queue backup
-        if (thumbnailUpdatePending) {
-            return;
-        }
-
-        // Frame is already processed (mirrored if needed), just create thumbnail
-        // Create thumbnail Mat (can be done on any thread)
-        Mat resized = new Mat();
-        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
-                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
-        Imgproc.resize(frame, resized,
-            new Size(frame.width() * scale, frame.height() * scale));
-
-        // Convert to RGB data (can be done on any thread)
-        Mat rgb = new Mat();
-        if (resized.channels() == 3) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (resized.channels() == 1) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
-        } else {
-            rgb = resized;
-        }
-
-        int w = rgb.width();
-        int h = rgb.height();
-        byte[] data = new byte[w * h * 3];
-        rgb.get(0, 0, data);
-
-        // Create ImageData with direct data copy (much faster than setPixel loop)
-        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-        ImageData imageData = new ImageData(w, h, 24, palette);
-
-        // Copy data row by row to handle scanline padding
-        int bytesPerLine = imageData.bytesPerLine;
-        for (int y = 0; y < h; y++) {
-            int srcOffset = y * w * 3;
-            int dstOffset = y * bytesPerLine;
-            for (int x = 0; x < w; x++) {
-                int srcIdx = srcOffset + x * 3;
-                int dstIdx = dstOffset + x * 3;
-                // Direct copy - data is already RGB from cvtColor
-                imageData.data[dstIdx] = data[srcIdx];         // R
-                imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
-                imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
-            }
-        }
-
-        // Update label with thumbnail on UI thread (Image must be created on UI thread)
-        if (!display.isDisposed()) {
-            thumbnailUpdatePending = true;
-            display.asyncExec(() -> {
-                thumbnailUpdatePending = false;
-                if (overlayComposite.isDisposed()) return;
-
-                // Create Image on UI thread
-                final Image oldThumbnail = thumbnail;
-                thumbnail = new Image(display, imageData);
-
-                // Update the label with the thumbnail
-                Control[] children = overlayComposite.getChildren();
-                if (children.length > 0 && children[0] instanceof Label) {
-                    Label label = (Label) children[0];
-                    label.setText("");
-                    label.setImage(thumbnail);
-                }
-
-                if (!parentCanvas.isDisposed()) {
-                    parentCanvas.redraw();
-                }
-                // Dispose old thumbnail after setting new one
-                if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
-                    oldThumbnail.dispose();
-                }
-            });
-        }
-
-        resized.release();
     }
 
     public Mat getNextFrame() {
@@ -335,127 +232,21 @@ public class WebcamSourceNode extends SourceNode {
     }
 
     public boolean isVideoSource() {
-        return true; // Webcam is always a continuous source
-    }
-
-    @Override
-    public void setOutputMat(Mat mat) {
-        this.outputMat = mat;
-        // Update the label-based thumbnail for source nodes
-        // This is called from UI thread via asyncExec, so update directly
-        if (mat != null && !mat.empty()) {
-            updateThumbnailSync(mat);
-        }
-    }
-
-    // Synchronous thumbnail update for when already on UI thread
-    private void updateThumbnailSync(Mat frame) {
-        // Create thumbnail Mat
-        Mat resized = new Mat();
-        double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / frame.width(),
-                                (double) SOURCE_NODE_THUMB_HEIGHT / frame.height());
-        Imgproc.resize(frame, resized,
-            new Size(frame.width() * scale, frame.height() * scale));
-
-        // Convert to RGB
-        Mat rgb = new Mat();
-        if (resized.channels() == 3) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (resized.channels() == 1) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
-        } else {
-            rgb = resized;
-        }
-
-        int w = rgb.width();
-        int h = rgb.height();
-        byte[] data = new byte[w * h * 3];
-        rgb.get(0, 0, data);
-
-        // Create ImageData
-        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-        ImageData imageData = new ImageData(w, h, 24, palette);
-
-        int bytesPerLine = imageData.bytesPerLine;
-        for (int y = 0; y < h; y++) {
-            int srcOffset = y * w * 3;
-            int dstOffset = y * bytesPerLine;
-            for (int x = 0; x < w; x++) {
-                int srcIdx = srcOffset + x * 3;
-                int dstIdx = dstOffset + x * 3;
-                imageData.data[dstIdx] = data[srcIdx];
-                imageData.data[dstIdx + 1] = data[srcIdx + 1];
-                imageData.data[dstIdx + 2] = data[srcIdx + 2];
-            }
-        }
-
-        // Update directly on UI thread
-        if (!overlayComposite.isDisposed()) {
-            final Image oldThumbnail = thumbnail;
-            thumbnail = new Image(display, imageData);
-
-            Control[] children = overlayComposite.getChildren();
-            if (children.length > 0 && children[0] instanceof Label) {
-                Label label = (Label) children[0];
-                label.setText("");
-                label.setImage(thumbnail);
-            }
-
-            if (oldThumbnail != null && !oldThumbnail.isDisposed()) {
-                oldThumbnail.dispose();
-            }
-        }
-
-        resized.release();
+        return true;
     }
 
     public double getFps() {
         return FPS_VALUES[fpsIndex];
     }
 
-    private Image matToSwtImage(Mat mat) {
-        Mat rgb = new Mat();
-        if (mat.channels() == 3) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (mat.channels() == 1) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_GRAY2RGB);
-        } else {
-            rgb = mat;
-        }
-
-        int w = rgb.width();
-        int h = rgb.height();
-        byte[] data = new byte[w * h * 3];
-        rgb.get(0, 0, data);
-
-        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-        ImageData imageData = new ImageData(w, h, 24, palette);
-
-        for (int y = 0; y < h; y++) {
-            for (int xp = 0; xp < w; xp++) {
-                int srcIdx = (y * w + xp) * 3;
-                int r = data[srcIdx] & 0xFF;
-                int g = data[srcIdx + 1] & 0xFF;
-                int b = data[srcIdx + 2] & 0xFF;
-                imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
-            }
-        }
-
-        return new Image(display, imageData);
-    }
-
     @Override
     public void paint(GC gc) {
-        // Update overlay position
-        overlayComposite.setBounds(x + 5, y + 22, width - 10, SOURCE_NODE_THUMB_HEIGHT + 6);
-        overlayComposite.moveAbove(null);
-
-        // Draw node background (same as File Source)
-        gc.setBackground(new Color(230, 240, 255)); // Light blue
+        // Draw node background
+        gc.setBackground(new Color(230, 240, 255));
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
 
         // Draw border
-        gc.setForeground(new Color(0, 0, 139)); // Dark blue
+        gc.setForeground(new Color(0, 0, 139));
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
 
@@ -465,6 +256,18 @@ public class WebcamSourceNode extends SourceNode {
         gc.setFont(boldFont);
         gc.drawString("Webcam Source", x + 10, y + 4, true);
         boldFont.dispose();
+
+        // Draw thumbnail if available
+        if (thumbnail != null && !thumbnail.isDisposed()) {
+            Rectangle bounds = thumbnail.getBounds();
+            int thumbX = x + (width - bounds.width) / 2;
+            int thumbY = y + 25;
+            gc.drawImage(thumbnail, thumbX, thumbY);
+        } else {
+            // Draw placeholder
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.drawString("(no output)", x + 10, y + 40, true);
+        }
 
         // Draw connection points (output only - this is a source node)
         drawConnectionPoints(gc);
@@ -495,38 +298,20 @@ public class WebcamSourceNode extends SourceNode {
         sigGd.horizontalSpan = 2;
         sigLabel.setLayoutData(sigGd);
 
-        // Separator
-        Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
-        GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
-        sep.setLayoutData(sepGd);
-
         // Camera selector
         new Label(dialog, SWT.NONE).setText("Camera:");
         Combo cameraCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
 
-        // Detect available cameras
-        java.util.List<String> cameras = new java.util.ArrayList<>();
-        for (int i = 0; i <= 10; i++) {
-            VideoCapture test = new VideoCapture(i);
-            if (test.isOpened()) {
-                cameras.add("Camera " + i);
-                test.release();
-            } else {
-                test.release();
-                break;
-            }
-        }
-
-        if (cameras.isEmpty()) {
-            cameras.add("No cameras found");
-        }
+        // Use cached camera list
+        java.util.List<String> cameras = availableCameras.isEmpty()
+            ? java.util.Collections.singletonList("No cameras found")
+            : availableCameras;
 
         cameraCombo.setItems(cameras.toArray(new String[0]));
         if (cameraIndex >= 0 && cameraIndex < cameras.size()) {
             cameraCombo.select(cameraIndex);
         } else if (!cameras.isEmpty()) {
-            cameraCombo.select(cameras.size() - 1); // Default to highest
+            cameraCombo.select(cameras.size() - 1);
         }
         cameraCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -584,32 +369,88 @@ public class WebcamSourceNode extends SourceNode {
         cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
 
         dialog.pack();
-
-        // Center on parent
-        Rectangle parentBounds = shell.getBounds();
-        Rectangle dialogBounds = dialog.getBounds();
-        dialog.setLocation(
-            parentBounds.x + (parentBounds.width - dialogBounds.width) / 2,
-            parentBounds.y + (parentBounds.height - dialogBounds.height) / 2
-        );
-
+        Point cursor = shell.getDisplay().getCursorLocation();
+        dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
     }
 
-    public Composite getOverlayComposite() {
-        return overlayComposite;
-    }
-
+    @Override
     public void dispose() {
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            thumbnail.dispose();
-        }
-        if (overlayComposite != null && !overlayComposite.isDisposed()) {
-            overlayComposite.dispose();
-        }
         if (videoCapture != null) {
             videoCapture.release();
         }
+    }
+
+    // Save thumbnail to cache directory
+    public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
+        if (outputMat != null && !outputMat.empty()) {
+            try {
+                java.io.File cacheFolder = new java.io.File(cacheDir);
+                if (!cacheFolder.exists()) {
+                    cacheFolder.mkdirs();
+                }
+                String thumbPath = cacheDir + java.io.File.separator + "webcam_" + nodeIndex + "_thumb.png";
+                Mat resized = new Mat();
+                double scale = Math.min((double) PROCESSING_NODE_THUMB_WIDTH / outputMat.width(),
+                                        (double) PROCESSING_NODE_THUMB_HEIGHT / outputMat.height());
+                org.opencv.imgproc.Imgproc.resize(outputMat, resized,
+                    new org.opencv.core.Size(outputMat.width() * scale, outputMat.height() * scale));
+                org.opencv.imgcodecs.Imgcodecs.imwrite(thumbPath, resized);
+                resized.release();
+            } catch (Exception e) {
+                System.err.println("Failed to save webcam thumbnail: " + e.getMessage());
+            }
+        }
+    }
+
+    // Load thumbnail from cache directory
+    public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
+        String thumbPath = cacheDir + java.io.File.separator + "webcam_" + nodeIndex + "_thumb.png";
+        java.io.File thumbFile = new java.io.File(thumbPath);
+        System.out.println("Loading webcam thumbnail from: " + thumbPath + " exists=" + thumbFile.exists());
+        if (thumbFile.exists()) {
+            try {
+                Mat loaded = org.opencv.imgcodecs.Imgcodecs.imread(thumbPath);
+                System.out.println("Loaded mat empty=" + loaded.empty());
+                if (!loaded.empty()) {
+                    Mat rgb = new Mat();
+                    org.opencv.imgproc.Imgproc.cvtColor(loaded, rgb, org.opencv.imgproc.Imgproc.COLOR_BGR2RGB);
+
+                    int w = rgb.width();
+                    int h = rgb.height();
+                    byte[] data = new byte[w * h * 3];
+                    rgb.get(0, 0, data);
+
+                    PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+                    ImageData imageData = new ImageData(w, h, 24, palette);
+
+                    int bytesPerLine = imageData.bytesPerLine;
+                    for (int row = 0; row < h; row++) {
+                        int srcOffset = row * w * 3;
+                        int dstOffset = row * bytesPerLine;
+                        for (int col = 0; col < w; col++) {
+                            int srcIdx = srcOffset + col * 3;
+                            int dstIdx = dstOffset + col * 3;
+                            imageData.data[dstIdx] = data[srcIdx];
+                            imageData.data[dstIdx + 1] = data[srcIdx + 1];
+                            imageData.data[dstIdx + 2] = data[srcIdx + 2];
+                        }
+                    }
+
+                    if (thumbnail != null && !thumbnail.isDisposed()) {
+                        thumbnail.dispose();
+                    }
+                    thumbnail = new Image(display, imageData);
+
+                    loaded.release();
+                    rgb.release();
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to load webcam thumbnail: " + e.getMessage());
+            }
+        }
+        return false;
     }
 
     @Override
