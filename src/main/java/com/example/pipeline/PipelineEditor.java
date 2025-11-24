@@ -83,6 +83,7 @@ public class PipelineEditor {
         NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
 
         // Filter nodes
+        NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
         NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
 
         // Detection nodes
@@ -605,6 +606,17 @@ public class PipelineEditor {
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
+                        } else if (node instanceof Filter2DNode) {
+                            Filter2DNode f2d = (Filter2DNode) node;
+                            if (nodeObj.has("kernelSize")) f2d.setKernelSize(nodeObj.get("kernelSize").getAsInt());
+                            if (nodeObj.has("kernelValues")) {
+                                JsonArray arr = nodeObj.getAsJsonArray("kernelValues");
+                                int[] values = new int[arr.size()];
+                                for (int j = 0; j < arr.size(); j++) {
+                                    values[j] = arr.get(j).getAsInt();
+                                }
+                                f2d.setKernelValues(values);
+                            }
                         } else if (node instanceof BitPlanesGrayscaleNode) {
                             BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
                             if (nodeObj.has("bitEnabled")) {
@@ -991,6 +1003,17 @@ public class PipelineEditor {
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
+                    } else if (node instanceof Filter2DNode) {
+                        Filter2DNode f2d = (Filter2DNode) node;
+                        nodeObj.addProperty("kernelSize", f2d.getKernelSize());
+                        JsonArray kernelArray = new JsonArray();
+                        int[] values = f2d.getKernelValues();
+                        if (values != null) {
+                            for (int val : values) {
+                                kernelArray.add(val);
+                            }
+                        }
+                        nodeObj.add("kernelValues", kernelArray);
                     } else if (node instanceof BitPlanesGrayscaleNode) {
                         BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
                         JsonArray enabledArray = new JsonArray();
@@ -3397,6 +3420,8 @@ public class PipelineEditor {
                 return "BitwiseXor";
 
             // Filter
+            case "Filter2D w/Kernel":
+                return "Filter2D";
             case "FFT High-Pass Filter":
                 return "FFTHighPass";
             case "Bit Planes Grayscale":

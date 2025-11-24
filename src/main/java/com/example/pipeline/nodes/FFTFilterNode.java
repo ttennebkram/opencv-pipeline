@@ -210,7 +210,7 @@ public class FFTFilterNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Transform";
+        return "Filter";
     }
 
     @Override
