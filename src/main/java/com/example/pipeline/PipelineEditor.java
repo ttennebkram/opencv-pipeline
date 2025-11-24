@@ -653,6 +653,25 @@ public class PipelineEditor {
                             if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
                             if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
                             if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
+                        } else if (node instanceof BlobDetectorNode) {
+                            BlobDetectorNode bdn = (BlobDetectorNode) node;
+                            if (nodeObj.has("minThreshold")) bdn.setMinThreshold(nodeObj.get("minThreshold").getAsInt());
+                            if (nodeObj.has("maxThreshold")) bdn.setMaxThreshold(nodeObj.get("maxThreshold").getAsInt());
+                            if (nodeObj.has("showOriginal")) bdn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                            if (nodeObj.has("filterByArea")) bdn.setFilterByArea(nodeObj.get("filterByArea").getAsBoolean());
+                            if (nodeObj.has("minArea")) bdn.setMinArea(nodeObj.get("minArea").getAsInt());
+                            if (nodeObj.has("maxArea")) bdn.setMaxArea(nodeObj.get("maxArea").getAsInt());
+                            if (nodeObj.has("filterByCircularity")) bdn.setFilterByCircularity(nodeObj.get("filterByCircularity").getAsBoolean());
+                            if (nodeObj.has("minCircularity")) bdn.setMinCircularity(nodeObj.get("minCircularity").getAsInt());
+                            if (nodeObj.has("filterByConvexity")) bdn.setFilterByConvexity(nodeObj.get("filterByConvexity").getAsBoolean());
+                            if (nodeObj.has("minConvexity")) bdn.setMinConvexity(nodeObj.get("minConvexity").getAsInt());
+                            if (nodeObj.has("filterByInertia")) bdn.setFilterByInertia(nodeObj.get("filterByInertia").getAsBoolean());
+                            if (nodeObj.has("minInertiaRatio")) bdn.setMinInertiaRatio(nodeObj.get("minInertiaRatio").getAsInt());
+                            if (nodeObj.has("filterByColor")) bdn.setFilterByColor(nodeObj.get("filterByColor").getAsBoolean());
+                            if (nodeObj.has("blobColor")) bdn.setBlobColor(nodeObj.get("blobColor").getAsInt());
+                            if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1317,6 +1336,25 @@ public class PipelineEditor {
                         nodeObj.addProperty("minIndex", cn.getMinIndex());
                         nodeObj.addProperty("maxIndex", cn.getMaxIndex());
                         nodeObj.addProperty("drawMode", cn.getDrawMode());
+                    } else if (node instanceof BlobDetectorNode) {
+                        BlobDetectorNode bdn = (BlobDetectorNode) node;
+                        nodeObj.addProperty("minThreshold", bdn.getMinThreshold());
+                        nodeObj.addProperty("maxThreshold", bdn.getMaxThreshold());
+                        nodeObj.addProperty("showOriginal", bdn.getShowOriginal());
+                        nodeObj.addProperty("filterByArea", bdn.isFilterByArea());
+                        nodeObj.addProperty("minArea", bdn.getMinArea());
+                        nodeObj.addProperty("maxArea", bdn.getMaxArea());
+                        nodeObj.addProperty("filterByCircularity", bdn.isFilterByCircularity());
+                        nodeObj.addProperty("minCircularity", bdn.getMinCircularity());
+                        nodeObj.addProperty("filterByConvexity", bdn.isFilterByConvexity());
+                        nodeObj.addProperty("minConvexity", bdn.getMinConvexity());
+                        nodeObj.addProperty("filterByInertia", bdn.isFilterByInertia());
+                        nodeObj.addProperty("minInertiaRatio", bdn.getMinInertiaRatio());
+                        nodeObj.addProperty("filterByColor", bdn.isFilterByColor());
+                        nodeObj.addProperty("blobColor", bdn.getBlobColor());
+                        nodeObj.addProperty("colorR", bdn.getColorR());
+                        nodeObj.addProperty("colorG", bdn.getColorG());
+                        nodeObj.addProperty("colorB", bdn.getColorB());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1630,6 +1668,25 @@ public class PipelineEditor {
                                 if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
                                 if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
                                 if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
+                            } else if (node instanceof BlobDetectorNode) {
+                                BlobDetectorNode bdn = (BlobDetectorNode) node;
+                                if (nodeObj.has("minThreshold")) bdn.setMinThreshold(nodeObj.get("minThreshold").getAsInt());
+                                if (nodeObj.has("maxThreshold")) bdn.setMaxThreshold(nodeObj.get("maxThreshold").getAsInt());
+                                if (nodeObj.has("showOriginal")) bdn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                                if (nodeObj.has("filterByArea")) bdn.setFilterByArea(nodeObj.get("filterByArea").getAsBoolean());
+                                if (nodeObj.has("minArea")) bdn.setMinArea(nodeObj.get("minArea").getAsInt());
+                                if (nodeObj.has("maxArea")) bdn.setMaxArea(nodeObj.get("maxArea").getAsInt());
+                                if (nodeObj.has("filterByCircularity")) bdn.setFilterByCircularity(nodeObj.get("filterByCircularity").getAsBoolean());
+                                if (nodeObj.has("minCircularity")) bdn.setMinCircularity(nodeObj.get("minCircularity").getAsInt());
+                                if (nodeObj.has("filterByConvexity")) bdn.setFilterByConvexity(nodeObj.get("filterByConvexity").getAsBoolean());
+                                if (nodeObj.has("minConvexity")) bdn.setMinConvexity(nodeObj.get("minConvexity").getAsInt());
+                                if (nodeObj.has("filterByInertia")) bdn.setFilterByInertia(nodeObj.get("filterByInertia").getAsBoolean());
+                                if (nodeObj.has("minInertiaRatio")) bdn.setMinInertiaRatio(nodeObj.get("minInertiaRatio").getAsInt());
+                                if (nodeObj.has("filterByColor")) bdn.setFilterByColor(nodeObj.get("filterByColor").getAsBoolean());
+                                if (nodeObj.has("blobColor")) bdn.setBlobColor(nodeObj.get("blobColor").getAsInt());
+                                if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());

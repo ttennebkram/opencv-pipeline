@@ -5,6 +5,7 @@ import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.Scalar;
@@ -14,16 +15,35 @@ import org.opencv.features2d.SimpleBlobDetector_Params;
 import org.opencv.imgproc.Imgproc;
 
 /**
- * Blob Detection node.
+ * Enhanced Blob Detection node with full SimpleBlobDetector parameters.
  */
 public class BlobDetectorNode extends ProcessingNode {
     private int minThreshold = 10;
     private int maxThreshold = 200;
+    private boolean showOriginal = true;
+
+    // Filter by Area
     private boolean filterByArea = true;
     private int minArea = 100;
     private int maxArea = 5000;
+
+    // Filter by Circularity
     private boolean filterByCircularity = false;
     private int minCircularity = 10; // 0.1 * 100
+
+    // Filter by Convexity
+    private boolean filterByConvexity = false;
+    private int minConvexity = 87; // 0.87 * 100
+
+    // Filter by Inertia
+    private boolean filterByInertia = false;
+    private int minInertiaRatio = 1; // 0.01 * 100
+
+    // Filter by Color
+    private boolean filterByColor = false;
+    private int blobColor = 0; // 0 = dark, 255 = light
+
+    // Drawing color
     private int colorR = 255, colorG = 0, colorB = 0;
 
     public BlobDetectorNode(Display display, Shell shell, int x, int y) {
@@ -35,16 +55,36 @@ public class BlobDetectorNode extends ProcessingNode {
     public void setMinThreshold(int v) { minThreshold = v; }
     public int getMaxThreshold() { return maxThreshold; }
     public void setMaxThreshold(int v) { maxThreshold = v; }
+    public boolean getShowOriginal() { return showOriginal; }
+    public void setShowOriginal(boolean v) { showOriginal = v; }
+
     public boolean isFilterByArea() { return filterByArea; }
     public void setFilterByArea(boolean v) { filterByArea = v; }
     public int getMinArea() { return minArea; }
     public void setMinArea(int v) { minArea = v; }
     public int getMaxArea() { return maxArea; }
     public void setMaxArea(int v) { maxArea = v; }
+
     public boolean isFilterByCircularity() { return filterByCircularity; }
     public void setFilterByCircularity(boolean v) { filterByCircularity = v; }
     public int getMinCircularity() { return minCircularity; }
     public void setMinCircularity(int v) { minCircularity = v; }
+
+    public boolean isFilterByConvexity() { return filterByConvexity; }
+    public void setFilterByConvexity(boolean v) { filterByConvexity = v; }
+    public int getMinConvexity() { return minConvexity; }
+    public void setMinConvexity(int v) { minConvexity = v; }
+
+    public boolean isFilterByInertia() { return filterByInertia; }
+    public void setFilterByInertia(boolean v) { filterByInertia = v; }
+    public int getMinInertiaRatio() { return minInertiaRatio; }
+    public void setMinInertiaRatio(int v) { minInertiaRatio = v; }
+
+    public boolean isFilterByColor() { return filterByColor; }
+    public void setFilterByColor(boolean v) { filterByColor = v; }
+    public int getBlobColor() { return blobColor; }
+    public void setBlobColor(int v) { blobColor = v; }
+
     public int getColorR() { return colorR; }
     public void setColorR(int v) { colorR = v; }
     public int getColorG() { return colorG; }
@@ -64,23 +104,46 @@ public class BlobDetectorNode extends ProcessingNode {
             gray = input.clone();
         }
 
-        // Create output image (color)
-        Mat result = new Mat();
-        if (input.channels() == 1) {
-            Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+        // Create output image
+        Mat result;
+        if (showOriginal) {
+            if (input.channels() == 1) {
+                result = new Mat();
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
         } else {
-            result = input.clone();
+            result = Mat.zeros(input.size(), CvType.CV_8UC3);
         }
 
         // Set up SimpleBlobDetector parameters
         SimpleBlobDetector_Params params = new SimpleBlobDetector_Params();
+
+        // Threshold parameters
         params.set_minThreshold(minThreshold);
         params.set_maxThreshold(maxThreshold);
+
+        // Filter by Area
         params.set_filterByArea(filterByArea);
         params.set_minArea(minArea);
         params.set_maxArea(maxArea);
+
+        // Filter by Circularity
         params.set_filterByCircularity(filterByCircularity);
         params.set_minCircularity((float)(minCircularity / 100.0));
+
+        // Filter by Convexity
+        params.set_filterByConvexity(filterByConvexity);
+        params.set_minConvexity((float)(minConvexity / 100.0));
+
+        // Filter by Inertia
+        params.set_filterByInertia(filterByInertia);
+        params.set_minInertiaRatio((float)(minInertiaRatio / 100.0));
+
+        // Filter by Color - Note: blobColor parameter not available in Java bindings
+        params.set_filterByColor(filterByColor);
+        // params.set_blobColor(blobColor); // Not available in Java OpenCV bindings
 
         // Create detector and detect blobs
         SimpleBlobDetector detector = SimpleBlobDetector.create(params);
@@ -91,6 +154,9 @@ public class BlobDetectorNode extends ProcessingNode {
         Scalar color = new Scalar(colorB, colorG, colorR);
         Features2d.drawKeypoints(result, keypoints, result, color,
             Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+
+        // Cleanup
+        gray.release();
 
         return result;
     }
@@ -123,6 +189,20 @@ public class BlobDetectorNode extends ProcessingNode {
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         sigGd.horizontalSpan = 3;
         sigLabel.setLayoutData(sigGd);
+
+        // Separator
+        Label sep1 = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+        GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sepGd.horizontalSpan = 3;
+        sep1.setLayoutData(sepGd);
+
+        // Show Original checkbox
+        Button showOrigBtn = new Button(dialog, SWT.CHECK);
+        showOrigBtn.setText("Show Original Background");
+        showOrigBtn.setSelection(showOriginal);
+        GridData showGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        showGd.horizontalSpan = 3;
+        showOrigBtn.setLayoutData(showGd);
 
         // Min Threshold
         new Label(dialog, SWT.NONE).setText("Min Threshold:");
@@ -195,6 +275,62 @@ public class BlobDetectorNode extends ProcessingNode {
         circLabel.setText(String.valueOf(minCircularity));
         circScale.addListener(SWT.Selection, e -> circLabel.setText(String.valueOf(circScale.getSelection())));
 
+        // Filter by Convexity checkbox
+        Button convCheck = new Button(dialog, SWT.CHECK);
+        convCheck.setText("Filter by Convexity");
+        convCheck.setSelection(filterByConvexity);
+        GridData convGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+        convGd.horizontalSpan = 3;
+        convCheck.setLayoutData(convGd);
+
+        // Min Convexity
+        new Label(dialog, SWT.NONE).setText("Min Convexity %:");
+        Scale convScale = new Scale(dialog, SWT.HORIZONTAL);
+        convScale.setMinimum(1);
+        convScale.setMaximum(100);
+        convScale.setSelection(minConvexity);
+        convScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        Label convLabel = new Label(dialog, SWT.NONE);
+        convLabel.setText(String.valueOf(minConvexity));
+        convScale.addListener(SWT.Selection, e -> convLabel.setText(String.valueOf(convScale.getSelection())));
+
+        // Filter by Inertia checkbox
+        Button inertiaCheck = new Button(dialog, SWT.CHECK);
+        inertiaCheck.setText("Filter by Inertia");
+        inertiaCheck.setSelection(filterByInertia);
+        GridData inertiaGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+        inertiaGd.horizontalSpan = 3;
+        inertiaCheck.setLayoutData(inertiaGd);
+
+        // Min Inertia Ratio
+        new Label(dialog, SWT.NONE).setText("Min Inertia %:");
+        Scale inertiaScale = new Scale(dialog, SWT.HORIZONTAL);
+        inertiaScale.setMinimum(1);
+        inertiaScale.setMaximum(100);
+        inertiaScale.setSelection(minInertiaRatio);
+        inertiaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        Label inertiaLabel = new Label(dialog, SWT.NONE);
+        inertiaLabel.setText(String.valueOf(minInertiaRatio));
+        inertiaScale.addListener(SWT.Selection, e -> inertiaLabel.setText(String.valueOf(inertiaScale.getSelection())));
+
+        // Filter by Color checkbox
+        Button colorCheck = new Button(dialog, SWT.CHECK);
+        colorCheck.setText("Filter by Color");
+        colorCheck.setSelection(filterByColor);
+        GridData colorFilterGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+        colorFilterGd.horizontalSpan = 3;
+        colorCheck.setLayoutData(colorFilterGd);
+
+        // Blob Color (dark=0 or light=255)
+        new Label(dialog, SWT.NONE).setText("Blob Color:");
+        Combo colorCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+        colorCombo.setItems(new String[] {"Dark (0)", "Light (255)"});
+        colorCombo.select(blobColor == 0 ? 0 : 1);
+        GridData colorComboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
+        colorComboGd.horizontalSpan = 2;
+        colorCombo.setLayoutData(colorComboGd);
+
+        // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
         GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
@@ -204,6 +340,7 @@ public class BlobDetectorNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
+            showOriginal = showOrigBtn.getSelection();
             minThreshold = minThreshScale.getSelection();
             maxThreshold = maxThreshScale.getSelection();
             filterByArea = areaCheck.getSelection();
@@ -211,6 +348,12 @@ public class BlobDetectorNode extends ProcessingNode {
             maxArea = maxAreaScale.getSelection();
             filterByCircularity = circCheck.getSelection();
             minCircularity = circScale.getSelection();
+            filterByConvexity = convCheck.getSelection();
+            minConvexity = convScale.getSelection();
+            filterByInertia = inertiaCheck.getSelection();
+            minInertiaRatio = inertiaScale.getSelection();
+            filterByColor = colorCheck.getSelection();
+            blobColor = colorCombo.getSelectionIndex() == 0 ? 0 : 255;
             dialog.dispose();
             notifyChanged();
         });
