@@ -70,6 +70,7 @@ mvn exec:exec
 ### Source
 - Webcam
 - File (image/video)
+- Blank (solid color image)
 
 ### Basic
 - Grayscale
@@ -114,6 +115,18 @@ mvn exec:exec
 ### Transform
 - Warp Affine
 - FFT Filter
+
+### Content
+- Shapes (rectangle, circle, ellipse, line, arrow)
+- Text
+
+## Position Coordinates
+
+Content nodes (Shapes, Text) support negative position values for coordinates relative to image edges:
+- Positive values: offset from left/top edge (e.g., `50` = 50 pixels from left)
+- Negative values: offset from right/bottom edge (e.g., `-1` = rightmost/bottom pixel, `-50` = 50 pixels from right/bottom)
+
+This allows positioning elements relative to image dimensions that may vary at runtime.
 
 ## License
 

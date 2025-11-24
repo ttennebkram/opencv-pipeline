@@ -87,6 +87,10 @@ public class PipelineEditor {
         NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
         NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
+
+        // Content nodes
+        NodeRegistry.register("Shapes", "Content", ShapesNode.class);
+        NodeRegistry.register("Text", "Content", TextNode.class);
     }
 
     private Shell shell;
@@ -158,9 +162,6 @@ public class PipelineEditor {
         Display.setAppName("OpenCV");
         display = new Display();
 
-        // Show splash screen immediately
-        Shell splash = showSplashScreen();
-
         shell = new Shell(display);
         shell.setText("OpenCV Pipeline Editor");
         shell.setSize(1400, 800);
@@ -207,10 +208,6 @@ public class PipelineEditor {
             createSamplePipeline();
         }
 
-        // Close splash and open main window
-        if (splash != null && !splash.isDisposed()) {
-            splash.close();
-        }
         shell.open();
 
         while (!shell.isDisposed()) {
@@ -219,62 +216,6 @@ public class PipelineEditor {
             }
         }
         display.dispose();
-    }
-
-    private Shell showSplashScreen() {
-        Shell splash = new Shell(display, SWT.NO_TRIM | SWT.ON_TOP);
-
-        // Create splash content
-        splash.setLayout(new GridLayout(1, false));
-        splash.setBackground(new Color(45, 45, 48)); // Dark background
-
-        // Title
-        Label titleLabel = new Label(splash, SWT.CENTER);
-        titleLabel.setText("OpenCV Pipeline Editor");
-        titleLabel.setFont(new Font(display, "Arial", 24, SWT.BOLD));
-        titleLabel.setForeground(new Color(255, 255, 255));
-        titleLabel.setBackground(splash.getBackground());
-        titleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-
-        // Subtitle
-        Label subtitleLabel = new Label(splash, SWT.CENTER);
-        subtitleLabel.setText("Visual Image Processing");
-        subtitleLabel.setFont(new Font(display, "Arial", 12, SWT.NORMAL));
-        subtitleLabel.setForeground(new Color(180, 180, 180));
-        subtitleLabel.setBackground(splash.getBackground());
-        subtitleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-
-        // Spacer
-        Label spacer = new Label(splash, SWT.NONE);
-        spacer.setBackground(splash.getBackground());
-        GridData spacerGd = new GridData(SWT.FILL, SWT.FILL, true, true);
-        spacerGd.heightHint = 20;
-        spacer.setLayoutData(spacerGd);
-
-        // Loading message
-        Label loadingLabel = new Label(splash, SWT.CENTER);
-        loadingLabel.setText("Loading...");
-        loadingLabel.setFont(new Font(display, "Arial", 10, SWT.ITALIC));
-        loadingLabel.setForeground(new Color(120, 120, 120));
-        loadingLabel.setBackground(splash.getBackground());
-        loadingLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-
-        // Size and center splash
-        splash.setSize(350, 180);
-        Rectangle screenBounds = display.getPrimaryMonitor().getBounds();
-        Rectangle splashBounds = splash.getBounds();
-        int x = screenBounds.x + (screenBounds.width - splashBounds.width) / 2;
-        int y = screenBounds.y + (screenBounds.height - splashBounds.height) / 2;
-        splash.setLocation(x, y);
-
-        splash.open();
-
-        // Process events to show splash immediately
-        while (display.readAndDispatch()) {
-            // Process all pending events
-        }
-
-        return splash;
     }
 
     private void createMenuBar() {
@@ -551,6 +492,21 @@ public class PipelineEditor {
                     // Re-open camera with deserialized settings on background thread
                     new Thread(() -> node.openCamera()).start();
                     nodes.add(node);
+                } else if ("BlankSource".equals(type)) {
+                    BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
+                    if (nodeObj.has("imageWidth")) {
+                        node.setImageWidth(nodeObj.get("imageWidth").getAsInt());
+                    }
+                    if (nodeObj.has("imageHeight")) {
+                        node.setImageHeight(nodeObj.get("imageHeight").getAsInt());
+                    }
+                    if (nodeObj.has("colorIndex")) {
+                        node.setColorIndex(nodeObj.get("colorIndex").getAsInt());
+                    }
+                    if (nodeObj.has("fpsIndex")) {
+                        node.setFpsIndex(nodeObj.get("fpsIndex").getAsInt());
+                    }
+                    nodes.add(node);
                 } else if ("Processing".equals(type)) {
                     String name = nodeObj.get("name").getAsString();
                     ProcessingNode node = createEffectNode(name, x, y);
@@ -630,6 +586,30 @@ public class PipelineEditor {
                                     bpn.setBitGain(2, j, arr.get(j).getAsDouble());
                                 }
                             }
+                        } else if (node instanceof ShapesNode) {
+                            ShapesNode sn = (ShapesNode) node;
+                            if (nodeObj.has("shapeIndex")) sn.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
+                            if (nodeObj.has("x1")) sn.setX1(nodeObj.get("x1").getAsInt());
+                            if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
+                            if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
+                            if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
+                            if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) sn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("filled")) sn.setFilled(nodeObj.get("filled").getAsBoolean());
+                        } else if (node instanceof TextNode) {
+                            TextNode tn = (TextNode) node;
+                            if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
+                            if (nodeObj.has("posX")) tn.setPosX(nodeObj.get("posX").getAsInt());
+                            if (nodeObj.has("posY")) tn.setPosY(nodeObj.get("posY").getAsInt());
+                            if (nodeObj.has("fontIndex")) tn.setFontIndex(nodeObj.get("fontIndex").getAsInt());
+                            if (nodeObj.has("fontScale")) tn.setFontScale(nodeObj.get("fontScale").getAsDouble());
+                            if (nodeObj.has("colorR")) tn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) tn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) tn.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) tn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> executePipeline());
@@ -764,6 +744,7 @@ public class PipelineEditor {
 
         createNodeButton(toolbar, "File Source", () -> addFileSourceNode());
         createNodeButton(toolbar, "Webcam Source", () -> addWebcamSourceNode());
+        createNodeButton(toolbar, "Blank Source", () -> addBlankSourceNode());
 
         // Generate buttons from NodeRegistry grouped by category
         // Get display names from temp node instances
@@ -854,6 +835,13 @@ public class PipelineEditor {
                     nodeObj.addProperty("resolutionIndex", wsn.getResolutionIndex());
                     nodeObj.addProperty("mirrorHorizontal", wsn.isMirrorHorizontal());
                     nodeObj.addProperty("fpsIndex", wsn.getFpsIndex());
+                } else if (node instanceof BlankSourceNode) {
+                    nodeObj.addProperty("type", "BlankSource");
+                    BlankSourceNode bsn = (BlankSourceNode) node;
+                    nodeObj.addProperty("imageWidth", bsn.getImageWidth());
+                    nodeObj.addProperty("imageHeight", bsn.getImageHeight());
+                    nodeObj.addProperty("colorIndex", bsn.getColorIndex());
+                    nodeObj.addProperty("fpsIndex", bsn.getFpsIndex());
                 } else if (node instanceof ProcessingNode) {
                     nodeObj.addProperty("type", "Processing");
                     nodeObj.addProperty("name", ((ProcessingNode) node).getName());
@@ -915,6 +903,30 @@ public class PipelineEditor {
                         }
                         nodeObj.add("blueBitEnabled", blueEnabled);
                         nodeObj.add("blueBitGain", blueGain);
+                    } else if (node instanceof ShapesNode) {
+                        ShapesNode sn = (ShapesNode) node;
+                        nodeObj.addProperty("shapeIndex", sn.getShapeIndex());
+                        nodeObj.addProperty("x1", sn.getX1());
+                        nodeObj.addProperty("y1", sn.getY1());
+                        nodeObj.addProperty("x2", sn.getX2());
+                        nodeObj.addProperty("y2", sn.getY2());
+                        nodeObj.addProperty("colorR", sn.getColorR());
+                        nodeObj.addProperty("colorG", sn.getColorG());
+                        nodeObj.addProperty("colorB", sn.getColorB());
+                        nodeObj.addProperty("thickness", sn.getThickness());
+                        nodeObj.addProperty("filled", sn.isFilled());
+                    } else if (node instanceof TextNode) {
+                        TextNode tn = (TextNode) node;
+                        nodeObj.addProperty("text", tn.getText());
+                        nodeObj.addProperty("posX", tn.getPosX());
+                        nodeObj.addProperty("posY", tn.getPosY());
+                        nodeObj.addProperty("fontIndex", tn.getFontIndex());
+                        nodeObj.addProperty("fontScale", tn.getFontScale());
+                        nodeObj.addProperty("colorR", tn.getColorR());
+                        nodeObj.addProperty("colorG", tn.getColorG());
+                        nodeObj.addProperty("colorB", tn.getColorB());
+                        nodeObj.addProperty("thickness", tn.getThickness());
+                        nodeObj.addProperty("italic", tn.isItalic());
                     }
                     // InvertNode has no properties to save
                 }
@@ -1049,7 +1061,6 @@ public class PipelineEditor {
                     } else if ("Processing".equals(type)) {
                         String name = nodeObj.get("name").getAsString();
                         ProcessingNode node = createEffectNode(name, x, y);
-                        System.out.println("Created node for '" + name + "': " + (node != null ? node.getClass().getSimpleName() : "null"));
                         if (node != null) {
                             // Load node-specific properties
                             if (node instanceof GaussianBlurNode) {
@@ -1130,6 +1141,30 @@ public class PipelineEditor {
                                         bpn.setBitGain(2, j, arr.get(j).getAsDouble());
                                     }
                                 }
+                            } else if (node instanceof ShapesNode) {
+                                ShapesNode sn = (ShapesNode) node;
+                                if (nodeObj.has("shapeIndex")) sn.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
+                                if (nodeObj.has("x1")) sn.setX1(nodeObj.get("x1").getAsInt());
+                                if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
+                                if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
+                                if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
+                                if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) sn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("filled")) sn.setFilled(nodeObj.get("filled").getAsBoolean());
+                            } else if (node instanceof TextNode) {
+                                TextNode tn = (TextNode) node;
+                                if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
+                                if (nodeObj.has("posX")) tn.setPosX(nodeObj.get("posX").getAsInt());
+                                if (nodeObj.has("posY")) tn.setPosY(nodeObj.get("posY").getAsInt());
+                                if (nodeObj.has("fontIndex")) tn.setFontIndex(nodeObj.get("fontIndex").getAsInt());
+                                if (nodeObj.has("fontScale")) tn.setFontScale(nodeObj.get("fontScale").getAsDouble());
+                                if (nodeObj.has("colorR")) tn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) tn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) tn.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) tn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
                             }
                             // InvertNode has no properties to load
                             node.setOnChanged(() -> executePipeline());
@@ -1505,10 +1540,10 @@ public class PipelineEditor {
         // Find all nodes and build execution order
         // For now, simple linear execution following connections
 
-        // Find source node (FileSourceNode or WebcamSourceNode with no incoming connections)
+        // Find source node (FileSourceNode, WebcamSourceNode, or BlankSourceNode with no incoming connections)
         PipelineNode sourceNode = null;
         for (PipelineNode node : nodes) {
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -1534,6 +1569,8 @@ public class PipelineEditor {
             currentMat = ((FileSourceNode) sourceNode).getLoadedImage();
         } else if (sourceNode instanceof WebcamSourceNode) {
             currentMat = ((WebcamSourceNode) sourceNode).getNextFrame();
+        } else if (sourceNode instanceof BlankSourceNode) {
+            currentMat = ((BlankSourceNode) sourceNode).getNextFrame();
         }
 
         if (currentMat == null || currentMat.empty()) {
@@ -1580,10 +1617,10 @@ public class PipelineEditor {
     private void startPipeline() {
         if (pipelineRunning.get()) return;
 
-        // Find source node (FileSourceNode or WebcamSourceNode)
-        PipelineNode sourceNode = null;
+        // Find ALL source nodes (FileSourceNode, WebcamSourceNode, or BlankSourceNode)
+        List<PipelineNode> sourceNodes = new ArrayList<>();
         for (PipelineNode node : nodes) {
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -1592,60 +1629,71 @@ public class PipelineEditor {
                     }
                 }
                 if (!hasIncoming) {
-                    sourceNode = node;
-                    break;
+                    sourceNodes.add(node);
                 }
             }
         }
 
-        // Validate source node
-        if (sourceNode == null) {
+        // Validate we have at least one source node
+        if (sourceNodes.isEmpty()) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
             mb.setText("No Source");
-            mb.setMessage("Please add a source node (Image Source or Webcam).");
+            mb.setMessage("Please add a source node (Image Source, Webcam, or Blank).");
             mb.open();
             return;
         }
 
-        if (sourceNode instanceof FileSourceNode) {
-            FileSourceNode isn = (FileSourceNode) sourceNode;
-            if (isn.getLoadedImage() == null) {
-                MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
-                mb.setText("No Source");
-                mb.setMessage("Please load an image in the source node first.");
-                mb.open();
-                return;
-            }
-        }
-
-        // Build ordered list of nodes following connections
-        List<PipelineNode> orderedNodes = new ArrayList<>();
-        orderedNodes.add(sourceNode);
-        PipelineNode current = sourceNode;
-
-        while (current != null) {
-            PipelineNode next = null;
-            for (Connection conn : connections) {
-                if (conn.source == current) {
-                    next = conn.target;
-                    orderedNodes.add(next);
-                    break;
+        // Validate FileSourceNodes have loaded images
+        for (PipelineNode sourceNode : sourceNodes) {
+            if (sourceNode instanceof FileSourceNode) {
+                FileSourceNode isn = (FileSourceNode) sourceNode;
+                if (isn.getLoadedImage() == null) {
+                    MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+                    mb.setText("No Source");
+                    mb.setMessage("Please load an image in the source node first.");
+                    mb.open();
+                    return;
                 }
             }
-            current = next;
         }
 
-        if (orderedNodes.size() < 2) {
+        // Build ordered lists of nodes for each pipeline
+        List<List<PipelineNode>> allPipelines = new ArrayList<>();
+        for (PipelineNode sourceNode : sourceNodes) {
+            List<PipelineNode> orderedNodes = new ArrayList<>();
+            orderedNodes.add(sourceNode);
+            PipelineNode current = sourceNode;
+
+            while (current != null) {
+                PipelineNode next = null;
+                for (Connection conn : connections) {
+                    if (conn.source == current) {
+                        next = conn.target;
+                        orderedNodes.add(next);
+                        break;
+                    }
+                }
+                current = next;
+            }
+
+            // Only add pipelines with at least 2 nodes (source + processing)
+            if (orderedNodes.size() >= 2) {
+                allPipelines.add(orderedNodes);
+            }
+        }
+
+        if (allPipelines.isEmpty()) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
             mb.setText("No Pipeline");
-            mb.setMessage("Connect at least one processing node to the source.");
+            mb.setMessage("Connect at least one processing node to a source.");
             mb.open();
             return;
         }
 
-        // If no node is selected, auto-select the terminal node (last in chain)
+        // If no node is selected, auto-select the terminal node of the first pipeline
         if (selectedNodes.isEmpty()) {
-            PipelineNode terminalNode = orderedNodes.get(orderedNodes.size() - 1);
+            List<PipelineNode> firstPipeline = allPipelines.get(0);
+            PipelineNode terminalNode = firstPipeline.get(firstPipeline.size() - 1);
             selectedNodes.add(terminalNode);
             canvas.redraw();
         }
@@ -1659,22 +1707,27 @@ public class PipelineEditor {
         }
 
         pipelineRunning.set(true);
-        statusBar.setText("Pipeline Running");
+        statusBar.setText("Pipeline Running (" + allPipelines.size() + " pipeline" + (allPipelines.size() > 1 ? "s" : "") + ")");
         statusBar.setForeground(new Color(0, 128, 0)); // Green text
-        final PipelineNode finalSource = sourceNode;
-        // Get FPS from source node
-        double fps = 30.0;
-        if (sourceNode instanceof FileSourceNode) {
-            fps = ((FileSourceNode) sourceNode).getFps();
-        } else if (sourceNode instanceof WebcamSourceNode) {
-            fps = ((WebcamSourceNode) sourceNode).getFps();
-        }
-        final long frameDelayMs = (long) (1000.0 / fps);
 
-        // Create threads for each node
-        for (int i = 0; i < orderedNodes.size(); i++) {
-            final int index = i;
-            final PipelineNode node = orderedNodes.get(i);
+        // Create threads for each node in all pipelines
+        for (List<PipelineNode> pipeline : allPipelines) {
+            PipelineNode sourceNode = pipeline.get(0);
+
+            // Get FPS from this pipeline's source node
+            double fps = 30.0;
+            if (sourceNode instanceof FileSourceNode) {
+                fps = ((FileSourceNode) sourceNode).getFps();
+            } else if (sourceNode instanceof WebcamSourceNode) {
+                fps = ((WebcamSourceNode) sourceNode).getFps();
+            } else if (sourceNode instanceof BlankSourceNode) {
+                fps = ((BlankSourceNode) sourceNode).getFps();
+            }
+            final long frameDelayMs = (long) (1000.0 / fps);
+
+            for (int i = 0; i < pipeline.size(); i++) {
+                final int index = i;
+                final PipelineNode node = pipeline.get(i);
 
             // Find input connection (connection where this node is target)
             Connection inputConn = null;
@@ -1721,6 +1774,14 @@ public class PipelineEditor {
                                 continue;
                             }
                             outputMat = inputMat;
+                        } else if (node instanceof BlankSourceNode) {
+                            // Blank source node: get blank colored image
+                            inputMat = ((BlankSourceNode) node).getNextFrame();
+                            if (inputMat == null) {
+                                Thread.sleep(frameDelayMs);
+                                continue;
+                            }
+                            outputMat = inputMat;
                         } else {
                             // Processing node: read from input queue
                             inputMat = inputQueue.take();
@@ -1760,7 +1821,6 @@ public class PipelineEditor {
                         if (outputQueue != null) {
                             // Adaptive priority: adjust by 1 increment at a time
                             int queueSize = outputQueue.size();
-                            System.out.println(node.getClass().getSimpleName() + " putting to queue, size=" + queueSize);
 
                             if (queueSize >= 1) {
                                 // Queue backing up - lower priority by 1
@@ -1777,14 +1837,13 @@ public class PipelineEditor {
                             }
 
                             outputQueue.put(outputMat);
-                            System.out.println(node.getClass().getSimpleName() + " put complete");
                         } else {
                             // Last node - cleanup
                             outputMat.release();
                         }
 
                         // Throttle source node based on video FPS
-                        if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
+                        if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
                             Thread.sleep(frameDelayMs);
                         }
                     }
@@ -1798,14 +1857,15 @@ public class PipelineEditor {
             });
 
             // Set priority based on node type
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode) {
+            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
                 t.setPriority(Thread.NORM_PRIORITY + 2); // Higher for source
             } else {
                 t.setPriority(Thread.NORM_PRIORITY - 1); // Lower for processing
             }
             t.setDaemon(true);
-            t.setName("Pipeline-" + node.getClass().getSimpleName() + "-" + i);
+            t.setName("Pipeline-" + node.getClass().getSimpleName() + "-" + index);
             nodeThreads.add(t);
+            }
         }
 
         // Start all threads
@@ -2850,6 +2910,8 @@ public class PipelineEditor {
                     ((ProcessingNode) node).showPropertiesDialog();
                 } else if (node instanceof FileSourceNode) {
                     ((FileSourceNode) node).showPropertiesDialog();
+                } else if (node instanceof BlankSourceNode) {
+                    ((BlankSourceNode) node).showPropertiesDialog();
                 }
                 return;
             }
@@ -2878,6 +2940,14 @@ public class PipelineEditor {
                     editItem.setText("Edit Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
                         ((FileSourceNode) node).showPropertiesDialog();
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                } else if (node instanceof BlankSourceNode) {
+                    MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editItem.setText("Edit Properties...");
+                    editItem.addListener(SWT.Selection, evt -> {
+                        ((BlankSourceNode) node).showPropertiesDialog();
                     });
 
                     new MenuItem(contextMenu, SWT.SEPARATOR);
@@ -2985,6 +3055,16 @@ public class PipelineEditor {
 
     private void addWebcamSourceNodeAt(int x, int y) {
         WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
+        nodes.add(node);
+        canvas.redraw();
+    }
+
+    private void addBlankSourceNode() {
+        addBlankSourceNodeAt(50 + nodes.size() * 30, 50 + nodes.size() * 30);
+    }
+
+    private void addBlankSourceNodeAt(int x, int y) {
+        BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
         nodes.add(node);
         canvas.redraw();
     }
