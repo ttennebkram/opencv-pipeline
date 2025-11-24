@@ -79,6 +79,7 @@ public class PipelineEditor {
 
         // Dual Input nodes
         NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
+        NodeRegistry.register("AddWeighted", "Dual Input Nodes", AddWeightedNode.class);
         NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
         NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
         NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
@@ -779,6 +780,11 @@ public class PipelineEditor {
                             if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
                             if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
                         // AddClampNode and SubtractClampNode have no properties to load
+                        } else if (node instanceof AddWeightedNode) {
+                            AddWeightedNode awn = (AddWeightedNode) node;
+                            if (nodeObj.has("alpha")) awn.setAlpha(nodeObj.get("alpha").getAsDouble());
+                            if (nodeObj.has("beta")) awn.setBeta(nodeObj.get("beta").getAsDouble());
+                            if (nodeObj.has("gamma")) awn.setGamma(nodeObj.get("gamma").getAsDouble());
                         } else if (node instanceof TextNode) {
                             TextNode tn = (TextNode) node;
                             if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -1408,6 +1414,11 @@ public class PipelineEditor {
                         nodeObj.addProperty("cropWidth", crn.getCropWidth());
                         nodeObj.addProperty("cropHeight", crn.getCropHeight());
                     // AddClampNode and SubtractClampNode have no properties to save
+                    } else if (node instanceof AddWeightedNode) {
+                        AddWeightedNode awn = (AddWeightedNode) node;
+                        nodeObj.addProperty("alpha", awn.getAlpha());
+                        nodeObj.addProperty("beta", awn.getBeta());
+                        nodeObj.addProperty("gamma", awn.getGamma());
                     } else if (node instanceof TextNode) {
                         TextNode tn = (TextNode) node;
                         nodeObj.addProperty("text", tn.getText());
@@ -1700,6 +1711,11 @@ public class PipelineEditor {
                                 if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
                                 if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
                             // AddClampNode and SubtractClampNode have no properties to load
+                            } else if (node instanceof AddWeightedNode) {
+                                AddWeightedNode awn = (AddWeightedNode) node;
+                                if (nodeObj.has("alpha")) awn.setAlpha(nodeObj.get("alpha").getAsDouble());
+                                if (nodeObj.has("beta")) awn.setBeta(nodeObj.get("beta").getAsDouble());
+                                if (nodeObj.has("gamma")) awn.setGamma(nodeObj.get("gamma").getAsDouble());
                             } else if (node instanceof TextNode) {
                                 TextNode tn = (TextNode) node;
                                 if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -2642,6 +2658,8 @@ public class PipelineEditor {
         if (conn.inputIndex == 2) {
             if (conn.target instanceof AddClampNode) {
                 return ((AddClampNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof AddWeightedNode) {
+                return ((AddWeightedNode) conn.target).getInputPoint2();
             } else if (conn.target instanceof SubtractClampNode) {
                 return ((SubtractClampNode) conn.target).getInputPoint2();
             } else if (conn.target instanceof BitwiseAndNode) {
@@ -2709,11 +2727,13 @@ public class PipelineEditor {
                 PipelineNode node = nodes.get(i);
 
                 // Check for second input point on dual-input nodes first
-                if (node instanceof AddClampNode || node instanceof SubtractClampNode ||
+                if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
                     node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
                     Point inputPoint2;
                     if (node instanceof AddClampNode) {
                         inputPoint2 = ((AddClampNode) node).getInputPoint2();
+                    } else if (node instanceof AddWeightedNode) {
+                        inputPoint2 = ((AddWeightedNode) node).getInputPoint2();
                     } else if (node instanceof SubtractClampNode) {
                         inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
                     } else if (node instanceof BitwiseAndNode) {
@@ -3161,11 +3181,13 @@ public class PipelineEditor {
             for (PipelineNode node : nodes) {
                 if (node != connectionSource) {
                     // Check second input point for dual-input nodes first
-                    if (node instanceof AddClampNode || node instanceof SubtractClampNode ||
+                    if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
                         node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
                         Point inputPoint2;
                         if (node instanceof AddClampNode) {
                             inputPoint2 = ((AddClampNode) node).getInputPoint2();
+                        } else if (node instanceof AddWeightedNode) {
+                            inputPoint2 = ((AddWeightedNode) node).getInputPoint2();
                         } else if (node instanceof SubtractClampNode) {
                             inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
                         } else if (node instanceof BitwiseAndNode) {
