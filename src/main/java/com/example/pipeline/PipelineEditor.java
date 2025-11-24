@@ -639,6 +639,20 @@ public class PipelineEditor {
                             if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
                             if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
                             if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
+                        } else if (node instanceof ContoursNode) {
+                            ContoursNode cn = (ContoursNode) node;
+                            if (nodeObj.has("thresholdValue")) cn.setThresholdValue(nodeObj.get("thresholdValue").getAsInt());
+                            if (nodeObj.has("retrievalMode")) cn.setRetrievalMode(nodeObj.get("retrievalMode").getAsInt());
+                            if (nodeObj.has("approxMethod")) cn.setApproxMethod(nodeObj.get("approxMethod").getAsInt());
+                            if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("showOriginal")) cn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                            if (nodeObj.has("sortMethod")) cn.setSortMethod(nodeObj.get("sortMethod").getAsInt());
+                            if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
+                            if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
+                            if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1289,6 +1303,20 @@ public class PipelineEditor {
                         nodeObj.addProperty("typeIndex", tn.getTypeIndex());
                         nodeObj.addProperty("modifierIndex", tn.getModifierIndex());
                         nodeObj.addProperty("returnedThreshold", tn.getReturnedThreshold());
+                    } else if (node instanceof ContoursNode) {
+                        ContoursNode cn = (ContoursNode) node;
+                        nodeObj.addProperty("thresholdValue", cn.getThresholdValue());
+                        nodeObj.addProperty("retrievalMode", cn.getRetrievalMode());
+                        nodeObj.addProperty("approxMethod", cn.getApproxMethod());
+                        nodeObj.addProperty("thickness", cn.getThickness());
+                        nodeObj.addProperty("colorR", cn.getColorR());
+                        nodeObj.addProperty("colorG", cn.getColorG());
+                        nodeObj.addProperty("colorB", cn.getColorB());
+                        nodeObj.addProperty("showOriginal", cn.getShowOriginal());
+                        nodeObj.addProperty("sortMethod", cn.getSortMethod());
+                        nodeObj.addProperty("minIndex", cn.getMinIndex());
+                        nodeObj.addProperty("maxIndex", cn.getMaxIndex());
+                        nodeObj.addProperty("drawMode", cn.getDrawMode());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1588,6 +1616,20 @@ public class PipelineEditor {
                                 if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
                                 if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
                                 if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
+                            } else if (node instanceof ContoursNode) {
+                                ContoursNode cn = (ContoursNode) node;
+                                if (nodeObj.has("thresholdValue")) cn.setThresholdValue(nodeObj.get("thresholdValue").getAsInt());
+                                if (nodeObj.has("retrievalMode")) cn.setRetrievalMode(nodeObj.get("retrievalMode").getAsInt());
+                                if (nodeObj.has("approxMethod")) cn.setApproxMethod(nodeObj.get("approxMethod").getAsInt());
+                                if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("showOriginal")) cn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                                if (nodeObj.has("sortMethod")) cn.setSortMethod(nodeObj.get("sortMethod").getAsInt());
+                                if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
+                                if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
+                                if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
