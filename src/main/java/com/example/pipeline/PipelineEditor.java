@@ -258,7 +258,7 @@ public class PipelineEditor {
         display = new Display();
 
         shell = new Shell(display);
-        shell.setText("OpenCV Pipeline Editor");
+        shell.setText("OpenCV Pipeline Editor - (untitled)");
         shell.setSize(1400, 800);
         shell.setLayout(new GridLayout(2, false));
 
@@ -934,7 +934,7 @@ public class PipelineEditor {
         reverseDanglingConnections.clear();
         freeConnections.clear();
         currentFilePath = null;
-        shell.setText("OpenCV Pipeline Editor");
+        shell.setText("OpenCV Pipeline Editor - (untitled)");
         canvas.redraw();
     }
 
