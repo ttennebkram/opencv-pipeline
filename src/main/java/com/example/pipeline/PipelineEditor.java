@@ -48,7 +48,7 @@ public class PipelineEditor {
         NodeRegistry.register("Gain", "Basic", GainNode.class);
         NodeRegistry.register("Threshold", "Basic", ThresholdNode.class);
         NodeRegistry.register("AdaptiveThreshold", "Basic", AdaptiveThresholdNode.class);
-        NodeRegistry.register("CLAHE", "Basic", CLAHENode.class);
+        NodeRegistry.register("CLAHE Contrast", "Basic", CLAHENode.class);
         NodeRegistry.register("ColorInRange", "Basic", ColorInRangeNode.class);
         NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
         NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
@@ -145,6 +145,31 @@ public class PipelineEditor {
     // Selection state
     private Set<PipelineNode> selectedNodes = new HashSet<>();
     private Set<Connection> selectedConnections = new HashSet<>();
+
+    // Search/filter state for toolbar
+    private Text searchBox;
+    private java.util.List<SearchableButton> searchableButtons = new java.util.ArrayList<>();
+    private Composite toolbarContent;
+    private org.eclipse.swt.custom.ScrolledComposite scrolledToolbar;
+    private int selectedButtonIndex = -1; // -1 means no selection, use first visible
+
+    // Inner class to track button metadata for search
+    private static class SearchableButton {
+        Button button;
+        Label categoryLabel; // The category label above this button (if first in category)
+        Label separator;     // The separator above the category label
+        String nodeName;
+        String category;
+        Runnable action;
+        boolean isFirstInCategory;
+
+        SearchableButton(Button button, String nodeName, String category, Runnable action) {
+            this.button = button;
+            this.nodeName = nodeName;
+            this.category = category;
+            this.action = action;
+        }
+    }
     private Set<DanglingConnection> selectedDanglingConnections = new HashSet<>();
     private Set<ReverseDanglingConnection> selectedReverseDanglingConnections = new HashSet<>();
     private Set<FreeConnection> selectedFreeConnections = new HashSet<>();
@@ -283,6 +308,9 @@ public class PipelineEditor {
         });
 
         shell.open();
+
+        // Set focus to canvas to avoid search box focus ring on startup
+        canvas.setFocus();
 
         while (!shell.isDisposed()) {
             if (!display.readAndDispatch()) {
@@ -871,34 +899,93 @@ public class PipelineEditor {
     }
 
     private void createToolbar() {
+        // Create outer container for search box + scrollable toolbar
+        Composite toolbarContainer = new Composite(shell, SWT.BORDER);
+        toolbarContainer.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, true));
+        GridLayout containerLayout = new GridLayout(1, false);
+        containerLayout.marginWidth = 0;
+        containerLayout.marginHeight = 0;
+        containerLayout.verticalSpacing = 0;
+        toolbarContainer.setLayout(containerLayout);
+
+        // Search label and box at top
+        Label searchLabel = new Label(toolbarContainer, SWT.NONE);
+        searchLabel.setText("Type to Search:");
+        Font searchFont = new Font(display, "Arial", 13, SWT.BOLD);
+        searchLabel.setFont(searchFont);
+        searchLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        searchBox = new Text(toolbarContainer, SWT.BORDER | SWT.SEARCH | SWT.ICON_SEARCH | SWT.ICON_CANCEL);
+        searchBox.setMessage("Search nodes...");
+        searchBox.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        searchBox.addModifyListener(e -> {
+            clearButtonHighlighting();
+            filterToolbarButtons();
+        });
+        // Handle cancel button (X) click
+        searchBox.addListener(SWT.DefaultSelection, e -> {
+            if (searchBox.getText().isEmpty()) {
+                // X was clicked - already empty, nothing to do
+            }
+        });
+        searchBox.addListener(SWT.KeyDown, e -> {
+            if (e.keyCode == SWT.ESC) {
+                searchBox.setText("");
+            }
+        });
+        // The ICON_CANCEL should clear on click - need to use a traverse listener
+        searchBox.addListener(SWT.MouseDown, e -> {
+            // Check if click is in the cancel icon area (right side)
+            org.eclipse.swt.graphics.Rectangle bounds = searchBox.getBounds();
+            if (e.x > bounds.width - 20) {
+                searchBox.setText("");
+            }
+        });
+        searchBox.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.keyCode == SWT.CR || e.keyCode == SWT.KEYPAD_CR) {
+                    // Enter pressed - add selected or first visible button's node
+                    addSelectedNode();
+                } else if (e.keyCode == SWT.ARROW_DOWN) {
+                    navigateSelection(1);
+                    e.doit = false; // Prevent cursor movement
+                } else if (e.keyCode == SWT.ARROW_UP) {
+                    navigateSelection(-1);
+                    e.doit = false; // Prevent cursor movement
+                }
+            }
+        });
+
         // Create scrollable container for the toolbar
-        org.eclipse.swt.custom.ScrolledComposite scrolledToolbar = new org.eclipse.swt.custom.ScrolledComposite(shell, SWT.V_SCROLL | SWT.BORDER);
-        scrolledToolbar.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, true));
+        scrolledToolbar = new org.eclipse.swt.custom.ScrolledComposite(toolbarContainer, SWT.V_SCROLL);
+        scrolledToolbar.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         scrolledToolbar.setExpandHorizontal(true);
         scrolledToolbar.setExpandVertical(true);
 
-        Composite toolbar = new Composite(scrolledToolbar, SWT.NONE);
+        toolbarContent = new Composite(scrolledToolbar, SWT.NONE);
         GridLayout toolbarLayout = new GridLayout(1, false);
         toolbarLayout.verticalSpacing = 0;  // No spacing between buttons
         toolbarLayout.marginHeight = 5;     // Reduce top/bottom margins
         toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
-        toolbar.setLayout(toolbarLayout);
+        toolbarContent.setLayout(toolbarLayout);
 
         // Set darker green background for toolbar (better text visibility in dark mode)
         Color toolbarGreen = new Color(160, 200, 160);
-        toolbar.setBackground(toolbarGreen);
+        toolbarContent.setBackground(toolbarGreen);
         scrolledToolbar.setBackground(toolbarGreen);
+        toolbarContainer.setBackground(toolbarGreen);
 
         Font boldFont = new Font(display, "Arial", 13, SWT.BOLD);
 
         // Inputs section (not from registry)
-        Label inputsLabel = new Label(toolbar, SWT.NONE);
+        Label inputsLabel = new Label(toolbarContent, SWT.NONE);
         inputsLabel.setText("Inputs:");
         inputsLabel.setFont(boldFont);
 
-        createNodeButton(toolbar, "File Source", () -> addFileSourceNode());
-        createNodeButton(toolbar, "Webcam Source", () -> addWebcamSourceNode());
-        createNodeButton(toolbar, "Blank Source", () -> addBlankSourceNode());
+        createSearchableButton(toolbarContent, "File Source", "Inputs", () -> addFileSourceNode(), inputsLabel, null, true);
+        createSearchableButton(toolbarContent, "Webcam Source", "Inputs", () -> addWebcamSourceNode(), null, null, false);
+        createSearchableButton(toolbarContent, "Blank Source", "Inputs", () -> addBlankSourceNode(), null, null, false);
 
         // Generate buttons from NodeRegistry grouped by category
         // Get display names from temp node instances
@@ -925,25 +1012,200 @@ public class PipelineEditor {
             java.util.List<String[]> nodeList = entry.getValue();
 
             // Separator
-            new Label(toolbar, SWT.SEPARATOR | SWT.HORIZONTAL)
-                .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            Label separator = new Label(toolbarContent, SWT.SEPARATOR | SWT.HORIZONTAL);
+            separator.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
             // Category label
-            Label categoryLabel = new Label(toolbar, SWT.NONE);
+            Label categoryLabel = new Label(toolbarContent, SWT.NONE);
             categoryLabel.setText(category + ":");
             categoryLabel.setFont(boldFont);
 
             // Buttons for this category
+            boolean first = true;
             for (String[] nodeInfo : nodeList) {
                 String displayName = nodeInfo[0];
                 String registryName = nodeInfo[1];
-                createNodeButton(toolbar, displayName, () -> addEffectNode(registryName));
+                createSearchableButton(toolbarContent, displayName, category,
+                    () -> addEffectNode(registryName),
+                    first ? categoryLabel : null,
+                    first ? separator : null,
+                    first);
+                first = false;
             }
         }
 
         // Set the toolbar as content of scrolled composite
-        scrolledToolbar.setContent(toolbar);
-        scrolledToolbar.setMinSize(toolbar.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+        scrolledToolbar.setContent(toolbarContent);
+        scrolledToolbar.setMinSize(toolbarContent.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+    }
+
+    private void createSearchableButton(Composite parent, String nodeName, String category,
+            Runnable action, Label categoryLabel, Label separator, boolean isFirstInCategory) {
+        // Button text is just the node name (category is already shown in section headers)
+        Button btn = new Button(parent, SWT.PUSH | SWT.FLAT);
+        btn.setText(nodeName);
+        btn.setBackground(new Color(160, 160, 160));
+        GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        gd.heightHint = btn.computeSize(SWT.DEFAULT, SWT.DEFAULT).y + 2;
+        btn.setLayoutData(gd);
+        btn.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                action.run();
+                // Clear search and show all after adding
+                searchBox.setText("");
+            }
+        });
+
+        // Track for search filtering
+        SearchableButton sb = new SearchableButton(btn, nodeName, category, action);
+        sb.categoryLabel = categoryLabel;
+        sb.separator = separator;
+        sb.isFirstInCategory = isFirstInCategory;
+        searchableButtons.add(sb);
+    }
+
+    private void filterToolbarButtons() {
+        String searchText = searchBox.getText().trim().toLowerCase();
+
+        // Track which categories have visible buttons
+        java.util.Map<String, Boolean> categoryVisible = new java.util.HashMap<>();
+
+        for (SearchableButton sb : searchableButtons) {
+            boolean visible;
+            if (searchText.isEmpty()) {
+                visible = true;
+            } else {
+                // Split search text into words (whitespace/punctuation delimited)
+                String[] searchWords = searchText.split("[\\s/\\-_.,]+");
+                // Create searchable text from node name and category
+                String searchableText = (sb.nodeName + " " + sb.category).toLowerCase();
+
+                // All search words must be found as substrings
+                visible = true;
+                for (String searchWord : searchWords) {
+                    if (searchWord.isEmpty()) continue;
+                    if (!searchableText.contains(searchWord)) {
+                        visible = false;
+                        break;
+                    }
+                }
+            }
+
+            // Update button visibility
+            sb.button.setVisible(visible);
+            ((GridData) sb.button.getLayoutData()).exclude = !visible;
+
+            // Track category visibility
+            if (visible) {
+                categoryVisible.put(sb.category, true);
+            } else if (!categoryVisible.containsKey(sb.category)) {
+                categoryVisible.put(sb.category, false);
+            }
+        }
+
+        // Update category label and separator visibility
+        for (SearchableButton sb : searchableButtons) {
+            if (sb.isFirstInCategory && sb.categoryLabel != null) {
+                boolean catVisible = categoryVisible.getOrDefault(sb.category, false);
+                sb.categoryLabel.setVisible(catVisible);
+                ((GridData) sb.categoryLabel.getLayoutData()).exclude = !catVisible;
+                if (sb.separator != null) {
+                    sb.separator.setVisible(catVisible);
+                    ((GridData) sb.separator.getLayoutData()).exclude = !catVisible;
+                }
+            }
+        }
+
+        // Re-layout toolbar
+        toolbarContent.layout(true);
+        scrolledToolbar.setMinSize(toolbarContent.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+    }
+
+    private void addSelectedNode() {
+        // If we have a valid selection, use it
+        if (selectedButtonIndex >= 0 && selectedButtonIndex < searchableButtons.size()) {
+            SearchableButton sb = searchableButtons.get(selectedButtonIndex);
+            if (sb.button.isVisible()) {
+                sb.action.run();
+                searchBox.setText("");
+                selectedButtonIndex = -1;
+                return;
+            }
+        }
+        // Fall back to first visible
+        for (SearchableButton sb : searchableButtons) {
+            if (sb.button.isVisible()) {
+                sb.action.run();
+                searchBox.setText("");
+                selectedButtonIndex = -1;
+                break;
+            }
+        }
+    }
+
+    private void navigateSelection(int direction) {
+        // Get list of visible button indices
+        java.util.List<Integer> visibleIndices = new java.util.ArrayList<>();
+        for (int i = 0; i < searchableButtons.size(); i++) {
+            if (searchableButtons.get(i).button.isVisible()) {
+                visibleIndices.add(i);
+            }
+        }
+
+        if (visibleIndices.isEmpty()) return;
+
+        // Find current position in visible list
+        int currentPos = -1;
+        if (selectedButtonIndex >= 0) {
+            currentPos = visibleIndices.indexOf(selectedButtonIndex);
+        }
+
+        // Calculate new position
+        int newPos;
+        if (currentPos == -1) {
+            // No current selection - start at first or last depending on direction
+            newPos = direction > 0 ? 0 : visibleIndices.size() - 1;
+        } else {
+            newPos = currentPos + direction;
+            // Wrap around
+            if (newPos < 0) newPos = visibleIndices.size() - 1;
+            if (newPos >= visibleIndices.size()) newPos = 0;
+        }
+
+        // Update selection
+        int oldIndex = selectedButtonIndex;
+        selectedButtonIndex = visibleIndices.get(newPos);
+
+        // Update visual highlighting
+        updateButtonHighlighting(oldIndex);
+
+        // Scroll to make selected button visible
+        SearchableButton selected = searchableButtons.get(selectedButtonIndex);
+        scrolledToolbar.showControl(selected.button);
+    }
+
+    private void updateButtonHighlighting(int oldIndex) {
+        Color normalColor = new Color(160, 160, 160);
+        Color selectedColor = new Color(100, 150, 255);
+
+        // Reset old selection
+        if (oldIndex >= 0 && oldIndex < searchableButtons.size()) {
+            searchableButtons.get(oldIndex).button.setBackground(normalColor);
+        }
+
+        // Highlight new selection
+        if (selectedButtonIndex >= 0 && selectedButtonIndex < searchableButtons.size()) {
+            searchableButtons.get(selectedButtonIndex).button.setBackground(selectedColor);
+        }
+    }
+
+    private void clearButtonHighlighting() {
+        Color normalColor = new Color(160, 160, 160);
+        if (selectedButtonIndex >= 0 && selectedButtonIndex < searchableButtons.size()) {
+            searchableButtons.get(selectedButtonIndex).button.setBackground(normalColor);
+        }
+        selectedButtonIndex = -1;
     }
 
     private void saveDiagramAs() {
@@ -3385,7 +3647,8 @@ public class PipelineEditor {
             case "Threshold (Adaptive)":
                 return "AdaptiveThreshold";
             case "CLAHE: Contrast Enhancement":
-                return "CLAHE";
+            case "CLAHE":
+                return "CLAHE Contrast";
             case "Color In Range":
                 return "ColorInRange";
 

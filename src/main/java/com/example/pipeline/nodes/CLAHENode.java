@@ -22,7 +22,7 @@ public class CLAHENode extends ProcessingNode {
     private int colorModeIndex = 0; // LAB
 
     public CLAHENode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "CLAHE", x, y);
+        super(display, shell, "CLAHE Contrast", x, y);
     }
 
     // Getters/setters for serialization
