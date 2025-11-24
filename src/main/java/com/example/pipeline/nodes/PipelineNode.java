@@ -46,8 +46,13 @@ public abstract class PipelineNode {
     // Backpressure management
     protected static final int QUEUE_HIGH_WATERMARK = 10; // Reduce upstream priority when queue exceeds this
     protected static final int QUEUE_LOW_WATERMARK = 3;   // Restore upstream priority when queue drops below this
+    protected static final long PRIORITY_ADJUSTMENT_TIMEOUT_MS = 10000; // 10 seconds between priority adjustments
+    protected long lastPriorityAdjustmentTime = 0; // Timestamp of last priority change
     protected PipelineNode inputNode = null; // Reference to upstream node for backpressure signaling
     protected PipelineNode inputNode2 = null; // Reference to second upstream node for dual-input nodes
+
+    // Work unit tracking
+    protected long workUnitsCompleted = 0; // Count of work units completed (persists across runs)
 
     // Callback for frame updates (used for preview)
     protected java.util.function.Consumer<Mat> onFrameCallback;
@@ -243,8 +248,20 @@ public abstract class PipelineNode {
     }
 
     public String getThreadPriorityLabel() {
-        // Show raw priority number
-        return "Priority: " + getThreadPriority();
+        // Show raw priority number and work units completed
+        return "Priority: " + getThreadPriority() + " | Work: " + workUnitsCompleted;
+    }
+
+    public long getWorkUnitsCompleted() {
+        return workUnitsCompleted;
+    }
+
+    public void setWorkUnitsCompleted(long count) {
+        this.workUnitsCompleted = count;
+    }
+
+    protected void incrementWorkUnits() {
+        workUnitsCompleted++;
     }
 
     public void setInputNode(PipelineNode node) {
@@ -298,11 +315,23 @@ public abstract class PipelineNode {
 
             System.out.println("[" + getNodeName() + "] checkBackpressure: queueSize=" + queueSize + ", currentPriority=" + currentPriority + ", targetPriority=" + targetPriority + ", originalPriority=" + originalPriority);
             if (currentPriority != targetPriority) {
-                System.out.println("[" + getNodeName() + "] BACKPRESSURE: CHANGING priority " + currentPriority + " -> " + targetPriority);
-                processingThread.setPriority(targetPriority);
+                // Check if enough time has passed since last adjustment
+                long currentTime = System.currentTimeMillis();
+                long timeSinceLastAdjustment = currentTime - lastPriorityAdjustmentTime;
+
+                if (timeSinceLastAdjustment >= PRIORITY_ADJUSTMENT_TIMEOUT_MS) {
+                    System.out.println("[" + getNodeName() + "] BACKPRESSURE: CHANGING priority " + currentPriority + " -> " + targetPriority);
+                    processingThread.setPriority(targetPriority);
+                    lastPriorityAdjustmentTime = currentTime;
+                    lastRunningPriority = targetPriority;
+                } else {
+                    long remainingMs = PRIORITY_ADJUSTMENT_TIMEOUT_MS - timeSinceLastAdjustment;
+                    System.out.println("[" + getNodeName() + "] BACKPRESSURE: Adjustment locked for " + (remainingMs / 1000) + " more seconds");
+                }
+            } else {
+                // Always update cached priority to reflect current state
+                lastRunningPriority = targetPriority;
             }
-            // Always update cached priority to reflect current state
-            lastRunningPriority = targetPriority;
         }
     }
 

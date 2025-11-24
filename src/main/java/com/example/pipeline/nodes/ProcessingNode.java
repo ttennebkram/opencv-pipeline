@@ -203,6 +203,7 @@ public abstract class ProcessingNode extends PipelineNode {
         }
 
         running.set(true);
+        workUnitsCompleted = 0; // Reset counter on start
 
         processingThread = new Thread(() -> {
 
@@ -221,6 +222,9 @@ public abstract class ProcessingNode extends PipelineNode {
 
                     // Process the frame
                     Mat output = process(input);
+
+                    // Increment work units regardless of output (even if null)
+                    incrementWorkUnits();
 
                     // Update thumbnail and put on output queue
                     if (output != null) {

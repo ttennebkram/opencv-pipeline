@@ -468,17 +468,21 @@ public class HistogramNode extends DualInputNode {
 
         // Line thickness
         new Label(dialog, SWT.NONE).setText("Line Thickness:");
-        Scale thicknessScale = new Scale(dialog, SWT.HORIZONTAL);
+        Composite thicknessComp = new Composite(dialog, SWT.NONE);
+        thicknessComp.setLayout(new GridLayout(2, false));
+        thicknessComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        Scale thicknessScale = new Scale(thicknessComp, SWT.HORIZONTAL);
         thicknessScale.setMinimum(1);
         thicknessScale.setMaximum(10);
         // Clamp slider position to valid range, but keep actual value
         int thicknessSliderPos = Math.min(Math.max(lineThickness, 1), 10);
         thicknessScale.setSelection(thicknessSliderPos);
         GridData scaleGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        scaleGd.widthHint = 150;
+        scaleGd.widthHint = 120;
         thicknessScale.setLayoutData(scaleGd);
 
-        Label thicknessLabel = new Label(dialog, SWT.NONE);
+        Label thicknessLabel = new Label(thicknessComp, SWT.NONE);
         thicknessLabel.setText(String.valueOf(lineThickness)); // Show real value
         GridData thicknessLabelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
         thicknessLabelGd.widthHint = 30;

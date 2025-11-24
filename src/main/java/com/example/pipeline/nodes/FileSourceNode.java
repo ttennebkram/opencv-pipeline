@@ -399,6 +399,7 @@ public class FileSourceNode extends SourceNode {
         }
 
         running.set(true);
+        workUnitsCompleted = 0; // Reset counter on start
         double fps = getFps();
         frameDelayMs = fps > 0 ? (long) (1000.0 / fps) : 0;
 
@@ -407,6 +408,10 @@ public class FileSourceNode extends SourceNode {
             while (running.get()) {
                 try {
                     Mat frame = getNextFrame();
+
+                    // Increment work units regardless of output (even if null)
+                    incrementWorkUnits();
+
                     if (frame != null) {
                         setOutputMat(frame);
                         notifyFrame(frame);

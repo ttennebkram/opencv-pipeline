@@ -470,12 +470,17 @@ public class WebcamSourceNode extends SourceNode {
         }
 
         running.set(true);
+        workUnitsCompleted = 0; // Reset counter on start
         frameDelayMs = (long) (1000.0 / getFps());
 
         processingThread = new Thread(() -> {
             while (running.get()) {
                 try {
                     Mat frame = getNextFrame();
+
+                    // Increment work units regardless of output (even if null)
+                    incrementWorkUnits();
+
                     if (frame != null) {
                         // Update thumbnail
                         setOutputMat(frame);

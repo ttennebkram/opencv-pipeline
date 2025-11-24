@@ -643,6 +643,9 @@ public class PipelineEditor {
                     if (nodeObj.has("threadPriority")) {
                         node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
                     }
+                    if (nodeObj.has("workUnitsCompleted")) {
+                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
+                    }
                     if (nodeObj.has("imagePath")) {
                         String imgPath = nodeObj.get("imagePath").getAsString();
                         node.setImagePath(imgPath);
@@ -656,6 +659,9 @@ public class PipelineEditor {
                     WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
                     if (nodeObj.has("threadPriority")) {
                         node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                    }
+                    if (nodeObj.has("workUnitsCompleted")) {
+                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
                     }
                     if (nodeObj.has("cameraIndex")) {
                         node.setCameraIndex(nodeObj.get("cameraIndex").getAsInt());
@@ -677,6 +683,9 @@ public class PipelineEditor {
                     if (nodeObj.has("threadPriority")) {
                         node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
                     }
+                    if (nodeObj.has("workUnitsCompleted")) {
+                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
+                    }
                     if (nodeObj.has("imageWidth")) {
                         node.setImageWidth(nodeObj.get("imageWidth").getAsInt());
                     }
@@ -697,6 +706,9 @@ public class PipelineEditor {
                         // Load thread priority
                         if (nodeObj.has("threadPriority")) {
                             node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                        }
+                        if (nodeObj.has("workUnitsCompleted")) {
+                            node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
                         }
                         // Load node-specific properties
                         if (node instanceof GaussianBlurNode) {
@@ -1456,6 +1468,7 @@ public class PipelineEditor {
                 nodeObj.addProperty("x", node.x);
                 nodeObj.addProperty("y", node.y);
                 nodeObj.addProperty("threadPriority", node.getThreadPriority());
+                nodeObj.addProperty("workUnitsCompleted", node.getWorkUnitsCompleted());
 
                 if (node instanceof FileSourceNode) {
                     nodeObj.addProperty("type", "FileSource");
@@ -1876,6 +1889,12 @@ public class PipelineEditor {
 
                     if ("FileSource".equals(type)) {
                         FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
+                        if (nodeObj.has("threadPriority")) {
+                            node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                        }
+                        if (nodeObj.has("workUnitsCompleted")) {
+                            node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
+                        }
                         if (nodeObj.has("imagePath")) {
                             String imgPath = nodeObj.get("imagePath").getAsString();
                             node.setImagePath(imgPath);
@@ -1888,6 +1907,12 @@ public class PipelineEditor {
                         String name = nodeObj.get("name").getAsString();
                         ProcessingNode node = createEffectNode(name, x, y);
                         if (node != null) {
+                            if (nodeObj.has("threadPriority")) {
+                                node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                            }
+                            if (nodeObj.has("workUnitsCompleted")) {
+                                node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
+                            }
                             // Load node-specific properties
                             if (node instanceof GaussianBlurNode) {
                                 GaussianBlurNode gbn = (GaussianBlurNode) node;
@@ -3300,7 +3325,8 @@ public class PipelineEditor {
 
                 // Check for second input point on dual-input nodes first
                 if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
-                    node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
+                    node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode ||
+                    node instanceof HistogramNode) {
                     Point inputPoint2;
                     if (node instanceof AddClampNode) {
                         inputPoint2 = ((AddClampNode) node).getInputPoint2();
@@ -3312,8 +3338,10 @@ public class PipelineEditor {
                         inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
                     } else if (node instanceof BitwiseOrNode) {
                         inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
-                    } else {
+                    } else if (node instanceof BitwiseXorNode) {
                         inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
+                    } else {
+                        inputPoint2 = ((HistogramNode) node).getInputPoint2();
                     }
                     double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint2.y, 2));

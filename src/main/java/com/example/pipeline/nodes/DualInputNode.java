@@ -56,6 +56,7 @@ public abstract class DualInputNode extends ProcessingNode {
         }
 
         running.set(true);
+        workUnitsCompleted = 0; // Reset counter on start
 
         processingThread = new Thread(() -> {
             while (running.get()) {
@@ -95,6 +96,9 @@ public abstract class DualInputNode extends ProcessingNode {
                     // Process if we have at least one valid input and should process
                     if (shouldProcess && (lastInput1 != null || lastInput2 != null)) {
                         Mat output = processDual(lastInput1, lastInput2);
+
+                        // Increment work units regardless of output (even if null)
+                        incrementWorkUnits();
 
                         if (output != null) {
                             // Update thumbnail
