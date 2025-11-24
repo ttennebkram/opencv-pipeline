@@ -110,6 +110,35 @@ public class PipelineEditor {
 
         // Content nodes
         NodeRegistry.register("Text", "Content", TextNode.class);
+
+        // Register aliases for backward compatibility with renamed nodes
+        NodeRegistry.registerAlias("Canny Edge", "CannyEdge");
+        NodeRegistry.registerAlias("Canny Edges", "CannyEdge");
+        NodeRegistry.registerAlias("Laplacian Edges", "Laplacian");
+        NodeRegistry.registerAlias("Sobel Edges", "Sobel");
+        NodeRegistry.registerAlias("Scharr Edges", "Scharr");
+        NodeRegistry.registerAlias("Shi-Tomasi", "ShiTomasi");
+        NodeRegistry.registerAlias("Shi-Tomasi Corners", "ShiTomasi");
+        NodeRegistry.registerAlias("Harris Corners", "HarrisCorners");
+        NodeRegistry.registerAlias("Hough Circles", "HoughCircles");
+        NodeRegistry.registerAlias("Hough Lines", "HoughLines");
+        NodeRegistry.registerAlias("Blob Detector", "BlobDetector");
+        NodeRegistry.registerAlias("ORB Features", "ORBFeatures");
+        NodeRegistry.registerAlias("SIFT Features", "SIFTFeatures");
+        NodeRegistry.registerAlias("Connected Components", "ConnectedComponents");
+        NodeRegistry.registerAlias("Color In Range", "ColorInRange");
+        NodeRegistry.registerAlias("Bilateral Filter", "BilateralFilter");
+        NodeRegistry.registerAlias("Mean Shift", "MeanShift");
+        NodeRegistry.registerAlias("Warp Affine", "WarpAffine");
+        NodeRegistry.registerAlias("Add Clamp", "AddClamp");
+        NodeRegistry.registerAlias("Add Weighted", "AddWeighted");
+        NodeRegistry.registerAlias("Subtract Clamp", "SubtractClamp");
+        NodeRegistry.registerAlias("Bitwise And", "BitwiseAnd");
+        NodeRegistry.registerAlias("Bitwise Or", "BitwiseOr");
+        NodeRegistry.registerAlias("Bitwise Xor", "BitwiseXor");
+        NodeRegistry.registerAlias("Filter 2D", "Filter2D");
+        NodeRegistry.registerAlias("FFT Filter", "FFTFilter");
+        NodeRegistry.registerAlias("Morphology Ex", "MorphologyEx");
     }
 
     private Shell shell;

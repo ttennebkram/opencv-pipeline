@@ -43,6 +43,16 @@ public class NodeRegistry {
     }
 
     /**
+     * Register an alias for an existing node type (for backward compatibility).
+     */
+    public static void registerAlias(String alias, String existingName) {
+        NodeInfo info = nodesByName.get(existingName);
+        if (info != null) {
+            nodesByName.put(alias, info);
+        }
+    }
+
+    /**
      * Get all registered nodes.
      */
     public static List<NodeInfo> getAllNodes() {
