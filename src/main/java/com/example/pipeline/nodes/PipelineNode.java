@@ -7,6 +7,10 @@ import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Base class for all pipeline nodes.
  */
@@ -28,6 +32,16 @@ public abstract class PipelineNode {
     protected Image thumbnail;
     protected Mat outputMat;
     protected volatile boolean thumbnailUpdatePending = false;
+
+    // Thread management for pipeline execution
+    protected Thread processingThread;
+    protected AtomicBoolean running = new AtomicBoolean(false);
+    protected BlockingQueue<Mat> inputQueue;
+    protected BlockingQueue<Mat> outputQueue;
+    protected long frameDelayMs = 0; // Frame rate throttling (0 = no delay)
+
+    // Callback for frame updates (used for preview)
+    protected java.util.function.Consumer<Mat> onFrameCallback;
 
     public abstract void paint(GC gc);
 
@@ -169,6 +183,74 @@ public abstract class PipelineNode {
     public void disposeThumbnail() {
         if (thumbnail != null && !thumbnail.isDisposed()) {
             thumbnail.dispose();
+        }
+    }
+
+    // Queue management for pipeline connections
+    public void setInputQueue(BlockingQueue<Mat> queue) {
+        this.inputQueue = queue;
+    }
+
+    public void setOutputQueue(BlockingQueue<Mat> queue) {
+        this.outputQueue = queue;
+    }
+
+    public BlockingQueue<Mat> getInputQueue() {
+        return inputQueue;
+    }
+
+    public BlockingQueue<Mat> getOutputQueue() {
+        return outputQueue;
+    }
+
+    public void setFrameDelayMs(long delayMs) {
+        this.frameDelayMs = delayMs;
+    }
+
+    public long getFrameDelayMs() {
+        return frameDelayMs;
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    public void setOnFrameCallback(java.util.function.Consumer<Mat> callback) {
+        this.onFrameCallback = callback;
+    }
+
+    protected void notifyFrame(Mat frame) {
+        if (onFrameCallback != null && frame != null) {
+            onFrameCallback.accept(frame);
+        }
+    }
+
+    /**
+     * Start this node's processing thread.
+     * Source nodes generate frames, processing nodes consume from input and produce to output.
+     */
+    public abstract void startProcessing();
+
+    /**
+     * Stop this node's processing thread.
+     */
+    public void stopProcessing() {
+        running.set(false);
+        if (processingThread != null) {
+            processingThread.interrupt();
+            try {
+                processingThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            processingThread = null;
+        }
+        // Clear queues
+        if (inputQueue != null) {
+            inputQueue.clear();
+        }
+        if (outputQueue != null) {
+            outputQueue.clear();
         }
     }
 }

@@ -71,4 +71,23 @@ public class Connection {
     public boolean isActive() {
         return queue != null;
     }
+
+    /**
+     * Activate this connection: create queue and wire it between source and target nodes.
+     */
+    public void activate() {
+        createQueue();
+        // Wire the queue: source's output -> this queue -> target's input
+        source.setOutputQueue(queue);
+        target.setInputQueue(queue);
+    }
+
+    /**
+     * Deactivate this connection: clear queue and disconnect from nodes.
+     */
+    public void deactivate() {
+        clearQueue();
+        source.setOutputQueue(null);
+        target.setInputQueue(null);
+    }
 }

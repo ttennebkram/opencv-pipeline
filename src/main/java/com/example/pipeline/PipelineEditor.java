@@ -144,7 +144,6 @@ public class PipelineEditor {
 
     // Threading state
     private AtomicBoolean pipelineRunning = new AtomicBoolean(false);
-    private List<Thread> nodeThreads = new ArrayList<>();
     private Button startStopBtn;
 
     public static void main(String[] args) {
@@ -437,10 +436,8 @@ public class PipelineEditor {
         try {
             // Clear existing
             for (PipelineNode node : nodes) {
-                if (node instanceof FileSourceNode) {
-                    ((FileSourceNode) node).getOverlayComposite().dispose();
-                } else if (node instanceof WebcamSourceNode) {
-                    ((WebcamSourceNode) node).getOverlayComposite().dispose();
+                if (node instanceof SourceNode) {
+                    ((SourceNode) node).dispose();
                 }
             }
             nodes.clear();
@@ -700,10 +697,8 @@ public class PipelineEditor {
     private void newDiagram() {
         // Clear existing
         for (PipelineNode node : nodes) {
-            if (node instanceof FileSourceNode) {
-                ((FileSourceNode) node).getOverlayComposite().dispose();
-            } else if (node instanceof WebcamSourceNode) {
-                ((WebcamSourceNode) node).getOverlayComposite().dispose();
+            if (node instanceof SourceNode) {
+                ((SourceNode) node).dispose();
             }
         }
         nodes.clear();
@@ -725,17 +720,17 @@ public class PipelineEditor {
 
         Composite toolbar = new Composite(scrolledToolbar, SWT.NONE);
         GridLayout toolbarLayout = new GridLayout(1, false);
-        toolbarLayout.verticalSpacing = 0;  // No spacing between items
+        toolbarLayout.verticalSpacing = 0;  // No spacing between buttons
         toolbarLayout.marginHeight = 5;     // Reduce top/bottom margins
         toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
         toolbar.setLayout(toolbarLayout);
 
-        // Set green background for toolbar
-        Color toolbarGreen = new Color(200, 235, 200);
+        // Set darker green background for toolbar (better text visibility in dark mode)
+        Color toolbarGreen = new Color(160, 200, 160);
         toolbar.setBackground(toolbarGreen);
         scrolledToolbar.setBackground(toolbarGreen);
 
-        Font boldFont = new Font(display, "Arial", 11, SWT.BOLD);
+        Font boldFont = new Font(display, "Arial", 13, SWT.BOLD);
 
         // Inputs section (not from registry)
         Label inputsLabel = new Label(toolbar, SWT.NONE);
@@ -1021,10 +1016,8 @@ public class PipelineEditor {
             try {
                 // Clear existing
                 for (PipelineNode node : nodes) {
-                    if (node instanceof FileSourceNode) {
-                        ((FileSourceNode) node).getOverlayComposite().dispose();
-                    } else if (node instanceof WebcamSourceNode) {
-                        ((WebcamSourceNode) node).getOverlayComposite().dispose();
+                    if (node instanceof SourceNode) {
+                        ((SourceNode) node).dispose();
                     }
                 }
                 nodes.clear();
@@ -1253,10 +1246,11 @@ public class PipelineEditor {
     }
 
     private void createNodeButton(Composite parent, String text, Runnable action) {
-        Button btn = new Button(parent, SWT.PUSH);
+        Button btn = new Button(parent, SWT.PUSH | SWT.FLAT);
         btn.setText(text);
+        btn.setBackground(new Color(160, 160, 160));
         GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        gd.heightHint = 22;  // Compact button height
+        gd.heightHint = btn.computeSize(SWT.DEFAULT, SWT.DEFAULT).y + 2;
         btn.setLayoutData(gd);
         btn.addSelectionListener(new SelectionAdapter() {
             @Override
@@ -1620,7 +1614,7 @@ public class PipelineEditor {
         // Find ALL source nodes (FileSourceNode, WebcamSourceNode, or BlankSourceNode)
         List<PipelineNode> sourceNodes = new ArrayList<>();
         for (PipelineNode node : nodes) {
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
+            if (node instanceof SourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -1645,9 +1639,8 @@ public class PipelineEditor {
 
         // Validate FileSourceNodes have loaded images
         for (PipelineNode sourceNode : sourceNodes) {
-            if (sourceNode instanceof FileSourceNode) {
-                FileSourceNode isn = (FileSourceNode) sourceNode;
-                if (isn.getLoadedImage() == null) {
+            if (sourceNode instanceof FileSourceNode fsn) {
+                if (fsn.getLoadedImage() == null) {
                     MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
                     mb.setText("No Source");
                     mb.setMessage("Please load an image in the source node first.");
@@ -1657,32 +1650,18 @@ public class PipelineEditor {
             }
         }
 
-        // Build ordered lists of nodes for each pipeline
-        List<List<PipelineNode>> allPipelines = new ArrayList<>();
+        // Count pipelines (source nodes with at least one connection)
+        int pipelineCount = 0;
         for (PipelineNode sourceNode : sourceNodes) {
-            List<PipelineNode> orderedNodes = new ArrayList<>();
-            orderedNodes.add(sourceNode);
-            PipelineNode current = sourceNode;
-
-            while (current != null) {
-                PipelineNode next = null;
-                for (Connection conn : connections) {
-                    if (conn.source == current) {
-                        next = conn.target;
-                        orderedNodes.add(next);
-                        break;
-                    }
+            for (Connection conn : connections) {
+                if (conn.source == sourceNode) {
+                    pipelineCount++;
+                    break;
                 }
-                current = next;
-            }
-
-            // Only add pipelines with at least 2 nodes (source + processing)
-            if (orderedNodes.size() >= 2) {
-                allPipelines.add(orderedNodes);
             }
         }
 
-        if (allPipelines.isEmpty()) {
+        if (pipelineCount == 0) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
             mb.setText("No Pipeline");
             mb.setMessage("Connect at least one processing node to a source.");
@@ -1692,185 +1671,61 @@ public class PipelineEditor {
 
         // If no node is selected, auto-select the terminal node of the first pipeline
         if (selectedNodes.isEmpty()) {
-            List<PipelineNode> firstPipeline = allPipelines.get(0);
-            PipelineNode terminalNode = firstPipeline.get(firstPipeline.size() - 1);
-            selectedNodes.add(terminalNode);
+            // Find terminal node of first pipeline
+            PipelineNode current = sourceNodes.get(0);
+            while (current != null) {
+                PipelineNode next = null;
+                for (Connection conn : connections) {
+                    if (conn.source == current) {
+                        next = conn.target;
+                        break;
+                    }
+                }
+                if (next == null) {
+                    selectedNodes.add(current);
+                    break;
+                }
+                current = next;
+            }
             canvas.redraw();
         }
 
         // Clear old state
         stopPipeline();
 
-        // Create queues on connections
+        // Activate all connections (creates queues and wires them to nodes)
         for (Connection conn : connections) {
-            conn.createQueue();
+            conn.activate();
+        }
+
+        // Set up frame callbacks for preview updates
+        for (PipelineNode node : nodes) {
+            final PipelineNode n = node;
+            node.setOnFrameCallback(frame -> {
+                if (!display.isDisposed()) {
+                    display.asyncExec(() -> {
+                        if (canvas.isDisposed()) return;
+                        canvas.redraw();
+
+                        // Update preview if this node is selected
+                        if (selectedNodes.size() == 1 && selectedNodes.contains(n)) {
+                            updatePreview(frame);
+                        } else if (selectedNodes.isEmpty() && n.getOutputQueue() == null) {
+                            // No selection and this is the last node - show its output
+                            updatePreview(frame);
+                        }
+                    });
+                }
+            });
         }
 
         pipelineRunning.set(true);
-        statusBar.setText("Pipeline Running (" + allPipelines.size() + " pipeline" + (allPipelines.size() > 1 ? "s" : "") + ")");
+        statusBar.setText("Pipeline Running (" + pipelineCount + " pipeline" + (pipelineCount > 1 ? "s" : "") + ")");
         statusBar.setForeground(new Color(0, 128, 0)); // Green text
 
-        // Create threads for each node in all pipelines
-        for (List<PipelineNode> pipeline : allPipelines) {
-            PipelineNode sourceNode = pipeline.get(0);
-
-            // Get FPS from this pipeline's source node
-            double fps = 30.0;
-            if (sourceNode instanceof FileSourceNode) {
-                fps = ((FileSourceNode) sourceNode).getFps();
-            } else if (sourceNode instanceof WebcamSourceNode) {
-                fps = ((WebcamSourceNode) sourceNode).getFps();
-            } else if (sourceNode instanceof BlankSourceNode) {
-                fps = ((BlankSourceNode) sourceNode).getFps();
-            }
-            final long frameDelayMs = (long) (1000.0 / fps);
-
-            for (int i = 0; i < pipeline.size(); i++) {
-                final int index = i;
-                final PipelineNode node = pipeline.get(i);
-
-            // Find input connection (connection where this node is target)
-            Connection inputConn = null;
-            for (Connection conn : connections) {
-                if (conn.target == node) {
-                    inputConn = conn;
-                    break;
-                }
-            }
-
-            // Find output connection (connection where this node is source)
-            Connection outputConn = null;
-            for (Connection conn : connections) {
-                if (conn.source == node) {
-                    outputConn = conn;
-                    break;
-                }
-            }
-
-            final BlockingQueue<Mat> inputQueue = (inputConn != null) ? inputConn.getQueue() : null;
-            final BlockingQueue<Mat> outputQueue = (outputConn != null) ? outputConn.getQueue() : null;
-
-            Thread t = new Thread(() -> {
-                int basePriority = Thread.currentThread().getPriority();
-                int currentPriority = basePriority;
-                try {
-                    while (pipelineRunning.get() && !Thread.currentThread().isInterrupted()) {
-                        Mat inputMat = null;
-                        Mat outputMat = null;
-
-                        if (node instanceof FileSourceNode) {
-                            // File source node: get next frame (video or static image)
-                            inputMat = ((FileSourceNode) node).getNextFrame();
-                            if (inputMat == null) {
-                                Thread.sleep(frameDelayMs);
-                                continue;
-                            }
-                            outputMat = inputMat;
-                        } else if (node instanceof WebcamSourceNode) {
-                            // Webcam source node: get next frame from camera
-                            inputMat = ((WebcamSourceNode) node).getNextFrame();
-                            if (inputMat == null) {
-                                Thread.sleep(frameDelayMs);
-                                continue;
-                            }
-                            outputMat = inputMat;
-                        } else if (node instanceof BlankSourceNode) {
-                            // Blank source node: get blank colored image
-                            inputMat = ((BlankSourceNode) node).getNextFrame();
-                            if (inputMat == null) {
-                                Thread.sleep(frameDelayMs);
-                                continue;
-                            }
-                            outputMat = inputMat;
-                        } else {
-                            // Processing node: read from input queue
-                            inputMat = inputQueue.take();
-                            if (node instanceof ProcessingNode) {
-                                ProcessingNode pn = (ProcessingNode) node;
-                                outputMat = pn.process(inputMat);
-                                inputMat.release(); // Release input after processing
-                            } else {
-                                outputMat = inputMat;
-                            }
-                        }
-
-                        // Update thumbnail on UI thread
-                        final Mat thumbMat = outputMat.clone();
-                        if (!display.isDisposed()) {
-                            display.asyncExec(() -> {
-                                if (canvas.isDisposed()) {
-                                    thumbMat.release();
-                                    return;
-                                }
-                                node.setOutputMat(thumbMat);
-                                canvas.redraw();
-
-                                // Update preview if this node is selected
-                                if (selectedNodes.size() == 1 && selectedNodes.contains(node)) {
-                                    updatePreview(thumbMat);
-                                } else if (selectedNodes.isEmpty() && outputQueue == null) {
-                                    // No selection and this is the last node - show its output
-                                    updatePreview(thumbMat);
-                                }
-                            });
-                        } else {
-                            thumbMat.release();
-                        }
-
-                        // Pass to next node
-                        if (outputQueue != null) {
-                            // Adaptive priority: adjust by 1 increment at a time
-                            int queueSize = outputQueue.size();
-
-                            if (queueSize >= 1) {
-                                // Queue backing up - lower priority by 1
-                                if (currentPriority > Thread.MIN_PRIORITY) {
-                                    currentPriority--;
-                                    Thread.currentThread().setPriority(currentPriority);
-                                }
-                            } else {
-                                // Queue empty - raise priority by 1 toward base
-                                if (currentPriority < basePriority) {
-                                    currentPriority++;
-                                    Thread.currentThread().setPriority(currentPriority);
-                                }
-                            }
-
-                            outputQueue.put(outputMat);
-                        } else {
-                            // Last node - cleanup
-                            outputMat.release();
-                        }
-
-                        // Throttle source node based on video FPS
-                        if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
-                            Thread.sleep(frameDelayMs);
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    System.err.println("Pipeline thread " + node.getClass().getSimpleName() + " exception:");
-                    e.printStackTrace();
-                }
-                System.out.println("Pipeline thread " + node.getClass().getSimpleName() + " exited");
-            });
-
-            // Set priority based on node type
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
-                t.setPriority(Thread.NORM_PRIORITY + 2); // Higher for source
-            } else {
-                t.setPriority(Thread.NORM_PRIORITY - 1); // Lower for processing
-            }
-            t.setDaemon(true);
-            t.setName("Pipeline-" + node.getClass().getSimpleName() + "-" + index);
-            nodeThreads.add(t);
-            }
-        }
-
-        // Start all threads
-        for (Thread t : nodeThreads) {
-            t.start();
+        // Start all nodes
+        for (PipelineNode node : nodes) {
+            node.startProcessing();
         }
 
         // Update button
@@ -1882,33 +1737,20 @@ public class PipelineEditor {
         statusBar.setText("Pipeline Stopped");
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
-        // Interrupt all threads
-        for (Thread t : nodeThreads) {
-            t.interrupt();
+        // Stop all nodes
+        for (PipelineNode node : nodes) {
+            node.stopProcessing();
         }
 
-        // Wait for threads to finish (with timeout)
-        for (Thread t : nodeThreads) {
-            try {
-                t.join(500);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        // Clear queues on connections
+        // Deactivate all connections (clears queues)
         for (Connection conn : connections) {
-            BlockingQueue<Mat> queue = conn.getQueue();
-            if (queue != null) {
-                Mat m;
-                while ((m = queue.poll()) != null) {
-                    m.release();
-                }
-            }
-            conn.clearQueue();
+            conn.deactivate();
         }
 
-        nodeThreads.clear();
+        // Clear frame callbacks
+        for (PipelineNode node : nodes) {
+            node.setOnFrameCallback(null);
+        }
 
         // Update button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {

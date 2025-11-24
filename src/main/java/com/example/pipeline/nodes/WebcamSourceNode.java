@@ -16,8 +16,7 @@ import org.opencv.videoio.Videoio;
 /**
  * Webcam source node that captures from a camera device.
  */
-public class WebcamSourceNode extends PipelineNode {
-    private Shell shell;
+public class WebcamSourceNode extends SourceNode {
     private Canvas parentCanvas;
     private Composite overlayComposite;
     private Image thumbnail = null;
@@ -611,5 +610,41 @@ public class WebcamSourceNode extends PipelineNode {
         if (videoCapture != null) {
             videoCapture.release();
         }
+    }
+
+    @Override
+    public void startProcessing() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+        frameDelayMs = (long) (1000.0 / getFps());
+
+        processingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    Mat frame = getNextFrame();
+                    if (frame != null) {
+                        // Update thumbnail
+                        setOutputMat(frame);
+                        notifyFrame(frame);
+                        // Put frame on output queue (blocks if full)
+                        if (outputQueue != null) {
+                            outputQueue.put(frame);
+                        }
+                    }
+
+                    // Throttle frame rate
+                    if (frameDelayMs > 0) {
+                        Thread.sleep(frameDelayMs);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "WebcamSource-Thread");
+        processingThread.start();
     }
 }

@@ -18,8 +18,7 @@ import java.io.File;
 /**
  * File source node with file chooser and thumbnail.
  */
-public class FileSourceNode extends PipelineNode {
-    private Shell shell;
+public class FileSourceNode extends SourceNode {
     private Canvas parentCanvas;
     private String imagePath = null;
     private Image thumbnail = null;
@@ -615,5 +614,53 @@ public class FileSourceNode extends PipelineNode {
         if (videoCapture != null) {
             videoCapture.release();
         }
+    }
+
+    @Override
+    public void startProcessing() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+        double fps = getFps();
+        frameDelayMs = fps > 0 ? (long) (1000.0 / fps) : 0;
+
+        processingThread = new Thread(() -> {
+            boolean firstFrame = true;
+            while (running.get()) {
+                try {
+                    Mat frame = getNextFrame();
+                    if (frame != null) {
+                        // Update thumbnail
+                        setOutputMat(frame);
+                        notifyFrame(frame);
+                        // Put frame on output queue (blocks if full)
+                        if (outputQueue != null) {
+                            outputQueue.put(frame);
+                        }
+                    } else if (frame == null && !isVideo) {
+                        // Static image with no repeat - stop after first frame
+                        if (!firstFrame && fps == 0) {
+                            break;
+                        }
+                    }
+                    firstFrame = false;
+
+                    // Throttle frame rate (skip if "Just Once" mode)
+                    if (frameDelayMs > 0) {
+                        Thread.sleep(frameDelayMs);
+                    } else if (fps == 0 && !firstFrame) {
+                        // "Just Once" mode - wait briefly then exit
+                        Thread.sleep(100);
+                        break;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "FileSource-Thread");
+        processingThread.start();
     }
 }

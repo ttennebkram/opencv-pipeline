@@ -177,4 +177,52 @@ public abstract class ProcessingNode extends PipelineNode {
         }
         return false;
     }
+
+    @Override
+    public void startProcessing() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+
+        processingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    // Take from input queue (blocks until available)
+                    if (inputQueue == null) {
+                        Thread.sleep(100);
+                        continue;
+                    }
+
+                    Mat input = inputQueue.take();
+                    if (input == null) {
+                        continue;
+                    }
+
+                    // Process the frame
+                    Mat output = process(input);
+
+                    // Update thumbnail and put on output queue
+                    if (output != null) {
+                        setOutputMat(output);
+                        notifyFrame(output);
+
+                        if (outputQueue != null) {
+                            outputQueue.put(output);
+                        }
+                    }
+
+                    // Release input if it's different from output
+                    if (input != output) {
+                        input.release();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "Processing-" + name + "-Thread");
+        processingThread.start();
+    }
 }

@@ -12,8 +12,7 @@ import org.opencv.core.Scalar;
 /**
  * Blank source node - generates a solid color (default black) image.
  */
-public class BlankSourceNode extends PipelineNode {
-    private Shell shell;
+public class BlankSourceNode extends SourceNode {
     private int imageWidth = 640;
     private int imageHeight = 480;
     private int colorIndex = 0; // Default to black
@@ -35,13 +34,15 @@ public class BlankSourceNode extends PipelineNode {
     private static final String[] FPS_NAMES = {"1 fps", "15 fps", "30 fps", "60 fps"};
     private static final double[] FPS_VALUES = {1.0, 15.0, 30.0, 60.0};
 
+    // Source node height to match FileSourceNode and WebcamSourceNode
+    private static final int SOURCE_NODE_HEIGHT = 120;
+
     public BlankSourceNode(Shell shell, Display display, int x, int y) {
         this.shell = shell;
         this.display = display;
         this.x = x;
         this.y = y;
-        // Use standard node height for proper thumbnail display
-        this.height = NODE_HEIGHT;
+        this.height = SOURCE_NODE_HEIGHT;
         createBlankImage();
     }
 
@@ -65,6 +66,8 @@ public class BlankSourceNode extends PipelineNode {
         }
         blankImage = new Mat(imageHeight, imageWidth, CvType.CV_8UC3,
             new Scalar(getBlue(), getGreen(), getRed()));
+        // Update thumbnail to show the blank image
+        setOutputMat(blankImage);
     }
 
     public Mat getNextFrame() {
@@ -103,15 +106,9 @@ public class BlankSourceNode extends PipelineNode {
             int thumbY = y + 25;
             gc.drawImage(thumbnail, thumbX, thumbY);
         } else {
-            // Draw color preview when no thumbnail
-            gc.setBackground(new Color(getRed(), getGreen(), getBlue()));
-            gc.fillRectangle(x + 10, y + 24, 30, 20);
-            gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
-            gc.drawRectangle(x + 10, y + 24, 30, 20);
-
-            // Draw size info
-            gc.setFont(null);
-            gc.drawString(imageWidth + "x" + imageHeight, x + 50, y + 26, true);
+            // Draw placeholder
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.drawString("(no output)", x + 10, y + 40, true);
         }
 
         // Draw connection points (output only - this is a source node)
@@ -202,9 +199,46 @@ public class BlankSourceNode extends PipelineNode {
         dialog.open();
     }
 
+    @Override
     public void dispose() {
         if (blankImage != null) {
             blankImage.release();
         }
+    }
+
+    @Override
+    public void startProcessing() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+        frameDelayMs = (long) (1000.0 / getFps());
+
+        processingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    Mat frame = getNextFrame();
+                    if (frame != null) {
+                        // Update thumbnail
+                        setOutputMat(frame);
+                        notifyFrame(frame);
+                        // Put frame on output queue (blocks if full)
+                        if (outputQueue != null) {
+                            outputQueue.put(frame);
+                        }
+                    }
+
+                    // Throttle frame rate
+                    if (frameDelayMs > 0) {
+                        Thread.sleep(frameDelayMs);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "BlankSource-Thread");
+        processingThread.start();
     }
 }
