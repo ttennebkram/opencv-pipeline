@@ -685,6 +685,17 @@ public class PipelineEditor {
                             if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
                             if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
+                        } else if (node instanceof HarrisCornersNode) {
+                            HarrisCornersNode harn = (HarrisCornersNode) node;
+                            if (nodeObj.has("showOriginal")) harn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                            if (nodeObj.has("blockSize")) harn.setBlockSize(nodeObj.get("blockSize").getAsInt());
+                            if (nodeObj.has("ksize")) harn.setKsize(nodeObj.get("ksize").getAsInt());
+                            if (nodeObj.has("kPercent")) harn.setKPercent(nodeObj.get("kPercent").getAsInt());
+                            if (nodeObj.has("thresholdPercent")) harn.setThresholdPercent(nodeObj.get("thresholdPercent").getAsInt());
+                            if (nodeObj.has("markerSize")) harn.setMarkerSize(nodeObj.get("markerSize").getAsInt());
+                            if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1381,6 +1392,17 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorR", hcn.getColorR());
                         nodeObj.addProperty("colorG", hcn.getColorG());
                         nodeObj.addProperty("colorB", hcn.getColorB());
+                    } else if (node instanceof HarrisCornersNode) {
+                        HarrisCornersNode harn = (HarrisCornersNode) node;
+                        nodeObj.addProperty("showOriginal", harn.getShowOriginal());
+                        nodeObj.addProperty("blockSize", harn.getBlockSize());
+                        nodeObj.addProperty("ksize", harn.getKsize());
+                        nodeObj.addProperty("kPercent", harn.getKPercent());
+                        nodeObj.addProperty("thresholdPercent", harn.getThresholdPercent());
+                        nodeObj.addProperty("markerSize", harn.getMarkerSize());
+                        nodeObj.addProperty("colorR", harn.getColorR());
+                        nodeObj.addProperty("colorG", harn.getColorG());
+                        nodeObj.addProperty("colorB", harn.getColorB());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1726,6 +1748,17 @@ public class PipelineEditor {
                                 if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
                                 if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
                                 if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
+                            } else if (node instanceof HarrisCornersNode) {
+                                HarrisCornersNode harn = (HarrisCornersNode) node;
+                                if (nodeObj.has("showOriginal")) harn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                                if (nodeObj.has("blockSize")) harn.setBlockSize(nodeObj.get("blockSize").getAsInt());
+                                if (nodeObj.has("ksize")) harn.setKsize(nodeObj.get("ksize").getAsInt());
+                                if (nodeObj.has("kPercent")) harn.setKPercent(nodeObj.get("kPercent").getAsInt());
+                                if (nodeObj.has("thresholdPercent")) harn.setThresholdPercent(nodeObj.get("thresholdPercent").getAsInt());
+                                if (nodeObj.has("markerSize")) harn.setMarkerSize(nodeObj.get("markerSize").getAsInt());
+                                if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());

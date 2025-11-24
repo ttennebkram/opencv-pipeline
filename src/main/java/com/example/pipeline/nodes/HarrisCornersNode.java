@@ -15,8 +15,10 @@ import org.opencv.imgproc.Imgproc;
  * Harris Corners detection node.
  */
 public class HarrisCornersNode extends ProcessingNode {
+    private boolean showOriginal = true;
     private int blockSize = 2;
     private int ksize = 3;
+    private int kPercent = 4; // 0.04 * 100 - Harris free parameter
     private int thresholdPercent = 1; // 0.01 * 100
     private int markerSize = 5;
     private int colorR = 255, colorG = 0, colorB = 0;
@@ -26,10 +28,14 @@ public class HarrisCornersNode extends ProcessingNode {
     }
 
     // Getters/setters for serialization
+    public boolean getShowOriginal() { return showOriginal; }
+    public void setShowOriginal(boolean v) { showOriginal = v; }
     public int getBlockSize() { return blockSize; }
     public void setBlockSize(int v) { blockSize = v; }
     public int getKsize() { return ksize; }
     public void setKsize(int v) { ksize = v; }
+    public int getKPercent() { return kPercent; }
+    public void setKPercent(int v) { kPercent = v; }
     public int getThresholdPercent() { return thresholdPercent; }
     public void setThresholdPercent(int v) { thresholdPercent = v; }
     public int getMarkerSize() { return markerSize; }
@@ -57,9 +63,10 @@ public class HarrisCornersNode extends ProcessingNode {
         Mat grayFloat = new Mat();
         gray.convertTo(grayFloat, CvType.CV_32F);
 
-        // Apply Harris corner detection
+        // Apply Harris corner detection with configurable k parameter
+        double k = kPercent / 100.0;
         Mat harris = new Mat();
-        Imgproc.cornerHarris(grayFloat, harris, blockSize, ksize, 0.04);
+        Imgproc.cornerHarris(grayFloat, harris, blockSize, ksize, k);
 
         // Normalize and convert to byte for thresholding
         Mat harrisNorm = new Mat();
@@ -67,12 +74,17 @@ public class HarrisCornersNode extends ProcessingNode {
         Mat harrisNormScaled = new Mat();
         harrisNorm.convertTo(harrisNormScaled, CvType.CV_8U);
 
-        // Create output image (color)
-        Mat result = new Mat();
-        if (input.channels() == 1) {
-            Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+        // Create output image
+        Mat result;
+        if (showOriginal) {
+            if (input.channels() == 1) {
+                result = new Mat();
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
         } else {
-            result = input.clone();
+            result = Mat.zeros(input.size(), CvType.CV_8UC3);
         }
 
         // Find and draw corners
@@ -86,6 +98,13 @@ public class HarrisCornersNode extends ProcessingNode {
                 }
             }
         }
+
+        // Cleanup
+        gray.release();
+        grayFloat.release();
+        harris.release();
+        harrisNorm.release();
+        harrisNormScaled.release();
 
         return result;
     }
@@ -119,6 +138,20 @@ public class HarrisCornersNode extends ProcessingNode {
         sigGd.horizontalSpan = 3;
         sigLabel.setLayoutData(sigGd);
 
+        // Separator
+        Label sep1 = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+        GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sepGd.horizontalSpan = 3;
+        sep1.setLayoutData(sepGd);
+
+        // Show Original checkbox
+        Button showOrigBtn = new Button(dialog, SWT.CHECK);
+        showOrigBtn.setText("Show Original Background");
+        showOrigBtn.setSelection(showOriginal);
+        GridData showGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        showGd.horizontalSpan = 3;
+        showOrigBtn.setLayoutData(showGd);
+
         // Block Size
         new Label(dialog, SWT.NONE).setText("Block Size:");
         Scale blockScale = new Scale(dialog, SWT.HORIZONTAL);
@@ -138,6 +171,17 @@ public class HarrisCornersNode extends ProcessingNode {
         GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
         comboGd.horizontalSpan = 2;
         ksizeCombo.setLayoutData(comboGd);
+
+        // Harris k parameter
+        new Label(dialog, SWT.NONE).setText("Harris k (%):");
+        Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
+        kScale.setMinimum(1);
+        kScale.setMaximum(10);
+        kScale.setSelection(kPercent);
+        kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        Label kLabel = new Label(dialog, SWT.NONE);
+        kLabel.setText(String.valueOf(kPercent));
+        kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
 
         // Threshold
         new Label(dialog, SWT.NONE).setText("Threshold %:");
@@ -170,9 +214,11 @@ public class HarrisCornersNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
+            showOriginal = showOrigBtn.getSelection();
             blockSize = blockScale.getSelection();
             int idx = ksizeCombo.getSelectionIndex();
             ksize = idx == 0 ? 3 : (idx == 1 ? 5 : 7);
+            kPercent = kScale.getSelection();
             thresholdPercent = threshScale.getSelection();
             markerSize = markerScale.getSelection();
             dialog.dispose();
