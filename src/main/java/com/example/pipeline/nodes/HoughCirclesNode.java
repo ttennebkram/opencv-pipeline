@@ -5,15 +5,17 @@ import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 /**
- * Hough Circles detection node.
+ * Hough Circles detection node with full parameter control.
  */
 public class HoughCirclesNode extends ProcessingNode {
+    private boolean showOriginal = true;
     private int minDist = 50;
     private int param1 = 100;  // Canny high threshold
     private int param2 = 30;   // Accumulator threshold
@@ -28,6 +30,8 @@ public class HoughCirclesNode extends ProcessingNode {
     }
 
     // Getters/setters for serialization
+    public boolean getShowOriginal() { return showOriginal; }
+    public void setShowOriginal(boolean v) { showOriginal = v; }
     public int getMinDist() { return minDist; }
     public void setMinDist(int v) { minDist = v; }
     public int getParam1() { return param1; }
@@ -64,12 +68,17 @@ public class HoughCirclesNode extends ProcessingNode {
         // Apply Gaussian blur to reduce noise
         Imgproc.GaussianBlur(gray, gray, new Size(9, 9), 2);
 
-        // Create output image (color)
-        Mat result = new Mat();
-        if (input.channels() == 1) {
-            Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+        // Create output image
+        Mat result;
+        if (showOriginal) {
+            if (input.channels() == 1) {
+                result = new Mat();
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
         } else {
-            result = input.clone();
+            result = Mat.zeros(input.size(), CvType.CV_8UC3);
         }
 
         // Detect circles
@@ -92,6 +101,9 @@ public class HoughCirclesNode extends ProcessingNode {
                 Imgproc.circle(result, center, 2, color, 3);
             }
         }
+
+        // Cleanup
+        gray.release();
 
         return result;
     }
@@ -124,6 +136,20 @@ public class HoughCirclesNode extends ProcessingNode {
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         sigGd.horizontalSpan = 3;
         sigLabel.setLayoutData(sigGd);
+
+        // Separator
+        Label sep1 = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
+        GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sepGd.horizontalSpan = 3;
+        sep1.setLayoutData(sepGd);
+
+        // Show Original checkbox
+        Button showOrigBtn = new Button(dialog, SWT.CHECK);
+        showOrigBtn.setText("Show Original Background");
+        showOrigBtn.setSelection(showOriginal);
+        GridData showGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        showGd.horizontalSpan = 3;
+        showOrigBtn.setLayoutData(showGd);
 
         // Min Distance
         new Label(dialog, SWT.NONE).setText("Min Distance:");
@@ -199,6 +225,7 @@ public class HoughCirclesNode extends ProcessingNode {
         checkGd.horizontalSpan = 3;
         centerCheck.setLayoutData(checkGd);
 
+        // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
         GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
@@ -208,6 +235,7 @@ public class HoughCirclesNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
+            showOriginal = showOrigBtn.getSelection();
             minDist = distScale.getSelection();
             param1 = p1Scale.getSelection();
             param2 = p2Scale.getSelection();

@@ -672,6 +672,19 @@ public class PipelineEditor {
                             if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
                             if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
+                        } else if (node instanceof HoughCirclesNode) {
+                            HoughCirclesNode hcn = (HoughCirclesNode) node;
+                            if (nodeObj.has("showOriginal")) hcn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                            if (nodeObj.has("minDist")) hcn.setMinDist(nodeObj.get("minDist").getAsInt());
+                            if (nodeObj.has("param1")) hcn.setParam1(nodeObj.get("param1").getAsInt());
+                            if (nodeObj.has("param2")) hcn.setParam2(nodeObj.get("param2").getAsInt());
+                            if (nodeObj.has("minRadius")) hcn.setMinRadius(nodeObj.get("minRadius").getAsInt());
+                            if (nodeObj.has("maxRadius")) hcn.setMaxRadius(nodeObj.get("maxRadius").getAsInt());
+                            if (nodeObj.has("thickness")) hcn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("drawCenter")) hcn.setDrawCenter(nodeObj.get("drawCenter").getAsBoolean());
+                            if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1355,6 +1368,19 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorR", bdn.getColorR());
                         nodeObj.addProperty("colorG", bdn.getColorG());
                         nodeObj.addProperty("colorB", bdn.getColorB());
+                    } else if (node instanceof HoughCirclesNode) {
+                        HoughCirclesNode hcn = (HoughCirclesNode) node;
+                        nodeObj.addProperty("showOriginal", hcn.getShowOriginal());
+                        nodeObj.addProperty("minDist", hcn.getMinDist());
+                        nodeObj.addProperty("param1", hcn.getParam1());
+                        nodeObj.addProperty("param2", hcn.getParam2());
+                        nodeObj.addProperty("minRadius", hcn.getMinRadius());
+                        nodeObj.addProperty("maxRadius", hcn.getMaxRadius());
+                        nodeObj.addProperty("thickness", hcn.getThickness());
+                        nodeObj.addProperty("drawCenter", hcn.isDrawCenter());
+                        nodeObj.addProperty("colorR", hcn.getColorR());
+                        nodeObj.addProperty("colorG", hcn.getColorG());
+                        nodeObj.addProperty("colorB", hcn.getColorB());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1687,6 +1713,19 @@ public class PipelineEditor {
                                 if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
                                 if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
                                 if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
+                            } else if (node instanceof HoughCirclesNode) {
+                                HoughCirclesNode hcn = (HoughCirclesNode) node;
+                                if (nodeObj.has("showOriginal")) hcn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                                if (nodeObj.has("minDist")) hcn.setMinDist(nodeObj.get("minDist").getAsInt());
+                                if (nodeObj.has("param1")) hcn.setParam1(nodeObj.get("param1").getAsInt());
+                                if (nodeObj.has("param2")) hcn.setParam2(nodeObj.get("param2").getAsInt());
+                                if (nodeObj.has("minRadius")) hcn.setMinRadius(nodeObj.get("minRadius").getAsInt());
+                                if (nodeObj.has("maxRadius")) hcn.setMaxRadius(nodeObj.get("maxRadius").getAsInt());
+                                if (nodeObj.has("thickness")) hcn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("drawCenter")) hcn.setDrawCenter(nodeObj.get("drawCenter").getAsBoolean());
+                                if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
