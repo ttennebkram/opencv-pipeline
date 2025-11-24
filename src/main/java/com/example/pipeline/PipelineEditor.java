@@ -6,6 +6,7 @@ import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.*;
 import org.eclipse.swt.widgets.*;
 import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.custom.ScrolledComposite;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -114,6 +115,7 @@ public class PipelineEditor {
     private Shell shell;
     private Display display;
     private Canvas canvas;
+    private ScrolledComposite scrolledCanvas;
     private Canvas previewCanvas;
     private SashForm sashForm;
     private Image previewImage;
@@ -2020,7 +2022,7 @@ public class PipelineEditor {
     }
 
     private void createCanvas() {
-        // Create a composite to hold canvas and status bar
+        // Create a composite to hold scrolled canvas and status bar
         Composite canvasContainer = new Composite(sashForm, SWT.NONE);
         GridLayout containerLayout = new GridLayout(1, false);
         containerLayout.marginWidth = 0;
@@ -2028,9 +2030,21 @@ public class PipelineEditor {
         containerLayout.verticalSpacing = 0;
         canvasContainer.setLayout(containerLayout);
 
-        canvas = new Canvas(canvasContainer, SWT.BORDER | SWT.DOUBLE_BUFFERED);
-        canvas.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        // Create scrolled composite for the canvas
+        scrolledCanvas = new ScrolledComposite(canvasContainer, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
+        scrolledCanvas.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        scrolledCanvas.setExpandHorizontal(true);
+        scrolledCanvas.setExpandVertical(true);
+
+        canvas = new Canvas(scrolledCanvas, SWT.DOUBLE_BUFFERED);
         canvas.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
+
+        // Set the canvas as the content of the scrolled composite
+        scrolledCanvas.setContent(canvas);
+
+        // Set a large virtual size for the canvas (can be adjusted based on content)
+        canvas.setSize(3000, 3000);
+        scrolledCanvas.setMinSize(3000, 3000);
 
         // Status bar at bottom of canvas
         Composite statusComp = new Composite(canvasContainer, SWT.NONE);
