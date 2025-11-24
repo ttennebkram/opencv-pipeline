@@ -16,6 +16,8 @@ import org.opencv.imgproc.Imgproc;
 public class ScharrNode extends ProcessingNode {
     private static final String[] DIRECTIONS = {"X", "Y", "Both"};
     private int directionIndex = 2; // Default to Both
+    private int scalePercent = 100; // 1.0 * 100
+    private int delta = 0;
 
     public ScharrNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Scharr Edges", x, y);
@@ -24,6 +26,10 @@ public class ScharrNode extends ProcessingNode {
     // Getters/setters for serialization
     public int getDirectionIndex() { return directionIndex; }
     public void setDirectionIndex(int v) { directionIndex = v; }
+    public int getScalePercent() { return scalePercent; }
+    public void setScalePercent(int v) { scalePercent = v; }
+    public int getDelta() { return delta; }
+    public void setDelta(int v) { delta = v; }
 
     @Override
     public Mat process(Mat input) {
@@ -40,24 +46,26 @@ public class ScharrNode extends ProcessingNode {
             gray = input;
         }
 
+        double scale = scalePercent / 100.0;
+
         Mat result;
         if (directionIndex == 0) { // X only
             Mat scharrX = new Mat();
-            Imgproc.Scharr(gray, scharrX, CvType.CV_64F, 1, 0);
+            Imgproc.Scharr(gray, scharrX, CvType.CV_64F, 1, 0, scale, delta);
             result = new Mat();
             Core.convertScaleAbs(scharrX, result);
             scharrX.release();
         } else if (directionIndex == 1) { // Y only
             Mat scharrY = new Mat();
-            Imgproc.Scharr(gray, scharrY, CvType.CV_64F, 0, 1);
+            Imgproc.Scharr(gray, scharrY, CvType.CV_64F, 0, 1, scale, delta);
             result = new Mat();
             Core.convertScaleAbs(scharrY, result);
             scharrY.release();
         } else { // Both
             Mat scharrX = new Mat();
             Mat scharrY = new Mat();
-            Imgproc.Scharr(gray, scharrX, CvType.CV_64F, 1, 0);
-            Imgproc.Scharr(gray, scharrY, CvType.CV_64F, 0, 1);
+            Imgproc.Scharr(gray, scharrX, CvType.CV_64F, 1, 0, scale, delta);
+            Imgproc.Scharr(gray, scharrY, CvType.CV_64F, 0, 1, scale, delta);
 
             Mat absX = new Mat();
             Mat absY = new Mat();
@@ -123,6 +131,22 @@ public class ScharrNode extends ProcessingNode {
         dirCombo.setItems(DIRECTIONS);
         dirCombo.select(directionIndex);
 
+        // Scale
+        new Label(dialog, SWT.NONE).setText("Scale (%):");
+        Scale scaleScale = new Scale(dialog, SWT.HORIZONTAL);
+        scaleScale.setMinimum(10);
+        scaleScale.setMaximum(500);
+        scaleScale.setSelection(scalePercent);
+        scaleScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
+        // Delta
+        new Label(dialog, SWT.NONE).setText("Delta:");
+        Scale deltaScale = new Scale(dialog, SWT.HORIZONTAL);
+        deltaScale.setMinimum(0);
+        deltaScale.setMaximum(255);
+        deltaScale.setSelection(delta);
+        deltaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
         GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
@@ -133,6 +157,8 @@ public class ScharrNode extends ProcessingNode {
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
             directionIndex = dirCombo.getSelectionIndex();
+            scalePercent = scaleScale.getSelection();
+            delta = deltaScale.getSelection();
             dialog.dispose();
             notifyChanged();
         });

@@ -696,6 +696,11 @@ public class PipelineEditor {
                             if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
                             if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
+                        } else if (node instanceof ScharrNode) {
+                            ScharrNode sn = (ScharrNode) node;
+                            if (nodeObj.has("directionIndex")) sn.setDirectionIndex(nodeObj.get("directionIndex").getAsInt());
+                            if (nodeObj.has("scalePercent")) sn.setScalePercent(nodeObj.get("scalePercent").getAsInt());
+                            if (nodeObj.has("delta")) sn.setDelta(nodeObj.get("delta").getAsInt());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1403,6 +1408,11 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorR", harn.getColorR());
                         nodeObj.addProperty("colorG", harn.getColorG());
                         nodeObj.addProperty("colorB", harn.getColorB());
+                    } else if (node instanceof ScharrNode) {
+                        ScharrNode sn = (ScharrNode) node;
+                        nodeObj.addProperty("directionIndex", sn.getDirectionIndex());
+                        nodeObj.addProperty("scalePercent", sn.getScalePercent());
+                        nodeObj.addProperty("delta", sn.getDelta());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1759,6 +1769,11 @@ public class PipelineEditor {
                                 if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
                                 if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
                                 if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
+                            } else if (node instanceof ScharrNode) {
+                                ScharrNode sn = (ScharrNode) node;
+                                if (nodeObj.has("directionIndex")) sn.setDirectionIndex(nodeObj.get("directionIndex").getAsInt());
+                                if (nodeObj.has("scalePercent")) sn.setScalePercent(nodeObj.get("scalePercent").getAsInt());
+                                if (nodeObj.has("delta")) sn.setDelta(nodeObj.get("delta").getAsInt());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
