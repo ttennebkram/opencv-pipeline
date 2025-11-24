@@ -9,15 +9,21 @@ import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Histogram visualization node - replaces image with histogram plot.
  * Output dimensions match input image dimensions.
+ * Supports optional second input for mask image.
  */
-public class HistogramNode extends ProcessingNode {
+public class HistogramNode extends DualInputNode {
     private static final String[] MODES = {"Color (BGR)", "Grayscale", "Per Channel"};
+    private static final String[] BACKGROUND_MODES = {"White", "Black", "Background Image"};
     private static final int AXIS_HEIGHT = 30;
     private int modeIndex = 0;
+    private int backgroundMode = 0;  // 0=White, 1=Black, 2=Background Image
     private boolean fillBars = false;
     private int lineThickness = 4;
 
@@ -25,9 +31,21 @@ public class HistogramNode extends ProcessingNode {
         super(display, shell, "Histogram", x, y);
     }
 
+    // Dual input support
+    public org.eclipse.swt.graphics.Point getInputPoint2() {
+        return new org.eclipse.swt.graphics.Point(x, y + height * 3 / 4);
+    }
+
+    @Override
+    public org.eclipse.swt.graphics.Point getInputPoint() {
+        return new org.eclipse.swt.graphics.Point(x, y + height / 4);
+    }
+
     // Getters/setters for serialization
     public int getModeIndex() { return modeIndex; }
     public void setModeIndex(int v) { modeIndex = v; }
+    public int getBackgroundMode() { return backgroundMode; }
+    public void setBackgroundMode(int v) { backgroundMode = v; }
     public boolean getFillBars() { return fillBars; }
     public void setFillBars(boolean v) { fillBars = v; }
     public int getLineThickness() { return lineThickness; }
@@ -35,16 +53,55 @@ public class HistogramNode extends ProcessingNode {
 
     @Override
     public Mat process(Mat input) {
+        return processDual(input, null);
+    }
+
+    @Override
+    public Mat processDual(Mat input, Mat mask) {
         if (!enabled || input == null || input.empty()) {
             return input;
+        }
+
+        // Convert mask to grayscale if needed (OpenCV requires CV_8UC1 for masks)
+        // Also resize mask to match input image dimensions
+        Mat processedMask = null;
+        if (mask != null && !mask.empty()) {
+            Mat grayMask;
+            if (mask.channels() == 3) {
+                grayMask = new Mat();
+                Imgproc.cvtColor(mask, grayMask, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                grayMask = mask;
+            }
+
+            // Resize mask to match input dimensions if needed
+            if (grayMask.width() != input.cols() || grayMask.height() != input.rows()) {
+                processedMask = new Mat();
+                Imgproc.resize(grayMask, processedMask, new Size(input.cols(), input.rows()));
+                if (grayMask != mask) {
+                    grayMask.release();
+                }
+            } else {
+                processedMask = grayMask;
+            }
         }
 
         int width = input.cols();
         int height = input.rows();
         int histSize = 256;
 
-        // Create output image matching input dimensions
-        Mat output = new Mat(height, width, CvType.CV_8UC3, new Scalar(255, 255, 255));
+        // Create output image matching input dimensions with selected background
+        Mat output;
+        if (backgroundMode == 1) {
+            // Black background
+            output = new Mat(height, width, CvType.CV_8UC3, new Scalar(0, 0, 0));
+        } else if (backgroundMode == 2) {
+            // Use input image as background
+            output = input.clone();
+        } else {
+            // White background (default)
+            output = new Mat(height, width, CvType.CV_8UC3, new Scalar(255, 255, 255));
+        }
 
         if (modeIndex == 1) {
             // Grayscale mode
@@ -55,8 +112,8 @@ public class HistogramNode extends ProcessingNode {
                 gray = input.clone();
             }
 
-            drawHistogramOnly(gray, output, new Scalar(0, 0, 0));
-            drawAxis(output);
+            drawHistogramOnly(gray, output, new Scalar(0, 0, 0), processedMask);
+            drawAxis(output, backgroundMode);
             gray.release();
         } else if (modeIndex == 0) {
             // Color combined mode - overlay all three channels
@@ -64,12 +121,12 @@ public class HistogramNode extends ProcessingNode {
             Core.split(input, channels);
 
             // Draw Blue, Green, Red with respective colors (lines only, no axis yet)
-            drawHistogramOnly(channels.get(0), output, new Scalar(255, 0, 0));
-            drawHistogramOnly(channels.get(1), output, new Scalar(0, 255, 0));
-            drawHistogramOnly(channels.get(2), output, new Scalar(0, 0, 255));
+            drawHistogramOnly(channels.get(0), output, new Scalar(255, 0, 0), processedMask);
+            drawHistogramOnly(channels.get(1), output, new Scalar(0, 255, 0), processedMask);
+            drawHistogramOnly(channels.get(2), output, new Scalar(0, 0, 255), processedMask);
 
             // Draw axis once at the end
-            drawAxis(output);
+            drawAxis(output, backgroundMode);
 
             for (Mat ch : channels) ch.release();
         } else {
@@ -91,7 +148,7 @@ public class HistogramNode extends ProcessingNode {
                     default: color = new Scalar(0, 0, 255); break;  // Red
                 }
 
-                drawHistogramInRegion(channels.get(i), roiCopy, color);
+                drawHistogramInRegion(channels.get(i), roiCopy, color, backgroundMode, processedMask);
                 roiCopy.copyTo(roi);
                 roiCopy.release();
             }
@@ -99,19 +156,27 @@ public class HistogramNode extends ProcessingNode {
             for (Mat ch : channels) ch.release();
         }
 
+        // Clean up converted mask if we created it
+        if (processedMask != null && processedMask != mask) {
+            processedMask.release();
+        }
+
         return output;
     }
 
-    private void drawHistogramOnly(Mat channel, Mat output, Scalar color) {
+    private void drawHistogramOnly(Mat channel, Mat output, Scalar color, Mat mask) {
         int histSize = 256;
         MatOfInt histSizeList = new MatOfInt(histSize);
         MatOfFloat ranges = new MatOfFloat(0f, 256f);
         Mat hist = new Mat();
 
+        // Use mask if provided, otherwise use empty Mat (no mask)
+        Mat maskToUse = (mask != null && !mask.empty()) ? mask : new Mat();
+
         Imgproc.calcHist(
             java.util.Arrays.asList(channel),
             new MatOfInt(0),
-            new Mat(),
+            maskToUse,
             hist,
             histSizeList,
             ranges
@@ -152,7 +217,7 @@ public class HistogramNode extends ProcessingNode {
         ranges.release();
     }
 
-    private void drawAxis(Mat output) {
+    private void drawAxis(Mat output, int bgMode) {
         int width = output.cols();
         int height = output.rows();
 
@@ -160,17 +225,23 @@ public class HistogramNode extends ProcessingNode {
         double fontScale = Math.max(0.5, width / 800.0);
         int thickness = Math.max(1, (int)(width / 400.0));
 
-        // Fill the axis area with light gray to make it visible
-        Imgproc.rectangle(output,
-            new org.opencv.core.Point(0, height - AXIS_HEIGHT),
-            new org.opencv.core.Point(width, height),
-            new Scalar(240, 240, 240), -1);
+        // Choose colors based on background mode
+        Scalar axisColor, textColor;
+        if (bgMode == 0) {
+            // White background - use black text
+            axisColor = new Scalar(0, 0, 0);
+            textColor = new Scalar(0, 0, 0);
+        } else {
+            // Black or image background - use white text
+            axisColor = new Scalar(255, 255, 255);
+            textColor = new Scalar(255, 255, 255);
+        }
 
         // Draw x-axis line
         Imgproc.line(output,
             new org.opencv.core.Point(0, height - AXIS_HEIGHT),
             new org.opencv.core.Point(width, height - AXIS_HEIGHT),
-            new Scalar(0, 0, 0), 2);
+            axisColor, 2);
 
         // Draw tick marks and labels at regular intervals
         int numTicks = 8; // Will give us 0, 32, 64, 96, 128, 160, 192, 224, 255
@@ -182,7 +253,7 @@ public class HistogramNode extends ProcessingNode {
             Imgproc.line(output,
                 new org.opencv.core.Point(x, height - AXIS_HEIGHT),
                 new org.opencv.core.Point(x, height - AXIS_HEIGHT + 8),
-                new Scalar(0, 0, 0), 2);
+                axisColor, 2);
 
             // Draw label - font size scales with image size
             String label = String.valueOf(value);
@@ -192,20 +263,23 @@ public class HistogramNode extends ProcessingNode {
             Imgproc.putText(output, label,
                 new org.opencv.core.Point(textX, textY),
                 Imgproc.FONT_HERSHEY_SIMPLEX, fontScale,
-                new Scalar(0, 0, 0), thickness);
+                textColor, thickness);
         }
     }
 
-    private void drawHistogramInRegion(Mat channel, Mat output, Scalar color) {
+    private void drawHistogramInRegion(Mat channel, Mat output, Scalar color, int bgMode, Mat mask) {
         int histSize = 256;
         MatOfInt histSizeList = new MatOfInt(histSize);
         MatOfFloat ranges = new MatOfFloat(0f, 256f);
         Mat hist = new Mat();
 
+        // Use mask if provided, otherwise use empty Mat (no mask)
+        Mat maskToUse = (mask != null && !mask.empty()) ? mask : new Mat();
+
         Imgproc.calcHist(
             java.util.Arrays.asList(channel),
             new MatOfInt(0),
-            new Mat(),
+            maskToUse,
             hist,
             histSizeList,
             ranges
@@ -248,17 +322,23 @@ public class HistogramNode extends ProcessingNode {
         double fontScale = Math.max(0.5, width / 800.0);
         int thickness = Math.max(1, (int)(width / 400.0));
 
-        // Fill the axis area with light gray to make it visible
-        Imgproc.rectangle(output,
-            new org.opencv.core.Point(0, height - AXIS_HEIGHT),
-            new org.opencv.core.Point(width, height),
-            new Scalar(240, 240, 240), -1);
+        // Choose colors based on background mode
+        Scalar axisColor, textColor;
+        if (bgMode == 0) {
+            // White background - use black text
+            axisColor = new Scalar(0, 0, 0);
+            textColor = new Scalar(0, 0, 0);
+        } else {
+            // Black or image background - use white text
+            axisColor = new Scalar(255, 255, 255);
+            textColor = new Scalar(255, 255, 255);
+        }
 
         // Draw x-axis
         Imgproc.line(output,
             new org.opencv.core.Point(0, height - AXIS_HEIGHT),
             new org.opencv.core.Point(width, height - AXIS_HEIGHT),
-            new Scalar(0, 0, 0), 2);
+            axisColor, 2);
 
         // Draw tick marks and labels - fewer ticks for smaller regions
         int numTicks = 4; // 0, 64, 128, 192, 255
@@ -270,7 +350,7 @@ public class HistogramNode extends ProcessingNode {
             Imgproc.line(output,
                 new org.opencv.core.Point(x, height - AXIS_HEIGHT),
                 new org.opencv.core.Point(x, height - AXIS_HEIGHT + 8),
-                new Scalar(0, 0, 0), 2);
+                axisColor, 2);
 
             // Draw label - font size scales with image size
             String label = String.valueOf(value);
@@ -280,7 +360,7 @@ public class HistogramNode extends ProcessingNode {
             Imgproc.putText(output, label,
                 new org.opencv.core.Point(textX, textY),
                 Imgproc.FONT_HERSHEY_SIMPLEX, fontScale,
-                new Scalar(0, 0, 0), thickness);
+                textColor, thickness);
         }
 
         hist.release();
@@ -289,8 +369,44 @@ public class HistogramNode extends ProcessingNode {
     }
 
     @Override
+    public void paint(org.eclipse.swt.graphics.GC gc) {
+        // Use default ProcessingNode painting
+        super.paint(gc);
+
+        // But override connection points to show dual inputs
+        drawDualInputConnectionPoints(gc);
+    }
+
+    protected void drawDualInputConnectionPoints(org.eclipse.swt.graphics.GC gc) {
+        int radius = 6;
+
+        // Draw first input point (top left)
+        org.eclipse.swt.graphics.Point input1 = getInputPoint();
+        gc.setBackground(new org.eclipse.swt.graphics.Color(200, 255, 200));
+        gc.fillOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
+        gc.setForeground(new org.eclipse.swt.graphics.Color(50, 150, 50));
+        gc.setLineWidth(2);
+        gc.drawOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
+
+        // Draw second input point (bottom left) - for mask
+        org.eclipse.swt.graphics.Point input2 = getInputPoint2();
+        gc.setBackground(new org.eclipse.swt.graphics.Color(200, 255, 200));
+        gc.fillOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
+        gc.setForeground(new org.eclipse.swt.graphics.Color(50, 150, 50));
+        gc.drawOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
+
+        // Draw output point on right side
+        org.eclipse.swt.graphics.Point output = getOutputPoint();
+        gc.setBackground(new org.eclipse.swt.graphics.Color(230, 255, 230));
+        gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+        gc.setForeground(new org.eclipse.swt.graphics.Color(0, 100, 0));
+        gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+        gc.setLineWidth(1);
+    }
+
+    @Override
     public String getDescription() {
-        return "Histogram Visualization\ncv2.calcHist()";
+        return "Histogram Visualization\ncv2.calcHist(images, channels, optionalMask, histSize, ranges)";
     }
 
     @Override
@@ -331,10 +447,24 @@ public class HistogramNode extends ProcessingNode {
         GridData modeGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         modeCombo.setLayoutData(modeGd);
 
+        // Background selection
+        new Label(dialog, SWT.NONE).setText("Background:");
+        Combo bgCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+        bgCombo.setItems(BACKGROUND_MODES);
+        bgCombo.select(backgroundMode);
+        GridData bgGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        bgCombo.setLayoutData(bgGd);
+
         // Fill bars checkbox
         new Label(dialog, SWT.NONE).setText("Fill Bars:");
         Button fillCheck = new Button(dialog, SWT.CHECK);
         fillCheck.setSelection(fillBars);
+
+        // Queues In Sync checkbox
+        new Label(dialog, SWT.NONE).setText("Queues In Sync:");
+        Button syncCheckbox = new Button(dialog, SWT.CHECK);
+        syncCheckbox.setSelection(queuesInSync);
+        syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
 
         // Line thickness
         new Label(dialog, SWT.NONE).setText("Line Thickness:");
@@ -344,10 +474,15 @@ public class HistogramNode extends ProcessingNode {
         // Clamp slider position to valid range, but keep actual value
         int thicknessSliderPos = Math.min(Math.max(lineThickness, 1), 10);
         thicknessScale.setSelection(thicknessSliderPos);
-        thicknessScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        GridData scaleGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        scaleGd.widthHint = 150;
+        thicknessScale.setLayoutData(scaleGd);
 
         Label thicknessLabel = new Label(dialog, SWT.NONE);
         thicknessLabel.setText(String.valueOf(lineThickness)); // Show real value
+        GridData thicknessLabelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+        thicknessLabelGd.widthHint = 30;
+        thicknessLabel.setLayoutData(thicknessLabelGd);
         thicknessScale.addListener(SWT.Selection, e ->
             thicknessLabel.setText(String.valueOf(thicknessScale.getSelection())));
 
@@ -362,7 +497,9 @@ public class HistogramNode extends ProcessingNode {
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
             modeIndex = modeCombo.getSelectionIndex();
+            backgroundMode = bgCombo.getSelectionIndex();
             fillBars = fillCheck.getSelection();
+            queuesInSync = syncCheckbox.getSelection();
             lineThickness = thicknessScale.getSelection();
             dialog.dispose();
             notifyChanged();

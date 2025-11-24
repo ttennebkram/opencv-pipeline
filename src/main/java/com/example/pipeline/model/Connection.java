@@ -1,11 +1,7 @@
 package com.example.pipeline.model;
 
 import com.example.pipeline.nodes.PipelineNode;
-import com.example.pipeline.nodes.AddClampNode;
-import com.example.pipeline.nodes.SubtractClampNode;
-import com.example.pipeline.nodes.BitwiseAndNode;
-import com.example.pipeline.nodes.BitwiseOrNode;
-import com.example.pipeline.nodes.BitwiseXorNode;
+import com.example.pipeline.nodes.DualInputNode;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.opencv.core.Mat;
@@ -18,7 +14,8 @@ public class Connection {
     public PipelineNode target;
     public int inputIndex; // 1 for primary input, 2 for secondary input (dual-input nodes)
     private BlockingQueue<Mat> queue;
-    private static final int DEFAULT_QUEUE_CAPACITY = 3;
+    private int queueCapacity = 0; // 0 = unlimited, >0 = fixed capacity
+    private int lastQueueSize = 0; // Track queue size for persistence
 
     public Connection(PipelineNode source, PipelineNode target) {
         this(source, target, 1);
@@ -31,25 +28,44 @@ public class Connection {
         this.queue = null; // Queue is created when pipeline starts
     }
 
+    public int getConfiguredCapacity() {
+        return queueCapacity;
+    }
+
+    public void setConfiguredCapacity(int capacity) {
+        this.queueCapacity = capacity;
+    }
+
     /**
      * Create and initialize the queue for this connection.
+     * Uses the configured capacity (0 = unlimited).
      */
     public void createQueue() {
-        this.queue = new LinkedBlockingQueue<>(DEFAULT_QUEUE_CAPACITY);
+        if (queueCapacity <= 0) {
+            this.queue = new LinkedBlockingQueue<>();
+        } else {
+            this.queue = new LinkedBlockingQueue<>(queueCapacity);
+        }
     }
 
     /**
      * Create and initialize the queue with a specific capacity.
      */
     public void createQueue(int capacity) {
-        this.queue = new LinkedBlockingQueue<>(capacity);
+        if (capacity <= 0) {
+            this.queue = new LinkedBlockingQueue<>();
+        } else {
+            this.queue = new LinkedBlockingQueue<>(capacity);
+        }
     }
 
     /**
      * Clear the queue when pipeline stops.
+     * Captures the queue size before clearing so it persists.
      */
     public void clearQueue() {
         if (queue != null) {
+            lastQueueSize = queue.size(); // Save size before clearing
             queue.clear();
             queue = null;
         }
@@ -64,16 +80,28 @@ public class Connection {
 
     /**
      * Get the current number of items in the queue.
+     * Returns last known size if queue is not active.
      */
     public int getQueueSize() {
-        return queue != null ? queue.size() : 0;
+        if (queue != null) {
+            lastQueueSize = queue.size();
+            return lastQueueSize;
+        }
+        return lastQueueSize;
+    }
+
+    /**
+     * Set the last known queue size (used when loading from JSON).
+     */
+    public void setLastQueueSize(int size) {
+        this.lastQueueSize = size;
     }
 
     /**
      * Get the queue capacity.
      */
     public int getQueueCapacity() {
-        return queue != null ? queue.remainingCapacity() + queue.size() : DEFAULT_QUEUE_CAPACITY;
+        return queue != null ? queue.remainingCapacity() + queue.size() : Integer.MAX_VALUE;
     }
 
     /**
@@ -84,25 +112,20 @@ public class Connection {
     }
 
     /**
-     * Activate this connection: create queue and wire it between source and target nodes.
+     * Activate this connection: create queue (if needed) and wire it between source and target nodes.
      */
     public void activate() {
-        createQueue();
+        // Only create queue if it doesn't exist yet
+        if (queue == null) {
+            createQueue();
+        }
         // Wire the queue: source's output -> this queue -> target's input
         source.setOutputQueue(queue);
 
         // For dual-input nodes, use the appropriate input queue
         if (inputIndex == 2) {
-            if (target instanceof AddClampNode) {
-                ((AddClampNode) target).setInputQueue2(queue);
-            } else if (target instanceof SubtractClampNode) {
-                ((SubtractClampNode) target).setInputQueue2(queue);
-            } else if (target instanceof BitwiseAndNode) {
-                ((BitwiseAndNode) target).setInputQueue2(queue);
-            } else if (target instanceof BitwiseOrNode) {
-                ((BitwiseOrNode) target).setInputQueue2(queue);
-            } else if (target instanceof BitwiseXorNode) {
-                ((BitwiseXorNode) target).setInputQueue2(queue);
+            if (target instanceof DualInputNode) {
+                ((DualInputNode) target).setInputQueue2(queue);
             } else {
                 target.setInputQueue(queue);
             }
@@ -112,29 +135,9 @@ public class Connection {
     }
 
     /**
-     * Deactivate this connection: clear queue and disconnect from nodes.
+     * Deactivate this connection: do nothing, keep queue and all connections intact.
      */
     public void deactivate() {
-        clearQueue();
-        source.setOutputQueue(null);
-
-        // For dual-input nodes, clear the appropriate input queue
-        if (inputIndex == 2) {
-            if (target instanceof AddClampNode) {
-                ((AddClampNode) target).setInputQueue2(null);
-            } else if (target instanceof SubtractClampNode) {
-                ((SubtractClampNode) target).setInputQueue2(null);
-            } else if (target instanceof BitwiseAndNode) {
-                ((BitwiseAndNode) target).setInputQueue2(null);
-            } else if (target instanceof BitwiseOrNode) {
-                ((BitwiseOrNode) target).setInputQueue2(null);
-            } else if (target instanceof BitwiseXorNode) {
-                ((BitwiseXorNode) target).setInputQueue2(null);
-            } else {
-                target.setInputQueue(null);
-            }
-        } else {
-            target.setInputQueue(null);
-        }
+        // Do nothing - queue stays connected and retains all data
     }
 }

@@ -12,6 +12,11 @@ import org.opencv.core.Mat;
 public abstract class SourceNode extends PipelineNode {
     protected Shell shell;
 
+    @Override
+    public String getNodeName() {
+        return this.getClass().getSimpleName();
+    }
+
     /**
      * Get the next frame from this source.
      * @return The next Mat frame, or null if no frame available

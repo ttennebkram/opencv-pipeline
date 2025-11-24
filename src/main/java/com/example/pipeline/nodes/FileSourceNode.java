@@ -250,16 +250,29 @@ public class FileSourceNode extends SourceNode {
         gc.drawString("File Source", x + 10, y + 4, true);
         boldFont.dispose();
 
+        // Draw thread priority label
+        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
+        gc.setFont(smallFont);
+        // Red text if priority is below 5, otherwise dark gray
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            gc.setForeground(new Color(200, 0, 0)); // Red for low priority
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
+        gc.drawString(getThreadPriorityLabel(), x + 10, y + 19, true);
+        smallFont.dispose();
+
         // Draw thumbnail if available
         if (thumbnail != null && !thumbnail.isDisposed()) {
             Rectangle bounds = thumbnail.getBounds();
             int thumbX = x + (width - bounds.width) / 2;
-            int thumbY = y + 25;
+            int thumbY = y + 34;
             gc.drawImage(thumbnail, thumbX, thumbY);
         } else {
             // Draw placeholder
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(no image)", x + 10, y + 40, true);
+            gc.drawString("(no image)", x + 10, y + 50, true);
         }
 
         // Draw connection points (output only - this is a source node)
@@ -419,6 +432,7 @@ public class FileSourceNode extends SourceNode {
                 }
             }
         }, "FileSource-Thread");
+        processingThread.setPriority(threadPriority);
         processingThread.start();
     }
 }

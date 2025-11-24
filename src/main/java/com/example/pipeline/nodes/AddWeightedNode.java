@@ -9,36 +9,15 @@ import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
-
 /**
  * AddWeighted node - blends two images with configurable weights.
  * dst = alpha * src1 + beta * src2 + gamma
  */
-public class AddWeightedNode extends ProcessingNode {
-    // Second input queue for dual-input processing
-    protected BlockingQueue<Mat> inputQueue2;
-
-    // Cached last frames from each input
-    private Mat lastInput1 = null;
-    private Mat lastInput2 = null;
-
+public class AddWeightedNode extends DualInputNode {
     // Blending parameters
     private double alpha = 0.5;  // Weight for first image
     private double beta = 0.5;   // Weight for second image
     private double gamma = 0.0;  // Scalar added to sum
-
-    // Sync mode: when true, only process when BOTH queues have new input
-    protected boolean queuesInSync = false;
-
-    public boolean isQueuesInSync() {
-        return queuesInSync;
-    }
-
-    public void setQueuesInSync(boolean queuesInSync) {
-        this.queuesInSync = queuesInSync;
-    }
 
     public AddWeightedNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Add Weighted", x, y);
@@ -63,21 +42,13 @@ public class AddWeightedNode extends ProcessingNode {
         return new Point(x, y + height / 4);
     }
 
-    public void setInputQueue2(BlockingQueue<Mat> queue) {
-        this.inputQueue2 = queue;
-    }
-
-    public BlockingQueue<Mat> getInputQueue2() {
-        return inputQueue2;
-    }
-
     @Override
     public Mat process(Mat input) {
-        // This is called with single input; for dual input we override startProcessing
+        // This is called with single input; for dual input we use processDual
         return input;
     }
 
-    // Process two input images
+    @Override
     public Mat processDual(Mat input1, Mat input2) {
         if (input1 == null || input2 == null) {
             return input1 != null ? input1.clone() : (input2 != null ? input2.clone() : null);
@@ -107,92 +78,6 @@ public class AddWeightedNode extends ProcessingNode {
         if (converted2 != resized2) converted2.release();
 
         return output;
-    }
-
-    @Override
-    public void startProcessing() {
-        if (running.get()) {
-            return;
-        }
-
-        running.set(true);
-
-        processingThread = new Thread(() -> {
-            while (running.get()) {
-                try {
-                    boolean gotInput1 = false;
-                    boolean gotInput2 = false;
-
-                    // Poll both queues for new frames (non-blocking)
-                    if (inputQueue != null) {
-                        Mat newInput1 = inputQueue.poll(10, TimeUnit.MILLISECONDS);
-                        if (newInput1 != null) {
-                            if (lastInput1 != null) lastInput1.release();
-                            lastInput1 = newInput1;
-                            gotInput1 = true;
-                        }
-                    }
-
-                    if (inputQueue2 != null) {
-                        Mat newInput2 = inputQueue2.poll(10, TimeUnit.MILLISECONDS);
-                        if (newInput2 != null) {
-                            if (lastInput2 != null) lastInput2.release();
-                            lastInput2 = newInput2;
-                            gotInput2 = true;
-                        }
-                    }
-
-                    // Determine if we should process based on sync mode
-                    boolean shouldProcess;
-                    if (queuesInSync) {
-                        // Sync mode: only process when BOTH queues have new input
-                        // But still need both frames to exist (startup condition)
-                        shouldProcess = gotInput1 && gotInput2 && lastInput1 != null && lastInput2 != null;
-                    } else {
-                        // Default mode: process if either queue has new input and both frames exist
-                        shouldProcess = (gotInput1 || gotInput2) && lastInput1 != null && lastInput2 != null;
-                    }
-
-                    if (shouldProcess) {
-                        Mat output = processDual(lastInput1, lastInput2);
-
-                        if (output != null) {
-                            setOutputMat(output);
-                            notifyFrame(output);
-
-                            if (outputQueue != null) {
-                                outputQueue.put(output);
-                            }
-                        }
-                    } else if (!gotInput1 && !gotInput2) {
-                        // Small sleep if no input available
-                        Thread.sleep(10);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }, "Processing-" + name + "-Thread");
-        processingThread.start();
-    }
-
-    @Override
-    public void stopProcessing() {
-        super.stopProcessing();
-        // Clear cached frames
-        if (lastInput1 != null) {
-            lastInput1.release();
-            lastInput1 = null;
-        }
-        if (lastInput2 != null) {
-            lastInput2.release();
-            lastInput2 = null;
-        }
-        // Clear second queue
-        if (inputQueue2 != null) {
-            inputQueue2.clear();
-        }
     }
 
     @Override

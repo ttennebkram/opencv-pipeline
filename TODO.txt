@@ -1,0 +1,67 @@
+Histogram node
+compare all java nodes to python effects
+    /Users/mbennett/Dropbox/dev/webcam-filters
+check all sliders that require odd ints
+Main class doing LOTS of instanceof, I think in serialization stuff?
+change package name
+accuracy of mouse on connection points when zoomed way out
+.fft low pass filter
+    figure out radius filters and smoothness
+? grid pattern doesn't change on zoom
+    maybe just the dots where they intersect?
+.finish impl of Harris Corners
+    .still missing some
+    .default color green
+    /what does Draw Features mean in the python version?
+/rename Shi-Tomasi to ... Corners
+.    FINISH ST corners
+.finish Scharr
+/Laplacian shows Canny Edge properties
+/   properties too narrow
+.   add more UI elements
+.Sobel
+    .dx / dy 3 horizontal radio buttons
+    Sobel Properties -> Sobel Edge Properties
+.Contours
+.Blobs
+
+.dual input nodes
+    .require both queues fire
+    .work on either firing and last state of other
+        .if both 30 fps there would be ~60 objects emitted
+        .make it a UI checkbox for queues-in-sync default to NO
+
+/need bitwise NOT
+    doc: same effect as Invert, but diff math, just mention in README
+
+/maybe not clamp values that are externally edited in JSON
+    /"no external clamp"
+/button bar green area slightly wider, maybe buttons need more E W padding 
+/Unknown node type: Mean Shift Blur
+/Unknown node type: Grayscale/Color Convert
+/double click on node buttons should only give one
+/rename: node title: Mean Shift Blur
+/rename: node title: Node Color Convert -> Grayscale/Color Convert
+/Box Blur
+    /too narrow for 2 or 3 digit readout at end of slider
+    /slider lets you pick even ints
+    /"unknown: Box Blur"
+/Inputs: -> Sources:
+/recatogorize Draw: to Content:
+/zoom % truncated
+/rename: node: Bilateral Filter -> ... Blur
+/Unknown Gradient/MorphEx
+/TextNode: No "bold" checkbox
+/   default color should be green
+/Scharr Properties -> Scharr Edge Properties
+/fix Hough Lines
+/    properties are for Gaussian Blur
+/    and should be Unknown if issue deserializing
+/fix canny edges --> Gaussian Blur
+/grid scrolling
+/   magnification/zoom
+/Scharr rename to Scharr Edges when node is displayed
+/    same for Laplacian
+/    Canny EdgeS
+/    Sobel EDGES
+x Sharr -> Canny edge

@@ -15,6 +15,11 @@ import java.io.File;
  */
 public abstract class ProcessingNode extends PipelineNode {
     protected String name;
+
+    @Override
+    public String getNodeName() {
+        return name;
+    }
     protected Shell shell;
     protected boolean enabled = true;
     protected Runnable onChanged;  // Callback when properties change
@@ -70,16 +75,29 @@ public abstract class ProcessingNode extends PipelineNode {
         gc.drawString(name, x + 10, y + 5, true);
         boldFont.dispose();
 
+        // Draw thread priority label
+        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
+        gc.setFont(smallFont);
+        // Red text if priority is below 5, otherwise dark gray
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            gc.setForeground(new Color(200, 0, 0)); // Red for low priority
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
+        gc.drawString(getThreadPriorityLabel(), x + 10, y + 20, true);
+        smallFont.dispose();
+
         // Draw thumbnail if available
         if (thumbnail != null && !thumbnail.isDisposed()) {
             Rectangle bounds = thumbnail.getBounds();
             int thumbX = x + (width - bounds.width) / 2;
-            int thumbY = y + 25;
+            int thumbY = y + 35;
             gc.drawImage(thumbnail, thumbX, thumbY);
         } else {
             // Draw placeholder
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(no output)", x + 10, y + 40, true);
+            gc.drawString("(no output)", x + 10, y + 50, true);
         }
 
         // Draw connection points
@@ -187,6 +205,7 @@ public abstract class ProcessingNode extends PipelineNode {
         running.set(true);
 
         processingThread = new Thread(() -> {
+
             while (running.get()) {
                 try {
                     // Take from input queue (blocks until available)
@@ -213,6 +232,9 @@ public abstract class ProcessingNode extends PipelineNode {
                         }
                     }
 
+                    // Check for backpressure and signal upstream if needed
+                    checkBackpressure();
+
                     // Release input if it's different from output
                     if (input != output) {
                         input.release();
@@ -223,6 +245,7 @@ public abstract class ProcessingNode extends PipelineNode {
                 }
             }
         }, "Processing-" + name + "-Thread");
+        processingThread.setPriority(threadPriority);
         processingThread.start();
     }
 }

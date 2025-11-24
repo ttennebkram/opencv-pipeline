@@ -640,6 +640,9 @@ public class PipelineEditor {
 
                 if ("FileSource".equals(type)) {
                     FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
+                    if (nodeObj.has("threadPriority")) {
+                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                    }
                     if (nodeObj.has("imagePath")) {
                         String imgPath = nodeObj.get("imagePath").getAsString();
                         node.setImagePath(imgPath);
@@ -651,6 +654,9 @@ public class PipelineEditor {
                     nodes.add(node);
                 } else if ("WebcamSource".equals(type)) {
                     WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
+                    if (nodeObj.has("threadPriority")) {
+                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                    }
                     if (nodeObj.has("cameraIndex")) {
                         node.setCameraIndex(nodeObj.get("cameraIndex").getAsInt());
                     }
@@ -668,6 +674,9 @@ public class PipelineEditor {
                     nodes.add(node);
                 } else if ("BlankSource".equals(type)) {
                     BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
+                    if (nodeObj.has("threadPriority")) {
+                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                    }
                     if (nodeObj.has("imageWidth")) {
                         node.setImageWidth(nodeObj.get("imageWidth").getAsInt());
                     }
@@ -685,6 +694,10 @@ public class PipelineEditor {
                     String name = nodeObj.get("name").getAsString();
                     ProcessingNode node = createEffectNode(name, x, y);
                     if (node != null) {
+                        // Load thread priority
+                        if (nodeObj.has("threadPriority")) {
+                            node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
+                        }
                         // Load node-specific properties
                         if (node instanceof GaussianBlurNode) {
                             GaussianBlurNode gbn = (GaussianBlurNode) node;
@@ -956,8 +969,10 @@ public class PipelineEditor {
                         } else if (node instanceof HistogramNode) {
                             HistogramNode hn = (HistogramNode) node;
                             if (nodeObj.has("modeIndex")) hn.setModeIndex(nodeObj.get("modeIndex").getAsInt());
+                            if (nodeObj.has("backgroundMode")) hn.setBackgroundMode(nodeObj.get("backgroundMode").getAsInt());
                             if (nodeObj.has("fillBars")) hn.setFillBars(nodeObj.get("fillBars").getAsBoolean());
                             if (nodeObj.has("lineThickness")) hn.setLineThickness(nodeObj.get("lineThickness").getAsInt());
+                            if (nodeObj.has("queuesInSync")) hn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> { markDirty(); executePipeline(); });
@@ -986,7 +1001,14 @@ public class PipelineEditor {
                 int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
                 if (sourceId >= 0 && sourceId < nodes.size() &&
                     targetId >= 0 && targetId < nodes.size()) {
-                    connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx));
+                    Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx);
+                    if (connObj.has("queueCapacity")) {
+                        conn.setConfiguredCapacity(connObj.get("queueCapacity").getAsInt());
+                    }
+                    if (connObj.has("queueCount")) {
+                        conn.setLastQueueSize(connObj.get("queueCount").getAsInt());
+                    }
+                    connections.add(conn);
                 }
             }
 
@@ -1000,6 +1022,12 @@ public class PipelineEditor {
                     int freeEndY = dangObj.get("freeEndY").getAsInt();
                     if (sourceId >= 0 && sourceId < nodes.size()) {
                         DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY));
+                        if (dangObj.has("queueCapacity")) {
+                            dc.setConfiguredCapacity(dangObj.get("queueCapacity").getAsInt());
+                        }
+                        if (dangObj.has("queueCount")) {
+                            dc.setLastQueueSize(dangObj.get("queueCount").getAsInt());
+                        }
                         danglingConnections.add(dc);
                     }
                 }
@@ -1015,6 +1043,12 @@ public class PipelineEditor {
                     int freeEndY = revObj.get("freeEndY").getAsInt();
                     if (targetId >= 0 && targetId < nodes.size()) {
                         ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY));
+                        if (revObj.has("queueCapacity")) {
+                            rdc.setConfiguredCapacity(revObj.get("queueCapacity").getAsInt());
+                        }
+                        if (revObj.has("queueCount")) {
+                            rdc.setLastQueueSize(revObj.get("queueCount").getAsInt());
+                        }
                         reverseDanglingConnections.add(rdc);
                     }
                 }
@@ -1030,6 +1064,12 @@ public class PipelineEditor {
                     int arrowEndX = freeObj.get("arrowEndX").getAsInt();
                     int arrowEndY = freeObj.get("arrowEndY").getAsInt();
                     FreeConnection fc = new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY));
+                    if (freeObj.has("queueCapacity")) {
+                        fc.setConfiguredCapacity(freeObj.get("queueCapacity").getAsInt());
+                    }
+                    if (freeObj.has("queueCount")) {
+                        fc.setLastQueueSize(freeObj.get("queueCount").getAsInt());
+                    }
                     freeConnections.add(fc);
                 }
             }
@@ -1415,6 +1455,7 @@ public class PipelineEditor {
                 nodeObj.addProperty("id", i);
                 nodeObj.addProperty("x", node.x);
                 nodeObj.addProperty("y", node.y);
+                nodeObj.addProperty("threadPriority", node.getThreadPriority());
 
                 if (node instanceof FileSourceNode) {
                     nodeObj.addProperty("type", "FileSource");
@@ -1691,6 +1732,13 @@ public class PipelineEditor {
                         nodeObj.addProperty("thickness", tn.getThickness());
                         nodeObj.addProperty("bold", tn.isBold());
                         nodeObj.addProperty("italic", tn.isItalic());
+                    } else if (node instanceof HistogramNode) {
+                        HistogramNode hn = (HistogramNode) node;
+                        nodeObj.addProperty("modeIndex", hn.getModeIndex());
+                        nodeObj.addProperty("backgroundMode", hn.getBackgroundMode());
+                        nodeObj.addProperty("fillBars", hn.getFillBars());
+                        nodeObj.addProperty("lineThickness", hn.getLineThickness());
+                        nodeObj.addProperty("queuesInSync", hn.isQueuesInSync());
                     }
                     // InvertNode has no properties to save
                 }
@@ -1706,6 +1754,12 @@ public class PipelineEditor {
                 connObj.addProperty("sourceId", nodes.indexOf(conn.source));
                 connObj.addProperty("targetId", nodes.indexOf(conn.target));
                 connObj.addProperty("inputIndex", conn.inputIndex);
+                connObj.addProperty("queueCapacity", conn.getConfiguredCapacity());
+                int queueSize = conn.getQueueSize();
+                System.out.println("SAVE: Connection " + nodes.indexOf(conn.source) + " -> " +
+                                 nodes.indexOf(conn.target) + " queue size: " + queueSize +
+                                 " (queue null? " + (conn.getQueue() == null) + ")");
+                connObj.addProperty("queueCount", queueSize);
                 connsArray.add(connObj);
             }
             root.add("connections", connsArray);
@@ -1717,6 +1771,8 @@ public class PipelineEditor {
                 dcObj.addProperty("sourceId", nodes.indexOf(dc.source));
                 dcObj.addProperty("freeEndX", dc.freeEnd.x);
                 dcObj.addProperty("freeEndY", dc.freeEnd.y);
+                dcObj.addProperty("queueCapacity", dc.getConfiguredCapacity());
+                dcObj.addProperty("queueCount", dc.getQueueSize());
                 danglingArray.add(dcObj);
             }
             root.add("danglingConnections", danglingArray);
@@ -1728,6 +1784,8 @@ public class PipelineEditor {
                 rdcObj.addProperty("targetId", nodes.indexOf(rdc.target));
                 rdcObj.addProperty("freeEndX", rdc.freeEnd.x);
                 rdcObj.addProperty("freeEndY", rdc.freeEnd.y);
+                rdcObj.addProperty("queueCapacity", rdc.getConfiguredCapacity());
+                rdcObj.addProperty("queueCount", rdc.getQueueSize());
                 reverseDanglingArray.add(rdcObj);
             }
             root.add("reverseDanglingConnections", reverseDanglingArray);
@@ -1740,6 +1798,8 @@ public class PipelineEditor {
                 fcObj.addProperty("startEndY", fc.startEnd.y);
                 fcObj.addProperty("arrowEndX", fc.arrowEnd.x);
                 fcObj.addProperty("arrowEndY", fc.arrowEnd.y);
+                fcObj.addProperty("queueCapacity", fc.getConfiguredCapacity());
+                fcObj.addProperty("queueCount", fc.getQueueSize());
                 freeArray.add(fcObj);
             }
             root.add("freeConnections", freeArray);
@@ -2079,7 +2139,14 @@ public class PipelineEditor {
                         int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
                         if (sourceId >= 0 && sourceId < nodes.size() &&
                             targetId >= 0 && targetId < nodes.size()) {
-                            connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx));
+                            Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx);
+                            if (connObj.has("queueCapacity")) {
+                                conn.setConfiguredCapacity(connObj.get("queueCapacity").getAsInt());
+                            }
+                            if (connObj.has("queueCount")) {
+                                conn.setLastQueueSize(connObj.get("queueCount").getAsInt());
+                            }
+                            connections.add(conn);
                         }
                     }
                 }
@@ -2093,7 +2160,14 @@ public class PipelineEditor {
                         int freeEndX = dcObj.get("freeEndX").getAsInt();
                         int freeEndY = dcObj.get("freeEndY").getAsInt();
                         if (sourceId >= 0 && sourceId < nodes.size()) {
-                            danglingConnections.add(new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY)));
+                            DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY));
+                            if (dcObj.has("queueCapacity")) {
+                                dc.setConfiguredCapacity(dcObj.get("queueCapacity").getAsInt());
+                            }
+                            if (dcObj.has("queueCount")) {
+                                dc.setLastQueueSize(dcObj.get("queueCount").getAsInt());
+                            }
+                            danglingConnections.add(dc);
                         }
                     }
                 }
@@ -2107,7 +2181,14 @@ public class PipelineEditor {
                         int freeEndX = rdcObj.get("freeEndX").getAsInt();
                         int freeEndY = rdcObj.get("freeEndY").getAsInt();
                         if (targetId >= 0 && targetId < nodes.size()) {
-                            reverseDanglingConnections.add(new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY)));
+                            ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY));
+                            if (rdcObj.has("queueCapacity")) {
+                                rdc.setConfiguredCapacity(rdcObj.get("queueCapacity").getAsInt());
+                            }
+                            if (rdcObj.has("queueCount")) {
+                                rdc.setLastQueueSize(rdcObj.get("queueCount").getAsInt());
+                            }
+                            reverseDanglingConnections.add(rdc);
                         }
                     }
                 }
@@ -2121,7 +2202,14 @@ public class PipelineEditor {
                         int startEndY = fcObj.get("startEndY").getAsInt();
                         int arrowEndX = fcObj.get("arrowEndX").getAsInt();
                         int arrowEndY = fcObj.get("arrowEndY").getAsInt();
-                        freeConnections.add(new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY)));
+                        FreeConnection fc = new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY));
+                        if (fcObj.has("queueCapacity")) {
+                            fc.setConfiguredCapacity(fcObj.get("queueCapacity").getAsInt());
+                        }
+                        if (fcObj.has("queueCount")) {
+                            fc.setLastQueueSize(fcObj.get("queueCount").getAsInt());
+                        }
+                        freeConnections.add(fc);
                     }
                 }
 
@@ -2484,7 +2572,8 @@ public class PipelineEditor {
             "• Click node name in left panel to create\n" +
             "• Drag nodes to move\n" +
             "• Click connection circles to connect\n" +
-            "• Double-click node for properties");
+            "• Double-click node for properties\n" +
+            "• Single click any node to see its output in the Output Preview");
         GridData instructionsGd = new GridData(SWT.FILL, SWT.FILL, true, true);
         instructionsGd.widthHint = 150;
         instructions.setLayoutData(instructionsGd);
@@ -2687,6 +2776,32 @@ public class PipelineEditor {
             conn.activate();
         }
 
+        // Activate dangling connections (creates queues and wires to source nodes)
+        for (DanglingConnection dc : danglingConnections) {
+            dc.activate();
+        }
+
+        // Activate reverse dangling connections (creates queues and wires to target nodes)
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            rdc.activate();
+        }
+
+        // Activate free connections (creates queues but not wired to any nodes)
+        for (FreeConnection fc : freeConnections) {
+            fc.activate();
+        }
+
+        // Set up input node references for backpressure management
+        for (Connection conn : connections) {
+            if (conn.inputIndex == 2) {
+                // Second input for dual-input nodes
+                conn.target.setInputNode2(conn.source);
+            } else {
+                // Primary input
+                conn.target.setInputNode(conn.source);
+            }
+        }
+
         // Set up frame callbacks for preview updates
         for (PipelineNode node : nodes) {
             final PipelineNode n = node;
@@ -2737,9 +2852,26 @@ public class PipelineEditor {
             conn.deactivate();
         }
 
-        // Clear frame callbacks
+        // Deactivate dangling connections (clears queues)
+        for (DanglingConnection dc : danglingConnections) {
+            dc.deactivate();
+        }
+
+        // Deactivate reverse dangling connections (clears queues)
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            rdc.deactivate();
+        }
+
+        // Deactivate free connections (clears queues)
+        for (FreeConnection fc : freeConnections) {
+            fc.deactivate();
+        }
+
+        // Clear frame callbacks and input node references
         for (PipelineNode node : nodes) {
             node.setOnFrameCallback(null);
+            node.setInputNode(null);
+            node.setInputNode2(null);
         }
 
         // Update button
@@ -2951,19 +3083,17 @@ public class PipelineEditor {
             gc.drawLine(start.x, start.y, end.x, end.y);
             drawArrow(gc, start, end);
 
-            // Draw queue size if pipeline is running
-            if (conn.isActive()) {
-                int queueSize = conn.getQueueSize();
-                int midX = (start.x + end.x) / 2;
-                int midY = (start.y + end.y) / 2;
-                String sizeText = String.valueOf(queueSize);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
-                gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
-                Point textExtent = gc.textExtent(sizeText);
-                gc.fillRoundRectangle(midX - textExtent.x/2 - 3, midY - textExtent.y/2 - 2,
-                    textExtent.x + 6, textExtent.y + 4, 6, 6);
-                gc.drawString(sizeText, midX - textExtent.x/2, midY - textExtent.y/2, true);
-            }
+            // Draw queue size (always show, whether running or not)
+            int queueSize = conn.getQueueSize();
+            int midX = (start.x + end.x) / 2;
+            int midY = (start.y + end.y) / 2;
+            String sizeText = String.valueOf(queueSize);
+            gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
+            gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
+            Point textExtent = gc.textExtent(sizeText);
+            gc.fillRoundRectangle(midX - textExtent.x/2 - 3, midY - textExtent.y/2 - 2,
+                textExtent.x + 6, textExtent.y + 4, 6, 6);
+            gc.drawString(sizeText, midX - textExtent.x/2, midY - textExtent.y/2, true);
         }
 
         // Draw dangling connections with dashed lines
@@ -3107,6 +3237,8 @@ public class PipelineEditor {
                 return ((BitwiseOrNode) conn.target).getInputPoint2();
             } else if (conn.target instanceof BitwiseXorNode) {
                 return ((BitwiseXorNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof HistogramNode) {
+                return ((HistogramNode) conn.target).getInputPoint2();
             }
         }
         return conn.target.getInputPoint();
@@ -3624,7 +3756,8 @@ public class PipelineEditor {
                 if (node != connectionSource) {
                     // Check second input point for dual-input nodes first
                     if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
-                        node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
+                        node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode ||
+                        node instanceof HistogramNode) {
                         Point inputPoint2;
                         if (node instanceof AddClampNode) {
                             inputPoint2 = ((AddClampNode) node).getInputPoint2();
@@ -3636,8 +3769,10 @@ public class PipelineEditor {
                             inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
                         } else if (node instanceof BitwiseOrNode) {
                             inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
-                        } else {
+                        } else if (node instanceof BitwiseXorNode) {
                             inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
+                        } else {
+                            inputPoint2 = ((HistogramNode) node).getInputPoint2();
                         }
                         int radius = 8;
                         double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +

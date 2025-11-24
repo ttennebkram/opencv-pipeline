@@ -39,11 +39,22 @@ public abstract class PipelineNode {
     protected BlockingQueue<Mat> inputQueue;
     protected BlockingQueue<Mat> outputQueue;
     protected long frameDelayMs = 0; // Frame rate throttling (0 = no delay)
+    protected int threadPriority = Thread.NORM_PRIORITY; // Thread priority (1-10, default 5)
+    protected int originalPriority = Thread.NORM_PRIORITY; // Original priority before backpressure adjustments
+    protected int lastRunningPriority = Thread.NORM_PRIORITY; // Last actual running priority (persists after stop)
+
+    // Backpressure management
+    protected static final int QUEUE_HIGH_WATERMARK = 10; // Reduce upstream priority when queue exceeds this
+    protected static final int QUEUE_LOW_WATERMARK = 3;   // Restore upstream priority when queue drops below this
+    protected PipelineNode inputNode = null; // Reference to upstream node for backpressure signaling
+    protected PipelineNode inputNode2 = null; // Reference to second upstream node for dual-input nodes
 
     // Callback for frame updates (used for preview)
     protected java.util.function.Consumer<Mat> onFrameCallback;
 
     public abstract void paint(GC gc);
+
+    public abstract String getNodeName();
 
     public boolean containsPoint(Point p) {
         return p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
@@ -211,6 +222,90 @@ public abstract class PipelineNode {
         return frameDelayMs;
     }
 
+    public void setThreadPriority(int priority) {
+        this.threadPriority = Math.max(Thread.MIN_PRIORITY, Math.min(Thread.MAX_PRIORITY, priority));
+        this.originalPriority = this.threadPriority; // Track original priority
+        this.lastRunningPriority = this.threadPriority; // Initialize last running priority
+        System.out.println("[" + getNodeName() + "] setThreadPriority(" + priority + ") -> threadPriority=" + this.threadPriority + ", originalPriority=" + this.originalPriority);
+    }
+
+    public int getThreadPriority() {
+        // Return actual running priority if thread is alive, otherwise return last running priority
+        if (processingThread != null && processingThread.isAlive()) {
+            int currentPriority = processingThread.getPriority();
+            lastRunningPriority = currentPriority; // Track it
+            int qSize = (outputQueue != null) ? outputQueue.size() : -1;
+            System.out.println("[" + getNodeName() + "] getThreadPriority() ALIVE: returning " + currentPriority + " (outputQueue=" + qSize + ")");
+            return currentPriority;
+        }
+        System.out.println("[" + getNodeName() + "] getThreadPriority() STOPPED: returning lastRunningPriority=" + lastRunningPriority);
+        return lastRunningPriority; // Return last known priority when stopped
+    }
+
+    public String getThreadPriorityLabel() {
+        // Show raw priority number
+        return "Priority: " + getThreadPriority();
+    }
+
+    public void setInputNode(PipelineNode node) {
+        this.inputNode = node;
+    }
+
+    public PipelineNode getInputNode() {
+        return inputNode;
+    }
+
+    public void setInputNode2(PipelineNode node) {
+        this.inputNode2 = node;
+    }
+
+    public PipelineNode getInputNode2() {
+        return inputNode2;
+    }
+
+    /**
+     * Check output queue and apply progressive backpressure.
+     * When this node's output queue backs up, progressively lower THIS node's priority.
+     * - Queue size 5+: reduce by 1
+     * - Queue size 10+: reduce by 2
+     * - Queue size 15+: reduce by 3
+     * - And so on, down to minimum priority of 1
+     * This causes a cascading effect: upstream nodes will back up and lower their own priorities.
+     */
+    protected void checkBackpressure() {
+        if (outputQueue == null) {
+            return;
+        }
+
+        int queueSize = outputQueue.size();
+        int targetPriority;
+
+        if (processingThread != null && processingThread.isAlive()) {
+            int currentPriority = processingThread.getPriority();
+
+            // Progressive backpressure/boost based on queue size
+            if (queueSize == 0) {
+                // Queue empty: increase priority by 1 (up to max of 5)
+                targetPriority = Math.min(Thread.NORM_PRIORITY, currentPriority + 1);
+            } else if (queueSize < 5) {
+                // Queue has 1-4 items: increase priority by 1 (up to max of 5)
+                targetPriority = Math.min(Thread.NORM_PRIORITY, currentPriority + 1);
+            } else {
+                // Queue >= 5: apply backpressure, reduce by 1 for every 5 items
+                int reductionAmount = queueSize / 5;
+                targetPriority = Math.max(Thread.MIN_PRIORITY, originalPriority - reductionAmount);
+            }
+
+            System.out.println("[" + getNodeName() + "] checkBackpressure: queueSize=" + queueSize + ", currentPriority=" + currentPriority + ", targetPriority=" + targetPriority + ", originalPriority=" + originalPriority);
+            if (currentPriority != targetPriority) {
+                System.out.println("[" + getNodeName() + "] BACKPRESSURE: CHANGING priority " + currentPriority + " -> " + targetPriority);
+                processingThread.setPriority(targetPriority);
+            }
+            // Always update cached priority to reflect current state
+            lastRunningPriority = targetPriority;
+        }
+    }
+
     public boolean isRunning() {
         return running.get();
     }
@@ -233,6 +328,7 @@ public abstract class PipelineNode {
 
     /**
      * Stop this node's processing thread.
+     * Queues are NOT cleared - they retain their data.
      */
     public void stopProcessing() {
         running.set(false);
@@ -245,12 +341,6 @@ public abstract class PipelineNode {
             }
             processingThread = null;
         }
-        // Clear queues
-        if (inputQueue != null) {
-            inputQueue.clear();
-        }
-        if (outputQueue != null) {
-            outputQueue.clear();
-        }
+        // Do NOT clear queues - they keep their data
     }
 }
