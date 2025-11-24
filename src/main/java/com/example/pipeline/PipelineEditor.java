@@ -54,13 +54,6 @@ public class PipelineEditor {
         NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
         NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
 
-        // Morphological nodes
-        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
-        NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
-        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
-        NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
-        NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
-
         // Blur nodes
         NodeRegistry.register("BoxBlur", "Blur", BoxBlurNode.class);
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
@@ -68,29 +61,36 @@ public class PipelineEditor {
         NodeRegistry.register("BilateralFilter", "Blur", BilateralFilterNode.class);
         NodeRegistry.register("MeanShift", "Blur", MeanShiftFilterNode.class);
 
+        // Content nodes (shapes and text)
+        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
+        NodeRegistry.register("Circle", "Content", CircleNode.class);
+        NodeRegistry.register("Ellipse", "Content", EllipseNode.class);
+        NodeRegistry.register("Line", "Content", LineNode.class);
+        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
+        NodeRegistry.register("Text", "Content", TextNode.class);
+
         // Edge detection nodes
         NodeRegistry.register("CannyEdge", "Edge Detection", CannyEdgeNode.class);
         NodeRegistry.register("Laplacian", "Edge Detection", LaplacianNode.class);
         NodeRegistry.register("Sobel", "Edge Detection", SobelNode.class);
         NodeRegistry.register("Scharr", "Edge Detection", ScharrNode.class);
 
-        // Transform nodes
-        NodeRegistry.register("Crop", "Transform", CropNode.class);
-        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
-
-        // Dual Input nodes
-        NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
-        NodeRegistry.register("AddWeighted", "Dual Input Nodes", AddWeightedNode.class);
-        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
-        NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
-        NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
-        NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
-
         // Filter nodes
         NodeRegistry.register("BitwiseNot", "Filter", BitwiseNotNode.class);
         NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
         NodeRegistry.register("FFTHighPass", "Filter", FFTHighPassFilterNode.class);
         NodeRegistry.register("FFTLowPass", "Filter", FFTLowPassFilterNode.class);
+
+        // Morphological nodes
+        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
+        NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
+        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
+        NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
+        NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
+
+        // Transform nodes
+        NodeRegistry.register("Crop", "Transform", CropNode.class);
+        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
 
         // Detection nodes
         NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
@@ -103,13 +103,13 @@ public class PipelineEditor {
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
         NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
 
-        // Content nodes (shapes and text)
-        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
-        NodeRegistry.register("Circle", "Content", CircleNode.class);
-        NodeRegistry.register("Ellipse", "Content", EllipseNode.class);
-        NodeRegistry.register("Line", "Content", LineNode.class);
-        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
-        NodeRegistry.register("Text", "Content", TextNode.class);
+        // Dual Input nodes
+        NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
+        NodeRegistry.register("AddWeighted", "Dual Input Nodes", AddWeightedNode.class);
+        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
+        NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
+        NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
+        NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
 
         // Visualization nodes
         NodeRegistry.register("Histogram", "Visualization", HistogramNode.class);
@@ -3249,22 +3249,8 @@ public class PipelineEditor {
 
     // Helper to get the correct input point for a connection based on its inputIndex
     private Point getConnectionTargetPoint(Connection conn) {
-        if (conn.inputIndex == 2) {
-            if (conn.target instanceof AddClampNode) {
-                return ((AddClampNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof AddWeightedNode) {
-                return ((AddWeightedNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof SubtractClampNode) {
-                return ((SubtractClampNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof BitwiseAndNode) {
-                return ((BitwiseAndNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof BitwiseOrNode) {
-                return ((BitwiseOrNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof BitwiseXorNode) {
-                return ((BitwiseXorNode) conn.target).getInputPoint2();
-            } else if (conn.target instanceof HistogramNode) {
-                return ((HistogramNode) conn.target).getInputPoint2();
-            }
+        if (conn.inputIndex == 2 && conn.target instanceof DualInputNode) {
+            return ((DualInputNode) conn.target).getInputPoint2();
         }
         return conn.target.getInputPoint();
     }
@@ -3324,25 +3310,8 @@ public class PipelineEditor {
                 PipelineNode node = nodes.get(i);
 
                 // Check for second input point on dual-input nodes first
-                if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
-                    node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode ||
-                    node instanceof HistogramNode) {
-                    Point inputPoint2;
-                    if (node instanceof AddClampNode) {
-                        inputPoint2 = ((AddClampNode) node).getInputPoint2();
-                    } else if (node instanceof AddWeightedNode) {
-                        inputPoint2 = ((AddWeightedNode) node).getInputPoint2();
-                    } else if (node instanceof SubtractClampNode) {
-                        inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
-                    } else if (node instanceof BitwiseAndNode) {
-                        inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
-                    } else if (node instanceof BitwiseOrNode) {
-                        inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
-                    } else if (node instanceof BitwiseXorNode) {
-                        inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
-                    } else {
-                        inputPoint2 = ((HistogramNode) node).getInputPoint2();
-                    }
+                if (node instanceof DualInputNode) {
+                    Point inputPoint2 = ((DualInputNode) node).getInputPoint2();
                     double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint2.y, 2));
                     if (dist2 <= radius) {
@@ -3783,25 +3752,8 @@ public class PipelineEditor {
             for (PipelineNode node : nodes) {
                 if (node != connectionSource) {
                     // Check second input point for dual-input nodes first
-                    if (node instanceof AddClampNode || node instanceof AddWeightedNode || node instanceof SubtractClampNode ||
-                        node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode ||
-                        node instanceof HistogramNode) {
-                        Point inputPoint2;
-                        if (node instanceof AddClampNode) {
-                            inputPoint2 = ((AddClampNode) node).getInputPoint2();
-                        } else if (node instanceof AddWeightedNode) {
-                            inputPoint2 = ((AddWeightedNode) node).getInputPoint2();
-                        } else if (node instanceof SubtractClampNode) {
-                            inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
-                        } else if (node instanceof BitwiseAndNode) {
-                            inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
-                        } else if (node instanceof BitwiseOrNode) {
-                            inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
-                        } else if (node instanceof BitwiseXorNode) {
-                            inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
-                        } else {
-                            inputPoint2 = ((HistogramNode) node).getInputPoint2();
-                        }
+                    if (node instanceof DualInputNode) {
+                        Point inputPoint2 = ((DualInputNode) node).getInputPoint2();
                         int radius = 8;
                         double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                                Math.pow(clickPoint.y - inputPoint2.y, 2));

@@ -1,14 +1,15 @@
-Histogram node
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
-check all sliders that require odd ints
-Main class doing LOTS of instanceof, I think in serialization stuff?
 change package name
-accuracy of mouse on connection points when zoomed way out
-.fft low pass filter
-    figure out radius filters and smoothness
+
+lots of "hard coding" in the registry
+
 ? grid pattern doesn't change on zoom
     maybe just the dots where they intersect?
+
+.fft low pass filter
+    figure out radius filters and smoothness
+    can we plot the curve?
 .finish impl of Harris Corners
     .still missing some
     .default color green
@@ -24,6 +25,9 @@ accuracy of mouse on connection points when zoomed way out
     Sobel Properties -> Sobel Edge Properties
 .Contours
 .Blobs
+check all sliders that require odd ints
+Main class doing LOTS of instanceof, I think in serialization stuff?
+check all Java Nodes against all Python Effects
 
 .dual input nodes
     .require both queues fire
@@ -34,6 +38,8 @@ accuracy of mouse on connection points when zoomed way out
 /need bitwise NOT
     doc: same effect as Invert, but diff math, just mention in README
 
+/accuracy of mouse on connection points when zoomed way out
+/Histogram node
 /maybe not clamp values that are externally edited in JSON
     /"no external clamp"
 /button bar green area slightly wider, maybe buttons need more E W padding 

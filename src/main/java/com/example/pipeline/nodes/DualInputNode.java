@@ -1,5 +1,6 @@
 package com.example.pipeline.nodes;
 
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.opencv.core.Mat;
@@ -41,6 +42,23 @@ public abstract class DualInputNode extends ProcessingNode {
 
     public void setQueuesInSync(boolean sync) {
         this.queuesInSync = sync;
+    }
+
+    /**
+     * Get the second input connection point.
+     * Default implementation places it at 3/4 height on the left side.
+     * Subclasses can override if they need different positioning.
+     */
+    public Point getInputPoint2() {
+        return new Point(x, y + height * 3 / 4);
+    }
+
+    /**
+     * Override getInputPoint to place first input at 1/4 height for dual-input nodes.
+     */
+    @Override
+    public Point getInputPoint() {
+        return new Point(x, y + height / 4);
     }
 
     /**
