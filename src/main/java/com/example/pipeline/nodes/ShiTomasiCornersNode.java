@@ -22,7 +22,7 @@ public class ShiTomasiCornersNode extends ProcessingNode {
     private int colorR = 0, colorG = 255, colorB = 0;
 
     public ShiTomasiCornersNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Shi-Tomasi", x, y);
+        super(display, shell, "Shi-Tomasi Corners", x, y);
     }
 
     // Getters/setters for serialization
@@ -85,7 +85,7 @@ public class ShiTomasiCornersNode extends ProcessingNode {
 
     @Override
     public String getDisplayName() {
-        return "Shi-Tomasi";
+        return "Shi-Tomasi Corners";
     }
 
     @Override
