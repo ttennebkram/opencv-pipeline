@@ -1,7 +1,7 @@
 package com.example.pipeline.nodes;
 
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
@@ -26,9 +26,12 @@ public class ThresholdNode extends ProcessingNode {
     private int maxValue = 255;
     private int typeIndex = 0;
     private int modifierIndex = 0;
+    private double returnedThreshold = 0; // Store the returned threshold value
 
     public ThresholdNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Threshold", x, y);
+        // Increase height to accommodate the return value display
+        this.height = NODE_HEIGHT + 15;
     }
 
     // Getters/setters for serialization
@@ -57,7 +60,7 @@ public class ThresholdNode extends ProcessingNode {
             } else {
                 gray = input.clone();
             }
-            Imgproc.threshold(gray, output, threshValue, maxValue, combinedType);
+            returnedThreshold = Imgproc.threshold(gray, output, threshValue, maxValue, combinedType);
             gray.release();
 
             // Convert back to BGR
@@ -66,7 +69,7 @@ public class ThresholdNode extends ProcessingNode {
             output.release();
             output = bgr;
         } else {
-            Imgproc.threshold(input, output, threshValue, maxValue, combinedType);
+            returnedThreshold = Imgproc.threshold(input, output, threshValue, maxValue, combinedType);
         }
         return output;
     }
@@ -84,6 +87,23 @@ public class ThresholdNode extends ProcessingNode {
     @Override
     public String getCategory() {
         return "Basic";
+    }
+
+    @Override
+    public void paint(GC gc) {
+        // Call parent paint to draw node background, title, thumbnail, connection points
+        super.paint(gc);
+
+        // Draw return value below thumbnail
+        String returnText = String.format("T = %.0f", returnedThreshold);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
+        Font smallFont = new Font(display, "Arial", 9, SWT.NORMAL);
+        gc.setFont(smallFont);
+        Point textExtent = gc.textExtent(returnText);
+        int textX = x + (width - textExtent.x) / 2;
+        int textY = y + height - 15;
+        gc.drawString(returnText, textX, textY, true);
+        smallFont.dispose();
     }
 
     @Override

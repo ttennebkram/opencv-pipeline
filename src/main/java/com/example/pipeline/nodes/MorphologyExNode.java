@@ -47,7 +47,7 @@ public class MorphologyExNode extends ProcessingNode {
     };
 
     public MorphologyExNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Gradient/MorphX", x, y);
+        super(display, shell, "Gradient/MorphEx", x, y);
     }
 
     // Getters/setters for serialization
@@ -103,7 +103,7 @@ public class MorphologyExNode extends ProcessingNode {
 
     @Override
     public String getDisplayName() {
-        return "Gradient/MorphX";
+        return "Gradient/MorphEx";
     }
 
     @Override
