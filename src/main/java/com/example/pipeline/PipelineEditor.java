@@ -150,9 +150,9 @@ public class PipelineEditor {
     private Image previewImage;
     private Label statusBar;
     private Label nodeCountLabel;
-    private Label zoomLabel;
-    private Scale zoomSlider;
+    private Combo zoomCombo;
     private double zoomLevel = 1.0; // 1.0 = 100%
+    private static final int[] ZOOM_LEVELS = {25, 50, 75, 100, 125, 150, 200, 300, 400};
 
     // Convert screen coordinates to canvas coordinates (accounting for zoom)
     private int toCanvasX(int screenX) {
@@ -2140,50 +2140,49 @@ public class PipelineEditor {
         // Status bar at bottom of canvas
         Composite statusComp = new Composite(canvasContainer, SWT.NONE);
         statusComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        statusComp.setLayout(new GridLayout(4, false));
+        statusComp.setLayout(new GridLayout(3, false));
         ((GridLayout)statusComp.getLayout()).marginHeight = 2;
         ((GridLayout)statusComp.getLayout()).marginWidth = 5;
-        statusComp.setBackground(new Color(240, 240, 240));
+        statusComp.setBackground(new Color(160, 160, 160));
 
         // Node count on the left
         nodeCountLabel = new Label(statusComp, SWT.NONE);
         nodeCountLabel.setText("Nodes: 0");
         nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        nodeCountLabel.setBackground(new Color(240, 240, 240));
-        nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        nodeCountLabel.setBackground(new Color(160, 160, 160));
+        nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
 
         // Pipeline status in the center
         statusBar = new Label(statusComp, SWT.NONE);
         statusBar.setText("Pipeline Stopped");
         statusBar.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-        statusBar.setBackground(new Color(240, 240, 240));
+        statusBar.setBackground(new Color(160, 160, 160));
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
-        // Zoom slider on the right
-        zoomSlider = new Scale(statusComp, SWT.HORIZONTAL);
-        zoomSlider.setMinimum(25);
-        zoomSlider.setMaximum(400);
-        zoomSlider.setSelection(100);
-        zoomSlider.setIncrement(10);
-        zoomSlider.setPageIncrement(25);
-        GridData sliderGd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
-        sliderGd.widthHint = 100;
-        zoomSlider.setLayoutData(sliderGd);
-        zoomSlider.addListener(SWT.Selection, e -> {
-            zoomLevel = zoomSlider.getSelection() / 100.0;
-            zoomLabel.setText(zoomSlider.getSelection() + "%");
-            updateCanvasSize();
-            canvas.redraw();
+        // Zoom combo on the right
+        zoomCombo = new Combo(statusComp, SWT.DROP_DOWN | SWT.READ_ONLY);
+        String[] zoomItems = new String[ZOOM_LEVELS.length];
+        int defaultIndex = 3; // 100%
+        for (int i = 0; i < ZOOM_LEVELS.length; i++) {
+            zoomItems[i] = ZOOM_LEVELS[i] + "%";
+            if (ZOOM_LEVELS[i] == 100) defaultIndex = i;
+        }
+        zoomCombo.setItems(zoomItems);
+        zoomCombo.select(defaultIndex);
+        // Use system colors for proper light/dark mode support
+        zoomCombo.setBackground(display.getSystemColor(SWT.COLOR_LIST_BACKGROUND));
+        zoomCombo.setForeground(display.getSystemColor(SWT.COLOR_LIST_FOREGROUND));
+        GridData comboGd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
+        comboGd.widthHint = 75;
+        zoomCombo.setLayoutData(comboGd);
+        zoomCombo.addListener(SWT.Selection, e -> {
+            int idx = zoomCombo.getSelectionIndex();
+            if (idx >= 0 && idx < ZOOM_LEVELS.length) {
+                zoomLevel = ZOOM_LEVELS[idx] / 100.0;
+                updateCanvasSize();
+                canvas.redraw();
+            }
         });
-
-        // Zoom percentage label
-        zoomLabel = new Label(statusComp, SWT.NONE);
-        zoomLabel.setText("100%");
-        GridData zoomLabelGd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
-        zoomLabelGd.widthHint = 40;
-        zoomLabel.setLayoutData(zoomLabelGd);
-        zoomLabel.setBackground(new Color(240, 240, 240));
-        zoomLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
 
         // Paint handler
         canvas.addPaintListener(e -> paintCanvas(e.gc));
@@ -2212,13 +2211,21 @@ public class PipelineEditor {
         // Ctrl+scroll wheel for zoom
         canvas.addListener(SWT.MouseVerticalWheel, event -> {
             if ((event.stateMask & SWT.MOD1) != 0) { // Ctrl/Cmd held
-                int delta = event.count > 0 ? 10 : -10;
-                int newZoom = Math.max(25, Math.min(400, zoomSlider.getSelection() + delta));
-                zoomSlider.setSelection(newZoom);
-                zoomLevel = newZoom / 100.0;
-                zoomLabel.setText(newZoom + "%");
-                updateCanvasSize();
-                canvas.redraw();
+                int currentIdx = zoomCombo.getSelectionIndex();
+                int newIdx;
+                if (event.count > 0) {
+                    // Zoom in - go to next higher zoom level
+                    newIdx = Math.min(ZOOM_LEVELS.length - 1, currentIdx + 1);
+                } else {
+                    // Zoom out - go to next lower zoom level
+                    newIdx = Math.max(0, currentIdx - 1);
+                }
+                if (newIdx != currentIdx) {
+                    zoomCombo.select(newIdx);
+                    zoomLevel = ZOOM_LEVELS[newIdx] / 100.0;
+                    updateCanvasSize();
+                    canvas.redraw();
+                }
                 event.doit = false; // Consume event
             }
         });
@@ -3402,7 +3409,7 @@ public class PipelineEditor {
 
                     // Start dragging
                     selectedNode = node;
-                    dragOffset = new Point(e.x - node.x, e.y - node.y);
+                    dragOffset = new Point(clickPoint.x - node.x, clickPoint.y - node.y);
                     isDragging = true;
 
                     // Update preview to show selected node's output
