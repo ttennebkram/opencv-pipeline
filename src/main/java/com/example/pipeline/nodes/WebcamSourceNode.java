@@ -105,7 +105,6 @@ public class WebcamSourceNode extends SourceNode {
             videoCapture.release();
         }
 
-        System.out.println("Opening camera " + cameraIndex + " (skip thumbnail)");
         videoCapture = new VideoCapture(cameraIndex);
         if (videoCapture.isOpened()) {
             int[] res = RESOLUTIONS[resolutionIndex];
