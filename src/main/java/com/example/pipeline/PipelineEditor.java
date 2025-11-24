@@ -45,28 +45,27 @@ public class PipelineEditor {
     private static void registerNodes() {
         // Basic processing nodes
         NodeRegistry.register("Grayscale", "Basic", GrayscaleNode.class);
-        NodeRegistry.register("Invert", "Basic", InvertNode.class);
-        NodeRegistry.register("Gain", "Basic", GainNode.class);
-        NodeRegistry.register("Threshold", "Basic", ThresholdNode.class);
         NodeRegistry.register("AdaptiveThreshold", "Basic", AdaptiveThresholdNode.class);
-        NodeRegistry.register("CLAHE Contrast", "Basic", CLAHENode.class);
-        NodeRegistry.register("ColorInRange", "Basic", ColorInRangeNode.class);
-        NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
         NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
+        NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
+        NodeRegistry.register("CLAHE Contrast", "Basic", CLAHENode.class);
+        NodeRegistry.register("Gain", "Basic", GainNode.class);
+        NodeRegistry.register("Invert", "Basic", InvertNode.class);
+        NodeRegistry.register("Threshold", "Basic", ThresholdNode.class);
 
         // Blur nodes
+        NodeRegistry.register("BilateralFilter", "Blur", BilateralFilterNode.class);
         NodeRegistry.register("BoxBlur", "Blur", BoxBlurNode.class);
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
-        NodeRegistry.register("MedianBlur", "Blur", MedianBlurNode.class);
-        NodeRegistry.register("BilateralFilter", "Blur", BilateralFilterNode.class);
         NodeRegistry.register("MeanShift", "Blur", MeanShiftFilterNode.class);
+        NodeRegistry.register("MedianBlur", "Blur", MedianBlurNode.class);
 
         // Content nodes (shapes and text)
-        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
+        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
         NodeRegistry.register("Circle", "Content", CircleNode.class);
         NodeRegistry.register("Ellipse", "Content", EllipseNode.class);
         NodeRegistry.register("Line", "Content", LineNode.class);
-        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
+        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
         NodeRegistry.register("Text", "Content", TextNode.class);
 
         // Edge detection nodes
@@ -77,15 +76,16 @@ public class PipelineEditor {
 
         // Filter nodes
         NodeRegistry.register("BitwiseNot", "Filter", BitwiseNotNode.class);
-        NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
+        NodeRegistry.register("ColorInRange", "Filter", ColorInRangeNode.class);
         NodeRegistry.register("FFTHighPass", "Filter", FFTHighPassFilterNode.class);
         NodeRegistry.register("FFTLowPass", "Filter", FFTLowPassFilterNode.class);
+        NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
 
         // Morphological nodes
-        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
         NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
-        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
+        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
         NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
+        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
         NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
 
         // Transform nodes
@@ -93,23 +93,23 @@ public class PipelineEditor {
         NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
 
         // Detection nodes
-        NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
-        NodeRegistry.register("HoughLines", "Detection", HoughLinesNode.class);
+        NodeRegistry.register("BlobDetector", "Detection", BlobDetectorNode.class);
+        NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
         NodeRegistry.register("Contours", "Detection", ContoursNode.class);
         NodeRegistry.register("HarrisCorners", "Detection", HarrisCornersNode.class);
-        NodeRegistry.register("ShiTomasi", "Detection", ShiTomasiCornersNode.class);
-        NodeRegistry.register("BlobDetector", "Detection", BlobDetectorNode.class);
+        NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
+        NodeRegistry.register("HoughLines", "Detection", HoughLinesNode.class);
         NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
+        NodeRegistry.register("ShiTomasi", "Detection", ShiTomasiCornersNode.class);
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
-        NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
 
         // Dual Input nodes
         NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
         NodeRegistry.register("AddWeighted", "Dual Input Nodes", AddWeightedNode.class);
-        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
         NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
         NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
         NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
+        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
 
         // Visualization nodes
         NodeRegistry.register("Histogram", "Visualization", HistogramNode.class);
