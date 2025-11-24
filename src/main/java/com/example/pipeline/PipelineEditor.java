@@ -1452,6 +1452,7 @@ public class PipelineEditor {
         // Start/Stop button for continuous threaded execution
         startStopBtn = new Button(topPanel, SWT.PUSH);
         startStopBtn.setText("Start Pipeline");
+        startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
         startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         startStopBtn.addSelectionListener(new SelectionAdapter() {
             @Override
@@ -1720,6 +1721,7 @@ public class PipelineEditor {
 
         // Update button
         startStopBtn.setText("Stop Pipeline");
+        startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
     }
 
     private void stopPipeline() {
@@ -1745,6 +1747,7 @@ public class PipelineEditor {
         // Update button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
             startStopBtn.setText("Start Pipeline");
+            startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
         }
     }
 
