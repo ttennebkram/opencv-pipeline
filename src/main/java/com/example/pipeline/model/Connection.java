@@ -1,6 +1,8 @@
 package com.example.pipeline.model;
 
 import com.example.pipeline.nodes.PipelineNode;
+import com.example.pipeline.nodes.AddClampNode;
+import com.example.pipeline.nodes.SubtractClampNode;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.opencv.core.Mat;
@@ -11,12 +13,18 @@ import org.opencv.core.Mat;
 public class Connection {
     public PipelineNode source;
     public PipelineNode target;
+    public int inputIndex; // 1 for primary input, 2 for secondary input (dual-input nodes)
     private BlockingQueue<Mat> queue;
     private static final int DEFAULT_QUEUE_CAPACITY = 3;
 
     public Connection(PipelineNode source, PipelineNode target) {
+        this(source, target, 1);
+    }
+
+    public Connection(PipelineNode source, PipelineNode target, int inputIndex) {
         this.source = source;
         this.target = target;
+        this.inputIndex = inputIndex;
         this.queue = null; // Queue is created when pipeline starts
     }
 
@@ -79,7 +87,19 @@ public class Connection {
         createQueue();
         // Wire the queue: source's output -> this queue -> target's input
         source.setOutputQueue(queue);
-        target.setInputQueue(queue);
+
+        // For dual-input nodes, use the appropriate input queue
+        if (inputIndex == 2) {
+            if (target instanceof AddClampNode) {
+                ((AddClampNode) target).setInputQueue2(queue);
+            } else if (target instanceof SubtractClampNode) {
+                ((SubtractClampNode) target).setInputQueue2(queue);
+            } else {
+                target.setInputQueue(queue);
+            }
+        } else {
+            target.setInputQueue(queue);
+        }
     }
 
     /**
@@ -88,6 +108,18 @@ public class Connection {
     public void deactivate() {
         clearQueue();
         source.setOutputQueue(null);
-        target.setInputQueue(null);
+
+        // For dual-input nodes, clear the appropriate input queue
+        if (inputIndex == 2) {
+            if (target instanceof AddClampNode) {
+                ((AddClampNode) target).setInputQueue2(null);
+            } else if (target instanceof SubtractClampNode) {
+                ((SubtractClampNode) target).setInputQueue2(null);
+            } else {
+                target.setInputQueue(null);
+            }
+        } else {
+            target.setInputQueue(null);
+        }
     }
 }

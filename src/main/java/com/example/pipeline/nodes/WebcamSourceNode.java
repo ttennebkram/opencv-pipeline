@@ -407,11 +407,9 @@ public class WebcamSourceNode extends SourceNode {
     public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
         String thumbPath = cacheDir + java.io.File.separator + "webcam_" + nodeIndex + "_thumb.png";
         java.io.File thumbFile = new java.io.File(thumbPath);
-        System.out.println("Loading webcam thumbnail from: " + thumbPath + " exists=" + thumbFile.exists());
         if (thumbFile.exists()) {
             try {
                 Mat loaded = org.opencv.imgcodecs.Imgcodecs.imread(thumbPath);
-                System.out.println("Loaded mat empty=" + loaded.empty());
                 if (!loaded.empty()) {
                     Mat rgb = new Mat();
                     org.opencv.imgproc.Imgproc.cvtColor(loaded, rgb, org.opencv.imgproc.Imgproc.COLOR_BGR2RGB);

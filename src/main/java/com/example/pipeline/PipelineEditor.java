@@ -75,6 +75,10 @@ public class PipelineEditor {
         NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
         NodeRegistry.register("Crop", "Transform", CropNode.class);
 
+        // Dual Input nodes
+        NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
+        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
+
         // Filter nodes
         NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
 
@@ -126,6 +130,7 @@ public class PipelineEditor {
     private java.util.List<ReverseDanglingConnection> reverseDanglingConnections = new java.util.ArrayList<>();
     private java.util.List<FreeConnection> freeConnections = new java.util.ArrayList<>();
     private PipelineNode connectionTarget = null; // For reverse dragging (from target end)
+    private int targetInputIndex = 1; // Which input to target (1 or 2 for dual-input nodes)
 
     // Free connection dragging state
     private Point freeConnectionFixedEnd = null; // The end that stays fixed while dragging the other
@@ -714,6 +719,7 @@ public class PipelineEditor {
                             if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
                             if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
                             if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
+                        // AddClampNode and SubtractClampNode have no properties to load
                         } else if (node instanceof TextNode) {
                             TextNode tn = (TextNode) node;
                             if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -751,9 +757,10 @@ public class PipelineEditor {
                 JsonObject connObj = elem.getAsJsonObject();
                 int sourceId = connObj.get("sourceId").getAsInt();
                 int targetId = connObj.get("targetId").getAsInt();
+                int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
                 if (sourceId >= 0 && sourceId < nodes.size() &&
                     targetId >= 0 && targetId < nodes.size()) {
-                    connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId)));
+                    connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx));
                 }
             }
 
@@ -1082,6 +1089,7 @@ public class PipelineEditor {
                         nodeObj.addProperty("cropY", crn.getCropY());
                         nodeObj.addProperty("cropWidth", crn.getCropWidth());
                         nodeObj.addProperty("cropHeight", crn.getCropHeight());
+                    // AddClampNode and SubtractClampNode have no properties to save
                     } else if (node instanceof TextNode) {
                         TextNode tn = (TextNode) node;
                         nodeObj.addProperty("text", tn.getText());
@@ -1108,6 +1116,7 @@ public class PipelineEditor {
                 JsonObject connObj = new JsonObject();
                 connObj.addProperty("sourceId", nodes.indexOf(conn.source));
                 connObj.addProperty("targetId", nodes.indexOf(conn.target));
+                connObj.addProperty("inputIndex", conn.inputIndex);
                 connsArray.add(connObj);
             }
             root.add("connections", connsArray);
@@ -1371,6 +1380,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
                                 if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
                                 if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
+                            // AddClampNode and SubtractClampNode have no properties to load
                             } else if (node instanceof TextNode) {
                                 TextNode tn = (TextNode) node;
                                 if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -1409,9 +1419,10 @@ public class PipelineEditor {
                         JsonObject connObj = elem.getAsJsonObject();
                         int sourceId = connObj.get("sourceId").getAsInt();
                         int targetId = connObj.get("targetId").getAsInt();
+                        int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
                         if (sourceId >= 0 && sourceId < nodes.size() &&
                             targetId >= 0 && targetId < nodes.size()) {
-                            connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId)));
+                            connections.add(new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx));
                         }
                     }
                 }
@@ -1607,7 +1618,7 @@ public class PipelineEditor {
                         } else if (targetDeleted) {
                             // Target deleted - convert to dangling connection
                             // (has source but dangling target)
-                            Point targetPoint = conn.target.getInputPoint();
+                            Point targetPoint = getConnectionTargetPoint(conn);
                             danglingConnections.add(new DanglingConnection(
                                 conn.source, targetPoint));
                             connectionsToRemove.add(conn);
@@ -2163,7 +2174,7 @@ public class PipelineEditor {
         // Draw connections on top of nodes
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint();
-            Point end = conn.target.getInputPoint();
+            Point end = getConnectionTargetPoint(conn);
 
             // Highlight selected connections
             if (selectedConnections.contains(conn)) {
@@ -2307,6 +2318,18 @@ public class PipelineEditor {
         }
     }
 
+    // Helper to get the correct input point for a connection based on its inputIndex
+    private Point getConnectionTargetPoint(Connection conn) {
+        if (conn.inputIndex == 2) {
+            if (conn.target instanceof AddClampNode) {
+                return ((AddClampNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof SubtractClampNode) {
+                return ((SubtractClampNode) conn.target).getInputPoint2();
+            }
+        }
+        return conn.target.getInputPoint();
+    }
+
     private void drawArrow(GC gc, Point start, Point end) {
         double angle = Math.atan2(end.y - start.y, end.x - start.x);
         int arrowSize = 10;
@@ -2359,6 +2382,50 @@ public class PipelineEditor {
             // Iterate in reverse for z-order - last added is on top
             for (int i = nodes.size() - 1; i >= 0; i--) {
                 PipelineNode node = nodes.get(i);
+
+                // Check for second input point on dual-input nodes first
+                if (node instanceof AddClampNode || node instanceof SubtractClampNode) {
+                    Point inputPoint2 = (node instanceof AddClampNode)
+                        ? ((AddClampNode) node).getInputPoint2()
+                        : ((SubtractClampNode) node).getInputPoint2();
+                    double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
+                                           Math.pow(clickPoint.y - inputPoint2.y, 2));
+                    if (dist2 <= radius) {
+                        // Check if this connection point is obscured by another node on top
+                        boolean obscured = false;
+                        for (int j = i + 1; j < nodes.size(); j++) {
+                            if (nodes.get(j).containsPoint(clickPoint)) {
+                                obscured = true;
+                                break;
+                            }
+                        }
+                        if (obscured) continue;
+                        // Check if there's a connection to this second input
+                        Connection connToRemove = null;
+                        for (Connection conn : connections) {
+                            if (conn.target == node && conn.inputIndex == 2) {
+                                connToRemove = conn;
+                                break;
+                            }
+                        }
+                        if (connToRemove != null) {
+                            // Yank off the connection - remove it and start dragging from the source
+                            connectionSource = connToRemove.source;
+                            connectionEndPoint = clickPoint;
+                            targetInputIndex = 2;
+                            connections.remove(connToRemove);
+                            canvas.redraw();
+                            return;
+                        }
+                        // No existing connection - start a new connection from second input point (reverse direction)
+                        connectionTarget = node;
+                        targetInputIndex = 2;
+                        connectionEndPoint = clickPoint;
+                        canvas.redraw();
+                        return;
+                    }
+                }
+
                 Point inputPoint = node.getInputPoint();
                 double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                        Math.pow(clickPoint.y - inputPoint.y, 2));
@@ -2375,7 +2442,7 @@ public class PipelineEditor {
                     // Check if there's a connection to this input
                     Connection connToRemove = null;
                     for (Connection conn : connections) {
-                        if (conn.target == node) {
+                        if (conn.target == node && conn.inputIndex == 1) {
                             connToRemove = conn;
                             break;
                         }
@@ -2384,6 +2451,7 @@ public class PipelineEditor {
                         // Yank off the connection - remove it and start dragging from the source
                         connectionSource = connToRemove.source;
                         connectionEndPoint = clickPoint;
+                        targetInputIndex = 1;
                         connections.remove(connToRemove);
                         canvas.redraw();
                         return;
@@ -2408,6 +2476,7 @@ public class PipelineEditor {
                     }
                     // No existing connection - start a new connection from input point (reverse direction)
                     connectionTarget = node;
+                    targetInputIndex = 1;
                     connectionEndPoint = clickPoint;
                     canvas.redraw();
                     return;
@@ -2652,7 +2721,7 @@ public class PipelineEditor {
             // Check regular connections
             for (Connection conn : connections) {
                 Point start = conn.source.getOutputPoint();
-                Point end = conn.target.getInputPoint();
+                Point end = getConnectionTargetPoint(conn);
                 if (pointToLineDistance(clickPoint, start, end) <= clickThreshold) {
                     if (cmdHeld) {
                         if (selectedConnections.contains(conn)) {
@@ -2751,16 +2820,34 @@ public class PipelineEditor {
             Point clickPoint = new Point(e.x, e.y);
             boolean connected = false;
             PipelineNode targetNode = null;
+            int inputIdx = 1;
 
-            // Check if dropped on an input point
+            // Check if dropped on an input point (check second input first for dual-input nodes)
             for (PipelineNode node : nodes) {
                 if (node != connectionSource) {
+                    // Check second input point for dual-input nodes first
+                    if (node instanceof AddClampNode || node instanceof SubtractClampNode) {
+                        Point inputPoint2 = (node instanceof AddClampNode)
+                            ? ((AddClampNode) node).getInputPoint2()
+                            : ((SubtractClampNode) node).getInputPoint2();
+                        int radius = 8;
+                        double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
+                                               Math.pow(clickPoint.y - inputPoint2.y, 2));
+                        if (dist2 <= radius) {
+                            targetNode = node;
+                            inputIdx = 2;
+                            connected = true;
+                            break;
+                        }
+                    }
+
                     Point inputPoint = node.getInputPoint();
                     int radius = 8;
                     double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint.y, 2));
                     if (dist <= radius) {
                         targetNode = node;
+                        inputIdx = 1;
                         connected = true;
                         break;
                     }
@@ -2772,6 +2859,7 @@ public class PipelineEditor {
                 for (PipelineNode node : nodes) {
                     if (node != connectionSource && node.containsPoint(clickPoint)) {
                         targetNode = node;
+                        inputIdx = 1;
                         connected = true;
                         break;
                     }
@@ -2780,7 +2868,7 @@ public class PipelineEditor {
 
             if (connected && targetNode != null) {
                 // Create a new connection
-                connections.add(new Connection(connectionSource, targetNode));
+                connections.add(new Connection(connectionSource, targetNode, inputIdx));
                 markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a dangling connection
@@ -2831,8 +2919,8 @@ public class PipelineEditor {
             }
 
             if (connected && sourceNode != null) {
-                // Create a new connection
-                connections.add(new Connection(sourceNode, connectionTarget));
+                // Create a new connection with the correct input index
+                connections.add(new Connection(sourceNode, connectionTarget, targetInputIndex));
                 markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a reverse dangling connection
@@ -2842,6 +2930,7 @@ public class PipelineEditor {
 
             connectionTarget = null;
             connectionEndPoint = null;
+            targetInputIndex = 1; // Reset to default
             canvas.redraw();
 
             if (connected) {
@@ -2926,7 +3015,7 @@ public class PipelineEditor {
             // Select connections that are completely inside selection box
             for (Connection conn : connections) {
                 Point start = conn.source.getOutputPoint();
-                Point end = conn.target.getInputPoint();
+                Point end = getConnectionTargetPoint(conn);
                 // Check if both endpoints are inside selection box
                 if (start.x >= boxX && start.x <= boxX + boxWidth &&
                     start.y >= boxY && start.y <= boxY + boxHeight &&
@@ -3071,7 +3160,7 @@ public class PipelineEditor {
         // Check if right-clicked on a connection
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint();
-            Point end = conn.target.getInputPoint();
+            Point end = getConnectionTargetPoint(conn);
             if (isPointNearLine(clickPoint, start, end, 5)) {
                 // Show context menu for the connection
                 Menu contextMenu = new Menu(canvas);
@@ -3262,6 +3351,15 @@ public class PipelineEditor {
             // Transform
             case "Warp Affine":
                 return "WarpAffine";
+            case "Crop":
+                return "Crop";
+
+            // Dual Input Nodes
+            case "Add w/Clamp":
+                return "AddClamp";
+            case "Subtract w/Clamp":
+            case "Sub w/Clamp":  // Old name for backward compatibility
+                return "SubtractClamp";
 
             // Filter
             case "FFT High-Pass Filter":
