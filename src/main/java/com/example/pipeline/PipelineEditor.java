@@ -72,8 +72,8 @@ public class PipelineEditor {
         NodeRegistry.register("Scharr", "Edge Detection", ScharrNode.class);
 
         // Transform nodes
-        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
         NodeRegistry.register("Crop", "Transform", CropNode.class);
+        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
 
         // Dual Input nodes
         NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
