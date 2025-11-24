@@ -637,6 +637,7 @@ public class PipelineEditor {
                             if (nodeObj.has("maxValue")) tn.setMaxValue(nodeObj.get("maxValue").getAsInt());
                             if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
                             if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
+                            if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -1281,6 +1282,7 @@ public class PipelineEditor {
                         nodeObj.addProperty("maxValue", tn.getMaxValue());
                         nodeObj.addProperty("typeIndex", tn.getTypeIndex());
                         nodeObj.addProperty("modifierIndex", tn.getModifierIndex());
+                        nodeObj.addProperty("returnedThreshold", tn.getReturnedThreshold());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1574,6 +1576,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("maxValue")) tn.setMaxValue(nodeObj.get("maxValue").getAsInt());
                                 if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
                                 if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
+                                if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
                             } else if (node instanceof GainNode) {
                                 GainNode gn = (GainNode) node;
                                 if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());

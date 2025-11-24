@@ -43,6 +43,8 @@ public class ThresholdNode extends ProcessingNode {
     public void setTypeIndex(int v) { typeIndex = v; }
     public int getModifierIndex() { return modifierIndex; }
     public void setModifierIndex(int v) { modifierIndex = v; }
+    public double getReturnedThreshold() { return returnedThreshold; }
+    public void setReturnedThreshold(double v) { returnedThreshold = v; }
 
     @Override
     public Mat process(Mat input) {
