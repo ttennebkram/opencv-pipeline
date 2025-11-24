@@ -652,6 +652,7 @@ public class PipelineEditor {
                             if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
                             if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
                             if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
+                            if (nodeObj.has("circleRadius")) sn.setCircleRadius(nodeObj.get("circleRadius").getAsInt());
                             if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
                             if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
@@ -671,7 +672,7 @@ public class PipelineEditor {
                             if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
                         }
                         // InvertNode has no properties to load
-                        node.setOnChanged(() -> executePipeline());
+                        node.setOnChanged(() -> { markDirty(); executePipeline(); });
                         nodes.add(node);
                     }
                 }
@@ -970,6 +971,7 @@ public class PipelineEditor {
                         nodeObj.addProperty("y1", sn.getY1());
                         nodeObj.addProperty("x2", sn.getX2());
                         nodeObj.addProperty("y2", sn.getY2());
+                        nodeObj.addProperty("circleRadius", sn.getCircleRadius());
                         nodeObj.addProperty("colorR", sn.getColorR());
                         nodeObj.addProperty("colorG", sn.getColorG());
                         nodeObj.addProperty("colorB", sn.getColorB());
@@ -1209,6 +1211,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
                                 if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
                                 if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
+                                if (nodeObj.has("circleRadius")) sn.setCircleRadius(nodeObj.get("circleRadius").getAsInt());
                                 if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
                                 if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
                                 if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
@@ -1228,7 +1231,7 @@ public class PipelineEditor {
                                 if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
                             }
                             // InvertNode has no properties to load
-                            node.setOnChanged(() -> executePipeline());
+                            node.setOnChanged(() -> { markDirty(); executePipeline(); });
                             nodes.add(node);
                         }
                     }
