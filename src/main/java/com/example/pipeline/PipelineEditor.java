@@ -58,6 +58,7 @@ public class PipelineEditor {
         NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
         NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
         NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
+        NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
 
         // Blur nodes
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
@@ -617,6 +618,15 @@ public class PipelineEditor {
                                 }
                                 f2d.setKernelValues(values);
                             }
+                        } else if (node instanceof MorphologyExNode) {
+                            MorphologyExNode men = (MorphologyExNode) node;
+                            if (nodeObj.has("operationIndex")) men.setOperationIndex(nodeObj.get("operationIndex").getAsInt());
+                            if (nodeObj.has("shapeIndex")) men.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
+                            if (nodeObj.has("kernelWidth")) men.setKernelWidth(nodeObj.get("kernelWidth").getAsInt());
+                            if (nodeObj.has("kernelHeight")) men.setKernelHeight(nodeObj.get("kernelHeight").getAsInt());
+                            if (nodeObj.has("iterations")) men.setIterations(nodeObj.get("iterations").getAsInt());
+                            if (nodeObj.has("anchorX")) men.setAnchorX(nodeObj.get("anchorX").getAsInt());
+                            if (nodeObj.has("anchorY")) men.setAnchorY(nodeObj.get("anchorY").getAsInt());
                         } else if (node instanceof BitPlanesGrayscaleNode) {
                             BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
                             if (nodeObj.has("bitEnabled")) {
@@ -1014,6 +1024,15 @@ public class PipelineEditor {
                             }
                         }
                         nodeObj.add("kernelValues", kernelArray);
+                    } else if (node instanceof MorphologyExNode) {
+                        MorphologyExNode men = (MorphologyExNode) node;
+                        nodeObj.addProperty("operationIndex", men.getOperationIndex());
+                        nodeObj.addProperty("shapeIndex", men.getShapeIndex());
+                        nodeObj.addProperty("kernelWidth", men.getKernelWidth());
+                        nodeObj.addProperty("kernelHeight", men.getKernelHeight());
+                        nodeObj.addProperty("iterations", men.getIterations());
+                        nodeObj.addProperty("anchorX", men.getAnchorX());
+                        nodeObj.addProperty("anchorY", men.getAnchorY());
                     } else if (node instanceof BitPlanesGrayscaleNode) {
                         BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
                         JsonArray enabledArray = new JsonArray();
@@ -3381,6 +3400,8 @@ public class PipelineEditor {
                 return "MorphOpen";
             case "Morph Close":
                 return "MorphClose";
+            case "Gradient/MorphX":
+                return "MorphologyEx";
 
             // Detection
             case "Hough Circles":

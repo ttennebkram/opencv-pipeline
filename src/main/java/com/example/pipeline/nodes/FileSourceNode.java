@@ -21,6 +21,7 @@ import java.io.File;
 public class FileSourceNode extends SourceNode {
     private String imagePath = null;
     private Mat loadedImage = null;
+    private Canvas canvas;
 
     // Video support
     private VideoCapture videoCapture = null;
@@ -46,6 +47,7 @@ public class FileSourceNode extends SourceNode {
     public FileSourceNode(Shell shell, Display display, Canvas canvas, int x, int y) {
         this.shell = shell;
         this.display = display;
+        this.canvas = canvas;
         this.x = x;
         this.y = y;
         this.height = SOURCE_NODE_HEIGHT;
@@ -79,6 +81,9 @@ public class FileSourceNode extends SourceNode {
         if (path != null) {
             imagePath = path;
             loadMedia(path);
+            if (canvas != null && !canvas.isDisposed()) {
+                canvas.redraw();
+            }
         }
     }
 
@@ -355,6 +360,16 @@ public class FileSourceNode extends SourceNode {
 
     public Mat getLoadedImage() {
         return loadedImage;
+    }
+
+    @Override
+    public Mat getOutputMat() {
+        // Return loadedImage if outputMat is not set (for static images before pipeline runs)
+        Mat mat = super.getOutputMat();
+        if ((mat == null || mat.empty()) && loadedImage != null && !loadedImage.empty()) {
+            return loadedImage;
+        }
+        return mat;
     }
 
     @Override

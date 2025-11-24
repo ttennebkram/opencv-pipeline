@@ -212,15 +212,16 @@ public class Filter2DNode extends ProcessingNode {
         // Predefined Kernels label
         Label presetLabel = new Label(dialog, SWT.NONE);
         presetLabel.setText("Predefined Kernels:");
-        presetLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+        presetLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
 
         // Preset buttons
         Composite presetComp = new Composite(dialog, SWT.NONE);
-        presetComp.setLayout(new GridLayout(4, true));
+        presetComp.setLayout(new GridLayout(3, true));
         presetComp.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
 
         Button identityBtn = new Button(presetComp, SWT.PUSH);
         identityBtn.setText("Identity");
+        identityBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         identityBtn.addListener(SWT.Selection, e -> {
             int size = currentSize[0];
             for (int i = 0; i < size; i++) {
@@ -231,32 +232,17 @@ public class Filter2DNode extends ProcessingNode {
         });
 
         Button sharpenBtn = new Button(presetComp, SWT.PUSH);
-        sharpenBtn.setText("Sharpen");
+        sharpenBtn.setText("Sharpen/Edge");
+        sharpenBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         sharpenBtn.addListener(SWT.Selection, e -> {
             int size = currentSize[0];
             int center = size / 2;
+            // Count cross neighbors (same row or column as center, excluding center)
+            int neighbors = (size - 1) * 2;
             for (int i = 0; i < size; i++) {
                 for (int j = 0; j < size; j++) {
                     if (i == center && j == center) {
-                        kernelFields[i][j].setText(String.valueOf(size * size));
-                    } else if (i == center || j == center) {
-                        kernelFields[i][j].setText("-1");
-                    } else {
-                        kernelFields[i][j].setText("0");
-                    }
-                }
-            }
-        });
-
-        Button edgeBtn = new Button(presetComp, SWT.PUSH);
-        edgeBtn.setText("Edge");
-        edgeBtn.addListener(SWT.Selection, e -> {
-            int size = currentSize[0];
-            int center = size / 2;
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j < size; j++) {
-                    if (i == center && j == center) {
-                        kernelFields[i][j].setText(String.valueOf((size - 1) * 4));
+                        kernelFields[i][j].setText(String.valueOf(neighbors + 1));
                     } else if (i == center || j == center) {
                         kernelFields[i][j].setText("-1");
                     } else {
@@ -268,6 +254,7 @@ public class Filter2DNode extends ProcessingNode {
 
         Button boxBtn = new Button(presetComp, SWT.PUSH);
         boxBtn.setText("Box Blur");
+        boxBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         boxBtn.addListener(SWT.Selection, e -> {
             int size = currentSize[0];
             for (int i = 0; i < size; i++) {
