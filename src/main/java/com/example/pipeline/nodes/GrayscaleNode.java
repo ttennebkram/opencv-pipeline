@@ -24,7 +24,7 @@ public class GrayscaleNode extends ProcessingNode {
     private int conversionIndex = 0;
 
     public GrayscaleNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Color Convert", x, y);
+        super(display, shell, "Grayscale/Color Convert", x, y);
     }
 
     // Getters/setters for serialization
@@ -56,7 +56,7 @@ public class GrayscaleNode extends ProcessingNode {
 
     @Override
     public String getDisplayName() {
-        return "Grayscale/Color";
+        return "Grayscale/Color Convert";
     }
 
     @Override

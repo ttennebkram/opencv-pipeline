@@ -88,7 +88,7 @@ public class EllipseNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Draw";
+        return "Content";
     }
 
     @Override

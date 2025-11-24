@@ -87,8 +87,10 @@ public class PipelineEditor {
         NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
 
         // Filter nodes
+        NodeRegistry.register("BitwiseNot", "Filter", BitwiseNotNode.class);
         NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
-        NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
+        NodeRegistry.register("FFTHighPass", "Filter", FFTHighPassFilterNode.class);
+        NodeRegistry.register("FFTLowPass", "Filter", FFTLowPassFilterNode.class);
 
         // Detection nodes
         NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
@@ -101,15 +103,16 @@ public class PipelineEditor {
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
         NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
 
-        // Draw nodes
-        NodeRegistry.register("Rectangle", "Draw", RectangleNode.class);
-        NodeRegistry.register("Circle", "Draw", CircleNode.class);
-        NodeRegistry.register("Ellipse", "Draw", EllipseNode.class);
-        NodeRegistry.register("Line", "Draw", LineNode.class);
-        NodeRegistry.register("Arrow", "Draw", ArrowNode.class);
-
-        // Content nodes
+        // Content nodes (shapes and text)
+        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
+        NodeRegistry.register("Circle", "Content", CircleNode.class);
+        NodeRegistry.register("Ellipse", "Content", EllipseNode.class);
+        NodeRegistry.register("Line", "Content", LineNode.class);
+        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
         NodeRegistry.register("Text", "Content", TextNode.class);
+
+        // Visualization nodes
+        NodeRegistry.register("Histogram", "Visualization", HistogramNode.class);
 
         // Register aliases for backward compatibility with renamed nodes
         NodeRegistry.registerAlias("Canny Edge", "CannyEdge");
@@ -128,7 +131,15 @@ public class PipelineEditor {
         NodeRegistry.registerAlias("Connected Components", "ConnectedComponents");
         NodeRegistry.registerAlias("Color In Range", "ColorInRange");
         NodeRegistry.registerAlias("Bilateral Filter", "BilateralFilter");
+        NodeRegistry.registerAlias("Box Blur", "BoxBlur");
+        NodeRegistry.registerAlias("Gaussian Blur", "GaussianBlur");
+        NodeRegistry.registerAlias("Median Blur", "MedianBlur");
         NodeRegistry.registerAlias("Mean Shift", "MeanShift");
+        NodeRegistry.registerAlias("Mean Shift Blur", "MeanShift");
+        NodeRegistry.registerAlias("Mean Shift Filter", "MeanShift");
+        NodeRegistry.registerAlias("Unknown: Mean Shift Blur", "MeanShift");
+        NodeRegistry.registerAlias("Grayscale/Color Convert", "Grayscale");
+        NodeRegistry.registerAlias("Unknown: Grayscale/Color Convert", "Grayscale");
         NodeRegistry.registerAlias("Warp Affine", "WarpAffine");
         NodeRegistry.registerAlias("Add Clamp", "AddClamp");
         NodeRegistry.registerAlias("Add Weighted", "AddWeighted");
@@ -136,8 +147,16 @@ public class PipelineEditor {
         NodeRegistry.registerAlias("Bitwise And", "BitwiseAnd");
         NodeRegistry.registerAlias("Bitwise Or", "BitwiseOr");
         NodeRegistry.registerAlias("Bitwise Xor", "BitwiseXor");
+        NodeRegistry.registerAlias("Bitwise NOT", "BitwiseNot");
+        NodeRegistry.registerAlias("BitwiseNOT", "BitwiseNot");
         NodeRegistry.registerAlias("Filter 2D", "Filter2D");
-        NodeRegistry.registerAlias("FFT Filter", "FFTFilter");
+        NodeRegistry.registerAlias("FFT Filter", "FFTHighPass");
+        NodeRegistry.registerAlias("FFT High-Pass Filter", "FFTHighPass");
+        NodeRegistry.registerAlias("Unknown: FFT High-Pass Filter", "FFTHighPass");
+        NodeRegistry.registerAlias("FFTHighPassFilter", "FFTHighPass");
+        NodeRegistry.registerAlias("FFT Low-Pass Filter", "FFTLowPass");
+        NodeRegistry.registerAlias("Unknown: FFT Low-Pass Filter", "FFTLowPass");
+        NodeRegistry.registerAlias("FFTLowPassFilter", "FFTLowPass");
         NodeRegistry.registerAlias("Morphology Ex", "MorphologyEx");
     }
 
@@ -153,6 +172,10 @@ public class PipelineEditor {
     private Combo zoomCombo;
     private double zoomLevel = 1.0; // 1.0 = 100%
     private static final int[] ZOOM_LEVELS = {25, 50, 75, 100, 125, 150, 200, 300, 400};
+
+    // Debounce for node button double-clicks
+    private static final int NODE_BUTTON_DEBOUNCE_MS = 300;
+    private long lastNodeButtonClickTime = 0;
 
     // Convert screen coordinates to canvas coordinates (accounting for zoom)
     private int toCanvasX(int screenX) {
@@ -733,6 +756,7 @@ public class PipelineEditor {
                         } else if (node instanceof HarrisCornersNode) {
                             HarrisCornersNode harn = (HarrisCornersNode) node;
                             if (nodeObj.has("showOriginal")) harn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
+                            if (nodeObj.has("drawFeatures")) harn.setDrawFeatures(nodeObj.get("drawFeatures").getAsBoolean());
                             if (nodeObj.has("blockSize")) harn.setBlockSize(nodeObj.get("blockSize").getAsInt());
                             if (nodeObj.has("ksize")) harn.setKsize(nodeObj.get("ksize").getAsInt());
                             if (nodeObj.has("kPercent")) harn.setKPercent(nodeObj.get("kPercent").getAsInt());
@@ -741,11 +765,35 @@ public class PipelineEditor {
                             if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
                             if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
+                        } else if (node instanceof ShiTomasiCornersNode) {
+                            ShiTomasiCornersNode stc = (ShiTomasiCornersNode) node;
+                            if (nodeObj.has("maxCorners")) stc.setMaxCorners(nodeObj.get("maxCorners").getAsInt());
+                            if (nodeObj.has("qualityLevel")) stc.setQualityLevel(nodeObj.get("qualityLevel").getAsInt());
+                            if (nodeObj.has("minDistance")) stc.setMinDistance(nodeObj.get("minDistance").getAsInt());
+                            if (nodeObj.has("blockSize")) stc.setBlockSize(nodeObj.get("blockSize").getAsInt());
+                            if (nodeObj.has("useHarrisDetector")) stc.setUseHarrisDetector(nodeObj.get("useHarrisDetector").getAsBoolean());
+                            if (nodeObj.has("kPercent")) stc.setKPercent(nodeObj.get("kPercent").getAsInt());
+                            if (nodeObj.has("markerSize")) stc.setMarkerSize(nodeObj.get("markerSize").getAsInt());
+                            if (nodeObj.has("colorR")) stc.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) stc.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) stc.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("drawFeatures")) stc.setDrawFeatures(nodeObj.get("drawFeatures").getAsBoolean());
                         } else if (node instanceof ScharrNode) {
                             ScharrNode sn = (ScharrNode) node;
                             if (nodeObj.has("directionIndex")) sn.setDirectionIndex(nodeObj.get("directionIndex").getAsInt());
                             if (nodeObj.has("scalePercent")) sn.setScalePercent(nodeObj.get("scalePercent").getAsInt());
                             if (nodeObj.has("delta")) sn.setDelta(nodeObj.get("delta").getAsInt());
+                        } else if (node instanceof SobelNode) {
+                            SobelNode sn = (SobelNode) node;
+                            if (nodeObj.has("dx")) sn.setDx(nodeObj.get("dx").getAsInt());
+                            if (nodeObj.has("dy")) sn.setDy(nodeObj.get("dy").getAsInt());
+                            if (nodeObj.has("kernelSizeIndex")) sn.setKernelSizeIndex(nodeObj.get("kernelSizeIndex").getAsInt());
+                        } else if (node instanceof LaplacianNode) {
+                            LaplacianNode ln = (LaplacianNode) node;
+                            if (nodeObj.has("kernelSizeIndex")) ln.setKernelSizeIndex(nodeObj.get("kernelSizeIndex").getAsInt());
+                            if (nodeObj.has("scalePercent")) ln.setScalePercent(nodeObj.get("scalePercent").getAsInt());
+                            if (nodeObj.has("delta")) ln.setDelta(nodeObj.get("delta").getAsInt());
+                            if (nodeObj.has("useAbsolute")) ln.setUseAbsolute(nodeObj.get("useAbsolute").getAsBoolean());
                         } else if (node instanceof GainNode) {
                             GainNode gn = (GainNode) node;
                             if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
@@ -903,7 +951,13 @@ public class PipelineEditor {
                             if (nodeObj.has("colorG")) tn.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) tn.setColorB(nodeObj.get("colorB").getAsInt());
                             if (nodeObj.has("thickness")) tn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("bold")) tn.setBold(nodeObj.get("bold").getAsBoolean());
                             if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
+                        } else if (node instanceof HistogramNode) {
+                            HistogramNode hn = (HistogramNode) node;
+                            if (nodeObj.has("modeIndex")) hn.setModeIndex(nodeObj.get("modeIndex").getAsInt());
+                            if (nodeObj.has("fillBars")) hn.setFillBars(nodeObj.get("fillBars").getAsBoolean());
+                            if (nodeObj.has("lineThickness")) hn.setLineThickness(nodeObj.get("lineThickness").getAsInt());
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> { markDirty(); executePipeline(); });
@@ -1082,7 +1136,11 @@ public class PipelineEditor {
         GridLayout toolbarLayout = new GridLayout(1, false);
         toolbarLayout.verticalSpacing = 0;  // No spacing between buttons
         toolbarLayout.marginHeight = 5;     // Reduce top/bottom margins
-        toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
+
+        // mbennett
+        //toolbarLayout.marginWidth = 5;      // Keep side margins reasonable
+        toolbarLayout.marginWidth = 12;       // 15;
+
         toolbarContent.setLayout(toolbarLayout);
 
         // Set darker green background for toolbar (better text visibility in dark mode)
@@ -1095,7 +1153,7 @@ public class PipelineEditor {
 
         // Inputs section (not from registry)
         Label inputsLabel = new Label(toolbarContent, SWT.NONE);
-        inputsLabel.setText("Inputs:");
+        inputsLabel.setText("Sources:");
         inputsLabel.setFont(boldFont);
 
         createSearchableButton(toolbarContent, "File Source", "Inputs", () -> addFileSourceNode(), inputsLabel, null, true);
@@ -1162,10 +1220,16 @@ public class PipelineEditor {
         btn.setBackground(new Color(160, 160, 160));
         GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         gd.heightHint = btn.computeSize(SWT.DEFAULT, SWT.DEFAULT).y + 2;
+        // no gd.horizontalIndent = 3;  // Add left/right padding inside button area
         btn.setLayoutData(gd);
         btn.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
+                // Debounce to prevent double-click from creating two nodes
+                long now = System.currentTimeMillis();
+                if (now - lastNodeButtonClickTime < NODE_BUTTON_DEBOUNCE_MS) return;
+                lastNodeButtonClickTime = now;
+
                 action.run();
                 // Clear search and show all after adding
                 searchBox.setText("");
@@ -1446,6 +1510,7 @@ public class PipelineEditor {
                     } else if (node instanceof HarrisCornersNode) {
                         HarrisCornersNode harn = (HarrisCornersNode) node;
                         nodeObj.addProperty("showOriginal", harn.getShowOriginal());
+                        nodeObj.addProperty("drawFeatures", harn.isDrawFeatures());
                         nodeObj.addProperty("blockSize", harn.getBlockSize());
                         nodeObj.addProperty("ksize", harn.getKsize());
                         nodeObj.addProperty("kPercent", harn.getKPercent());
@@ -1454,11 +1519,35 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorR", harn.getColorR());
                         nodeObj.addProperty("colorG", harn.getColorG());
                         nodeObj.addProperty("colorB", harn.getColorB());
+                    } else if (node instanceof ShiTomasiCornersNode) {
+                        ShiTomasiCornersNode stc = (ShiTomasiCornersNode) node;
+                        nodeObj.addProperty("maxCorners", stc.getMaxCorners());
+                        nodeObj.addProperty("qualityLevel", stc.getQualityLevel());
+                        nodeObj.addProperty("minDistance", stc.getMinDistance());
+                        nodeObj.addProperty("blockSize", stc.getBlockSize());
+                        nodeObj.addProperty("useHarrisDetector", stc.isUseHarrisDetector());
+                        nodeObj.addProperty("kPercent", stc.getKPercent());
+                        nodeObj.addProperty("markerSize", stc.getMarkerSize());
+                        nodeObj.addProperty("colorR", stc.getColorR());
+                        nodeObj.addProperty("colorG", stc.getColorG());
+                        nodeObj.addProperty("colorB", stc.getColorB());
+                        nodeObj.addProperty("drawFeatures", stc.isDrawFeatures());
                     } else if (node instanceof ScharrNode) {
                         ScharrNode sn = (ScharrNode) node;
                         nodeObj.addProperty("directionIndex", sn.getDirectionIndex());
                         nodeObj.addProperty("scalePercent", sn.getScalePercent());
                         nodeObj.addProperty("delta", sn.getDelta());
+                    } else if (node instanceof SobelNode) {
+                        SobelNode sn = (SobelNode) node;
+                        nodeObj.addProperty("dx", sn.getDx());
+                        nodeObj.addProperty("dy", sn.getDy());
+                        nodeObj.addProperty("kernelSizeIndex", sn.getKernelSizeIndex());
+                    } else if (node instanceof LaplacianNode) {
+                        LaplacianNode ln = (LaplacianNode) node;
+                        nodeObj.addProperty("kernelSizeIndex", ln.getKernelSizeIndex());
+                        nodeObj.addProperty("scalePercent", ln.getScalePercent());
+                        nodeObj.addProperty("delta", ln.getDelta());
+                        nodeObj.addProperty("useAbsolute", ln.isUseAbsolute());
                     } else if (node instanceof GainNode) {
                         GainNode gn = (GainNode) node;
                         nodeObj.addProperty("gain", gn.getGain());
@@ -1600,6 +1689,7 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorG", tn.getColorG());
                         nodeObj.addProperty("colorB", tn.getColorB());
                         nodeObj.addProperty("thickness", tn.getThickness());
+                        nodeObj.addProperty("bold", tn.isBold());
                         nodeObj.addProperty("italic", tn.isItalic());
                     }
                     // InvertNode has no properties to save
@@ -4100,10 +4190,14 @@ public class PipelineEditor {
                 return "BitwiseXor";
 
             // Filter
+            case "Bitwise NOT":
+                return "BitwiseNot";
             case "Filter2D w/Kernel":
                 return "Filter2D";
             case "FFT High-Pass Filter":
                 return "FFTHighPass";
+            case "FFT Low-Pass Filter":
+                return "FFTLowPass";
             case "Bit Planes Grayscale":
                 return "BitPlanesGrayscale";
             case "Bit Planes Color":

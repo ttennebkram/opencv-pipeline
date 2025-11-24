@@ -4,6 +4,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -15,8 +16,8 @@ import org.opencv.imgproc.Imgproc;
  */
 public class SobelNode extends ProcessingNode {
     private static final String[] KERNEL_SIZES = {"1", "3", "5", "7"};
-    private int dx = 1;
-    private int dy = 0;
+    private int dx = 1; // 0, 1, or 3
+    private int dy = 0; // 0, 1, or 3
     private int kernelSizeIndex = 1; // Default to 3
 
     public SobelNode(Display display, Shell shell, int x, int y) {
@@ -48,46 +49,21 @@ public class SobelNode extends ProcessingNode {
 
         int ksize = Integer.parseInt(KERNEL_SIZES[kernelSizeIndex]);
 
-        // Compute gradients
-        Mat gradX = new Mat();
-        Mat gradY = new Mat();
+        // Apply Sobel with dx and dy values
+        Mat sobel = new Mat();
+        Imgproc.Sobel(gray, sobel, CvType.CV_64F, dx, dy, ksize);
 
-        if (dx > 0) {
-            Imgproc.Sobel(gray, gradX, CvType.CV_64F, dx, 0, ksize);
-        }
-        if (dy > 0) {
-            Imgproc.Sobel(gray, gradY, CvType.CV_64F, 0, dy, ksize);
-        }
-
-        Mat result;
-        if (dx > 0 && dy > 0) {
-            // Combine both gradients
-            Mat absX = new Mat();
-            Mat absY = new Mat();
-            Core.convertScaleAbs(gradX, absX);
-            Core.convertScaleAbs(gradY, absY);
-            result = new Mat();
-            Core.addWeighted(absX, 0.5, absY, 0.5, 0, result);
-            absX.release();
-            absY.release();
-        } else if (dx > 0) {
-            result = new Mat();
-            Core.convertScaleAbs(gradX, result);
-        } else {
-            result = new Mat();
-            Core.convertScaleAbs(gradY, result);
-        }
+        Mat result = new Mat();
+        Core.convertScaleAbs(sobel, result);
+        sobel.release();
 
         // Convert back to BGR for display
         Mat output = new Mat();
         Imgproc.cvtColor(result, output, Imgproc.COLOR_GRAY2BGR);
 
-        // Clean up
         if (gray != input) {
             gray.release();
         }
-        if (!gradX.empty()) gradX.release();
-        if (!gradY.empty()) gradY.release();
         result.release();
 
         return output;
@@ -111,71 +87,90 @@ public class SobelNode extends ProcessingNode {
     @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Sobel Properties");
-        dialog.setLayout(new GridLayout(3, false));
+        dialog.setText("Sobel Edge Properties");
+        dialog.setLayout(new GridLayout(2, false));
 
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 3;
+        sigGd.horizontalSpan = 2;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 3;
+        sepGd.horizontalSpan = 2;
         sep.setLayoutData(sepGd);
 
-        // dx
-        new Label(dialog, SWT.NONE).setText("dx (X derivative):");
-        Scale dxScale = new Scale(dialog, SWT.HORIZONTAL);
-        dxScale.setMinimum(0);
-        dxScale.setMaximum(2);
-        dxScale.setSelection(dx);
-        dxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        // dx radio buttons
+        new Label(dialog, SWT.NONE).setText("dx:");
+        Composite dxComp = new Composite(dialog, SWT.NONE);
+        RowLayout dxLayout = new RowLayout(SWT.HORIZONTAL);
+        dxLayout.spacing = 10;
+        dxComp.setLayout(dxLayout);
 
-        Label dxLabel = new Label(dialog, SWT.NONE);
-        dxLabel.setText(String.valueOf(dx));
-        dxScale.addListener(SWT.Selection, e -> dxLabel.setText(String.valueOf(dxScale.getSelection())));
+        Button dx0 = new Button(dxComp, SWT.RADIO);
+        dx0.setText("0");
+        dx0.setSelection(dx == 0);
 
-        // dy
-        new Label(dialog, SWT.NONE).setText("dy (Y derivative):");
-        Scale dyScale = new Scale(dialog, SWT.HORIZONTAL);
-        dyScale.setMinimum(0);
-        dyScale.setMaximum(2);
-        dyScale.setSelection(dy);
-        dyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        Button dx1 = new Button(dxComp, SWT.RADIO);
+        dx1.setText("1");
+        dx1.setSelection(dx == 1);
 
-        Label dyLabel = new Label(dialog, SWT.NONE);
-        dyLabel.setText(String.valueOf(dy));
-        dyScale.addListener(SWT.Selection, e -> dyLabel.setText(String.valueOf(dyScale.getSelection())));
+        Button dx3 = new Button(dxComp, SWT.RADIO);
+        dx3.setText("3");
+        dx3.setSelection(dx == 3);
+
+        // dy radio buttons
+        new Label(dialog, SWT.NONE).setText("dy:");
+        Composite dyComp = new Composite(dialog, SWT.NONE);
+        RowLayout dyLayout = new RowLayout(SWT.HORIZONTAL);
+        dyLayout.spacing = 10;
+        dyComp.setLayout(dyLayout);
+
+        Button dy0 = new Button(dyComp, SWT.RADIO);
+        dy0.setText("0");
+        dy0.setSelection(dy == 0);
+
+        Button dy1 = new Button(dyComp, SWT.RADIO);
+        dy1.setText("1");
+        dy1.setSelection(dy == 1);
+
+        Button dy3 = new Button(dyComp, SWT.RADIO);
+        dy3.setText("3");
+        dy3.setSelection(dy == 3);
 
         // Kernel Size
         new Label(dialog, SWT.NONE).setText("Kernel Size:");
         Combo ksizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
         ksizeCombo.setItems(KERNEL_SIZES);
         ksizeCombo.select(kernelSizeIndex);
-        GridData comboGd = new GridData(SWT.FILL, SWT.CENTER, false, false);
-        comboGd.horizontalSpan = 2;
-        ksizeCombo.setLayoutData(comboGd);
 
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
         GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 3;
+        gd.horizontalSpan = 2;
         buttonComp.setLayoutData(gd);
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
-            dx = dxScale.getSelection();
-            dy = dyScale.getSelection();
-            // Ensure at least one derivative is non-zero
-            if (dx == 0 && dy == 0) {
+            if (dx0.getSelection()) {
+                dx = 0;
+            } else if (dx1.getSelection()) {
                 dx = 1;
+            } else {
+                dx = 3;
+            }
+            if (dy0.getSelection()) {
+                dy = 0;
+            } else if (dy1.getSelection()) {
+                dy = 1;
+            } else {
+                dy = 3;
             }
             kernelSizeIndex = ksizeCombo.getSelectionIndex();
             dialog.dispose();

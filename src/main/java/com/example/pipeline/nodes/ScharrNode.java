@@ -111,7 +111,7 @@ public class ScharrNode extends ProcessingNode {
     @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Scharr Properties");
+        dialog.setText("Scharr Edge Properties");
         dialog.setLayout(new GridLayout(2, false));
 
         Label sigLabel = new Label(dialog, SWT.NONE);
@@ -136,7 +136,9 @@ public class ScharrNode extends ProcessingNode {
         Scale scaleScale = new Scale(dialog, SWT.HORIZONTAL);
         scaleScale.setMinimum(10);
         scaleScale.setMaximum(500);
-        scaleScale.setSelection(scalePercent);
+        // Clamp slider position to valid range, but keep actual value
+        int scaleSliderPos = Math.min(Math.max(scalePercent, 10), 500);
+        scaleScale.setSelection(scaleSliderPos);
         scaleScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         // Delta
@@ -144,7 +146,9 @@ public class ScharrNode extends ProcessingNode {
         Scale deltaScale = new Scale(dialog, SWT.HORIZONTAL);
         deltaScale.setMinimum(0);
         deltaScale.setMaximum(255);
-        deltaScale.setSelection(delta);
+        // Clamp slider position to valid range, but keep actual value
+        int deltaSliderPos = Math.min(Math.max(delta, 0), 255);
+        deltaScale.setSelection(deltaSliderPos);
         deltaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Composite buttonComp = new Composite(dialog, SWT.NONE);

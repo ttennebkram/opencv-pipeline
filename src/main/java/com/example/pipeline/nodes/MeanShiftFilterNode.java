@@ -17,7 +17,7 @@ public class MeanShiftFilterNode extends ProcessingNode {
     private int maxLevel = 1;
 
     public MeanShiftFilterNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Mean Shift", x, y);
+        super(display, shell, "Mean Shift Blur", x, y);
     }
 
     // Getters/setters for serialization

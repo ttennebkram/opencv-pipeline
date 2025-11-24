@@ -154,11 +154,13 @@ public class MorphologyExNode extends ProcessingNode {
         Scale widthScale = new Scale(widthComp, SWT.HORIZONTAL);
         widthScale.setMinimum(1);
         widthScale.setMaximum(31);
-        widthScale.setSelection(kernelWidth);
+        // Clamp slider position to valid range, but keep actual value
+        int widthSliderPos = Math.min(Math.max(kernelWidth, 1), 31);
+        widthScale.setSelection(widthSliderPos);
         widthScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label widthLabel = new Label(widthComp, SWT.NONE);
-        widthLabel.setText(String.valueOf(kernelWidth));
+        widthLabel.setText(String.valueOf(kernelWidth)); // Show real value
         widthScale.addListener(SWT.Selection, e -> widthLabel.setText(String.valueOf(widthScale.getSelection())));
 
         // Kernel height
@@ -170,11 +172,13 @@ public class MorphologyExNode extends ProcessingNode {
         Scale heightScale = new Scale(heightComp, SWT.HORIZONTAL);
         heightScale.setMinimum(1);
         heightScale.setMaximum(31);
-        heightScale.setSelection(kernelHeight);
+        // Clamp slider position to valid range, but keep actual value
+        int heightSliderPos = Math.min(Math.max(kernelHeight, 1), 31);
+        heightScale.setSelection(heightSliderPos);
         heightScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label heightLabel = new Label(heightComp, SWT.NONE);
-        heightLabel.setText(String.valueOf(kernelHeight));
+        heightLabel.setText(String.valueOf(kernelHeight)); // Show real value
         heightScale.addListener(SWT.Selection, e -> heightLabel.setText(String.valueOf(heightScale.getSelection())));
 
         // Iterations
@@ -186,11 +190,13 @@ public class MorphologyExNode extends ProcessingNode {
         Scale iterScale = new Scale(iterComp, SWT.HORIZONTAL);
         iterScale.setMinimum(1);
         iterScale.setMaximum(20);
-        iterScale.setSelection(iterations);
+        // Clamp slider position to valid range, but keep actual value
+        int iterSliderPos = Math.min(Math.max(iterations, 1), 20);
+        iterScale.setSelection(iterSliderPos);
         iterScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label iterLabel = new Label(iterComp, SWT.NONE);
-        iterLabel.setText(String.valueOf(iterations));
+        iterLabel.setText(String.valueOf(iterations)); // Show real value
         iterScale.addListener(SWT.Selection, e -> iterLabel.setText(String.valueOf(iterScale.getSelection())));
 
         // Anchor X

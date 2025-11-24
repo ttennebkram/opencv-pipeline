@@ -77,7 +77,7 @@ public class CircleNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Draw";
+        return "Content";
     }
 
     @Override

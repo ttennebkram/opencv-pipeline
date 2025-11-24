@@ -18,8 +18,11 @@ public class ShiTomasiCornersNode extends ProcessingNode {
     private int qualityLevel = 1; // 0.01 * 100
     private int minDistance = 10;
     private int blockSize = 3;
+    private boolean useHarrisDetector = false;
+    private int kPercent = 4; // 0.04 * 100
     private int markerSize = 5;
     private int colorR = 0, colorG = 255, colorB = 0;
+    private boolean drawFeatures = true;
 
     public ShiTomasiCornersNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Shi-Tomasi Corners", x, y);
@@ -34,6 +37,10 @@ public class ShiTomasiCornersNode extends ProcessingNode {
     public void setMinDistance(int v) { minDistance = v; }
     public int getBlockSize() { return blockSize; }
     public void setBlockSize(int v) { blockSize = v; }
+    public boolean isUseHarrisDetector() { return useHarrisDetector; }
+    public void setUseHarrisDetector(boolean v) { useHarrisDetector = v; }
+    public int getKPercent() { return kPercent; }
+    public void setKPercent(int v) { kPercent = v; }
     public int getMarkerSize() { return markerSize; }
     public void setMarkerSize(int v) { markerSize = v; }
     public int getColorR() { return colorR; }
@@ -42,6 +49,8 @@ public class ShiTomasiCornersNode extends ProcessingNode {
     public void setColorG(int v) { colorG = v; }
     public int getColorB() { return colorB; }
     public void setColorB(int v) { colorB = v; }
+    public boolean isDrawFeatures() { return drawFeatures; }
+    public void setDrawFeatures(boolean v) { drawFeatures = v; }
 
     @Override
     public Mat process(Mat input) {
@@ -66,13 +75,16 @@ public class ShiTomasiCornersNode extends ProcessingNode {
         // Detect corners using goodFeaturesToTrack
         MatOfPoint corners = new MatOfPoint();
         double quality = qualityLevel / 100.0;
-        Imgproc.goodFeaturesToTrack(gray, corners, maxCorners, quality, minDistance, new Mat(), blockSize, false, 0.04);
+        double k = kPercent / 100.0;
+        Imgproc.goodFeaturesToTrack(gray, corners, maxCorners, quality, minDistance, new Mat(), blockSize, useHarrisDetector, k);
 
         // Draw corners
-        Scalar color = new Scalar(colorB, colorG, colorR);
-        org.opencv.core.Point[] cornerArray = corners.toArray();
-        for (org.opencv.core.Point corner : cornerArray) {
-            Imgproc.circle(result, corner, markerSize, color, -1);
+        if (drawFeatures) {
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            org.opencv.core.Point[] cornerArray = corners.toArray();
+            for (org.opencv.core.Point corner : cornerArray) {
+                Imgproc.circle(result, corner, markerSize, color, -1);
+            }
         }
 
         return result;
@@ -106,6 +118,14 @@ public class ShiTomasiCornersNode extends ProcessingNode {
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         sigGd.horizontalSpan = 3;
         sigLabel.setLayoutData(sigGd);
+
+        // Draw Features checkbox
+        Button drawFeaturesBtn = new Button(dialog, SWT.CHECK);
+        drawFeaturesBtn.setText("Draw Features");
+        drawFeaturesBtn.setSelection(drawFeatures);
+        GridData drawGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        drawGd.horizontalSpan = 3;
+        drawFeaturesBtn.setLayoutData(drawGd);
 
         // Max Corners
         new Label(dialog, SWT.NONE).setText("Max Corners:");
@@ -151,6 +171,25 @@ public class ShiTomasiCornersNode extends ProcessingNode {
         blockLabel.setText(String.valueOf(blockSize));
         blockScale.addListener(SWT.Selection, e -> blockLabel.setText(String.valueOf(blockScale.getSelection())));
 
+        // Use Harris Detector checkbox
+        new Label(dialog, SWT.NONE).setText("Use Harris:");
+        Button harrisCheck = new Button(dialog, SWT.CHECK);
+        harrisCheck.setSelection(useHarrisDetector);
+        GridData harrisGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+        harrisGd.horizontalSpan = 2;
+        harrisCheck.setLayoutData(harrisGd);
+
+        // k parameter (Harris free parameter)
+        new Label(dialog, SWT.NONE).setText("k (%):");
+        Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
+        kScale.setMinimum(1);
+        kScale.setMaximum(10);
+        kScale.setSelection(kPercent);
+        kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
+        Label kLabel = new Label(dialog, SWT.NONE);
+        kLabel.setText(String.valueOf(kPercent));
+        kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
+
         // Marker Size
         new Label(dialog, SWT.NONE).setText("Marker Size:");
         Scale markerScale = new Scale(dialog, SWT.HORIZONTAL);
@@ -171,10 +210,13 @@ public class ShiTomasiCornersNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
+            drawFeatures = drawFeaturesBtn.getSelection();
             maxCorners = maxScale.getSelection();
             qualityLevel = qualScale.getSelection();
             minDistance = distScale.getSelection();
             blockSize = blockScale.getSelection();
+            useHarrisDetector = harrisCheck.getSelection();
+            kPercent = kScale.getSelection();
             markerSize = markerScale.getSelection();
             dialog.dispose();
             notifyChanged();

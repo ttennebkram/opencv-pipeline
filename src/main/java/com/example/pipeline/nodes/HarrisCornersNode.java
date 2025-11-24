@@ -16,6 +16,7 @@ import org.opencv.imgproc.Imgproc;
  */
 public class HarrisCornersNode extends ProcessingNode {
     private boolean showOriginal = true;
+    private boolean drawFeatures = true;
     private int blockSize = 2;
     private int ksize = 3;
     private int kPercent = 4; // 0.04 * 100 - Harris free parameter
@@ -30,6 +31,8 @@ public class HarrisCornersNode extends ProcessingNode {
     // Getters/setters for serialization
     public boolean getShowOriginal() { return showOriginal; }
     public void setShowOriginal(boolean v) { showOriginal = v; }
+    public boolean isDrawFeatures() { return drawFeatures; }
+    public void setDrawFeatures(boolean v) { drawFeatures = v; }
     public int getBlockSize() { return blockSize; }
     public void setBlockSize(int v) { blockSize = v; }
     public int getKsize() { return ksize; }
@@ -88,13 +91,15 @@ public class HarrisCornersNode extends ProcessingNode {
         }
 
         // Find and draw corners
-        Scalar color = new Scalar(colorB, colorG, colorR);
-        double threshold = thresholdPercent * 2.55; // Convert percent to 0-255 range
+        if (drawFeatures) {
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            double threshold = thresholdPercent * 2.55; // Convert percent to 0-255 range
 
-        for (int i = 0; i < harrisNormScaled.rows(); i++) {
-            for (int j = 0; j < harrisNormScaled.cols(); j++) {
-                if (harrisNormScaled.get(i, j)[0] > threshold) {
-                    Imgproc.circle(result, new org.opencv.core.Point(j, i), markerSize, color, -1);
+            for (int i = 0; i < harrisNormScaled.rows(); i++) {
+                for (int j = 0; j < harrisNormScaled.cols(); j++) {
+                    if (harrisNormScaled.get(i, j)[0] > threshold) {
+                        Imgproc.circle(result, new org.opencv.core.Point(j, i), markerSize, color, -1);
+                    }
                 }
             }
         }
@@ -152,19 +157,29 @@ public class HarrisCornersNode extends ProcessingNode {
         showGd.horizontalSpan = 3;
         showOrigBtn.setLayoutData(showGd);
 
+        // Draw Features checkbox
+        Button drawFeaturesBtn = new Button(dialog, SWT.CHECK);
+        drawFeaturesBtn.setText("Draw Features");
+        drawFeaturesBtn.setSelection(drawFeatures);
+        GridData drawGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        drawGd.horizontalSpan = 3;
+        drawFeaturesBtn.setLayoutData(drawGd);
+
         // Block Size
         new Label(dialog, SWT.NONE).setText("Block Size:");
         Scale blockScale = new Scale(dialog, SWT.HORIZONTAL);
         blockScale.setMinimum(2);
         blockScale.setMaximum(10);
-        blockScale.setSelection(blockSize);
+        // Clamp slider position to valid range, but keep actual value
+        int blockSliderPos = Math.min(Math.max(blockSize, 2), 10);
+        blockScale.setSelection(blockSliderPos);
         blockScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label blockLabel = new Label(dialog, SWT.NONE);
-        blockLabel.setText(String.valueOf(blockSize));
+        blockLabel.setText(String.valueOf(blockSize)); // Show real value
         blockScale.addListener(SWT.Selection, e -> blockLabel.setText(String.valueOf(blockScale.getSelection())));
 
         // Aperture Size (ksize)
-        new Label(dialog, SWT.NONE).setText("Aperture Size:");
+        new Label(dialog, SWT.NONE).setText("Kernel/Aperture Size:");
         Combo ksizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
         ksizeCombo.setItems(new String[]{"3", "5", "7"});
         ksizeCombo.select(ksize == 3 ? 0 : (ksize == 5 ? 1 : 2));
@@ -177,10 +192,12 @@ public class HarrisCornersNode extends ProcessingNode {
         Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
         kScale.setMinimum(1);
         kScale.setMaximum(10);
-        kScale.setSelection(kPercent);
+        // Clamp slider position to valid range, but keep actual value
+        int kSliderPos = Math.min(Math.max(kPercent, 1), 10);
+        kScale.setSelection(kSliderPos);
         kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label kLabel = new Label(dialog, SWT.NONE);
-        kLabel.setText(String.valueOf(kPercent));
+        kLabel.setText(String.valueOf(kPercent)); // Show real value
         kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
 
         // Threshold
@@ -188,10 +205,12 @@ public class HarrisCornersNode extends ProcessingNode {
         Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
         threshScale.setMinimum(1);
         threshScale.setMaximum(100);
-        threshScale.setSelection(thresholdPercent);
+        // Clamp slider position to valid range, but keep actual value
+        int threshSliderPos = Math.min(Math.max(thresholdPercent, 1), 100);
+        threshScale.setSelection(threshSliderPos);
         threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label threshLabel = new Label(dialog, SWT.NONE);
-        threshLabel.setText(String.valueOf(thresholdPercent));
+        threshLabel.setText(String.valueOf(thresholdPercent)); // Show real value
         threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
 
         // Marker Size
@@ -199,10 +218,12 @@ public class HarrisCornersNode extends ProcessingNode {
         Scale markerScale = new Scale(dialog, SWT.HORIZONTAL);
         markerScale.setMinimum(1);
         markerScale.setMaximum(15);
-        markerScale.setSelection(markerSize);
+        // Clamp slider position to valid range, but keep actual value
+        int markerSliderPos = Math.min(Math.max(markerSize, 1), 15);
+        markerScale.setSelection(markerSliderPos);
         markerScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label markerLabel = new Label(dialog, SWT.NONE);
-        markerLabel.setText(String.valueOf(markerSize));
+        markerLabel.setText(String.valueOf(markerSize)); // Show real value
         markerScale.addListener(SWT.Selection, e -> markerLabel.setText(String.valueOf(markerScale.getSelection())));
 
         Composite buttonComp = new Composite(dialog, SWT.NONE);
@@ -215,6 +236,7 @@ public class HarrisCornersNode extends ProcessingNode {
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
             showOriginal = showOrigBtn.getSelection();
+            drawFeatures = drawFeaturesBtn.getSelection();
             blockSize = blockScale.getSelection();
             int idx = ksizeCombo.getSelectionIndex();
             ksize = idx == 0 ? 3 : (idx == 1 ? 5 : 7);

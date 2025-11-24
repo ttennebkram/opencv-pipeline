@@ -117,11 +117,13 @@ public class WarpAffineNode extends ProcessingNode {
         Scale txScale = new Scale(dialog, SWT.HORIZONTAL);
         txScale.setMinimum(0);
         txScale.setMaximum(1000);
-        txScale.setSelection(translateX + 500); // Offset to handle negative values
+        // Clamp slider position to valid range, but keep actual value
+        int txSliderPos = Math.min(Math.max(translateX + 500, 0), 1000); // Offset to handle negative values
+        txScale.setSelection(txSliderPos);
         txScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label txLabel = new Label(dialog, SWT.NONE);
-        txLabel.setText(String.valueOf(translateX));
+        txLabel.setText(String.valueOf(translateX)); // Show real value
         txScale.addListener(SWT.Selection, e -> txLabel.setText(String.valueOf(txScale.getSelection() - 500)));
 
         // Translate Y
@@ -129,11 +131,13 @@ public class WarpAffineNode extends ProcessingNode {
         Scale tyScale = new Scale(dialog, SWT.HORIZONTAL);
         tyScale.setMinimum(0);
         tyScale.setMaximum(1000);
-        tyScale.setSelection(translateY + 500); // Offset to handle negative values
+        // Clamp slider position to valid range, but keep actual value
+        int tySliderPos = Math.min(Math.max(translateY + 500, 0), 1000); // Offset to handle negative values
+        tyScale.setSelection(tySliderPos);
         tyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label tyLabel = new Label(dialog, SWT.NONE);
-        tyLabel.setText(String.valueOf(translateY));
+        tyLabel.setText(String.valueOf(translateY)); // Show real value
         tyScale.addListener(SWT.Selection, e -> tyLabel.setText(String.valueOf(tyScale.getSelection() - 500)));
 
         // Rotation (-180 to 180)
@@ -141,11 +145,13 @@ public class WarpAffineNode extends ProcessingNode {
         Scale rotScale = new Scale(dialog, SWT.HORIZONTAL);
         rotScale.setMinimum(0);
         rotScale.setMaximum(360);
-        rotScale.setSelection((int)rotation + 180); // Offset to handle negative values
+        // Clamp slider position to valid range, but keep actual value
+        int rotSliderPos = Math.min(Math.max((int)rotation + 180, 0), 360); // Offset to handle negative values
+        rotScale.setSelection(rotSliderPos);
         rotScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label rotLabel = new Label(dialog, SWT.NONE);
-        rotLabel.setText(String.format("%.0f°", rotation));
+        rotLabel.setText(String.format("%.0f°", rotation)); // Show real value
         rotScale.addListener(SWT.Selection, e -> rotLabel.setText(String.format("%d°", rotScale.getSelection() - 180)));
 
         // Scale (0.1 to 4.0, scaled by 10)
@@ -153,11 +159,13 @@ public class WarpAffineNode extends ProcessingNode {
         Scale scaleScale = new Scale(dialog, SWT.HORIZONTAL);
         scaleScale.setMinimum(1);
         scaleScale.setMaximum(40);
-        scaleScale.setSelection((int)(scale * 10));
+        // Clamp slider position to valid range, but keep actual value
+        int scaleSliderPos = Math.min(Math.max((int)(scale * 10), 1), 40);
+        scaleScale.setSelection(scaleSliderPos);
         scaleScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label scaleLabel = new Label(dialog, SWT.NONE);
-        scaleLabel.setText(String.format("%.1fx", scale));
+        scaleLabel.setText(String.format("%.1fx", scale)); // Show real value
         scaleScale.addListener(SWT.Selection, e -> {
             double val = scaleScale.getSelection() / 10.0;
             scaleLabel.setText(String.format("%.1fx", val));

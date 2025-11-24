@@ -83,11 +83,13 @@ public class GaussianBlurNode extends ProcessingNode {
         Scale kxScale = new Scale(dialog, SWT.HORIZONTAL);
         kxScale.setMinimum(1);
         kxScale.setMaximum(31);
-        kxScale.setSelection(kernelSizeX);
+        // Clamp slider position to valid range, but keep actual value
+        int kxSliderPos = Math.min(Math.max(kernelSizeX, 1), 31);
+        kxScale.setSelection(kxSliderPos);
         kxScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label kxLabel = new Label(dialog, SWT.NONE);
-        kxLabel.setText(String.valueOf(kernelSizeX));
+        kxLabel.setText(String.valueOf(kernelSizeX)); // Show real value
         kxScale.addListener(SWT.Selection, e -> kxLabel.setText(String.valueOf(kxScale.getSelection())));
 
         // Kernel Size Y
@@ -95,11 +97,13 @@ public class GaussianBlurNode extends ProcessingNode {
         Scale kyScale = new Scale(dialog, SWT.HORIZONTAL);
         kyScale.setMinimum(1);
         kyScale.setMaximum(31);
-        kyScale.setSelection(kernelSizeY);
+        // Clamp slider position to valid range, but keep actual value
+        int kySliderPos = Math.min(Math.max(kernelSizeY, 1), 31);
+        kyScale.setSelection(kySliderPos);
         kyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label kyLabel = new Label(dialog, SWT.NONE);
-        kyLabel.setText(String.valueOf(kernelSizeY));
+        kyLabel.setText(String.valueOf(kernelSizeY)); // Show real value
         kyScale.addListener(SWT.Selection, e -> kyLabel.setText(String.valueOf(kyScale.getSelection())));
 
         // Sigma X
@@ -107,11 +111,13 @@ public class GaussianBlurNode extends ProcessingNode {
         Scale sigmaScale = new Scale(dialog, SWT.HORIZONTAL);
         sigmaScale.setMinimum(0);
         sigmaScale.setMaximum(100);
-        sigmaScale.setSelection((int)(sigmaX * 10));
+        // Clamp slider position to valid range, but keep actual value
+        int sigmaSliderPos = Math.min(Math.max((int)(sigmaX * 10), 0), 100);
+        sigmaScale.setSelection(sigmaSliderPos);
         sigmaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label sigmaLabel = new Label(dialog, SWT.NONE);
-        sigmaLabel.setText(sigmaX == 0 ? "0 (auto)" : String.format("%.1f", sigmaX));
+        sigmaLabel.setText(sigmaX == 0 ? "0 (auto)" : String.format("%.1f", sigmaX)); // Show real value
         sigmaScale.addListener(SWT.Selection, e -> {
             double val = sigmaScale.getSelection() / 10.0;
             sigmaLabel.setText(val == 0 ? "0 (auto)" : String.format("%.1f", val));

@@ -25,6 +25,17 @@ public class AddClampNode extends ProcessingNode {
     private Mat lastInput1 = null;
     private Mat lastInput2 = null;
 
+    // Sync mode: when true, only process when BOTH queues have new input
+    protected boolean queuesInSync = false;
+
+    public boolean isQueuesInSync() {
+        return queuesInSync;
+    }
+
+    public void setQueuesInSync(boolean queuesInSync) {
+        this.queuesInSync = queuesInSync;
+    }
+
     public AddClampNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Add w/Clamp", x, y);
     }
@@ -96,7 +107,8 @@ public class AddClampNode extends ProcessingNode {
         processingThread = new Thread(() -> {
             while (running.get()) {
                 try {
-                    boolean gotInput = false;
+                    boolean gotInput1 = false;
+                    boolean gotInput2 = false;
 
                     // Poll both queues for new frames (non-blocking)
                     if (inputQueue != null) {
@@ -104,7 +116,7 @@ public class AddClampNode extends ProcessingNode {
                         if (newInput1 != null) {
                             if (lastInput1 != null) lastInput1.release();
                             lastInput1 = newInput1;
-                            gotInput = true;
+                            gotInput1 = true;
                         }
                     }
 
@@ -113,12 +125,22 @@ public class AddClampNode extends ProcessingNode {
                         if (newInput2 != null) {
                             if (lastInput2 != null) lastInput2.release();
                             lastInput2 = newInput2;
-                            gotInput = true;
+                            gotInput2 = true;
                         }
                     }
 
-                    // Process if we got any new input and have both frames
-                    if (gotInput && lastInput1 != null && lastInput2 != null) {
+                    // Determine if we should process based on sync mode
+                    boolean shouldProcess;
+                    if (queuesInSync) {
+                        // Sync mode: only process when BOTH queues have new input
+                        // But still need both frames to exist (startup condition)
+                        shouldProcess = gotInput1 && gotInput2 && lastInput1 != null && lastInput2 != null;
+                    } else {
+                        // Default mode: process if either queue has new input and both frames exist
+                        shouldProcess = (gotInput1 || gotInput2) && lastInput1 != null && lastInput2 != null;
+                    }
+
+                    if (shouldProcess) {
                         Mat output = processDual(lastInput1, lastInput2);
 
                         if (output != null) {
@@ -129,7 +151,7 @@ public class AddClampNode extends ProcessingNode {
                                 outputQueue.put(output);
                             }
                         }
-                    } else if (!gotInput) {
+                    } else if (!gotInput1 && !gotInput2) {
                         // Small sleep if no input available
                         Thread.sleep(10);
                     }
@@ -249,6 +271,15 @@ public class AddClampNode extends ProcessingNode {
         sigGd.horizontalSpan = 2;
         sigLabel.setLayoutData(sigGd);
 
+        // Queues In Sync checkbox
+        Button syncCheckbox = new Button(dialog, SWT.CHECK);
+        syncCheckbox.setText("Queues In Sync");
+        syncCheckbox.setSelection(queuesInSync);
+        syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
+        GridData syncGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        syncGd.horizontalSpan = 2;
+        syncCheckbox.setLayoutData(syncGd);
+
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(1, true));
@@ -258,7 +289,10 @@ public class AddClampNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
-        okBtn.addListener(SWT.Selection, e -> dialog.dispose());
+        okBtn.addListener(SWT.Selection, e -> {
+            queuesInSync = syncCheckbox.getSelection();
+            dialog.dispose();
+        });
 
         dialog.pack();
         org.eclipse.swt.graphics.Point cursorLoc = shell.getDisplay().getCursorLocation();

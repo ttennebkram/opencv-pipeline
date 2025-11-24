@@ -397,10 +397,12 @@ public class ContoursNode extends ProcessingNode {
         Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
         threshScale.setMinimum(0);
         threshScale.setMaximum(255);
-        threshScale.setSelection(thresholdValue);
+        // Clamp slider position to valid range, but keep actual value
+        int threshSliderPos = Math.min(Math.max(thresholdValue, 0), 255);
+        threshScale.setSelection(threshSliderPos);
         threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label threshLabel = new Label(dialog, SWT.NONE);
-        threshLabel.setText(String.valueOf(thresholdValue));
+        threshLabel.setText(String.valueOf(thresholdValue)); // Show real value
         threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
 
         // Retrieval Mode
@@ -464,10 +466,12 @@ public class ContoursNode extends ProcessingNode {
         Scale thickScale = new Scale(dialog, SWT.HORIZONTAL);
         thickScale.setMinimum(1);
         thickScale.setMaximum(10);
-        thickScale.setSelection(thickness);
+        // Clamp slider position to valid range, but keep actual value
+        int thickSliderPos = Math.min(Math.max(thickness, 1), 10);
+        thickScale.setSelection(thickSliderPos);
         thickScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label thickLabel = new Label(dialog, SWT.NONE);
-        thickLabel.setText(String.valueOf(thickness));
+        thickLabel.setText(String.valueOf(thickness)); // Show real value
         thickScale.addListener(SWT.Selection, e -> thickLabel.setText(String.valueOf(thickScale.getSelection())));
 
         // Buttons

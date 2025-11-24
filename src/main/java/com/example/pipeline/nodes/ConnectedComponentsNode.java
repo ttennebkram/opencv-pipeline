@@ -129,11 +129,13 @@ public class ConnectedComponentsNode extends ProcessingNode {
         Scale thresholdScale = new Scale(dialog, SWT.HORIZONTAL);
         thresholdScale.setMinimum(0);
         thresholdScale.setMaximum(255);
-        thresholdScale.setSelection(threshold);
+        // Clamp slider position to valid range, but keep actual value
+        int thresholdSliderPos = Math.min(Math.max(threshold, 0), 255);
+        thresholdScale.setSelection(thresholdSliderPos);
         thresholdScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label thresholdLabel = new Label(dialog, SWT.NONE);
-        thresholdLabel.setText(String.valueOf(threshold));
+        thresholdLabel.setText(String.valueOf(threshold)); // Show real value
         thresholdScale.addListener(SWT.Selection, e -> thresholdLabel.setText(String.valueOf(thresholdScale.getSelection())));
 
         // Invert Threshold
@@ -158,11 +160,13 @@ public class ConnectedComponentsNode extends ProcessingNode {
         Scale minAreaScale = new Scale(dialog, SWT.HORIZONTAL);
         minAreaScale.setMinimum(0);
         minAreaScale.setMaximum(1000);
-        minAreaScale.setSelection(minArea);
+        // Clamp slider position to valid range, but keep actual value
+        int minAreaSliderPos = Math.min(Math.max(minArea, 0), 1000);
+        minAreaScale.setSelection(minAreaSliderPos);
         minAreaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label minAreaLabel = new Label(dialog, SWT.NONE);
-        minAreaLabel.setText(String.valueOf(minArea));
+        minAreaLabel.setText(String.valueOf(minArea)); // Show real value
         minAreaScale.addListener(SWT.Selection, e -> minAreaLabel.setText(String.valueOf(minAreaScale.getSelection())));
 
         // Buttons

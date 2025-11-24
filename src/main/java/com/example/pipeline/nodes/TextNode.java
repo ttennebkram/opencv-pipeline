@@ -31,8 +31,9 @@ public class TextNode extends ProcessingNode {
     private int posX = 50, posY = 100;
     private int fontIndex = 0;
     private double fontScale = 1.0;
-    private int colorR = 255, colorG = 255, colorB = 255; // White default
+    private int colorR = 0, colorG = 255, colorB = 0; // Green default
     private int thickness = 2;
+    private boolean bold = false;
     private boolean italic = false;
 
     public TextNode(Display display, Shell shell, int x, int y) {
@@ -58,6 +59,8 @@ public class TextNode extends ProcessingNode {
     public void setColorB(int v) { colorB = v; }
     public int getThickness() { return thickness; }
     public void setThickness(int v) { thickness = v; }
+    public boolean isBold() { return bold; }
+    public void setBold(boolean v) { bold = v; }
     public boolean isItalic() { return italic; }
     public void setItalic(boolean v) { italic = v; }
 
@@ -88,8 +91,11 @@ public class TextNode extends ProcessingNode {
         int absX = toAbsoluteX(posX, input.width());
         int absY = toAbsoluteY(posY, input.height());
 
+        // Bold effect: increase thickness
+        int effectiveThickness = bold ? thickness + 1 : thickness;
+
         Imgproc.putText(output, text, new org.opencv.core.Point(absX, absY),
-            font, fontScale, color, thickness);
+            font, fontScale, color, effectiveThickness);
 
         return output;
     }
@@ -199,6 +205,11 @@ public class TextNode extends ProcessingNode {
         thickSpinner.setSelection(thickness);
         thickSpinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+        // Bold checkbox
+        new Label(dialog, SWT.NONE).setText("Bold:");
+        Button boldCheck = new Button(dialog, SWT.CHECK);
+        boldCheck.setSelection(bold);
+
         // Italic checkbox
         new Label(dialog, SWT.NONE).setText("Italic:");
         Button italicCheck = new Button(dialog, SWT.CHECK);
@@ -223,6 +234,7 @@ public class TextNode extends ProcessingNode {
             colorG = gSpinner.getSelection();
             colorB = bSpinner.getSelection();
             thickness = thickSpinner.getSelection();
+            bold = boldCheck.getSelection();
             italic = italicCheck.getSelection();
             dialog.dispose();
             notifyChanged();

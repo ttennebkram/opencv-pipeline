@@ -14,10 +14,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * FFT High-Pass Filter node.
+ * FFT Low-Pass Filter node.
  */
-public class FFTFilterNode extends ProcessingNode {
-    private int radius = 0;
+public class FFTLowPassFilterNode extends ProcessingNode {
+    private int radius = 100;
     private int smoothness = 0;
 
     // Butterworth filter constants
@@ -28,8 +28,8 @@ public class FFTFilterNode extends ProcessingNode {
     private static final double BUTTERWORTH_TARGET_ATTENUATION = 0.03;
     private static final double BUTTERWORTH_DIVISION_EPSILON = 1e-10;
 
-    public FFTFilterNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "FFT High-Pass Filter", x, y);
+    public FFTLowPassFilterNode(Display display, Shell shell, int x, int y) {
+        super(display, shell, "FFT Low-Pass Filter", x, y);
     }
 
     // Getters/setters for serialization
@@ -157,8 +157,8 @@ public class FFTFilterNode extends ProcessingNode {
         Mat mask = new Mat(rows, cols, CvType.CV_32F);
 
         if (radius == 0) {
-            // No filtering - pass everything
-            mask.setTo(new Scalar(1.0));
+            // No filtering - block everything
+            mask.setTo(new Scalar(0.0));
             return mask;
         }
 
@@ -173,10 +173,10 @@ public class FFTFilterNode extends ProcessingNode {
 
                 float value;
                 if (smoothness == 0) {
-                    // Hard circle mask (high-pass)
-                    value = distance <= radius ? 0.0f : 1.0f;
+                    // Hard circle mask (low-pass)
+                    value = distance <= radius ? 1.0f : 0.0f;
                 } else {
-                    // Butterworth highpass filter
+                    // Butterworth lowpass filter
                     double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
                     if (order < BUTTERWORTH_ORDER_MIN) {
                         order = BUTTERWORTH_ORDER_MIN;
@@ -185,7 +185,8 @@ public class FFTFilterNode extends ProcessingNode {
                     double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
                     double effectiveCutoff = radius * shiftFactor;
 
-                    double ratio = effectiveCutoff / (distance + BUTTERWORTH_DIVISION_EPSILON);
+                    // Inverted ratio for low-pass (distance / cutoff instead of cutoff / distance)
+                    double ratio = (distance + BUTTERWORTH_DIVISION_EPSILON) / effectiveCutoff;
                     value = (float) (1.0 / (1.0 + Math.pow(ratio, 2 * order)));
                     value = Math.max(0.0f, Math.min(1.0f, value));
                 }
@@ -200,12 +201,12 @@ public class FFTFilterNode extends ProcessingNode {
 
     @Override
     public String getDescription() {
-        return "FFT High-Pass Filter\nnp.fft.fft2() / np.fft.ifft2()";
+        return "FFT Low-Pass Filter\nnp.fft.fft2() / np.fft.ifft2()";
     }
 
     @Override
     public String getDisplayName() {
-        return "FFT High-Pass";
+        return "FFT Low-Pass";
     }
 
     @Override
@@ -216,7 +217,7 @@ public class FFTFilterNode extends ProcessingNode {
     @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("FFT High-Pass Filter Properties");
+        dialog.setText("FFT Low-Pass Filter Properties");
         dialog.setLayout(new GridLayout(3, false));
 
         // Method signature
@@ -284,3 +285,4 @@ public class FFTFilterNode extends ProcessingNode {
         dialog.open();
     }
 }
+

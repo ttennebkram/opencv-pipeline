@@ -75,11 +75,13 @@ public class MedianBlurNode extends ProcessingNode {
         Scale kScale = new Scale(dialog, SWT.HORIZONTAL);
         kScale.setMinimum(1);
         kScale.setMaximum(31);
-        kScale.setSelection(kernelSize);
+        // Clamp slider position to valid range, but keep actual value
+        int kSliderPos = Math.min(Math.max(kernelSize, 1), 31);
+        kScale.setSelection(kSliderPos);
         kScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label kLabel = new Label(dialog, SWT.NONE);
-        kLabel.setText(String.valueOf(kernelSize));
+        kLabel.setText(String.valueOf(kernelSize)); // Show real value
         kScale.addListener(SWT.Selection, e -> kLabel.setText(String.valueOf(kScale.getSelection())));
 
         // Buttons

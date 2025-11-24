@@ -107,11 +107,13 @@ public class CannyEdgeNode extends ProcessingNode {
         Scale t1Scale = new Scale(dialog, SWT.HORIZONTAL);
         t1Scale.setMinimum(0);
         t1Scale.setMaximum(500);
-        t1Scale.setSelection(threshold1);
+        // Clamp slider position to valid range, but keep actual value
+        int t1SliderPos = Math.min(Math.max(threshold1, 0), 500);
+        t1Scale.setSelection(t1SliderPos);
         t1Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label t1Label = new Label(dialog, SWT.NONE);
-        t1Label.setText(String.valueOf(threshold1));
+        t1Label.setText(String.valueOf(threshold1)); // Show real value
         t1Scale.addListener(SWT.Selection, e -> t1Label.setText(String.valueOf(t1Scale.getSelection())));
 
         // Threshold 2 (upper)
@@ -119,11 +121,13 @@ public class CannyEdgeNode extends ProcessingNode {
         Scale t2Scale = new Scale(dialog, SWT.HORIZONTAL);
         t2Scale.setMinimum(0);
         t2Scale.setMaximum(500);
-        t2Scale.setSelection(threshold2);
+        // Clamp slider position to valid range, but keep actual value
+        int t2SliderPos = Math.min(Math.max(threshold2, 0), 500);
+        t2Scale.setSelection(t2SliderPos);
         t2Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label t2Label = new Label(dialog, SWT.NONE);
-        t2Label.setText(String.valueOf(threshold2));
+        t2Label.setText(String.valueOf(threshold2)); // Show real value
         t2Scale.addListener(SWT.Selection, e -> t2Label.setText(String.valueOf(t2Scale.getSelection())));
 
         // Aperture Size (dropdown)
