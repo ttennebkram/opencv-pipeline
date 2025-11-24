@@ -131,26 +131,46 @@ public class ColorInRangeNode extends ProcessingNode {
         hsvCheck.setLayoutData(checkGd);
 
         // H/B Low
-        new Label(dialog, SWT.NONE).setText(useHSV ? "H Low:" : "B Low:");
+        Label hLowLabelName = new Label(dialog, SWT.NONE);
+        hLowLabelName.setText(useHSV ? "H Low:" : "B Low:");
         Scale hLowScale = new Scale(dialog, SWT.HORIZONTAL);
         hLowScale.setMinimum(0);
-        hLowScale.setMaximum(255);
-        hLowScale.setSelection(hLow);
+        hLowScale.setMaximum(useHSV ? 179 : 255);
+        hLowScale.setSelection(Math.min(hLow, hLowScale.getMaximum()));
         hLowScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label hLowLabel = new Label(dialog, SWT.NONE);
-        hLowLabel.setText(String.valueOf(hLow));
+        hLowLabel.setText(String.valueOf(hLowScale.getSelection()));
         hLowScale.addListener(SWT.Selection, e -> hLowLabel.setText(String.valueOf(hLowScale.getSelection())));
 
         // H/B High
-        new Label(dialog, SWT.NONE).setText(useHSV ? "H High:" : "B High:");
+        Label hHighLabelName = new Label(dialog, SWT.NONE);
+        hHighLabelName.setText(useHSV ? "H High:" : "B High:");
         Scale hHighScale = new Scale(dialog, SWT.HORIZONTAL);
         hHighScale.setMinimum(0);
-        hHighScale.setMaximum(255);
-        hHighScale.setSelection(hHigh);
+        hHighScale.setMaximum(useHSV ? 179 : 255);
+        hHighScale.setSelection(Math.min(hHigh, hHighScale.getMaximum()));
         hHighScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label hHighLabel = new Label(dialog, SWT.NONE);
-        hHighLabel.setText(String.valueOf(hHigh));
+        hHighLabel.setText(String.valueOf(hHighScale.getSelection()));
         hHighScale.addListener(SWT.Selection, e -> hHighLabel.setText(String.valueOf(hHighScale.getSelection())));
+
+        // Update slider maximums when HSV checkbox changes
+        hsvCheck.addListener(SWT.Selection, e -> {
+            boolean isHSV = hsvCheck.getSelection();
+            int hMax = isHSV ? 179 : 255;
+            hLowScale.setMaximum(hMax);
+            hHighScale.setMaximum(hMax);
+            if (hLowScale.getSelection() > hMax) {
+                hLowScale.setSelection(hMax);
+                hLowLabel.setText(String.valueOf(hMax));
+            }
+            if (hHighScale.getSelection() > hMax) {
+                hHighScale.setSelection(hMax);
+                hHighLabel.setText(String.valueOf(hMax));
+            }
+            hLowLabelName.setText(isHSV ? "H Low:" : "B Low:");
+            hHighLabelName.setText(isHSV ? "H High:" : "B High:");
+        });
 
         // S/G Low
         new Label(dialog, SWT.NONE).setText(useHSV ? "S Low:" : "G Low:");
