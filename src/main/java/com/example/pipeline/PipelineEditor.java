@@ -150,6 +150,20 @@ public class PipelineEditor {
     private Image previewImage;
     private Label statusBar;
     private Label nodeCountLabel;
+    private Label zoomLabel;
+    private Scale zoomSlider;
+    private double zoomLevel = 1.0; // 1.0 = 100%
+
+    // Convert screen coordinates to canvas coordinates (accounting for zoom)
+    private int toCanvasX(int screenX) {
+        return (int) (screenX / zoomLevel);
+    }
+    private int toCanvasY(int screenY) {
+        return (int) (screenY / zoomLevel);
+    }
+    private Point toCanvasPoint(int screenX, int screenY) {
+        return new Point(toCanvasX(screenX), toCanvasY(screenY));
+    }
 
     private List<PipelineNode> nodes = new ArrayList<>();
     private List<Connection> connections = new ArrayList<>();
@@ -2053,8 +2067,8 @@ public class PipelineEditor {
     }
 
     /**
-     * Update canvas size based on node positions.
-     * Canvas size = max(viewport size, max node bounds + padding)
+     * Update canvas size based on node positions and zoom level.
+     * Canvas size = max(viewport size, (max node bounds + padding) * zoom)
      */
     private void updateCanvasSize() {
         if (scrolledCanvas == null || canvas == null) return;
@@ -2064,7 +2078,7 @@ public class PipelineEditor {
         int minWidth = viewportBounds.width > 0 ? viewportBounds.width : 800;
         int minHeight = viewportBounds.height > 0 ? viewportBounds.height : 600;
 
-        // Calculate bounds from all nodes
+        // Calculate bounds from all nodes (in canvas coordinates)
         int maxX = 0;
         int maxY = 0;
         for (PipelineNode node : nodes) {
@@ -2074,10 +2088,10 @@ public class PipelineEditor {
             if (nodeBottom > maxY) maxY = nodeBottom;
         }
 
-        // Add padding
+        // Add padding and apply zoom
         int padding = 200;
-        int requiredWidth = maxX + padding;
-        int requiredHeight = maxY + padding;
+        int requiredWidth = (int) ((maxX + padding) * zoomLevel);
+        int requiredHeight = (int) ((maxY + padding) * zoomLevel);
 
         // Canvas size is max of viewport and required content size
         int canvasWidth = Math.max(minWidth, requiredWidth);
@@ -2126,22 +2140,50 @@ public class PipelineEditor {
         // Status bar at bottom of canvas
         Composite statusComp = new Composite(canvasContainer, SWT.NONE);
         statusComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        statusComp.setLayout(new GridLayout(2, false));
+        statusComp.setLayout(new GridLayout(4, false));
         ((GridLayout)statusComp.getLayout()).marginHeight = 2;
         ((GridLayout)statusComp.getLayout()).marginWidth = 5;
         statusComp.setBackground(new Color(240, 240, 240));
 
+        // Node count on the left
+        nodeCountLabel = new Label(statusComp, SWT.NONE);
+        nodeCountLabel.setText("Nodes: 0");
+        nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        nodeCountLabel.setBackground(new Color(240, 240, 240));
+        nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+
+        // Pipeline status in the center
         statusBar = new Label(statusComp, SWT.NONE);
         statusBar.setText("Pipeline Stopped");
-        statusBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        statusBar.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
         statusBar.setBackground(new Color(240, 240, 240));
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
-        nodeCountLabel = new Label(statusComp, SWT.NONE);
-        nodeCountLabel.setText("Nodes: 0");
-        nodeCountLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-        nodeCountLabel.setBackground(new Color(240, 240, 240));
-        nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        // Zoom slider on the right
+        zoomSlider = new Scale(statusComp, SWT.HORIZONTAL);
+        zoomSlider.setMinimum(25);
+        zoomSlider.setMaximum(400);
+        zoomSlider.setSelection(100);
+        zoomSlider.setIncrement(10);
+        zoomSlider.setPageIncrement(25);
+        GridData sliderGd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
+        sliderGd.widthHint = 100;
+        zoomSlider.setLayoutData(sliderGd);
+        zoomSlider.addListener(SWT.Selection, e -> {
+            zoomLevel = zoomSlider.getSelection() / 100.0;
+            zoomLabel.setText(zoomSlider.getSelection() + "%");
+            updateCanvasSize();
+            canvas.redraw();
+        });
+
+        // Zoom percentage label
+        zoomLabel = new Label(statusComp, SWT.NONE);
+        zoomLabel.setText("100%");
+        GridData zoomLabelGd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
+        zoomLabelGd.widthHint = 40;
+        zoomLabel.setLayoutData(zoomLabelGd);
+        zoomLabel.setBackground(new Color(240, 240, 240));
+        zoomLabel.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
 
         // Paint handler
         canvas.addPaintListener(e -> paintCanvas(e.gc));
@@ -2166,6 +2208,20 @@ public class PipelineEditor {
         });
 
         canvas.addMouseMoveListener(e -> handleMouseMove(e));
+
+        // Ctrl+scroll wheel for zoom
+        canvas.addListener(SWT.MouseVerticalWheel, event -> {
+            if ((event.stateMask & SWT.MOD1) != 0) { // Ctrl/Cmd held
+                int delta = event.count > 0 ? 10 : -10;
+                int newZoom = Math.max(25, Math.min(400, zoomSlider.getSelection() + delta));
+                zoomSlider.setSelection(newZoom);
+                zoomLevel = newZoom / 100.0;
+                zoomLabel.setText(newZoom + "%");
+                updateCanvasSize();
+                canvas.redraw();
+                event.doit = false; // Consume event
+            }
+        });
 
         // Keyboard shortcuts - use Display filter to catch key events reliably on macOS
         display.addFilter(SWT.KeyDown, event -> {
@@ -2764,7 +2820,7 @@ public class PipelineEditor {
         gc.setAntialias(SWT.ON);
         updateNodeCount();
 
-        // Draw grid background
+        // Draw grid background (not scaled - stays fixed)
         Rectangle bounds = canvas.getClientArea();
         int gridSize = 20;
         gc.setForeground(new Color(230, 230, 230));
@@ -2775,6 +2831,11 @@ public class PipelineEditor {
         for (int y = 0; y < bounds.height; y += gridSize) {
             gc.drawLine(0, y, bounds.width, y);
         }
+
+        // Apply zoom transform for all content
+        Transform transform = new Transform(display);
+        transform.scale((float)zoomLevel, (float)zoomLevel);
+        gc.setTransform(transform);
 
         // Draw connections first (so nodes appear on top)
         for (Connection conn : connections) {
@@ -2928,6 +2989,10 @@ public class PipelineEditor {
             gc.setLineWidth(1);
             gc.drawRectangle(boxX, boxY, boxWidth, boxHeight);
         }
+
+        // Clean up transform
+        gc.setTransform(null);
+        transform.dispose();
     }
 
     // Helper to get the correct input point for a connection based on its inputIndex
@@ -2994,7 +3059,8 @@ public class PipelineEditor {
 
     private void handleMouseDown(MouseEvent e) {
         if (e.button == 1) {
-            Point clickPoint = new Point(e.x, e.y);
+            // Convert to canvas coordinates accounting for zoom
+            Point clickPoint = toCanvasPoint(e.x, e.y);
             int radius = 8; // Slightly larger than visual for easier clicking
             boolean cmdHeld = (e.stateMask & SWT.MOD1) != 0;
 
@@ -3448,8 +3514,10 @@ public class PipelineEditor {
     }
 
     private void handleMouseUp(MouseEvent e) {
+        // Convert to canvas coordinates accounting for zoom
+        Point clickPoint = toCanvasPoint(e.x, e.y);
+
         if (connectionSource != null) {
-            Point clickPoint = new Point(e.x, e.y);
             boolean connected = false;
             PipelineNode targetNode = null;
             int inputIdx = 1;
@@ -3532,7 +3600,6 @@ public class PipelineEditor {
 
         // Handle reverse connection (dragging from target end)
         if (connectionTarget != null) {
-            Point clickPoint = new Point(e.x, e.y);
             boolean connected = false;
             PipelineNode sourceNode = null;
 
@@ -3584,7 +3651,6 @@ public class PipelineEditor {
 
         // Handle free connection dragging (both ends unattached)
         if (freeConnectionFixedEnd != null) {
-            Point clickPoint = new Point(e.x, e.y);
             boolean connected = false;
             int radius = 8;
 
@@ -3697,10 +3763,14 @@ public class PipelineEditor {
             }
         }
 
+        // Convert to canvas coordinates accounting for zoom
+        int canvasX = toCanvasX(e.x);
+        int canvasY = toCanvasY(e.y);
+
         if (isDragging && selectedNode != null) {
             // Calculate the delta movement
-            int deltaX = e.x - dragOffset.x - selectedNode.x;
-            int deltaY = e.y - dragOffset.y - selectedNode.y;
+            int deltaX = canvasX - dragOffset.x - selectedNode.x;
+            int deltaY = canvasY - dragOffset.y - selectedNode.y;
 
             // Only mark as moved if there's actual movement
             if (deltaX != 0 || deltaY != 0) {
@@ -3715,21 +3785,22 @@ public class PipelineEditor {
                 }
             } else {
                 // Single node drag
-                selectedNode.x = e.x - dragOffset.x;
-                selectedNode.y = e.y - dragOffset.y;
+                selectedNode.x = canvasX - dragOffset.x;
+                selectedNode.y = canvasY - dragOffset.y;
             }
             canvas.redraw();
         } else if (connectionSource != null || connectionTarget != null || freeConnectionFixedEnd != null) {
-            connectionEndPoint = new Point(e.x, e.y);
+            connectionEndPoint = new Point(canvasX, canvasY);
             canvas.redraw();
         } else if (isSelectionBoxDragging) {
-            selectionBoxEnd = new Point(e.x, e.y);
+            selectionBoxEnd = new Point(canvasX, canvasY);
             canvas.redraw();
         }
     }
 
     private void handleDoubleClick(MouseEvent e) {
-        Point clickPoint = new Point(e.x, e.y);
+        // Convert to canvas coordinates accounting for zoom
+        Point clickPoint = toCanvasPoint(e.x, e.y);
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
                 if (node instanceof ProcessingNode) {
@@ -3743,7 +3814,9 @@ public class PipelineEditor {
     }
 
     private void handleRightClick(MenuDetectEvent e) {
-        Point clickPoint = display.map(null, canvas, new Point(e.x, e.y));
+        // Convert to canvas coordinates accounting for zoom
+        Point screenPoint = display.map(null, canvas, new Point(e.x, e.y));
+        Point clickPoint = toCanvasPoint(screenPoint.x, screenPoint.y);
 
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
