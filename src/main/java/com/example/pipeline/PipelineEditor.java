@@ -2218,14 +2218,7 @@ public class PipelineEditor {
             gc.drawLine(0, y, bounds.width, y);
         }
 
-        // Draw nodes first (so connections appear on top)
-        // Draw selection highlight underneath each node, then the node itself
-        for (PipelineNode node : nodes) {
-            node.drawSelectionHighlight(gc, selectedNodes.contains(node));
-            node.paint(gc);
-        }
-
-        // Draw connections on top of nodes
+        // Draw connections first (so nodes appear on top)
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint();
             Point end = getConnectionTargetPoint(conn);
@@ -2350,6 +2343,13 @@ public class PipelineEditor {
                 gc.fillOval(connectionEndPoint.x - 4, connectionEndPoint.y - 4, 8, 8);
             }
             gc.setLineStyle(SWT.LINE_SOLID);
+        }
+
+        // Draw nodes on top of connections
+        // Draw selection highlight underneath each node, then the node itself
+        for (PipelineNode node : nodes) {
+            node.drawSelectionHighlight(gc, selectedNodes.contains(node));
+            node.paint(gc);
         }
 
         // Draw selection box if dragging
