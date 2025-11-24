@@ -1,8 +1,6 @@
 package com.example.pipeline.nodes;
 
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
@@ -10,28 +8,20 @@ import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
 /**
- * Shapes node - draws geometric shapes on the image.
+ * Rectangle node - draws a rectangle on the image.
  */
-public class ShapesNode extends ProcessingNode {
-    private static final String[] SHAPE_NAMES = {
-        "Rectangle", "Circle", "Ellipse", "Line", "Arrow"
-    };
-
-    private int shapeIndex = 0; // Default to Rectangle
-    private int x1 = 50, y1 = 50;  // Start point
-    private int x2 = 200, y2 = 150; // End point (or width/height for shapes)
-    private int circleRadius = 50; // Radius for circle shape
+public class RectangleNode extends ProcessingNode {
+    private int x1 = 50, y1 = 50;  // Top-left corner
+    private int x2 = 200, y2 = 150; // Bottom-right corner
     private int colorR = 0, colorG = 255, colorB = 0; // Green default
     private int thickness = 2;
     private boolean filled = false;
 
-    public ShapesNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Shapes", x, y);
+    public RectangleNode(Display display, Shell shell, int x, int y) {
+        super(display, shell, "Rectangle", x, y);
     }
 
     // Getters/setters for serialization
-    public int getShapeIndex() { return shapeIndex; }
-    public void setShapeIndex(int v) { shapeIndex = v; }
     public int getX1() { return x1; }
     public void setX1(int v) { x1 = v; }
     public int getY1() { return y1; }
@@ -40,8 +30,6 @@ public class ShapesNode extends ProcessingNode {
     public void setX2(int v) { x2 = v; }
     public int getY2() { return y2; }
     public void setY2(int v) { y2 = v; }
-    public int getCircleRadius() { return circleRadius; }
-    public void setCircleRadius(int v) { circleRadius = v; }
     public int getColorR() { return colorR; }
     public void setColorR(int v) { colorR = v; }
     public int getColorG() { return colorG; }
@@ -53,78 +41,53 @@ public class ShapesNode extends ProcessingNode {
     public boolean isFilled() { return filled; }
     public void setFilled(boolean v) { filled = v; }
 
-    // Convert coordinate to absolute position (negative values are relative to right/bottom edge)
-    private int toAbsoluteX(int x, int width) {
-        return x < 0 ? width + x + 1 : x;
+    // Helper to convert relative coords to absolute
+    private int toAbsoluteX(int val, int imgWidth) {
+        return val < 0 ? imgWidth + val : val;
     }
 
-    private int toAbsoluteY(int y, int height) {
-        return y < 0 ? height + y + 1 : y;
+    private int toAbsoluteY(int val, int imgHeight) {
+        return val < 0 ? imgHeight + val : val;
     }
 
     @Override
     public Mat process(Mat input) {
-        if (!enabled || input == null || input.empty()) {
-            return input;
-        }
-
         Mat output = input.clone();
-        Scalar color = new Scalar(colorB, colorG, colorR); // BGR order
-        int thick = filled ? -1 : thickness;
-
-        // Convert coordinates (negative values are relative to right/bottom)
         int imgWidth = input.width();
         int imgHeight = input.height();
+
+        Scalar color = new Scalar(colorB, colorG, colorR); // OpenCV uses BGR
+        int thick = filled ? -1 : thickness;
+
         int absX1 = toAbsoluteX(x1, imgWidth);
         int absY1 = toAbsoluteY(y1, imgHeight);
         int absX2 = toAbsoluteX(x2, imgWidth);
         int absY2 = toAbsoluteY(y2, imgHeight);
 
-        switch (shapeIndex) {
-            case 0: // Rectangle
-                Imgproc.rectangle(output, new Point(absX1, absY1), new Point(absX2, absY2), color, thick);
-                break;
-            case 1: // Circle
-                Imgproc.circle(output, new Point(absX1, absY1), circleRadius, color, thick);
-                break;
-            case 2: // Ellipse
-                int axisX = Math.abs(absX2 - absX1) / 2;
-                int axisY = Math.abs(absY2 - absY1) / 2;
-                int centerX = (absX1 + absX2) / 2;
-                int centerY = (absY1 + absY2) / 2;
-                Imgproc.ellipse(output, new Point(centerX, centerY), new Size(axisX, axisY),
-                    0, 0, 360, color, thick);
-                break;
-            case 3: // Line
-                Imgproc.line(output, new Point(absX1, absY1), new Point(absX2, absY2), color, thickness);
-                break;
-            case 4: // Arrow
-                Imgproc.arrowedLine(output, new Point(absX1, absY1), new Point(absX2, absY2), color, thickness);
-                break;
-        }
+        Imgproc.rectangle(output, new Point(absX1, absY1), new Point(absX2, absY2), color, thick);
 
         return output;
     }
 
     @Override
     public String getDescription() {
-        return "Draw Shapes\ncv2.rectangle(), circle(), ellipse(), line()";
+        return "Draw Rectangle\ncv2.rectangle(img, pt1, pt2, color, thickness)";
     }
 
     @Override
     public String getDisplayName() {
-        return "Shapes";
+        return "Rectangle";
     }
 
     @Override
     public String getCategory() {
-        return "Content";
+        return "Draw";
     }
 
     @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Shapes Properties");
+        dialog.setText("Rectangle Properties");
         dialog.setLayout(new GridLayout(2, false));
 
         // Description
@@ -141,14 +104,7 @@ public class ShapesNode extends ProcessingNode {
         sepGd.horizontalSpan = 2;
         sep.setLayoutData(sepGd);
 
-        // Shape type
-        new Label(dialog, SWT.NONE).setText("Shape:");
-        Combo shapeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
-        shapeCombo.setItems(SHAPE_NAMES);
-        shapeCombo.select(shapeIndex);
-        shapeCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        // X1 (negative values are relative to right edge)
+        // X1
         new Label(dialog, SWT.NONE).setText("X1:");
         Spinner x1Spinner = new Spinner(dialog, SWT.BORDER);
         x1Spinner.setMinimum(-4096);
@@ -156,7 +112,7 @@ public class ShapesNode extends ProcessingNode {
         x1Spinner.setSelection(x1);
         x1Spinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Y1 (negative values are relative to bottom edge)
+        // Y1
         new Label(dialog, SWT.NONE).setText("Y1:");
         Spinner y1Spinner = new Spinner(dialog, SWT.BORDER);
         y1Spinner.setMinimum(-4096);
@@ -164,81 +120,21 @@ public class ShapesNode extends ProcessingNode {
         y1Spinner.setSelection(y1);
         y1Spinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // X2 (negative values are relative to right edge)
-        Label x2Label = new Label(dialog, SWT.NONE);
-        x2Label.setText("X2:");
-        GridData x2LabelGd = new GridData();
-        x2Label.setLayoutData(x2LabelGd);
+        // X2
+        new Label(dialog, SWT.NONE).setText("X2:");
         Spinner x2Spinner = new Spinner(dialog, SWT.BORDER);
         x2Spinner.setMinimum(-4096);
         x2Spinner.setMaximum(4096);
         x2Spinner.setSelection(x2);
-        GridData x2SpinnerGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        x2Spinner.setLayoutData(x2SpinnerGd);
+        x2Spinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Y2 (negative values are relative to bottom edge)
-        Label y2Label = new Label(dialog, SWT.NONE);
-        y2Label.setText("Y2:");
-        GridData y2LabelGd = new GridData();
-        y2Label.setLayoutData(y2LabelGd);
+        // Y2
+        new Label(dialog, SWT.NONE).setText("Y2:");
         Spinner y2Spinner = new Spinner(dialog, SWT.BORDER);
         y2Spinner.setMinimum(-4096);
         y2Spinner.setMaximum(4096);
         y2Spinner.setSelection(y2);
-        GridData y2SpinnerGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        y2Spinner.setLayoutData(y2SpinnerGd);
-
-        // Circle Radius (only shown for circle)
-        Label radiusLabel = new Label(dialog, SWT.NONE);
-        radiusLabel.setText("Radius:");
-        GridData radiusLabelGd = new GridData();
-        radiusLabel.setLayoutData(radiusLabelGd);
-        Spinner radiusSpinner = new Spinner(dialog, SWT.BORDER);
-        radiusSpinner.setMinimum(1);
-        radiusSpinner.setMaximum(4096);
-        radiusSpinner.setSelection(circleRadius);
-        GridData radiusSpinnerGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        radiusSpinner.setLayoutData(radiusSpinnerGd);
-
-        // Initially hide/show based on shape type
-        boolean isCircle = shapeIndex == 1;
-        x2Label.setVisible(!isCircle);
-        x2Spinner.setVisible(!isCircle);
-        y2Label.setVisible(!isCircle);
-        y2Spinner.setVisible(!isCircle);
-        radiusLabel.setVisible(isCircle);
-        radiusSpinner.setVisible(isCircle);
-        if (isCircle) {
-            x2LabelGd.exclude = true;
-            x2SpinnerGd.exclude = true;
-            y2LabelGd.exclude = true;
-            y2SpinnerGd.exclude = true;
-        } else {
-            radiusLabelGd.exclude = true;
-            radiusSpinnerGd.exclude = true;
-        }
-
-        // Update visibility when shape changes
-        shapeCombo.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                boolean isCircle = shapeCombo.getSelectionIndex() == 1;
-                x2Label.setVisible(!isCircle);
-                x2Spinner.setVisible(!isCircle);
-                y2Label.setVisible(!isCircle);
-                y2Spinner.setVisible(!isCircle);
-                radiusLabel.setVisible(isCircle);
-                radiusSpinner.setVisible(isCircle);
-                x2LabelGd.exclude = isCircle;
-                x2SpinnerGd.exclude = isCircle;
-                y2LabelGd.exclude = isCircle;
-                y2SpinnerGd.exclude = isCircle;
-                radiusLabelGd.exclude = !isCircle;
-                radiusSpinnerGd.exclude = !isCircle;
-                dialog.layout(true, true);
-                dialog.pack();
-            }
-        });
+        y2Spinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         // Color R
         new Label(dialog, SWT.NONE).setText("Red:");
@@ -287,12 +183,10 @@ public class ShapesNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
-            shapeIndex = shapeCombo.getSelectionIndex();
             x1 = x1Spinner.getSelection();
             y1 = y1Spinner.getSelection();
             x2 = x2Spinner.getSelection();
             y2 = y2Spinner.getSelection();
-            circleRadius = radiusSpinner.getSelection();
             colorR = rSpinner.getSelection();
             colorG = gSpinner.getSelection();
             colorB = bSpinner.getSelection();

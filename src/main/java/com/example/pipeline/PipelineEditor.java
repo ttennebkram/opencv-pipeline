@@ -88,8 +88,14 @@ public class PipelineEditor {
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
         NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
 
+        // Draw nodes
+        NodeRegistry.register("Rectangle", "Draw", RectangleNode.class);
+        NodeRegistry.register("Circle", "Draw", CircleNode.class);
+        NodeRegistry.register("Ellipse", "Draw", EllipseNode.class);
+        NodeRegistry.register("Line", "Draw", LineNode.class);
+        NodeRegistry.register("Arrow", "Draw", ArrowNode.class);
+
         // Content nodes
-        NodeRegistry.register("Shapes", "Content", ShapesNode.class);
         NodeRegistry.register("Text", "Content", TextNode.class);
     }
 
@@ -645,19 +651,62 @@ public class PipelineEditor {
                                     bpn.setBitGain(2, j, arr.get(j).getAsDouble());
                                 }
                             }
-                        } else if (node instanceof ShapesNode) {
-                            ShapesNode sn = (ShapesNode) node;
-                            if (nodeObj.has("shapeIndex")) sn.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
-                            if (nodeObj.has("x1")) sn.setX1(nodeObj.get("x1").getAsInt());
-                            if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
-                            if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
-                            if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
-                            if (nodeObj.has("circleRadius")) sn.setCircleRadius(nodeObj.get("circleRadius").getAsInt());
-                            if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) sn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("filled")) sn.setFilled(nodeObj.get("filled").getAsBoolean());
+                        } else if (node instanceof RectangleNode) {
+                            RectangleNode rn = (RectangleNode) node;
+                            if (nodeObj.has("x1")) rn.setX1(nodeObj.get("x1").getAsInt());
+                            if (nodeObj.has("y1")) rn.setY1(nodeObj.get("y1").getAsInt());
+                            if (nodeObj.has("x2")) rn.setX2(nodeObj.get("x2").getAsInt());
+                            if (nodeObj.has("y2")) rn.setY2(nodeObj.get("y2").getAsInt());
+                            if (nodeObj.has("colorR")) rn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) rn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) rn.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) rn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("filled")) rn.setFilled(nodeObj.get("filled").getAsBoolean());
+                        } else if (node instanceof CircleNode) {
+                            CircleNode cn = (CircleNode) node;
+                            if (nodeObj.has("centerX")) cn.setCenterX(nodeObj.get("centerX").getAsInt());
+                            if (nodeObj.has("centerY")) cn.setCenterY(nodeObj.get("centerY").getAsInt());
+                            if (nodeObj.has("radius")) cn.setRadius(nodeObj.get("radius").getAsInt());
+                            if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("filled")) cn.setFilled(nodeObj.get("filled").getAsBoolean());
+                        } else if (node instanceof EllipseNode) {
+                            EllipseNode en = (EllipseNode) node;
+                            if (nodeObj.has("centerX")) en.setCenterX(nodeObj.get("centerX").getAsInt());
+                            if (nodeObj.has("centerY")) en.setCenterY(nodeObj.get("centerY").getAsInt());
+                            if (nodeObj.has("axisX")) en.setAxisX(nodeObj.get("axisX").getAsInt());
+                            if (nodeObj.has("axisY")) en.setAxisY(nodeObj.get("axisY").getAsInt());
+                            if (nodeObj.has("angle")) en.setAngle(nodeObj.get("angle").getAsInt());
+                            if (nodeObj.has("startAngle")) en.setStartAngle(nodeObj.get("startAngle").getAsInt());
+                            if (nodeObj.has("endAngle")) en.setEndAngle(nodeObj.get("endAngle").getAsInt());
+                            if (nodeObj.has("colorR")) en.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) en.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) en.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) en.setThickness(nodeObj.get("thickness").getAsInt());
+                            if (nodeObj.has("filled")) en.setFilled(nodeObj.get("filled").getAsBoolean());
+                        } else if (node instanceof LineNode) {
+                            LineNode ln = (LineNode) node;
+                            if (nodeObj.has("x1")) ln.setX1(nodeObj.get("x1").getAsInt());
+                            if (nodeObj.has("y1")) ln.setY1(nodeObj.get("y1").getAsInt());
+                            if (nodeObj.has("x2")) ln.setX2(nodeObj.get("x2").getAsInt());
+                            if (nodeObj.has("y2")) ln.setY2(nodeObj.get("y2").getAsInt());
+                            if (nodeObj.has("colorR")) ln.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) ln.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) ln.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) ln.setThickness(nodeObj.get("thickness").getAsInt());
+                        } else if (node instanceof ArrowNode) {
+                            ArrowNode an = (ArrowNode) node;
+                            if (nodeObj.has("x1")) an.setX1(nodeObj.get("x1").getAsInt());
+                            if (nodeObj.has("y1")) an.setY1(nodeObj.get("y1").getAsInt());
+                            if (nodeObj.has("x2")) an.setX2(nodeObj.get("x2").getAsInt());
+                            if (nodeObj.has("y2")) an.setY2(nodeObj.get("y2").getAsInt());
+                            if (nodeObj.has("tipLength")) an.setTipLength(nodeObj.get("tipLength").getAsDouble());
+                            if (nodeObj.has("colorR")) an.setColorR(nodeObj.get("colorR").getAsInt());
+                            if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
+                            if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
+                            if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
                         } else if (node instanceof TextNode) {
                             TextNode tn = (TextNode) node;
                             if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -964,19 +1013,62 @@ public class PipelineEditor {
                         }
                         nodeObj.add("blueBitEnabled", blueEnabled);
                         nodeObj.add("blueBitGain", blueGain);
-                    } else if (node instanceof ShapesNode) {
-                        ShapesNode sn = (ShapesNode) node;
-                        nodeObj.addProperty("shapeIndex", sn.getShapeIndex());
-                        nodeObj.addProperty("x1", sn.getX1());
-                        nodeObj.addProperty("y1", sn.getY1());
-                        nodeObj.addProperty("x2", sn.getX2());
-                        nodeObj.addProperty("y2", sn.getY2());
-                        nodeObj.addProperty("circleRadius", sn.getCircleRadius());
-                        nodeObj.addProperty("colorR", sn.getColorR());
-                        nodeObj.addProperty("colorG", sn.getColorG());
-                        nodeObj.addProperty("colorB", sn.getColorB());
-                        nodeObj.addProperty("thickness", sn.getThickness());
-                        nodeObj.addProperty("filled", sn.isFilled());
+                    } else if (node instanceof RectangleNode) {
+                        RectangleNode rn = (RectangleNode) node;
+                        nodeObj.addProperty("x1", rn.getX1());
+                        nodeObj.addProperty("y1", rn.getY1());
+                        nodeObj.addProperty("x2", rn.getX2());
+                        nodeObj.addProperty("y2", rn.getY2());
+                        nodeObj.addProperty("colorR", rn.getColorR());
+                        nodeObj.addProperty("colorG", rn.getColorG());
+                        nodeObj.addProperty("colorB", rn.getColorB());
+                        nodeObj.addProperty("thickness", rn.getThickness());
+                        nodeObj.addProperty("filled", rn.isFilled());
+                    } else if (node instanceof CircleNode) {
+                        CircleNode cn = (CircleNode) node;
+                        nodeObj.addProperty("centerX", cn.getCenterX());
+                        nodeObj.addProperty("centerY", cn.getCenterY());
+                        nodeObj.addProperty("radius", cn.getRadius());
+                        nodeObj.addProperty("colorR", cn.getColorR());
+                        nodeObj.addProperty("colorG", cn.getColorG());
+                        nodeObj.addProperty("colorB", cn.getColorB());
+                        nodeObj.addProperty("thickness", cn.getThickness());
+                        nodeObj.addProperty("filled", cn.isFilled());
+                    } else if (node instanceof EllipseNode) {
+                        EllipseNode en = (EllipseNode) node;
+                        nodeObj.addProperty("centerX", en.getCenterX());
+                        nodeObj.addProperty("centerY", en.getCenterY());
+                        nodeObj.addProperty("axisX", en.getAxisX());
+                        nodeObj.addProperty("axisY", en.getAxisY());
+                        nodeObj.addProperty("angle", en.getAngle());
+                        nodeObj.addProperty("startAngle", en.getStartAngle());
+                        nodeObj.addProperty("endAngle", en.getEndAngle());
+                        nodeObj.addProperty("colorR", en.getColorR());
+                        nodeObj.addProperty("colorG", en.getColorG());
+                        nodeObj.addProperty("colorB", en.getColorB());
+                        nodeObj.addProperty("thickness", en.getThickness());
+                        nodeObj.addProperty("filled", en.isFilled());
+                    } else if (node instanceof LineNode) {
+                        LineNode ln = (LineNode) node;
+                        nodeObj.addProperty("x1", ln.getX1());
+                        nodeObj.addProperty("y1", ln.getY1());
+                        nodeObj.addProperty("x2", ln.getX2());
+                        nodeObj.addProperty("y2", ln.getY2());
+                        nodeObj.addProperty("colorR", ln.getColorR());
+                        nodeObj.addProperty("colorG", ln.getColorG());
+                        nodeObj.addProperty("colorB", ln.getColorB());
+                        nodeObj.addProperty("thickness", ln.getThickness());
+                    } else if (node instanceof ArrowNode) {
+                        ArrowNode an = (ArrowNode) node;
+                        nodeObj.addProperty("x1", an.getX1());
+                        nodeObj.addProperty("y1", an.getY1());
+                        nodeObj.addProperty("x2", an.getX2());
+                        nodeObj.addProperty("y2", an.getY2());
+                        nodeObj.addProperty("tipLength", an.getTipLength());
+                        nodeObj.addProperty("colorR", an.getColorR());
+                        nodeObj.addProperty("colorG", an.getColorG());
+                        nodeObj.addProperty("colorB", an.getColorB());
+                        nodeObj.addProperty("thickness", an.getThickness());
                     } else if (node instanceof TextNode) {
                         TextNode tn = (TextNode) node;
                         nodeObj.addProperty("text", tn.getText());
@@ -1204,19 +1296,62 @@ public class PipelineEditor {
                                         bpn.setBitGain(2, j, arr.get(j).getAsDouble());
                                     }
                                 }
-                            } else if (node instanceof ShapesNode) {
-                                ShapesNode sn = (ShapesNode) node;
-                                if (nodeObj.has("shapeIndex")) sn.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
-                                if (nodeObj.has("x1")) sn.setX1(nodeObj.get("x1").getAsInt());
-                                if (nodeObj.has("y1")) sn.setY1(nodeObj.get("y1").getAsInt());
-                                if (nodeObj.has("x2")) sn.setX2(nodeObj.get("x2").getAsInt());
-                                if (nodeObj.has("y2")) sn.setY2(nodeObj.get("y2").getAsInt());
-                                if (nodeObj.has("circleRadius")) sn.setCircleRadius(nodeObj.get("circleRadius").getAsInt());
-                                if (nodeObj.has("colorR")) sn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) sn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) sn.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) sn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("filled")) sn.setFilled(nodeObj.get("filled").getAsBoolean());
+                            } else if (node instanceof RectangleNode) {
+                                RectangleNode rn = (RectangleNode) node;
+                                if (nodeObj.has("x1")) rn.setX1(nodeObj.get("x1").getAsInt());
+                                if (nodeObj.has("y1")) rn.setY1(nodeObj.get("y1").getAsInt());
+                                if (nodeObj.has("x2")) rn.setX2(nodeObj.get("x2").getAsInt());
+                                if (nodeObj.has("y2")) rn.setY2(nodeObj.get("y2").getAsInt());
+                                if (nodeObj.has("colorR")) rn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) rn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) rn.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) rn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("filled")) rn.setFilled(nodeObj.get("filled").getAsBoolean());
+                            } else if (node instanceof CircleNode) {
+                                CircleNode cn = (CircleNode) node;
+                                if (nodeObj.has("centerX")) cn.setCenterX(nodeObj.get("centerX").getAsInt());
+                                if (nodeObj.has("centerY")) cn.setCenterY(nodeObj.get("centerY").getAsInt());
+                                if (nodeObj.has("radius")) cn.setRadius(nodeObj.get("radius").getAsInt());
+                                if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("filled")) cn.setFilled(nodeObj.get("filled").getAsBoolean());
+                            } else if (node instanceof EllipseNode) {
+                                EllipseNode en = (EllipseNode) node;
+                                if (nodeObj.has("centerX")) en.setCenterX(nodeObj.get("centerX").getAsInt());
+                                if (nodeObj.has("centerY")) en.setCenterY(nodeObj.get("centerY").getAsInt());
+                                if (nodeObj.has("axisX")) en.setAxisX(nodeObj.get("axisX").getAsInt());
+                                if (nodeObj.has("axisY")) en.setAxisY(nodeObj.get("axisY").getAsInt());
+                                if (nodeObj.has("angle")) en.setAngle(nodeObj.get("angle").getAsInt());
+                                if (nodeObj.has("startAngle")) en.setStartAngle(nodeObj.get("startAngle").getAsInt());
+                                if (nodeObj.has("endAngle")) en.setEndAngle(nodeObj.get("endAngle").getAsInt());
+                                if (nodeObj.has("colorR")) en.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) en.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) en.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) en.setThickness(nodeObj.get("thickness").getAsInt());
+                                if (nodeObj.has("filled")) en.setFilled(nodeObj.get("filled").getAsBoolean());
+                            } else if (node instanceof LineNode) {
+                                LineNode ln = (LineNode) node;
+                                if (nodeObj.has("x1")) ln.setX1(nodeObj.get("x1").getAsInt());
+                                if (nodeObj.has("y1")) ln.setY1(nodeObj.get("y1").getAsInt());
+                                if (nodeObj.has("x2")) ln.setX2(nodeObj.get("x2").getAsInt());
+                                if (nodeObj.has("y2")) ln.setY2(nodeObj.get("y2").getAsInt());
+                                if (nodeObj.has("colorR")) ln.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) ln.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) ln.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) ln.setThickness(nodeObj.get("thickness").getAsInt());
+                            } else if (node instanceof ArrowNode) {
+                                ArrowNode an = (ArrowNode) node;
+                                if (nodeObj.has("x1")) an.setX1(nodeObj.get("x1").getAsInt());
+                                if (nodeObj.has("y1")) an.setY1(nodeObj.get("y1").getAsInt());
+                                if (nodeObj.has("x2")) an.setX2(nodeObj.get("x2").getAsInt());
+                                if (nodeObj.has("y2")) an.setY2(nodeObj.get("y2").getAsInt());
+                                if (nodeObj.has("tipLength")) an.setTipLength(nodeObj.get("tipLength").getAsDouble());
+                                if (nodeObj.has("colorR")) an.setColorR(nodeObj.get("colorR").getAsInt());
+                                if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
+                                if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
+                                if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
                             } else if (node instanceof TextNode) {
                                 TextNode tn = (TextNode) node;
                                 if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
