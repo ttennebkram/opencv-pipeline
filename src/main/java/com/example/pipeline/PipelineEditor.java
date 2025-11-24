@@ -61,6 +61,7 @@ public class PipelineEditor {
         NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
 
         // Blur nodes
+        NodeRegistry.register("BoxBlur", "Blur", BoxBlurNode.class);
         NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
         NodeRegistry.register("MedianBlur", "Blur", MedianBlurNode.class);
         NodeRegistry.register("BilateralFilter", "Blur", BilateralFilterNode.class);
@@ -593,6 +594,10 @@ public class PipelineEditor {
                             if (nodeObj.has("kernelSizeX")) gbn.setKernelSizeX(nodeObj.get("kernelSizeX").getAsInt());
                             if (nodeObj.has("kernelSizeY")) gbn.setKernelSizeY(nodeObj.get("kernelSizeY").getAsInt());
                             if (nodeObj.has("sigmaX")) gbn.setSigmaX(nodeObj.get("sigmaX").getAsDouble());
+                        } else if (node instanceof BoxBlurNode) {
+                            BoxBlurNode bbn = (BoxBlurNode) node;
+                            if (nodeObj.has("kernelSizeX")) bbn.setKernelSizeX(nodeObj.get("kernelSizeX").getAsInt());
+                            if (nodeObj.has("kernelSizeY")) bbn.setKernelSizeY(nodeObj.get("kernelSizeY").getAsInt());
                         } else if (node instanceof GrayscaleNode) {
                             GrayscaleNode gn = (GrayscaleNode) node;
                             if (nodeObj.has("conversionIndex")) {
@@ -1001,6 +1006,10 @@ public class PipelineEditor {
                         nodeObj.addProperty("kernelSizeX", gbn.getKernelSizeX());
                         nodeObj.addProperty("kernelSizeY", gbn.getKernelSizeY());
                         nodeObj.addProperty("sigmaX", gbn.getSigmaX());
+                    } else if (node instanceof BoxBlurNode) {
+                        BoxBlurNode bbn = (BoxBlurNode) node;
+                        nodeObj.addProperty("kernelSizeX", bbn.getKernelSizeX());
+                        nodeObj.addProperty("kernelSizeY", bbn.getKernelSizeY());
                     } else if (node instanceof GrayscaleNode) {
                         GrayscaleNode gn = (GrayscaleNode) node;
                         nodeObj.addProperty("conversionIndex", gn.getConversionIndex());
