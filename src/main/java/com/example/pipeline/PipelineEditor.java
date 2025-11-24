@@ -73,6 +73,7 @@ public class PipelineEditor {
 
         // Transform nodes
         NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
+        NodeRegistry.register("Crop", "Transform", CropNode.class);
 
         // Filter nodes
         NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
@@ -707,6 +708,12 @@ public class PipelineEditor {
                             if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
                             if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
                             if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
+                        } else if (node instanceof CropNode) {
+                            CropNode crn = (CropNode) node;
+                            if (nodeObj.has("cropX")) crn.setCropX(nodeObj.get("cropX").getAsInt());
+                            if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
+                            if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
+                            if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
                         } else if (node instanceof TextNode) {
                             TextNode tn = (TextNode) node;
                             if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
@@ -1069,6 +1076,12 @@ public class PipelineEditor {
                         nodeObj.addProperty("colorG", an.getColorG());
                         nodeObj.addProperty("colorB", an.getColorB());
                         nodeObj.addProperty("thickness", an.getThickness());
+                    } else if (node instanceof CropNode) {
+                        CropNode crn = (CropNode) node;
+                        nodeObj.addProperty("cropX", crn.getCropX());
+                        nodeObj.addProperty("cropY", crn.getCropY());
+                        nodeObj.addProperty("cropWidth", crn.getCropWidth());
+                        nodeObj.addProperty("cropHeight", crn.getCropHeight());
                     } else if (node instanceof TextNode) {
                         TextNode tn = (TextNode) node;
                         nodeObj.addProperty("text", tn.getText());
@@ -1352,6 +1365,12 @@ public class PipelineEditor {
                                 if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
                                 if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
                                 if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
+                            } else if (node instanceof CropNode) {
+                                CropNode crn = (CropNode) node;
+                                if (nodeObj.has("cropX")) crn.setCropX(nodeObj.get("cropX").getAsInt());
+                                if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
+                                if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
+                                if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
                             } else if (node instanceof TextNode) {
                                 TextNode tn = (TextNode) node;
                                 if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
