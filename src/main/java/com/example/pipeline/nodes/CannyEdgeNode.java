@@ -21,7 +21,7 @@ public class CannyEdgeNode extends ProcessingNode {
     private boolean l2Gradient = false;
 
     public CannyEdgeNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Canny Edge", x, y);
+        super(display, shell, "Canny Edges", x, y);
     }
 
     // Getters/setters for serialization

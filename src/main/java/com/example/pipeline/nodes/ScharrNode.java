@@ -18,7 +18,7 @@ public class ScharrNode extends ProcessingNode {
     private int directionIndex = 2; // Default to Both
 
     public ScharrNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Scharr", x, y);
+        super(display, shell, "Scharr Edges", x, y);
     }
 
     // Getters/setters for serialization

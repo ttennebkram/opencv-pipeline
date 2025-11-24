@@ -18,7 +18,7 @@ public class LaplacianNode extends ProcessingNode {
     private int kernelSizeIndex = 1; // Default to 3
 
     public LaplacianNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Laplacian", x, y);
+        super(display, shell, "Laplacian Edges", x, y);
     }
 
     // Getters/setters for serialization

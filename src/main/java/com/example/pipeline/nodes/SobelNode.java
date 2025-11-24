@@ -20,7 +20,7 @@ public class SobelNode extends ProcessingNode {
     private int kernelSizeIndex = 1; // Default to 3
 
     public SobelNode(Display display, Shell shell, int x, int y) {
-        super(display, shell, "Sobel", x, y);
+        super(display, shell, "Sobel Edges", x, y);
     }
 
     // Getters/setters for serialization
