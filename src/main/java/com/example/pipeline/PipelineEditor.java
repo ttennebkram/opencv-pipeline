@@ -2199,11 +2199,22 @@ public class PipelineEditor {
             boolean cmdHeld = (e.stateMask & SWT.MOD1) != 0;
 
             // First check if clicking on an input connection point (to yank off existing connection)
-            for (PipelineNode node : nodes) {
+            // Iterate in reverse for z-order - last added is on top
+            for (int i = nodes.size() - 1; i >= 0; i--) {
+                PipelineNode node = nodes.get(i);
                 Point inputPoint = node.getInputPoint();
                 double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                        Math.pow(clickPoint.y - inputPoint.y, 2));
                 if (dist <= radius) {
+                    // Check if this connection point is obscured by another node on top
+                    boolean obscured = false;
+                    for (int j = i + 1; j < nodes.size(); j++) {
+                        if (nodes.get(j).containsPoint(clickPoint)) {
+                            obscured = true;
+                            break;
+                        }
+                    }
+                    if (obscured) continue;
                     // Check if there's a connection to this input
                     Connection connToRemove = null;
                     for (Connection conn : connections) {
@@ -2387,11 +2398,22 @@ public class PipelineEditor {
             }
 
             // Check if clicking on an output connection point (only to yank existing connections)
-            for (PipelineNode node : nodes) {
+            // Iterate in reverse for z-order - last added is on top
+            for (int i = nodes.size() - 1; i >= 0; i--) {
+                PipelineNode node = nodes.get(i);
                 Point outputPoint = node.getOutputPoint();
                 double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
                                        Math.pow(clickPoint.y - outputPoint.y, 2));
                 if (dist <= radius) {
+                    // Check if this connection point is obscured by another node on top
+                    boolean obscured = false;
+                    for (int j = i + 1; j < nodes.size(); j++) {
+                        if (nodes.get(j).containsPoint(clickPoint)) {
+                            obscured = true;
+                            break;
+                        }
+                    }
+                    if (obscured) continue;
                     // Check if there's a connection from this output
                     Connection connToRemove = null;
                     for (Connection conn : connections) {
@@ -2431,8 +2453,9 @@ public class PipelineEditor {
                 }
             }
 
-            // Check for node selection and dragging
-            for (PipelineNode node : nodes) {
+            // Check for node selection and dragging (iterate in reverse for z-order - last added is on top)
+            for (int i = nodes.size() - 1; i >= 0; i--) {
+                PipelineNode node = nodes.get(i);
                 if (node.containsPoint(clickPoint)) {
                     // Handle selection
                     if (cmdHeld) {
