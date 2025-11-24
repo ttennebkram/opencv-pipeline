@@ -972,6 +972,7 @@ public class PipelineEditor {
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
             clearDirty();
+            updateCanvasSize();
 
         } catch (Exception e) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -2025,6 +2026,7 @@ public class PipelineEditor {
 
                 canvas.redraw();
                 shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
+                updateCanvasSize();
 
             } catch (Exception e) {
                 MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -2050,6 +2052,45 @@ public class PipelineEditor {
         });
     }
 
+    /**
+     * Update canvas size based on node positions.
+     * Canvas size = max(viewport size, max node bounds + padding)
+     */
+    private void updateCanvasSize() {
+        if (scrolledCanvas == null || canvas == null) return;
+
+        // Get viewport size
+        Rectangle viewportBounds = scrolledCanvas.getClientArea();
+        int minWidth = viewportBounds.width > 0 ? viewportBounds.width : 800;
+        int minHeight = viewportBounds.height > 0 ? viewportBounds.height : 600;
+
+        // Calculate bounds from all nodes
+        int maxX = 0;
+        int maxY = 0;
+        for (PipelineNode node : nodes) {
+            int nodeRight = node.getX() + node.getWidth();
+            int nodeBottom = node.getY() + node.getHeight();
+            if (nodeRight > maxX) maxX = nodeRight;
+            if (nodeBottom > maxY) maxY = nodeBottom;
+        }
+
+        // Add padding
+        int padding = 200;
+        int requiredWidth = maxX + padding;
+        int requiredHeight = maxY + padding;
+
+        // Canvas size is max of viewport and required content size
+        int canvasWidth = Math.max(minWidth, requiredWidth);
+        int canvasHeight = Math.max(minHeight, requiredHeight);
+
+        // Only update if size changed
+        Point currentSize = canvas.getSize();
+        if (currentSize.x != canvasWidth || currentSize.y != canvasHeight) {
+            canvas.setSize(canvasWidth, canvasHeight);
+            scrolledCanvas.setMinSize(canvasWidth, canvasHeight);
+        }
+    }
+
     private void createCanvas() {
         // Create a composite to hold scrolled canvas and status bar
         Composite canvasContainer = new Composite(sashForm, SWT.NONE);
@@ -2071,9 +2112,16 @@ public class PipelineEditor {
         // Set the canvas as the content of the scrolled composite
         scrolledCanvas.setContent(canvas);
 
-        // Set a large virtual size for the canvas (can be adjusted based on content)
-        canvas.setSize(3000, 3000);
-        scrolledCanvas.setMinSize(3000, 3000);
+        // Initial canvas size - will be updated dynamically based on content
+        updateCanvasSize();
+
+        // Update canvas size when viewport is resized
+        scrolledCanvas.addControlListener(new org.eclipse.swt.events.ControlAdapter() {
+            @Override
+            public void controlResized(org.eclipse.swt.events.ControlEvent e) {
+                updateCanvasSize();
+            }
+        });
 
         // Status bar at bottom of canvas
         Composite statusComp = new Composite(canvasContainer, SWT.NONE);
@@ -3631,6 +3679,7 @@ public class PipelineEditor {
         // Mark dirty if nodes were actually moved
         if (nodesMoved) {
             markDirty();
+            updateCanvasSize();
             nodesMoved = false;
         }
 
@@ -3822,6 +3871,7 @@ public class PipelineEditor {
         FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
         nodes.add(node);
         markDirty();
+        updateCanvasSize();
         canvas.redraw();
     }
 
@@ -3833,6 +3883,7 @@ public class PipelineEditor {
         WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
         nodes.add(node);
         markDirty();
+        updateCanvasSize();
         canvas.redraw();
     }
 
@@ -3844,6 +3895,7 @@ public class PipelineEditor {
         BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
         nodes.add(node);
         markDirty();
+        updateCanvasSize();
         canvas.redraw();
     }
 
@@ -3857,6 +3909,7 @@ public class PipelineEditor {
             node.setOnChanged(() -> { markDirty(); executePipeline(); });
             nodes.add(node);
             markDirty();
+            updateCanvasSize();
             canvas.redraw();
         }
     }
