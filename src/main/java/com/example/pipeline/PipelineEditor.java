@@ -108,6 +108,7 @@ public class PipelineEditor {
     private PipelineNode selectedNode = null;
     private Point dragOffset = null;
     private boolean isDragging = false;
+    private boolean nodesMoved = false;
 
     // Connection drawing state
     private PipelineNode connectionSource = null;
@@ -155,6 +156,57 @@ public class PipelineEditor {
     }
 
     private String currentFilePath = null;
+    private boolean isDirty = false; // Track unsaved changes
+
+    private void markDirty() {
+        isDirty = true;
+    }
+
+    private void clearDirty() {
+        isDirty = false;
+    }
+
+    /**
+     * Check if there are unsaved changes and prompt user.
+     * Returns true if OK to proceed (saved, discarded, or no changes).
+     * Returns false if user cancelled.
+     */
+    private boolean checkUnsavedChanges() {
+        if (!isDirty) {
+            return true;
+        }
+
+        MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.YES | SWT.NO | SWT.CANCEL);
+        mb.setText("Unsaved Changes");
+        mb.setMessage("You have unsaved changes. Do you want to save before continuing?");
+        int result = mb.open();
+
+        if (result == SWT.YES) {
+            // Save the file
+            if (currentFilePath != null) {
+                saveDiagramToPath(currentFilePath);
+            } else {
+                FileDialog dialog = new FileDialog(shell, SWT.SAVE);
+                dialog.setText("Save Pipeline");
+                dialog.setFilterExtensions(new String[]{"*.json"});
+                dialog.setFilterNames(new String[]{"Pipeline Files (*.json)"});
+                String path = dialog.open();
+                if (path != null) {
+                    if (!path.toLowerCase().endsWith(".json")) {
+                        path += ".json";
+                    }
+                    saveDiagramToPath(path);
+                } else {
+                    return false; // User cancelled save dialog
+                }
+            }
+            return true;
+        } else if (result == SWT.NO) {
+            return true; // Discard changes
+        } else {
+            return false; // Cancel
+        }
+    }
 
     public void run() {
         // Set application name for macOS menu bar (must be before Display creation)
@@ -206,6 +258,11 @@ public class PipelineEditor {
         } else {
             createSamplePipeline();
         }
+
+        // Add close listener to check for unsaved changes
+        shell.addListener(SWT.Close, event -> {
+            event.doit = checkUnsavedChanges();
+        });
 
         shell.open();
 
@@ -318,6 +375,11 @@ public class PipelineEditor {
     }
 
     private void restartApplication() {
+        // Check for unsaved changes
+        if (!checkUnsavedChanges()) {
+            return;
+        }
+
         // Get the command used to launch this application
         try {
             String javaHome = System.getProperty("java.home");
@@ -687,6 +749,7 @@ public class PipelineEditor {
 
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
+            clearDirty();
 
         } catch (Exception e) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -1000,6 +1063,7 @@ public class PipelineEditor {
             currentFilePath = path;
             addToRecentFiles(path);
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
+            clearDirty();
 
         } catch (Exception e) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -1425,6 +1489,7 @@ public class PipelineEditor {
 
                 // If we had any selection, redraw and re-execute pipeline
                 if (hasSelection) {
+                    markDirty();
                     canvas.redraw();
                     executePipeline();
                     event.doit = false; // Consume the event
@@ -1932,7 +1997,9 @@ public class PipelineEditor {
         }
 
         // Draw nodes first (so connections appear on top)
+        // Draw selection highlight underneath each node, then the node itself
         for (PipelineNode node : nodes) {
+            node.drawSelectionHighlight(gc, selectedNodes.contains(node));
             node.paint(gc);
         }
 
@@ -2061,11 +2128,6 @@ public class PipelineEditor {
                 gc.fillOval(connectionEndPoint.x - 4, connectionEndPoint.y - 4, 8, 8);
             }
             gc.setLineStyle(SWT.LINE_SOLID);
-        }
-
-        // Draw selection highlights
-        for (PipelineNode node : nodes) {
-            node.drawSelectionHighlight(gc, selectedNodes.contains(node));
         }
 
         // Draw selection box if dragging
@@ -2539,9 +2601,11 @@ public class PipelineEditor {
             if (connected && targetNode != null) {
                 // Create a new connection
                 connections.add(new Connection(connectionSource, targetNode));
+                markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a dangling connection
                 danglingConnections.add(new DanglingConnection(connectionSource, connectionEndPoint));
+                markDirty();
             } else {
             }
 
@@ -2589,9 +2653,11 @@ public class PipelineEditor {
             if (connected && sourceNode != null) {
                 // Create a new connection
                 connections.add(new Connection(sourceNode, connectionTarget));
+                markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a reverse dangling connection
                 reverseDanglingConnections.add(new ReverseDanglingConnection(connectionTarget, connectionEndPoint));
+                markDirty();
             }
 
             connectionTarget = null;
@@ -2697,6 +2763,12 @@ public class PipelineEditor {
             canvas.redraw();
         }
 
+        // Mark dirty if nodes were actually moved
+        if (nodesMoved) {
+            markDirty();
+            nodesMoved = false;
+        }
+
         isDragging = false;
         selectedNode = null;
     }
@@ -2715,6 +2787,11 @@ public class PipelineEditor {
             // Calculate the delta movement
             int deltaX = e.x - dragOffset.x - selectedNode.x;
             int deltaY = e.y - dragOffset.y - selectedNode.y;
+
+            // Only mark as moved if there's actual movement
+            if (deltaX != 0 || deltaY != 0) {
+                nodesMoved = true;
+            }
 
             // Move all selected nodes by the same delta
             if (selectedNodes.contains(selectedNode) && selectedNodes.size() > 1) {
@@ -2879,6 +2956,7 @@ public class PipelineEditor {
     private void addFileSourceNodeAt(int x, int y) {
         FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
         nodes.add(node);
+        markDirty();
         canvas.redraw();
     }
 
@@ -2889,6 +2967,7 @@ public class PipelineEditor {
     private void addWebcamSourceNodeAt(int x, int y) {
         WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
         nodes.add(node);
+        markDirty();
         canvas.redraw();
     }
 
@@ -2899,6 +2978,7 @@ public class PipelineEditor {
     private void addBlankSourceNodeAt(int x, int y) {
         BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
         nodes.add(node);
+        markDirty();
         canvas.redraw();
     }
 
@@ -2909,8 +2989,9 @@ public class PipelineEditor {
     private void addEffectNodeAt(String type, int x, int y) {
         ProcessingNode node = createEffectNode(type, x, y);
         if (node != null) {
-            node.setOnChanged(() -> executePipeline());
+            node.setOnChanged(() -> { markDirty(); executePipeline(); });
             nodes.add(node);
+            markDirty();
             canvas.redraw();
         }
     }
