@@ -78,6 +78,9 @@ public class PipelineEditor {
         // Dual Input nodes
         NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
         NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
+        NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
+        NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
+        NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
 
         // Filter nodes
         NodeRegistry.register("FFTFilter", "Filter", FFTFilterNode.class);
@@ -2325,6 +2328,12 @@ public class PipelineEditor {
                 return ((AddClampNode) conn.target).getInputPoint2();
             } else if (conn.target instanceof SubtractClampNode) {
                 return ((SubtractClampNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof BitwiseAndNode) {
+                return ((BitwiseAndNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof BitwiseOrNode) {
+                return ((BitwiseOrNode) conn.target).getInputPoint2();
+            } else if (conn.target instanceof BitwiseXorNode) {
+                return ((BitwiseXorNode) conn.target).getInputPoint2();
             }
         }
         return conn.target.getInputPoint();
@@ -2384,10 +2393,20 @@ public class PipelineEditor {
                 PipelineNode node = nodes.get(i);
 
                 // Check for second input point on dual-input nodes first
-                if (node instanceof AddClampNode || node instanceof SubtractClampNode) {
-                    Point inputPoint2 = (node instanceof AddClampNode)
-                        ? ((AddClampNode) node).getInputPoint2()
-                        : ((SubtractClampNode) node).getInputPoint2();
+                if (node instanceof AddClampNode || node instanceof SubtractClampNode ||
+                    node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
+                    Point inputPoint2;
+                    if (node instanceof AddClampNode) {
+                        inputPoint2 = ((AddClampNode) node).getInputPoint2();
+                    } else if (node instanceof SubtractClampNode) {
+                        inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
+                    } else if (node instanceof BitwiseAndNode) {
+                        inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
+                    } else if (node instanceof BitwiseOrNode) {
+                        inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
+                    } else {
+                        inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
+                    }
                     double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint2.y, 2));
                     if (dist2 <= radius) {
@@ -2826,10 +2845,20 @@ public class PipelineEditor {
             for (PipelineNode node : nodes) {
                 if (node != connectionSource) {
                     // Check second input point for dual-input nodes first
-                    if (node instanceof AddClampNode || node instanceof SubtractClampNode) {
-                        Point inputPoint2 = (node instanceof AddClampNode)
-                            ? ((AddClampNode) node).getInputPoint2()
-                            : ((SubtractClampNode) node).getInputPoint2();
+                    if (node instanceof AddClampNode || node instanceof SubtractClampNode ||
+                        node instanceof BitwiseAndNode || node instanceof BitwiseOrNode || node instanceof BitwiseXorNode) {
+                        Point inputPoint2;
+                        if (node instanceof AddClampNode) {
+                            inputPoint2 = ((AddClampNode) node).getInputPoint2();
+                        } else if (node instanceof SubtractClampNode) {
+                            inputPoint2 = ((SubtractClampNode) node).getInputPoint2();
+                        } else if (node instanceof BitwiseAndNode) {
+                            inputPoint2 = ((BitwiseAndNode) node).getInputPoint2();
+                        } else if (node instanceof BitwiseOrNode) {
+                            inputPoint2 = ((BitwiseOrNode) node).getInputPoint2();
+                        } else {
+                            inputPoint2 = ((BitwiseXorNode) node).getInputPoint2();
+                        }
                         int radius = 8;
                         double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                                Math.pow(clickPoint.y - inputPoint2.y, 2));
@@ -3360,6 +3389,12 @@ public class PipelineEditor {
             case "Subtract w/Clamp":
             case "Sub w/Clamp":  // Old name for backward compatibility
                 return "SubtractClamp";
+            case "Bitwise AND":
+                return "BitwiseAnd";
+            case "Bitwise OR":
+                return "BitwiseOr";
+            case "Bitwise XOR":
+                return "BitwiseXor";
 
             // Filter
             case "FFT High-Pass Filter":

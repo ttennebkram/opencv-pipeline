@@ -3,6 +3,9 @@ package com.example.pipeline.model;
 import com.example.pipeline.nodes.PipelineNode;
 import com.example.pipeline.nodes.AddClampNode;
 import com.example.pipeline.nodes.SubtractClampNode;
+import com.example.pipeline.nodes.BitwiseAndNode;
+import com.example.pipeline.nodes.BitwiseOrNode;
+import com.example.pipeline.nodes.BitwiseXorNode;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.opencv.core.Mat;
@@ -94,6 +97,12 @@ public class Connection {
                 ((AddClampNode) target).setInputQueue2(queue);
             } else if (target instanceof SubtractClampNode) {
                 ((SubtractClampNode) target).setInputQueue2(queue);
+            } else if (target instanceof BitwiseAndNode) {
+                ((BitwiseAndNode) target).setInputQueue2(queue);
+            } else if (target instanceof BitwiseOrNode) {
+                ((BitwiseOrNode) target).setInputQueue2(queue);
+            } else if (target instanceof BitwiseXorNode) {
+                ((BitwiseXorNode) target).setInputQueue2(queue);
             } else {
                 target.setInputQueue(queue);
             }
@@ -115,6 +124,12 @@ public class Connection {
                 ((AddClampNode) target).setInputQueue2(null);
             } else if (target instanceof SubtractClampNode) {
                 ((SubtractClampNode) target).setInputQueue2(null);
+            } else if (target instanceof BitwiseAndNode) {
+                ((BitwiseAndNode) target).setInputQueue2(null);
+            } else if (target instanceof BitwiseOrNode) {
+                ((BitwiseOrNode) target).setInputQueue2(null);
+            } else if (target instanceof BitwiseXorNode) {
+                ((BitwiseXorNode) target).setInputQueue2(null);
             } else {
                 target.setInputQueue(null);
             }
