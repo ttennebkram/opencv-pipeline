@@ -86,6 +86,7 @@ public class PipelineSerializer {
             connJson.addProperty("sourceId", nodes.indexOf(conn.source));
             connJson.addProperty("targetId", nodes.indexOf(conn.target));
             connJson.addProperty("inputIndex", conn.inputIndex);
+            connJson.addProperty("outputIndex", conn.outputIndex);
             connJson.addProperty("queueCapacity", conn.getConfiguredCapacity());
             connJson.addProperty("queueCount", conn.getQueueSize());
             connJson.addProperty("totalFramesSent", conn.getTotalFramesSent());
@@ -98,6 +99,7 @@ public class PipelineSerializer {
         for (DanglingConnection dc : danglingConnections) {
             JsonObject dcJson = new JsonObject();
             dcJson.addProperty("sourceId", nodes.indexOf(dc.source));
+            dcJson.addProperty("outputIndex", dc.outputIndex);
             dcJson.addProperty("freeEndX", dc.freeEnd.x);
             dcJson.addProperty("freeEndY", dc.freeEnd.y);
             dcJson.addProperty("queueCapacity", dc.getConfiguredCapacity());
@@ -184,11 +186,12 @@ public class PipelineSerializer {
                 int sourceId = connJson.get("sourceId").getAsInt();
                 int targetId = connJson.get("targetId").getAsInt();
                 int inputIndex = connJson.has("inputIndex") ? connJson.get("inputIndex").getAsInt() : 1;
+                int outputIndex = connJson.has("outputIndex") ? connJson.get("outputIndex").getAsInt() : 0;
 
                 if (sourceId >= 0 && sourceId < nodes.size() &&
                     targetId >= 0 && targetId < nodes.size()) {
 
-                    Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIndex);
+                    Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIndex, outputIndex);
 
                     // Restore queue capacity if specified
                     if (connJson.has("queueCapacity")) {
