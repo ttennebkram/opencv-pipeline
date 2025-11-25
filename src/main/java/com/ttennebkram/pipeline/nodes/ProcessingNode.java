@@ -61,13 +61,17 @@ public abstract class ProcessingNode extends PipelineNode {
     @Override
     public void paint(GC gc) {
         // Draw node background
-        gc.setBackground(new Color(230, 255, 230));
+        Color bgColor = getBackgroundColor();
+        gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
 
         // Draw border
-        gc.setForeground(new Color(0, 100, 0));
+        Color borderColor = getBorderColor();
+        gc.setForeground(borderColor);
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
+        borderColor.dispose();
 
         // Draw title
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));

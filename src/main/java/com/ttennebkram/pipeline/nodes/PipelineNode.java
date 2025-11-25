@@ -71,6 +71,22 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public abstract String getNodeName();
 
+    /**
+     * Get the background color for this node.
+     * Subclasses can override to customize appearance.
+     */
+    protected Color getBackgroundColor() {
+        return new Color(230, 255, 230); // Default light green
+    }
+
+    /**
+     * Get the border color for this node.
+     * Subclasses can override to customize appearance.
+     */
+    protected Color getBorderColor() {
+        return new Color(0, 100, 0); // Default dark green
+    }
+
     public boolean containsPoint(Point p) {
         return p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
     }

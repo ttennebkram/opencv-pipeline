@@ -3,9 +3,6 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Color;
-import org.eclipse.swt.graphics.Font;
-import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -43,6 +40,17 @@ public class FFTLowPass4Node extends MultiOutputNode {
         super(display, shell, "FFT LowPass 4", x, y);
         initMultiOutputQueues(4); // Fixed 4 outputs
         setOutputLabels("Filtered", "Difference", "Spectrum", "Filter Curve");
+    }
+
+    // Custom colors for low-pass filter (light blue)
+    @Override
+    protected org.eclipse.swt.graphics.Color getBackgroundColor() {
+        return new org.eclipse.swt.graphics.Color(220, 240, 255);
+    }
+
+    @Override
+    protected org.eclipse.swt.graphics.Color getBorderColor() {
+        return new org.eclipse.swt.graphics.Color(70, 130, 180);
     }
 
     // Getters/setters for serialization
@@ -538,40 +546,6 @@ public class FFTLowPass4Node extends MultiOutputNode {
 
         mask.put(0, 0, maskData);
         return mask;
-    }
-
-    @Override
-    public void paint(GC gc) {
-        // Light blue background for filter nodes
-        gc.setBackground(new Color(220, 240, 255));
-        gc.fillRoundRectangle(x, y, width, height, 10, 10);
-
-        gc.setForeground(new Color(70, 130, 180));
-        gc.setLineWidth(2);
-        gc.drawRoundRectangle(x, y, width, height, 10, 10);
-
-        gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
-        Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
-        gc.setFont(boldFont);
-        gc.drawString(name, x + 10, y + 5, true);
-        boldFont.dispose();
-
-        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
-        gc.setFont(smallFont);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
-        gc.drawString("R:" + radius + " S:" + smoothness, x + 10, y + 20, true);
-        smallFont.dispose();
-
-        // Draw thumbnail
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            gc.drawImage(thumbnail, x + 40, y + 35);
-        } else {
-            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(no output)", x + 45, y + 50, true);
-        }
-
-        // Draw multi-output connection points
-        drawMultiOutputConnectionPoints(gc);
     }
 
     @Override

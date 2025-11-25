@@ -5,6 +5,7 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.opencv.core.Mat;
@@ -192,6 +193,61 @@ public abstract class MultiOutputNode extends ProcessingNode {
     }
 
     /**
+     * Paint the node. Overrides ProcessingNode.paint() to use multi-output connection points.
+     */
+    @Override
+    public void paint(GC gc) {
+        // Draw node background
+        Color bgColor = getBackgroundColor();
+        gc.setBackground(bgColor);
+        gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
+
+        // Draw border
+        Color borderColor = getBorderColor();
+        gc.setForeground(borderColor);
+        gc.setLineWidth(2);
+        gc.drawRoundRectangle(x, y, width, height, 10, 10);
+        borderColor.dispose();
+
+        // Draw title
+        gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
+        Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
+        gc.setFont(boldFont);
+        gc.drawString(name, x + 10, y + 5, true);
+        boldFont.dispose();
+
+        // Draw thread priority label
+        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
+        gc.setFont(smallFont);
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            gc.setForeground(new Color(200, 0, 0));
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
+        gc.drawString(getThreadPriorityLabel(), x + 10, y + 20, true);
+        smallFont.dispose();
+
+        // Draw input stats (frame counts)
+        drawInputStats(gc);
+
+        // Draw thumbnail if available
+        if (thumbnail != null && !thumbnail.isDisposed()) {
+            Rectangle bounds = thumbnail.getBounds();
+            int thumbX = x + 40;
+            int thumbY = y + 35;
+            gc.drawImage(thumbnail, thumbX, thumbY);
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.drawString("(no output)", x + 45, y + 50, true);
+        }
+
+        // Draw multi-output connection points (instead of single output)
+        drawMultiOutputConnectionPoints(gc);
+    }
+
+    /**
      * Send a Mat to all output queues (cloning for each).
      * Returns true if at least one queue received the frame.
      */
@@ -264,6 +320,22 @@ public abstract class MultiOutputNode extends ProcessingNode {
         }, "MultiOutput-" + name + "-Thread");
         processingThread.setPriority(threadPriority);
         processingThread.start();
+    }
+
+    /**
+     * Draw input stats (frame counts) on the left side of the node.
+     * Call this from paint() in subclasses that override paint().
+     */
+    protected void drawInputStats(GC gc) {
+        Font tinyFont = new Font(display, "Arial", 7, SWT.NORMAL);
+        gc.setFont(tinyFont);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        int statsX = x + 5;
+        gc.drawString("In1:" + inputReads1, statsX, y + 40, true);
+        if (hasDualInput()) {
+            gc.drawString("In2:" + inputReads2, statsX, y + 70, true);
+        }
+        tinyFont.dispose();
     }
 
     /**
