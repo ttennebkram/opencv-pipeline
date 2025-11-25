@@ -17,7 +17,7 @@ import org.opencv.imgproc.Imgproc;
  */
 @NodeInfo(
     name = "Scharr",
-    category = "Edge Detection",
+    category = "Edges",
     aliases = {"Scharr Edges"}
 )
 public class ScharrNode extends ProcessingNode {

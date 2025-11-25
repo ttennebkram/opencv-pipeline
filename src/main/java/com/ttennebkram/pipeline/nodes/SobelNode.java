@@ -18,7 +18,7 @@ import org.opencv.imgproc.Imgproc;
  */
 @NodeInfo(
     name = "Sobel",
-    category = "Edge Detection",
+    category = "Edges",
     aliases = {"Sobel Edges"}
 )
 public class SobelNode extends ProcessingNode {

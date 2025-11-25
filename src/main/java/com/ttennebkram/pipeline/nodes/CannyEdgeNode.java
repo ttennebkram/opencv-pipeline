@@ -15,7 +15,7 @@ import org.opencv.imgproc.Imgproc;
  */
 @NodeInfo(
     name = "CannyEdge",
-    category = "Edge Detection",
+    category = "Edges",
     aliases = {"Canny Edge", "Canny Edges"}
 )
 public class CannyEdgeNode extends ProcessingNode {

@@ -17,7 +17,7 @@ import org.opencv.imgproc.Imgproc;
  */
 @NodeInfo(
     name = "Laplacian",
-    category = "Edge Detection",
+    category = "Edges",
     aliases = {"Laplacian Edges"}
 )
 public class LaplacianNode extends ProcessingNode {

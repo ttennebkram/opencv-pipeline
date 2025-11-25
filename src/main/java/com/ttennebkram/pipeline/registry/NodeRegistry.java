@@ -100,15 +100,15 @@ public class NodeRegistry {
         switch (category) {
             case "Source": return 0;
             case "Basic": return 1;
-            case "Blur": return 2;
-            case "Edge Detection": return 3;
-            case "Morphology": return 4;
+            case "Content": return 2;
+            case "Blur": return 3;
+            case "Edges": return 4;
             case "Filter": return 5;
-            case "Transform": return 6;
-            case "Detection": return 7;
-            case "Content": return 8;
-            case "Visualization": return 9;
-            case "Dual Input": return 10;
+            case "Morphology": return 6;
+            case "Transform": return 7;
+            case "Detection": return 8;
+            case "Dual Input": return 9;
+            case "Visualization": return 10;
             default: return 99;
         }
     }
