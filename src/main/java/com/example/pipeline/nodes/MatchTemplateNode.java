@@ -19,6 +19,12 @@ import org.opencv.imgproc.Imgproc;
  */
 public class MatchTemplateNode extends DualInputNode {
     private int method = Imgproc.TM_CCOEFF_NORMED; // Default matching method
+    private int outputMode = 0; // 0=result only, 1=source+rectangle, 2=source+overlay
+    private int rectColorR = 0;   // Green rectangle by default
+    private int rectColorG = 255;
+    private int rectColorB = 0;
+    private int rectThickness = 5; // Default thickness for visibility in thumbnails
+
     private static final String[] METHOD_NAMES = {
         "TM_SQDIFF", "TM_SQDIFF_NORMED",
         "TM_CCORR", "TM_CCORR_NORMED",
@@ -28,6 +34,11 @@ public class MatchTemplateNode extends DualInputNode {
         Imgproc.TM_SQDIFF, Imgproc.TM_SQDIFF_NORMED,
         Imgproc.TM_CCORR, Imgproc.TM_CCORR_NORMED,
         Imgproc.TM_CCOEFF, Imgproc.TM_CCOEFF_NORMED
+    };
+    private static final String[] OUTPUT_MODE_NAMES = {
+        "Result Matrix Only",
+        "Source + Rectangle",
+        "Source + Result Overlay"
     };
 
     public MatchTemplateNode(Display display, Shell shell, int x, int y) {
@@ -76,18 +87,69 @@ public class MatchTemplateNode extends DualInputNode {
                 matchValue = mmr.maxVal;
             }
 
-            // Normalize and convert result to 8-bit for display (CV_32F -> CV_8U)
-            Mat normalized = new Mat();
-            Core.normalize(result, normalized, 0, 255, Core.NORM_MINMAX);
+            // Handle output mode
+            if (outputMode == 1) {
+                // Mode 1: Source + Rectangle
+                Mat output = source.clone();
 
-            Mat result8u = new Mat();
-            normalized.convertTo(result8u, org.opencv.core.CvType.CV_8UC1);
+                // Calculate rectangle coordinates
+                int x1 = (int) Math.max(0, matchLoc.x);
+                int y1 = (int) Math.max(0, matchLoc.y);
+                int x2 = (int) Math.min(source.width() - 1, matchLoc.x + template.cols());
+                int y2 = (int) Math.min(source.height() - 1, matchLoc.y + template.rows());
 
-            result.release();
-            normalized.release();
+                // Draw rectangle around the matched region
+                Point topLeft = new Point(x1, y1);
+                Point bottomRight = new Point(x2, y2);
+                Imgproc.rectangle(output, topLeft, bottomRight,
+                                new Scalar(rectColorB, rectColorG, rectColorR), rectThickness);
 
-            // Return the 8-bit result matrix for visualization
-            return result8u;
+                result.release();
+                return output;
+            } else if (outputMode == 2) {
+                // Mode 2: Source + Result Overlay
+                // Normalize result to 8-bit
+                Mat normalized = new Mat();
+                Core.normalize(result, normalized, 0, 255, Core.NORM_MINMAX);
+                Mat result8u = new Mat();
+                normalized.convertTo(result8u, org.opencv.core.CvType.CV_8UC1);
+
+                // Resize result to match source dimensions
+                Mat resizedResult = new Mat();
+                Imgproc.resize(result8u, resizedResult, new org.opencv.core.Size(source.width(), source.height()));
+
+                // Convert result to color (for blending)
+                Mat resultColor = new Mat();
+                Imgproc.cvtColor(resizedResult, resultColor, Imgproc.COLOR_GRAY2BGR);
+
+                // Apply colormap to result for better visualization
+                Imgproc.applyColorMap(resizedResult, resultColor, Imgproc.COLORMAP_JET);
+
+                // Blend with source image
+                Mat output = new Mat();
+                Core.addWeighted(source, 0.6, resultColor, 0.4, 0, output);
+
+                result.release();
+                normalized.release();
+                result8u.release();
+                resizedResult.release();
+                resultColor.release();
+
+                return output;
+            } else {
+                // Mode 0: Result Matrix Only (default)
+                Mat normalized = new Mat();
+                Core.normalize(result, normalized, 0, 255, Core.NORM_MINMAX);
+
+                Mat result8u = new Mat();
+                normalized.convertTo(result8u, org.opencv.core.CvType.CV_8UC1);
+
+                result.release();
+                normalized.release();
+
+                // Return the 8-bit result matrix for visualization
+                return result8u;
+            }
         } catch (Exception e) {
             System.err.println("MatchTemplate error: " + e.getMessage());
             e.printStackTrace();
@@ -169,11 +231,11 @@ public class MatchTemplateNode extends DualInputNode {
 
         // Draw second input point (bottom left) - Template image
         org.eclipse.swt.graphics.Point input2 = getInputPoint2();
-        Color input2BgColor = new Color(255, 220, 200);
+        Color input2BgColor = new Color(200, 220, 255);
         gc.setBackground(input2BgColor);
         gc.fillOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
         input2BgColor.dispose();
-        Color input2FgColor = new Color(200, 100, 60);
+        Color input2FgColor = new Color(70, 100, 180);
         gc.setForeground(input2FgColor);
         gc.drawOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
         input2FgColor.dispose();
@@ -214,6 +276,46 @@ public class MatchTemplateNode extends DualInputNode {
         this.method = method;
     }
 
+    public int getOutputMode() {
+        return outputMode;
+    }
+
+    public void setOutputMode(int outputMode) {
+        this.outputMode = outputMode;
+    }
+
+    public int getRectColorR() {
+        return rectColorR;
+    }
+
+    public void setRectColorR(int r) {
+        this.rectColorR = r;
+    }
+
+    public int getRectColorG() {
+        return rectColorG;
+    }
+
+    public void setRectColorG(int g) {
+        this.rectColorG = g;
+    }
+
+    public int getRectColorB() {
+        return rectColorB;
+    }
+
+    public void setRectColorB(int b) {
+        this.rectColorB = b;
+    }
+
+    public int getRectThickness() {
+        return rectThickness;
+    }
+
+    public void setRectThickness(int thickness) {
+        this.rectThickness = thickness;
+    }
+
     @Override
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
@@ -250,11 +352,43 @@ public class MatchTemplateNode extends DualInputNode {
         GridData methodGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         methodCombo.setLayoutData(methodGd);
 
+        // Output Mode selection
+        new Label(dialog, SWT.NONE).setText("Output Mode:");
+        Combo outputModeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
+        outputModeCombo.setItems(OUTPUT_MODE_NAMES);
+        outputModeCombo.select(outputMode);
+        GridData outputModeGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        outputModeCombo.setLayoutData(outputModeGd);
+
         // Queues In Sync checkbox
         new Label(dialog, SWT.NONE).setText("Queues In Sync:");
         Button syncCheckbox = new Button(dialog, SWT.CHECK);
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
+
+        // Rectangle Color inputs
+        new Label(dialog, SWT.NONE).setText("Rectangle Color (R G B):");
+        Composite colorComp = new Composite(dialog, SWT.NONE);
+        colorComp.setLayout(new GridLayout(3, false));
+        colorComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        Text rText = new Text(colorComp, SWT.BORDER);
+        rText.setText(String.valueOf(rectColorR));
+        rText.setLayoutData(new GridData(40, SWT.DEFAULT));
+
+        Text gText = new Text(colorComp, SWT.BORDER);
+        gText.setText(String.valueOf(rectColorG));
+        gText.setLayoutData(new GridData(40, SWT.DEFAULT));
+
+        Text bText = new Text(colorComp, SWT.BORDER);
+        bText.setText(String.valueOf(rectColorB));
+        bText.setLayoutData(new GridData(40, SWT.DEFAULT));
+
+        // Rectangle Thickness input
+        new Label(dialog, SWT.NONE).setText("Rectangle Thickness:");
+        Text thicknessText = new Text(dialog, SWT.BORDER);
+        thicknessText.setText(String.valueOf(rectThickness));
+        thicknessText.setLayoutData(new GridData(60, SWT.DEFAULT));
 
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
@@ -267,7 +401,16 @@ public class MatchTemplateNode extends DualInputNode {
         okBtn.setText("OK");
         okBtn.addListener(SWT.Selection, e -> {
             method = METHOD_VALUES[methodCombo.getSelectionIndex()];
+            outputMode = outputModeCombo.getSelectionIndex();
             queuesInSync = syncCheckbox.getSelection();
+            try {
+                rectColorR = Math.max(0, Math.min(255, Integer.parseInt(rText.getText())));
+                rectColorG = Math.max(0, Math.min(255, Integer.parseInt(gText.getText())));
+                rectColorB = Math.max(0, Math.min(255, Integer.parseInt(bText.getText())));
+                rectThickness = Math.max(1, Math.min(50, Integer.parseInt(thicknessText.getText())));
+            } catch (NumberFormatException ex) {
+                // Keep existing values if parse fails
+            }
             dialog.dispose();
             notifyChanged();
         });

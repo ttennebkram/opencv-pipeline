@@ -992,6 +992,15 @@ public class PipelineEditor {
                             MatchTemplateNode mtn = (MatchTemplateNode) node;
                             if (nodeObj.has("method")) mtn.setMethod(nodeObj.get("method").getAsInt());
                             if (nodeObj.has("queuesInSync")) mtn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
+                            // Handle old showRectangle boolean (convert to outputMode)
+                            if (nodeObj.has("showRectangle") && !nodeObj.has("outputMode")) {
+                                mtn.setOutputMode(nodeObj.get("showRectangle").getAsBoolean() ? 1 : 0);
+                            }
+                            if (nodeObj.has("outputMode")) mtn.setOutputMode(nodeObj.get("outputMode").getAsInt());
+                            if (nodeObj.has("rectColorR")) mtn.setRectColorR(nodeObj.get("rectColorR").getAsInt());
+                            if (nodeObj.has("rectColorG")) mtn.setRectColorG(nodeObj.get("rectColorG").getAsInt());
+                            if (nodeObj.has("rectColorB")) mtn.setRectColorB(nodeObj.get("rectColorB").getAsInt());
+                            if (nodeObj.has("rectThickness")) mtn.setRectThickness(nodeObj.get("rectThickness").getAsInt());
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> { markDirty(); executePipeline(); });
@@ -1763,6 +1772,11 @@ public class PipelineEditor {
                         MatchTemplateNode mtn = (MatchTemplateNode) node;
                         nodeObj.addProperty("method", mtn.getMethod());
                         nodeObj.addProperty("queuesInSync", mtn.isQueuesInSync());
+                        nodeObj.addProperty("outputMode", mtn.getOutputMode());
+                        nodeObj.addProperty("rectColorR", mtn.getRectColorR());
+                        nodeObj.addProperty("rectColorG", mtn.getRectColorG());
+                        nodeObj.addProperty("rectColorB", mtn.getRectColorB());
+                        nodeObj.addProperty("rectThickness", mtn.getRectThickness());
                     }
                     // InvertNode has no properties to save
                 }

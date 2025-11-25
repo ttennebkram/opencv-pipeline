@@ -13,6 +13,20 @@ import java.util.concurrent.TimeUnit;
  * Handles polling from both input queues and synchronization logic.
  */
 public abstract class DualInputNode extends ProcessingNode {
+    // Connection point colors
+    private static final int INPUT_BG_R = 200;
+    private static final int INPUT_BG_G = 220;
+    private static final int INPUT_BG_B = 255;
+    private static final int INPUT_FG_R = 70;
+    private static final int INPUT_FG_G = 100;
+    private static final int INPUT_FG_B = 180;
+    private static final int OUTPUT_BG_R = 255;
+    private static final int OUTPUT_BG_G = 230;
+    private static final int OUTPUT_BG_B = 200;
+    private static final int OUTPUT_FG_R = 200;
+    private static final int OUTPUT_FG_G = 120;
+    private static final int OUTPUT_FG_B = 50;
+
     // Second input queue
     protected BlockingQueue<Mat> inputQueue2;
 
@@ -170,5 +184,48 @@ public abstract class DualInputNode extends ProcessingNode {
             lastInput2 = null;
         }
         // Do NOT clear inputQueue2 - it keeps its data
+    }
+
+    /**
+     * Draw connection points for dual-input nodes.
+     * Subclasses can override if they need custom colors.
+     */
+    protected void drawDualInputConnectionPoints(org.eclipse.swt.graphics.GC gc) {
+        int radius = 6;
+
+        // Draw first input point (top left)
+        org.eclipse.swt.graphics.Point input1 = getInputPoint();
+        org.eclipse.swt.graphics.Color input1BgColor = new org.eclipse.swt.graphics.Color(INPUT_BG_R, INPUT_BG_G, INPUT_BG_B);
+        gc.setBackground(input1BgColor);
+        gc.fillOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
+        input1BgColor.dispose();
+        org.eclipse.swt.graphics.Color input1FgColor = new org.eclipse.swt.graphics.Color(INPUT_FG_R, INPUT_FG_G, INPUT_FG_B);
+        gc.setForeground(input1FgColor);
+        gc.setLineWidth(2);
+        gc.drawOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
+        input1FgColor.dispose();
+
+        // Draw second input point (bottom left)
+        org.eclipse.swt.graphics.Point input2 = getInputPoint2();
+        org.eclipse.swt.graphics.Color input2BgColor = new org.eclipse.swt.graphics.Color(INPUT_BG_R, INPUT_BG_G, INPUT_BG_B);
+        gc.setBackground(input2BgColor);
+        gc.fillOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
+        input2BgColor.dispose();
+        org.eclipse.swt.graphics.Color input2FgColor = new org.eclipse.swt.graphics.Color(INPUT_FG_R, INPUT_FG_G, INPUT_FG_B);
+        gc.setForeground(input2FgColor);
+        gc.drawOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
+        input2FgColor.dispose();
+
+        // Draw output point on right side
+        org.eclipse.swt.graphics.Point output = getOutputPoint();
+        org.eclipse.swt.graphics.Color outputBgColor = new org.eclipse.swt.graphics.Color(OUTPUT_BG_R, OUTPUT_BG_G, OUTPUT_BG_B);
+        gc.setBackground(outputBgColor);
+        gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+        outputBgColor.dispose();
+        org.eclipse.swt.graphics.Color outputFgColor = new org.eclipse.swt.graphics.Color(OUTPUT_FG_R, OUTPUT_FG_G, OUTPUT_FG_B);
+        gc.setForeground(outputFgColor);
+        gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+        outputFgColor.dispose();
+        gc.setLineWidth(1);
     }
 }

@@ -104,25 +104,37 @@ public class BitwiseOrNode extends DualInputNode {
 
         // Draw first input point (top left)
         Point input1 = getInputPoint();
-        gc.setBackground(new Color(200, 220, 255));
+        Color input1BgColor = new Color(200, 220, 255);
+        gc.setBackground(input1BgColor);
         gc.fillOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
-        gc.setForeground(new Color(70, 100, 180));
+        input1BgColor.dispose();
+        Color input1FgColor = new Color(70, 100, 180);
+        gc.setForeground(input1FgColor);
         gc.setLineWidth(2);
         gc.drawOval(input1.x - radius, input1.y - radius, radius * 2, radius * 2);
+        input1FgColor.dispose();
 
         // Draw second input point (bottom left)
         Point input2 = getInputPoint2();
-        gc.setBackground(new Color(200, 220, 255));
+        Color input2BgColor = new Color(200, 220, 255);
+        gc.setBackground(input2BgColor);
         gc.fillOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
-        gc.setForeground(new Color(70, 100, 180));
+        input2BgColor.dispose();
+        Color input2FgColor = new Color(70, 100, 180);
+        gc.setForeground(input2FgColor);
         gc.drawOval(input2.x - radius, input2.y - radius, radius * 2, radius * 2);
+        input2FgColor.dispose();
 
         // Draw output point on right side
         Point output = getOutputPoint();
-        gc.setBackground(new Color(200, 230, 255));
+        Color outputBgColor = new Color(255, 230, 200);
+        gc.setBackground(outputBgColor);
         gc.fillOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
-        gc.setForeground(new Color(50, 100, 200));
+        outputBgColor.dispose();
+        Color outputFgColor = new Color(200, 120, 50);
+        gc.setForeground(outputFgColor);
         gc.drawOval(output.x - radius, output.y - radius, radius * 2, radius * 2);
+        outputFgColor.dispose();
         gc.setLineWidth(1);
     }
 
