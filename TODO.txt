@@ -7,6 +7,67 @@ lots of "hard coding" in the registry
 ? grid pattern doesn't change on zoom
     maybe just the dots where they intersect?
 
+cv2.split()
+
+cv2.remap()
+
+cv2.resize()
+
+cv2.watershed()
+
+cv2.HOGDescriptor() + SVM
+
+cv2.applyColorMap()
+
+cv2.ml.KNearest_create()	Classic kNN
+cv2.ml.SVM_create()	SVM classifier
+cv2.ml.RTrees_create()	Random forest
+cv2.ml.EM_create()	Expectation-Maximization clustering
+cv2.ml.KMeans2()	Faster KMeans
+
+cv2.warpPerspective()
+    cv2.getPerspectiveTransform()
+
+cv2.floodFill() Region filling from a seed pixel.
+
+cv2.distanceTransform() Shows how far each pixel is from the nearest background → great for skeletonization.
+
+cv2.grabCut() Interactive foreground extraction (used in apps like Photoshop).
+
+
+cv2.calcOpticalFlowPyrLK()	Track feature points between frames
+
+cv2.KalmanFilter()	Predict motion smoothly
+
+cv2.bgsegm (Background subtractors)	Real-time foreground detection
+
+? cv2.xfeatures2d.SIFT_create()	Still excellent (requires contrib)
+
+cv2.TrackerKCF_create()	Single object tracking
+
+cv2.TrackerCSRT_create()	Accurate tracking of deforming objects
+
+cv2.CascadeClassifier()
+
+cv2.pyrDown() / pyrUp()	Gaussian pyramids → multiscale search
+
+cv2.integral()
+
+cv2.goodFeaturesToTrack
+
+cv2.fastNlMeansDenoising()
+
+cv2.pyrMeanShiftFiltering()
+
+cv2.phase() cv2.magnitude()
+
+M = cv2.getPerspectiveTransform(src, dst)
+warped = cv2.warpPerspective(img, M, (500,700))
+
+hog = cv2.HOGDescriptor()
+hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+boxes, _ = hog.detectMultiScale(img)
+
 Histo:
     cv2.equalizeHist(image)
 --

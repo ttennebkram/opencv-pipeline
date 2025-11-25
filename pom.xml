@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
+    <groupId>com.ttennebkram</groupId>
     <artifactId>opencv-pipeline-editor</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
@@ -76,7 +76,7 @@
                         <argument>-XstartOnFirstThread</argument>
                         <argument>-classpath</argument>
                         <classpath/>
-                        <argument>com.example.pipeline.PipelineEditor</argument>
+                        <argument>com.ttennebkram.pipeline.PipelineEditor</argument>
                     </arguments>
                 </configuration>
             </plugin>
@@ -94,7 +94,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.example.pipeline.PipelineEditor</mainClass>
+                                    <mainClass>com.ttennebkram.pipeline.PipelineEditor</mainClass>
                                 </transformer>
                             </transformers>
                             <finalName>opencv-pipeline</finalName>
