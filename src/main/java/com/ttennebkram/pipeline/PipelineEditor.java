@@ -1871,21 +1871,28 @@ public class PipelineEditor {
                 gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
             }
 
-            gc.drawLine(start.x, start.y, end.x, end.y);
-            drawArrow(gc, start, end);
+            // Calculate routed path around obstacles
+            java.util.List<Point> path = calculateRoutedPath(start, end, conn.source, conn.target);
+            drawRoutedPath(gc, path);
+
+            // Draw arrow at end of last segment
+            if (path.size() >= 2) {
+                Point arrowStart = path.get(path.size() - 2);
+                Point arrowEnd = path.get(path.size() - 1);
+                drawArrow(gc, arrowStart, arrowEnd);
+            }
 
             // Draw queue size and total frames (always show, whether running or not)
             int queueSize = conn.getQueueSize();
             long totalFrames = conn.getTotalFramesSent();
-            int midX = (start.x + end.x) / 2;
-            int midY = (start.y + end.y) / 2;
+            Point midPoint = getPathMidpoint(path);
             String sizeText = queueSize + " / " + totalFrames;
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
             Point textExtent = gc.textExtent(sizeText);
-            gc.fillRoundRectangle(midX - textExtent.x/2 - 3, midY - textExtent.y/2 - 2,
+            gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
                 textExtent.x + 6, textExtent.y + 4, 6, 6);
-            gc.drawString(sizeText, midX - textExtent.x/2, midY - textExtent.y/2, true);
+            gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
         }
 
         // Draw dangling connections with dashed lines
@@ -2033,6 +2040,201 @@ public class PipelineEditor {
 
         gc.drawLine(end.x, end.y, x1, y1);
         gc.drawLine(end.x, end.y, x2, y2);
+    }
+
+    /**
+     * Calculate a routed path from start to end that avoids nodes.
+     * The path connects at connection points on node edges but doesn't pass through node bodies.
+     */
+    private java.util.List<Point> calculateRoutedPath(Point start, Point end, PipelineNode sourceNode, PipelineNode targetNode) {
+        java.util.List<Point> path = new java.util.ArrayList<>();
+        path.add(start);
+
+        int margin = 15; // Margin around nodes for routing
+
+        // Calculate exit point (just past the source node's right edge)
+        int exitX = sourceNode.x + sourceNode.width + margin;
+        // Calculate entry point (just before the target node's left edge)
+        int entryX = targetNode.x - margin;
+
+        // Collect ALL nodes as potential obstacles (including source and target)
+        // for checking the vertical segment
+        java.util.List<PipelineNode> allObstacles = new java.util.ArrayList<>(nodes);
+
+        // Find the bounds of all nodes that overlap with the horizontal span
+        int topMost = Integer.MAX_VALUE;
+        int bottomMost = Integer.MIN_VALUE;
+
+        for (PipelineNode node : allObstacles) {
+            int nodeLeft = node.x - margin;
+            int nodeRight = node.x + node.width + margin;
+
+            // Check if node overlaps horizontally with the routing area
+            if (nodeRight >= exitX && nodeLeft <= entryX) {
+                topMost = Math.min(topMost, node.y - margin);
+                bottomMost = Math.max(bottomMost, node.y + node.height + margin);
+            }
+        }
+
+        // Check if any obstacle blocks a direct vertical segment at exitX or entryX
+        boolean needsDetour = false;
+        int minPathY = Math.min(start.y, end.y);
+        int maxPathY = Math.max(start.y, end.y);
+
+        for (PipelineNode node : allObstacles) {
+            // Skip source and target for vertical segment check
+            // (we'll route around them with the exit/entry points)
+            if (node == sourceNode || node == targetNode) {
+                continue;
+            }
+
+            int nodeLeft = node.x - margin;
+            int nodeRight = node.x + node.width + margin;
+            int nodeTop = node.y - margin;
+            int nodeBottom = node.y + node.height + margin;
+
+            // Check if a vertical segment at exitX would pass through this node
+            if (exitX >= nodeLeft && exitX <= nodeRight) {
+                if (!(maxPathY < nodeTop || minPathY > nodeBottom)) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+
+            // Check if a vertical segment at entryX would pass through this node
+            if (entryX >= nodeLeft && entryX <= nodeRight) {
+                if (!(maxPathY < nodeTop || minPathY > nodeBottom)) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+
+            // Check if the horizontal segment at start.y or end.y would pass through
+            if (start.y >= nodeTop && start.y <= nodeBottom) {
+                if (exitX < nodeRight && entryX > nodeLeft) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+            if (end.y >= nodeTop && end.y <= nodeBottom) {
+                if (exitX < nodeRight && entryX > nodeLeft) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+        }
+
+        if (!needsDetour && start.y == end.y) {
+            // Same Y level and no obstacles - simple straight line via exit/entry points
+            path.add(new Point(exitX, start.y));
+            path.add(new Point(entryX, end.y));
+        } else {
+            // Need to find a clear Y level for the horizontal segment
+            // This Y must be outside BOTH source and target node bodies
+
+            // Calculate the vertical bounds we need to avoid (source and target nodes)
+            int sourceTop = sourceNode.y - margin;
+            int sourceBottom = sourceNode.y + sourceNode.height + margin;
+            int targetTop = targetNode.y - margin;
+            int targetBottom = targetNode.y + targetNode.height + margin;
+
+            // Find a routeY that's clear of both source and target
+            int routeY;
+
+            // Option 1: Go above both nodes
+            int aboveY = Math.min(sourceTop, targetTop) - 10;
+            // Option 2: Go below both nodes
+            int belowY = Math.max(sourceBottom, targetBottom) + 10;
+            // Option 3: Go between them (if there's a gap)
+            int betweenY = -1;
+            if (sourceBottom < targetTop - 20) {
+                // Gap between source (above) and target (below)
+                betweenY = (sourceBottom + targetTop) / 2;
+            } else if (targetBottom < sourceTop - 20) {
+                // Gap between target (above) and source (below)
+                betweenY = (targetBottom + sourceTop) / 2;
+            }
+
+            // Also consider middle obstacles for the route
+            if (needsDetour && topMost != Integer.MAX_VALUE) {
+                aboveY = Math.min(aboveY, topMost - 10);
+            }
+            if (needsDetour && bottomMost != Integer.MIN_VALUE) {
+                belowY = Math.max(belowY, bottomMost + 10);
+            }
+
+            // Choose the shortest path
+            int distAbove = Math.abs(start.y - aboveY) + Math.abs(end.y - aboveY);
+            int distBelow = Math.abs(start.y - belowY) + Math.abs(end.y - belowY);
+            int distBetween = betweenY >= 0 ? Math.abs(start.y - betweenY) + Math.abs(end.y - betweenY) : Integer.MAX_VALUE;
+
+            if (distBetween <= distAbove && distBetween <= distBelow) {
+                routeY = betweenY;
+            } else if (distAbove <= distBelow) {
+                routeY = aboveY;
+            } else {
+                routeY = belowY;
+            }
+
+            // Build a 5-segment path: out horizontally, up/down, across, down/up, in horizontally
+            path.add(new Point(exitX, start.y));
+            path.add(new Point(exitX, routeY));
+            path.add(new Point(entryX, routeY));
+            path.add(new Point(entryX, end.y));
+        }
+
+        path.add(end);
+        return path;
+    }
+
+    /**
+     * Draw a routed polyline path.
+     */
+    private void drawRoutedPath(GC gc, java.util.List<Point> path) {
+        if (path.size() < 2) return;
+
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point p1 = path.get(i);
+            Point p2 = path.get(i + 1);
+            gc.drawLine(p1.x, p1.y, p2.x, p2.y);
+        }
+    }
+
+    /**
+     * Get the midpoint of a routed path (for label placement).
+     */
+    private Point getPathMidpoint(java.util.List<Point> path) {
+        if (path.size() < 2) return path.get(0);
+
+        // Calculate total path length
+        double totalLength = 0;
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point p1 = path.get(i);
+            Point p2 = path.get(i + 1);
+            totalLength += Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        }
+
+        // Find the point at half the total length
+        double halfLength = totalLength / 2;
+        double accumulated = 0;
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point p1 = path.get(i);
+            Point p2 = path.get(i + 1);
+            double segmentLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+
+            if (accumulated + segmentLength >= halfLength) {
+                // Midpoint is on this segment
+                double ratio = (halfLength - accumulated) / segmentLength;
+                int midX = (int) (p1.x + ratio * (p2.x - p1.x));
+                int midY = (int) (p1.y + ratio * (p2.y - p1.y));
+                return new Point(midX, midY);
+            }
+            accumulated += segmentLength;
+        }
+
+        // Fallback to simple midpoint
+        return new Point((path.get(0).x + path.get(path.size() - 1).x) / 2,
+                        (path.get(0).y + path.get(path.size() - 1).y) / 2);
     }
 
     // Helper method to calculate distance from point to line segment
@@ -2589,27 +2791,36 @@ public class PipelineEditor {
         if (connectionTarget != null) {
             boolean connected = false;
             PipelineNode sourceNode = null;
+            int sourceOutputIndex = 0;
 
-            // Check if dropped on an output point
+            // Check if dropped on an output point (check all outputs for multi-output nodes)
             for (PipelineNode node : nodes) {
                 if (node != connectionTarget) {
-                    Point outputPoint = node.getOutputPoint();
                     int radius = 8;
-                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
-                                           Math.pow(clickPoint.y - outputPoint.y, 2));
-                    if (dist <= radius) {
-                        sourceNode = node;
-                        connected = true;
-                        break;
+                    int outputCount = node.getOutputCount();
+                    for (int outIdx = 0; outIdx < outputCount; outIdx++) {
+                        Point outputPoint = node.getOutputPoint(outIdx);
+                        if (outputPoint != null) {
+                            double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                                   Math.pow(clickPoint.y - outputPoint.y, 2));
+                            if (dist <= radius) {
+                                sourceNode = node;
+                                sourceOutputIndex = outIdx;
+                                connected = true;
+                                break;
+                            }
+                        }
                     }
+                    if (connected) break;
                 }
             }
 
-            // If not on output point, check if on node body as fallback
+            // If not on output point, check if on node body as fallback (use output 0)
             if (!connected) {
                 for (PipelineNode node : nodes) {
                     if (node != connectionTarget && node.containsPoint(clickPoint)) {
                         sourceNode = node;
+                        sourceOutputIndex = 0;
                         connected = true;
                         break;
                     }
@@ -2617,8 +2828,8 @@ public class PipelineEditor {
             }
 
             if (connected && sourceNode != null) {
-                // Create a new connection with the correct input index
-                connections.add(new Connection(sourceNode, connectionTarget, targetInputIndex));
+                // Create a new connection with the correct input and output index
+                connections.add(new Connection(sourceNode, connectionTarget, targetInputIndex, sourceOutputIndex));
                 markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a reverse dangling connection
@@ -2642,22 +2853,30 @@ public class PipelineEditor {
             int radius = 8;
 
             if (draggingFreeConnectionSource) {
-                // Dragging the source end - check if dropped on output point
+                // Dragging the source end - check if dropped on output point (check all for multi-output)
                 PipelineNode sourceNode = null;
+                int sourceOutputIndex = 0;
                 for (PipelineNode node : nodes) {
-                    Point outputPoint = node.getOutputPoint();
-                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
-                                           Math.pow(clickPoint.y - outputPoint.y, 2));
-                    if (dist <= radius) {
-                        sourceNode = node;
-                        connected = true;
-                        break;
+                    int outputCount = node.getOutputCount();
+                    for (int outIdx = 0; outIdx < outputCount; outIdx++) {
+                        Point outputPoint = node.getOutputPoint(outIdx);
+                        if (outputPoint != null) {
+                            double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                                   Math.pow(clickPoint.y - outputPoint.y, 2));
+                            if (dist <= radius) {
+                                sourceNode = node;
+                                sourceOutputIndex = outIdx;
+                                connected = true;
+                                break;
+                            }
+                        }
                     }
+                    if (connected) break;
                 }
 
                 if (connected && sourceNode != null) {
-                    // Connected to output point - create DanglingConnection
-                    danglingConnections.add(new DanglingConnection(sourceNode, freeConnectionFixedEnd));
+                    // Connected to output point - create DanglingConnection with output index
+                    danglingConnections.add(new DanglingConnection(sourceNode, sourceOutputIndex, freeConnectionFixedEnd));
                 } else {
                     // Not connected - create FreeConnection at current position
                     freeConnections.add(new FreeConnection(connectionEndPoint, freeConnectionFixedEnd));
