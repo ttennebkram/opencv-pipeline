@@ -1873,19 +1873,17 @@ public class PipelineEditor {
 
             // Calculate routed path around obstacles
             java.util.List<Point> path = calculateRoutedPath(start, end, conn.source, conn.target);
-            drawRoutedPath(gc, path);
+            drawRoutedPath(gc, path, conn.source, conn.target);
 
-            // Draw arrow at end of last segment
-            if (path.size() >= 2) {
-                Point arrowStart = path.get(path.size() - 2);
-                Point arrowEnd = path.get(path.size() - 1);
-                drawArrow(gc, arrowStart, arrowEnd);
-            }
+            // Draw arrow - for bezier, arrow comes from control point direction
+            int[] cp = calculateBezierControlPoints(start, end, conn.source, conn.target);
+            Point arrowFrom = new Point(cp[2], cp[3]); // Use second control point for arrow direction
+            drawArrow(gc, arrowFrom, end);
 
             // Draw queue size and total frames (always show, whether running or not)
             int queueSize = conn.getQueueSize();
             long totalFrames = conn.getTotalFramesSent();
-            Point midPoint = getPathMidpoint(path);
+            Point midPoint = getPathMidpoint(path, conn.source, conn.target);
             String sizeText = queueSize + " / " + totalFrames;
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
@@ -2188,53 +2186,94 @@ public class PipelineEditor {
     }
 
     /**
-     * Draw a routed polyline path.
+     * Draw a smooth bezier curve from start to end.
      */
-    private void drawRoutedPath(GC gc, java.util.List<Point> path) {
+    private void drawRoutedPath(GC gc, java.util.List<Point> path, PipelineNode sourceNode, PipelineNode targetNode) {
         if (path.size() < 2) return;
 
-        for (int i = 0; i < path.size() - 1; i++) {
-            Point p1 = path.get(i);
-            Point p2 = path.get(i + 1);
-            gc.drawLine(p1.x, p1.y, p2.x, p2.y);
+        Point start = path.get(0);
+        Point end = path.get(path.size() - 1);
+
+        int[] cp = calculateBezierControlPoints(start, end, sourceNode, targetNode);
+
+        Path swtPath = new Path(gc.getDevice());
+        try {
+            swtPath.moveTo(start.x, start.y);
+            swtPath.cubicTo(cp[0], cp[1], cp[2], cp[3], end.x, end.y);
+            gc.drawPath(swtPath);
+        } finally {
+            swtPath.dispose();
         }
     }
 
     /**
-     * Get the midpoint of a routed path (for label placement).
+     * Overload for cases without node info (dangling connections, etc.)
      */
-    private Point getPathMidpoint(java.util.List<Point> path) {
+    private void drawRoutedPath(GC gc, java.util.List<Point> path) {
+        drawRoutedPath(gc, path, null, null);
+    }
+
+    /**
+     * Calculate bezier control points for a smooth curve from start to end.
+     * Returns [cx1, cy1, cx2, cy2].
+     */
+    private int[] calculateBezierControlPoints(Point start, Point end, PipelineNode sourceNode, PipelineNode targetNode) {
+        int cx1, cy1, cx2, cy2;
+        int dx = end.x - start.x;
+        int dy = end.y - start.y;
+
+        // If nearly horizontal (small Y difference), draw straight
+        if (Math.abs(dy) < 10) {
+            cx1 = start.x + dx / 3;
+            cy1 = start.y + dy / 3;
+            cx2 = start.x + 2 * dx / 3;
+            cy2 = start.y + 2 * dy / 3;
+        } else {
+            // Has vertical offset - use S-curve with horizontal tangents
+            int controlDist = Math.max(40, Math.abs(dx) / 2);
+            cx1 = start.x + controlDist;
+            cy1 = start.y;
+            cx2 = end.x - controlDist;
+            cy2 = end.y;
+        }
+
+        return new int[] { cx1, cy1, cx2, cy2 };
+    }
+
+    /**
+     * Get the midpoint of a bezier curve (for label placement).
+     * Uses the bezier formula at t=0.5.
+     */
+    private Point getPathMidpoint(java.util.List<Point> path, PipelineNode sourceNode, PipelineNode targetNode) {
         if (path.size() < 2) return path.get(0);
 
-        // Calculate total path length
-        double totalLength = 0;
-        for (int i = 0; i < path.size() - 1; i++) {
-            Point p1 = path.get(i);
-            Point p2 = path.get(i + 1);
-            totalLength += Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
-        }
+        Point start = path.get(0);
+        Point end = path.get(path.size() - 1);
 
-        // Find the point at half the total length
-        double halfLength = totalLength / 2;
-        double accumulated = 0;
-        for (int i = 0; i < path.size() - 1; i++) {
-            Point p1 = path.get(i);
-            Point p2 = path.get(i + 1);
-            double segmentLength = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        // Get the same control points used for drawing
+        int[] cp = calculateBezierControlPoints(start, end, sourceNode, targetNode);
+        int cx1 = cp[0], cy1 = cp[1], cx2 = cp[2], cy2 = cp[3];
 
-            if (accumulated + segmentLength >= halfLength) {
-                // Midpoint is on this segment
-                double ratio = (halfLength - accumulated) / segmentLength;
-                int midX = (int) (p1.x + ratio * (p2.x - p1.x));
-                int midY = (int) (p1.y + ratio * (p2.y - p1.y));
-                return new Point(midX, midY);
-            }
-            accumulated += segmentLength;
-        }
+        // Cubic bezier at t=0.5: B(0.5) = (1-t)^3*P0 + 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3*P3
+        // At t=0.5: B(0.5) = 0.125*P0 + 0.375*P1 + 0.375*P2 + 0.125*P3
+        double t = 0.5;
+        double mt = 1 - t;
+        double mt2 = mt * mt;
+        double mt3 = mt2 * mt;
+        double t2 = t * t;
+        double t3 = t2 * t;
 
-        // Fallback to simple midpoint
-        return new Point((path.get(0).x + path.get(path.size() - 1).x) / 2,
-                        (path.get(0).y + path.get(path.size() - 1).y) / 2);
+        int midX = (int) (mt3 * start.x + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * end.x);
+        int midY = (int) (mt3 * start.y + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * end.y);
+
+        return new Point(midX, midY);
+    }
+
+    /**
+     * Overload for cases without node info.
+     */
+    private Point getPathMidpoint(java.util.List<Point> path) {
+        return getPathMidpoint(path, null, null);
     }
 
     // Helper method to calculate distance from point to line segment

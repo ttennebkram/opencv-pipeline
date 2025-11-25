@@ -1,3 +1,5 @@
+restaring pipeline doesn't clear previous queue count stats
+
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
 change package name
