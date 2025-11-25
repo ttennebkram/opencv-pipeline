@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
@@ -13,6 +15,7 @@ import org.opencv.videoio.Videoio;
 /**
  * Webcam source node that captures from a camera device.
  */
+@NodeInfo(name = "WebcamSource", category = "Source", aliases = {"Webcam Source"})
 public class WebcamSourceNode extends SourceNode {
 
     // Webcam settings
@@ -394,6 +397,7 @@ public class WebcamSourceNode extends SourceNode {
     }
 
     // Save thumbnail to cache directory
+    @Override
     public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
         if (outputMat != null && !outputMat.empty()) {
             try {
@@ -416,6 +420,7 @@ public class WebcamSourceNode extends SourceNode {
     }
 
     // Load thumbnail from cache directory
+    @Override
     public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
         String thumbPath = cacheDir + java.io.File.separator + "webcam_" + nodeIndex + "_thumb.png";
         java.io.File thumbFile = new java.io.File(thumbPath);
@@ -463,45 +468,22 @@ public class WebcamSourceNode extends SourceNode {
         return false;
     }
 
+    // startProcessing() inherited from SourceNode
+
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("cameraIndex", cameraIndex);
+        json.addProperty("resolutionIndex", resolutionIndex);
+        json.addProperty("mirrorHorizontal", mirrorHorizontal);
+        json.addProperty("fpsIndex", fpsIndex);
+    }
+
     @Override
-    public void startProcessing() {
-        if (running.get()) {
-            return;
-        }
-
-        running.set(true);
-        workUnitsCompleted = 0; // Reset counter on start
-        frameDelayMs = (long) (1000.0 / getFps());
-
-        processingThread = new Thread(() -> {
-            while (running.get()) {
-                try {
-                    Mat frame = getNextFrame();
-
-                    // Increment work units regardless of output (even if null)
-                    incrementWorkUnits();
-
-                    if (frame != null) {
-                        // Update thumbnail
-                        setOutputMat(frame);
-                        notifyFrame(frame);
-                        // Put frame on output queue (blocks if full)
-                        if (outputQueue != null) {
-                            outputQueue.put(frame);
-                        }
-                    }
-
-                    // Throttle frame rate
-                    if (frameDelayMs > 0) {
-                        Thread.sleep(frameDelayMs);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }, "WebcamSource-Thread");
-        processingThread.setPriority(threadPriority);
-        processingThread.start();
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("cameraIndex")) cameraIndex = json.get("cameraIndex").getAsInt();
+        if (json.has("resolutionIndex")) resolutionIndex = json.get("resolutionIndex").getAsInt();
+        if (json.has("mirrorHorizontal")) mirrorHorizontal = json.get("mirrorHorizontal").getAsBoolean();
+        if (json.has("fpsIndex")) fpsIndex = json.get("fpsIndex").getAsInt();
+        // Initialize camera after all properties are loaded
+        initAfterLoad();
     }
 }

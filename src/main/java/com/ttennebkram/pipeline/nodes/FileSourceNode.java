@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
@@ -18,6 +20,7 @@ import java.io.File;
 /**
  * File source node with file chooser and thumbnail.
  */
+@NodeInfo(name = "FileSource", category = "Source", aliases = {"File Source"})
 public class FileSourceNode extends SourceNode {
     private String imagePath = null;
     private Mat loadedImage = null;
@@ -161,10 +164,12 @@ public class FileSourceNode extends SourceNode {
         if (loadedImage.empty()) {
             return;
         }
-        setOutputMat(loadedImage);
+        // Clone for outputMat so loadedImage isn't released when outputMat is updated
+        setOutputMat(loadedImage.clone());
     }
 
-    public void saveThumbnailToCache(String cacheDir) {
+    @Override
+    public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
         if (thumbnailMat != null && imagePath != null) {
             try {
                 File cacheFolder = new File(cacheDir);
@@ -179,7 +184,8 @@ public class FileSourceNode extends SourceNode {
         }
     }
 
-    public boolean loadThumbnailFromCache(String cacheDir) {
+    @Override
+    public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
         if (imagePath == null) return false;
 
         String thumbPath = getThumbnailCachePath(cacheDir);
@@ -392,52 +398,22 @@ public class FileSourceNode extends SourceNode {
         }
     }
 
+    // startProcessing() inherited from SourceNode
+
+    public void serializeProperties(JsonObject json) {
+        if (imagePath != null) json.addProperty("imagePath", imagePath);
+        json.addProperty("fpsMode", fpsMode);
+        json.addProperty("loopVideo", loopVideo);
+    }
+
     @Override
-    public void startProcessing() {
-        if (running.get()) {
-            return;
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("fpsMode")) fpsMode = json.get("fpsMode").getAsInt();
+        if (json.has("loopVideo")) loopVideo = json.get("loopVideo").getAsBoolean();
+        // Load image path and media after other properties are set
+        if (json.has("imagePath")) {
+            imagePath = json.get("imagePath").getAsString();
+            loadMedia(imagePath);
         }
-
-        running.set(true);
-        workUnitsCompleted = 0; // Reset counter on start
-        double fps = getFps();
-        frameDelayMs = fps > 0 ? (long) (1000.0 / fps) : 0;
-
-        processingThread = new Thread(() -> {
-            boolean firstFrame = true;
-            while (running.get()) {
-                try {
-                    Mat frame = getNextFrame();
-
-                    // Increment work units regardless of output (even if null)
-                    incrementWorkUnits();
-
-                    if (frame != null) {
-                        setOutputMat(frame);
-                        notifyFrame(frame);
-                        if (outputQueue != null) {
-                            outputQueue.put(frame);
-                        }
-                    } else if (frame == null && !isVideo) {
-                        if (!firstFrame && fps == 0) {
-                            break;
-                        }
-                    }
-                    firstFrame = false;
-
-                    if (frameDelayMs > 0) {
-                        Thread.sleep(frameDelayMs);
-                    } else if (fps == 0 && !firstFrame) {
-                        Thread.sleep(100);
-                        break;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }, "FileSource-Thread");
-        processingThread.setPriority(threadPriority);
-        processingThread.start();
     }
 }

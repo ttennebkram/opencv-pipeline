@@ -3,7 +3,6 @@ package com.ttennebkram.pipeline.model;
 import com.ttennebkram.pipeline.nodes.PipelineNode;
 import com.ttennebkram.pipeline.nodes.DualInputNode;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import org.opencv.core.Mat;
 
 /**
@@ -13,7 +12,7 @@ public class Connection {
     public PipelineNode source;
     public PipelineNode target;
     public int inputIndex; // 1 for primary input, 2 for secondary input (dual-input nodes)
-    private BlockingQueue<Mat> queue;
+    private CountingBlockingQueue<Mat> queue;
     private int queueCapacity = 0; // 0 = unlimited, >0 = fixed capacity
     private int lastQueueSize = 0; // Track queue size for persistence
 
@@ -42,9 +41,9 @@ public class Connection {
      */
     public void createQueue() {
         if (queueCapacity <= 0) {
-            this.queue = new LinkedBlockingQueue<>();
+            this.queue = new CountingBlockingQueue<>();
         } else {
-            this.queue = new LinkedBlockingQueue<>(queueCapacity);
+            this.queue = new CountingBlockingQueue<>(queueCapacity);
         }
     }
 
@@ -53,9 +52,9 @@ public class Connection {
      */
     public void createQueue(int capacity) {
         if (capacity <= 0) {
-            this.queue = new LinkedBlockingQueue<>();
+            this.queue = new CountingBlockingQueue<>();
         } else {
-            this.queue = new LinkedBlockingQueue<>(capacity);
+            this.queue = new CountingBlockingQueue<>(capacity);
         }
     }
 
@@ -98,6 +97,39 @@ public class Connection {
     }
 
     /**
+     * Get total frames sent through this connection.
+     */
+    public long getTotalFramesSent() {
+        return queue != null ? queue.getTotalAdded() : pendingTotalFrames;
+    }
+
+    /**
+     * Set total frames sent (used when loading from JSON, applied when queue is created).
+     */
+    public void setTotalFramesSent(long count) {
+        if (queue != null) {
+            queue.setTotalAdded(count);
+        }
+    }
+
+    // Store for deferred application when queue doesn't exist yet
+    private long pendingTotalFrames = 0;
+
+    /**
+     * Set pending total frames (for loading before queue exists).
+     */
+    public void setPendingTotalFrames(long count) {
+        this.pendingTotalFrames = count;
+    }
+
+    /**
+     * Get pending total frames.
+     */
+    public long getPendingTotalFrames() {
+        return pendingTotalFrames;
+    }
+
+    /**
      * Get the queue capacity.
      */
     public int getQueueCapacity() {
@@ -119,6 +151,7 @@ public class Connection {
         if (queue == null) {
             createQueue();
         }
+
         // Wire the queue: source's output -> this queue -> target's input
         source.setOutputQueue(queue);
 

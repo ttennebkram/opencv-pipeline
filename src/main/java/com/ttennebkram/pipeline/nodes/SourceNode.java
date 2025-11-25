@@ -56,4 +56,61 @@ public abstract class SourceNode extends PipelineNode {
     public Display getDisplay() {
         return display;
     }
+
+    /**
+     * Start processing - generates frames from this source.
+     * This is the standard implementation for all source nodes.
+     * Subclasses typically don't need to override this.
+     */
+    @Override
+    public void startProcessing() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+        workUnitsCompleted = 0; // Reset counter on start
+        double fps = getFps();
+        frameDelayMs = fps > 0 ? (long) (1000.0 / fps) : 0;
+
+        processingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    Mat frame = getNextFrame();
+
+                    // Increment work units regardless of output (even if null)
+                    incrementWorkUnits();
+
+                    if (frame != null) {
+                        // Clone for persistent storage (outputMat for preview/thumbnail)
+                        setOutputMat(frame.clone());
+
+                        // Clone for preview callback (callback may run async after frame is released)
+                        Mat previewClone = frame.clone();
+                        notifyFrame(previewClone);
+                        // Note: previewClone will be released by the callback
+
+                        // Put frame on output queue (blocks if full)
+                        if (outputQueue != null) {
+                            // Clone for downstream node (they will release it)
+                            outputQueue.put(frame.clone());
+                        }
+
+                        // Release the original frame from getNextFrame()
+                        frame.release();
+                    }
+
+                    // Throttle frame rate
+                    if (frameDelayMs > 0) {
+                        Thread.sleep(frameDelayMs);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, getClass().getSimpleName() + "-Thread");
+        processingThread.setPriority(threadPriority);
+        processingThread.start();
+    }
 }

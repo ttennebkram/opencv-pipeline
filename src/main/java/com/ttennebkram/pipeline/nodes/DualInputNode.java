@@ -93,40 +93,71 @@ public abstract class DualInputNode extends ProcessingNode {
         processingThread = new Thread(() -> {
             while (running.get()) {
                 try {
-                    boolean gotInput1 = false;
-                    boolean gotInput2 = false;
-
-                    // Poll both queues for new frames (non-blocking)
-                    if (inputQueue != null) {
-                        Mat newInput1 = inputQueue.poll(10, TimeUnit.MILLISECONDS);
-                        if (newInput1 != null) {
-                            if (lastInput1 != null) lastInput1.release();
-                            lastInput1 = newInput1;
-                            gotInput1 = true;
-                        }
-                    }
-
-                    if (inputQueue2 != null) {
-                        Mat newInput2 = inputQueue2.poll(10, TimeUnit.MILLISECONDS);
-                        if (newInput2 != null) {
-                            if (lastInput2 != null) lastInput2.release();
-                            lastInput2 = newInput2;
-                            gotInput2 = true;
-                        }
-                    }
-
-                    // Determine if we should process based on sync mode
-                    boolean shouldProcess;
                     if (queuesInSync) {
-                        // Only process if both queues got new data
-                        shouldProcess = gotInput1 && gotInput2;
+                        // Synchronized mode: wait for BOTH queues to have data, then take from both
+                        // This ensures we always process matching pairs
+
+                        // Wait until both queues have at least one item
+                        while (running.get()) {
+                            int q1Size = inputQueue != null ? inputQueue.size() : -1;
+                            int q2Size = inputQueue2 != null ? inputQueue2.size() : -1;
+
+                            if (q1Size > 0 && q2Size > 0) {
+                                break; // Both have data, proceed
+                            }
+
+                            // Sleep briefly to avoid busy-waiting
+                            Thread.sleep(5);
+                        }
+
+                        if (!running.get()) break;
+
+                        // Now take one from each (should not block since we checked size)
+                        Mat input1 = inputQueue != null ? inputQueue.poll() : null;
+                        Mat input2 = inputQueue2 != null ? inputQueue2.poll() : null;
+
+                        // Track reads
+                        if (input1 != null) incrementInputReads1();
+                        if (input2 != null) incrementInputReads2();
+
+                        // Release old cached frames
+                        if (lastInput1 != null) lastInput1.release();
+                        if (lastInput2 != null) lastInput2.release();
+                        lastInput1 = input1;
+                        lastInput2 = input2;
                     } else {
-                        // Process if either queue got new data
-                        shouldProcess = gotInput1 || gotInput2;
+                        // Non-sync mode: poll both queues, process when either has new data
+                        boolean gotInput1 = false;
+                        boolean gotInput2 = false;
+
+                        if (inputQueue != null) {
+                            Mat newInput1 = inputQueue.poll(50, TimeUnit.MILLISECONDS);
+                            if (newInput1 != null) {
+                                if (lastInput1 != null) lastInput1.release();
+                                lastInput1 = newInput1;
+                                gotInput1 = true;
+                                incrementInputReads1();
+                            }
+                        }
+
+                        if (inputQueue2 != null) {
+                            Mat newInput2 = inputQueue2.poll(50, TimeUnit.MILLISECONDS);
+                            if (newInput2 != null) {
+                                if (lastInput2 != null) lastInput2.release();
+                                lastInput2 = newInput2;
+                                gotInput2 = true;
+                                incrementInputReads2();
+                            }
+                        }
+
+                        // Skip processing if no new data arrived
+                        if (!gotInput1 && !gotInput2) {
+                            continue;
+                        }
                     }
 
-                    // Process if we have at least one valid input and should process
-                    if (shouldProcess && (lastInput1 != null || lastInput2 != null)) {
+                    // Process if we have at least one valid input
+                    if (lastInput1 != null || lastInput2 != null) {
                         Mat output = processDual(lastInput1, lastInput2);
 
                         // Increment work units regardless of output (even if null)
@@ -134,11 +165,12 @@ public abstract class DualInputNode extends ProcessingNode {
 
                         if (output != null) {
                             // Clone output for persistent storage (will be released when new output arrives)
-                            Mat outputClone = output.clone();
+                            setOutputMat(output.clone());
 
-                            // Update thumbnail and store output
-                            setOutputMat(outputClone);
-                            notifyFrame(output);
+                            // Clone for preview callback (callback may run async after output is released)
+                            Mat previewClone = output.clone();
+                            notifyFrame(previewClone);
+                            // Note: previewClone will be released by the callback
 
                             // Send to output queue if available
                             if (outputQueue != null) {

@@ -34,133 +34,13 @@ import com.google.gson.reflect.TypeToken;
 import com.ttennebkram.pipeline.nodes.*;
 import com.ttennebkram.pipeline.model.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
+import com.ttennebkram.pipeline.serialization.PipelineSerializer;
 
 public class PipelineEditor {
 
-    // Static initialization - register all node types with NodeRegistry
+    // Static initialization - auto-discover all node types
     static {
-        registerNodes();
-    }
-
-    private static void registerNodes() {
-        // Basic processing nodes
-        NodeRegistry.register("Grayscale", "Basic", GrayscaleNode.class);
-        NodeRegistry.register("AdaptiveThreshold", "Basic", AdaptiveThresholdNode.class);
-        NodeRegistry.register("BitPlanesColor", "Basic", BitPlanesColorNode.class);
-        NodeRegistry.register("BitPlanesGrayscale", "Basic", BitPlanesGrayscaleNode.class);
-        NodeRegistry.register("CLAHE Contrast", "Basic", CLAHENode.class);
-        NodeRegistry.register("Gain", "Basic", GainNode.class);
-        NodeRegistry.register("Invert", "Basic", InvertNode.class);
-        NodeRegistry.register("Threshold", "Basic", ThresholdNode.class);
-
-        // Blur nodes
-        NodeRegistry.register("BilateralFilter", "Blur", BilateralFilterNode.class);
-        NodeRegistry.register("BoxBlur", "Blur", BoxBlurNode.class);
-        NodeRegistry.register("GaussianBlur", "Blur", GaussianBlurNode.class);
-        NodeRegistry.register("MeanShift", "Blur", MeanShiftFilterNode.class);
-        NodeRegistry.register("MedianBlur", "Blur", MedianBlurNode.class);
-
-        // Content nodes (shapes and text)
-        NodeRegistry.register("Arrow", "Content", ArrowNode.class);
-        NodeRegistry.register("Circle", "Content", CircleNode.class);
-        NodeRegistry.register("Ellipse", "Content", EllipseNode.class);
-        NodeRegistry.register("Line", "Content", LineNode.class);
-        NodeRegistry.register("Rectangle", "Content", RectangleNode.class);
-        NodeRegistry.register("Text", "Content", TextNode.class);
-
-        // Edge detection nodes
-        NodeRegistry.register("CannyEdge", "Edge Detection", CannyEdgeNode.class);
-        NodeRegistry.register("Laplacian", "Edge Detection", LaplacianNode.class);
-        NodeRegistry.register("Sobel", "Edge Detection", SobelNode.class);
-        NodeRegistry.register("Scharr", "Edge Detection", ScharrNode.class);
-
-        // Filter nodes
-        NodeRegistry.register("BitwiseNot", "Filter", BitwiseNotNode.class);
-        NodeRegistry.register("ColorInRange", "Filter", ColorInRangeNode.class);
-        NodeRegistry.register("FFTHighPass", "Filter", FFTHighPassFilterNode.class);
-        NodeRegistry.register("FFTLowPass", "Filter", FFTLowPassFilterNode.class);
-        NodeRegistry.register("Filter2D", "Filter", Filter2DNode.class);
-
-        // Morphological nodes
-        NodeRegistry.register("Dilate", "Morphological", DilateNode.class);
-        NodeRegistry.register("Erode", "Morphological", ErodeNode.class);
-        NodeRegistry.register("MorphClose", "Morphological", MorphCloseNode.class);
-        NodeRegistry.register("MorphOpen", "Morphological", MorphOpenNode.class);
-        NodeRegistry.register("MorphologyEx", "Morphological", MorphologyExNode.class);
-
-        // Transform nodes
-        NodeRegistry.register("Crop", "Transform", CropNode.class);
-        NodeRegistry.register("WarpAffine", "Transform", WarpAffineNode.class);
-
-        // Detection nodes
-        NodeRegistry.register("BlobDetector", "Detection", BlobDetectorNode.class);
-        NodeRegistry.register("ConnectedComponents", "Detection", ConnectedComponentsNode.class);
-        NodeRegistry.register("Contours", "Detection", ContoursNode.class);
-        NodeRegistry.register("HarrisCorners", "Detection", HarrisCornersNode.class);
-        NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
-        NodeRegistry.register("HoughLines", "Detection", HoughLinesNode.class);
-        NodeRegistry.register("MatchTemplate", "Detection", MatchTemplateNode.class);
-        NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
-        NodeRegistry.register("ShiTomasi", "Detection", ShiTomasiCornersNode.class);
-        NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
-
-        // Dual Input nodes
-        NodeRegistry.register("AddClamp", "Dual Input Nodes", AddClampNode.class);
-        NodeRegistry.register("AddWeighted", "Dual Input Nodes", AddWeightedNode.class);
-        NodeRegistry.register("BitwiseAnd", "Dual Input Nodes", BitwiseAndNode.class);
-        NodeRegistry.register("BitwiseOr", "Dual Input Nodes", BitwiseOrNode.class);
-        NodeRegistry.register("BitwiseXor", "Dual Input Nodes", BitwiseXorNode.class);
-        NodeRegistry.register("SubtractClamp", "Dual Input Nodes", SubtractClampNode.class);
-
-        // Visualization nodes
-        NodeRegistry.register("Histogram", "Visualization", HistogramNode.class);
-
-        // Register aliases for backward compatibility with renamed nodes
-        NodeRegistry.registerAlias("Canny Edge", "CannyEdge");
-        NodeRegistry.registerAlias("Canny Edges", "CannyEdge");
-        NodeRegistry.registerAlias("Laplacian Edges", "Laplacian");
-        NodeRegistry.registerAlias("Sobel Edges", "Sobel");
-        NodeRegistry.registerAlias("Scharr Edges", "Scharr");
-        NodeRegistry.registerAlias("Shi-Tomasi", "ShiTomasi");
-        NodeRegistry.registerAlias("Shi-Tomasi Corners", "ShiTomasi");
-        NodeRegistry.registerAlias("Harris Corners", "HarrisCorners");
-        NodeRegistry.registerAlias("Hough Circles", "HoughCircles");
-        NodeRegistry.registerAlias("Hough Lines", "HoughLines");
-        NodeRegistry.registerAlias("Blob Detector", "BlobDetector");
-        NodeRegistry.registerAlias("ORB Features", "ORBFeatures");
-        NodeRegistry.registerAlias("SIFT Features", "SIFTFeatures");
-        NodeRegistry.registerAlias("Connected Components", "ConnectedComponents");
-        NodeRegistry.registerAlias("Color In Range", "ColorInRange");
-        NodeRegistry.registerAlias("Bilateral Filter", "BilateralFilter");
-        NodeRegistry.registerAlias("Box Blur", "BoxBlur");
-        NodeRegistry.registerAlias("Gaussian Blur", "GaussianBlur");
-        NodeRegistry.registerAlias("Median Blur", "MedianBlur");
-        NodeRegistry.registerAlias("Mean Shift", "MeanShift");
-        NodeRegistry.registerAlias("Mean Shift Blur", "MeanShift");
-        NodeRegistry.registerAlias("Mean Shift Filter", "MeanShift");
-        NodeRegistry.registerAlias("Unknown: Mean Shift Blur", "MeanShift");
-        NodeRegistry.registerAlias("Grayscale/Color Convert", "Grayscale");
-        NodeRegistry.registerAlias("Unknown: Grayscale/Color Convert", "Grayscale");
-        NodeRegistry.registerAlias("Warp Affine", "WarpAffine");
-        NodeRegistry.registerAlias("Match Template", "MatchTemplate");
-        NodeRegistry.registerAlias("Unknown: Match Template", "MatchTemplate");
-        NodeRegistry.registerAlias("Add Clamp", "AddClamp");
-        NodeRegistry.registerAlias("Add Weighted", "AddWeighted");
-        NodeRegistry.registerAlias("Subtract Clamp", "SubtractClamp");
-        NodeRegistry.registerAlias("Bitwise And", "BitwiseAnd");
-        NodeRegistry.registerAlias("Bitwise Or", "BitwiseOr");
-        NodeRegistry.registerAlias("Bitwise Xor", "BitwiseXor");
-        NodeRegistry.registerAlias("Bitwise NOT", "BitwiseNot");
-        NodeRegistry.registerAlias("BitwiseNOT", "BitwiseNot");
-        NodeRegistry.registerAlias("Filter 2D", "Filter2D");
-        NodeRegistry.registerAlias("FFT Filter", "FFTHighPass");
-        NodeRegistry.registerAlias("FFT High-Pass Filter", "FFTHighPass");
-        NodeRegistry.registerAlias("Unknown: FFT High-Pass Filter", "FFTHighPass");
-        NodeRegistry.registerAlias("FFTHighPassFilter", "FFTHighPass");
-        NodeRegistry.registerAlias("FFT Low-Pass Filter", "FFTLowPass");
-        NodeRegistry.registerAlias("Unknown: FFT Low-Pass Filter", "FFTLowPass");
-        NodeRegistry.registerAlias("FFTLowPassFilter", "FFTLowPass");
-        NodeRegistry.registerAlias("Morphology Ex", "MorphologyEx");
+        NodeRegistry.initialize();
     }
 
     private Shell shell;
@@ -626,480 +506,27 @@ public class PipelineEditor {
             reverseDanglingConnections.clear();
             freeConnections.clear();
 
-            // Load JSON
-            Gson gson = new Gson();
-            JsonObject root;
-            try (FileReader reader = new FileReader(path)) {
-                root = gson.fromJson(reader, JsonObject.class);
-            }
+            // Load via PipelineSerializer
+            PipelineSerializer.PipelineDocument doc = PipelineSerializer.load(path, display, shell, canvas);
 
-            // Load nodes
-            JsonArray nodesArray = root.getAsJsonArray("nodes");
-            for (JsonElement elem : nodesArray) {
-                JsonObject nodeObj = elem.getAsJsonObject();
-                int x = nodeObj.get("x").getAsInt();
-                int y = nodeObj.get("y").getAsInt();
-                String type = nodeObj.get("type").getAsString();
+            // Copy loaded data to this editor's collections
+            nodes.addAll(doc.nodes);
+            connections.addAll(doc.connections);
+            danglingConnections.addAll(doc.danglingConnections);
+            reverseDanglingConnections.addAll(doc.reverseDanglingConnections);
+            freeConnections.addAll(doc.freeConnections);
 
-                if ("FileSource".equals(type)) {
-                    FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
-                    if (nodeObj.has("threadPriority")) {
-                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                    }
-                    if (nodeObj.has("workUnitsCompleted")) {
-                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                    }
-                    if (nodeObj.has("imagePath")) {
-                        String imgPath = nodeObj.get("imagePath").getAsString();
-                        node.setImagePath(imgPath);
-                        node.loadMedia(imgPath);
-                    }
-                    if (nodeObj.has("fpsMode")) {
-                        node.setFpsMode(nodeObj.get("fpsMode").getAsInt());
-                    }
-                    nodes.add(node);
-                } else if ("WebcamSource".equals(type)) {
-                    WebcamSourceNode node = new WebcamSourceNode(shell, display, canvas, x, y);
-                    if (nodeObj.has("threadPriority")) {
-                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                    }
-                    if (nodeObj.has("workUnitsCompleted")) {
-                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                    }
-                    if (nodeObj.has("cameraIndex")) {
-                        node.setCameraIndex(nodeObj.get("cameraIndex").getAsInt());
-                    }
-                    if (nodeObj.has("resolutionIndex")) {
-                        node.setResolutionIndex(nodeObj.get("resolutionIndex").getAsInt());
-                    }
-                    if (nodeObj.has("mirrorHorizontal")) {
-                        node.setMirrorHorizontal(nodeObj.get("mirrorHorizontal").getAsBoolean());
-                    }
-                    if (nodeObj.has("fpsIndex")) {
-                        node.setFpsIndex(nodeObj.get("fpsIndex").getAsInt());
-                    }
-                    // Initialize camera after all properties are loaded
-                    node.initAfterLoad();
-                    nodes.add(node);
-                } else if ("BlankSource".equals(type)) {
-                    BlankSourceNode node = new BlankSourceNode(shell, display, x, y);
-                    if (nodeObj.has("threadPriority")) {
-                        node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                    }
-                    if (nodeObj.has("workUnitsCompleted")) {
-                        node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                    }
-                    if (nodeObj.has("imageWidth")) {
-                        node.setImageWidth(nodeObj.get("imageWidth").getAsInt());
-                    }
-                    if (nodeObj.has("imageHeight")) {
-                        node.setImageHeight(nodeObj.get("imageHeight").getAsInt());
-                    }
-                    if (nodeObj.has("colorIndex")) {
-                        node.setColorIndex(nodeObj.get("colorIndex").getAsInt());
-                    }
-                    if (nodeObj.has("fpsIndex")) {
-                        node.setFpsIndex(nodeObj.get("fpsIndex").getAsInt());
-                    }
-                    nodes.add(node);
-                } else if ("Processing".equals(type)) {
-                    String name = nodeObj.get("name").getAsString();
-                    ProcessingNode node = createEffectNode(name, x, y);
-                    if (node != null) {
-                        // Load thread priority
-                        if (nodeObj.has("threadPriority")) {
-                            node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                        }
-                        if (nodeObj.has("workUnitsCompleted")) {
-                            node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                        }
-                        // Load node-specific properties
-                        if (node instanceof GaussianBlurNode) {
-                            GaussianBlurNode gbn = (GaussianBlurNode) node;
-                            if (nodeObj.has("kernelSizeX")) gbn.setKernelSizeX(nodeObj.get("kernelSizeX").getAsInt());
-                            if (nodeObj.has("kernelSizeY")) gbn.setKernelSizeY(nodeObj.get("kernelSizeY").getAsInt());
-                            if (nodeObj.has("sigmaX")) gbn.setSigmaX(nodeObj.get("sigmaX").getAsDouble());
-                        } else if (node instanceof BoxBlurNode) {
-                            BoxBlurNode bbn = (BoxBlurNode) node;
-                            if (nodeObj.has("kernelSizeX")) bbn.setKernelSizeX(nodeObj.get("kernelSizeX").getAsInt());
-                            if (nodeObj.has("kernelSizeY")) bbn.setKernelSizeY(nodeObj.get("kernelSizeY").getAsInt());
-                        } else if (node instanceof GrayscaleNode) {
-                            GrayscaleNode gn = (GrayscaleNode) node;
-                            if (nodeObj.has("conversionIndex")) {
-                                gn.setConversionIndex(nodeObj.get("conversionIndex").getAsInt());
-                            }
-                        } else if (node instanceof ThresholdNode) {
-                            ThresholdNode tn = (ThresholdNode) node;
-                            if (nodeObj.has("threshValue")) tn.setThreshValue(nodeObj.get("threshValue").getAsInt());
-                            if (nodeObj.has("maxValue")) tn.setMaxValue(nodeObj.get("maxValue").getAsInt());
-                            if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
-                            if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
-                            if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
-                        } else if (node instanceof ContoursNode) {
-                            ContoursNode cn = (ContoursNode) node;
-                            if (nodeObj.has("thresholdValue")) cn.setThresholdValue(nodeObj.get("thresholdValue").getAsInt());
-                            if (nodeObj.has("retrievalMode")) cn.setRetrievalMode(nodeObj.get("retrievalMode").getAsInt());
-                            if (nodeObj.has("approxMethod")) cn.setApproxMethod(nodeObj.get("approxMethod").getAsInt());
-                            if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("showOriginal")) cn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                            if (nodeObj.has("sortMethod")) cn.setSortMethod(nodeObj.get("sortMethod").getAsInt());
-                            if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
-                            if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
-                            if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
-                        } else if (node instanceof BlobDetectorNode) {
-                            BlobDetectorNode bdn = (BlobDetectorNode) node;
-                            if (nodeObj.has("minThreshold")) bdn.setMinThreshold(nodeObj.get("minThreshold").getAsInt());
-                            if (nodeObj.has("maxThreshold")) bdn.setMaxThreshold(nodeObj.get("maxThreshold").getAsInt());
-                            if (nodeObj.has("showOriginal")) bdn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                            if (nodeObj.has("filterByArea")) bdn.setFilterByArea(nodeObj.get("filterByArea").getAsBoolean());
-                            if (nodeObj.has("minArea")) bdn.setMinArea(nodeObj.get("minArea").getAsInt());
-                            if (nodeObj.has("maxArea")) bdn.setMaxArea(nodeObj.get("maxArea").getAsInt());
-                            if (nodeObj.has("filterByCircularity")) bdn.setFilterByCircularity(nodeObj.get("filterByCircularity").getAsBoolean());
-                            if (nodeObj.has("minCircularity")) bdn.setMinCircularity(nodeObj.get("minCircularity").getAsInt());
-                            if (nodeObj.has("filterByConvexity")) bdn.setFilterByConvexity(nodeObj.get("filterByConvexity").getAsBoolean());
-                            if (nodeObj.has("minConvexity")) bdn.setMinConvexity(nodeObj.get("minConvexity").getAsInt());
-                            if (nodeObj.has("filterByInertia")) bdn.setFilterByInertia(nodeObj.get("filterByInertia").getAsBoolean());
-                            if (nodeObj.has("minInertiaRatio")) bdn.setMinInertiaRatio(nodeObj.get("minInertiaRatio").getAsInt());
-                            if (nodeObj.has("filterByColor")) bdn.setFilterByColor(nodeObj.get("filterByColor").getAsBoolean());
-                            if (nodeObj.has("blobColor")) bdn.setBlobColor(nodeObj.get("blobColor").getAsInt());
-                            if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
-                        } else if (node instanceof HoughCirclesNode) {
-                            HoughCirclesNode hcn = (HoughCirclesNode) node;
-                            if (nodeObj.has("showOriginal")) hcn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                            if (nodeObj.has("minDist")) hcn.setMinDist(nodeObj.get("minDist").getAsInt());
-                            if (nodeObj.has("param1")) hcn.setParam1(nodeObj.get("param1").getAsInt());
-                            if (nodeObj.has("param2")) hcn.setParam2(nodeObj.get("param2").getAsInt());
-                            if (nodeObj.has("minRadius")) hcn.setMinRadius(nodeObj.get("minRadius").getAsInt());
-                            if (nodeObj.has("maxRadius")) hcn.setMaxRadius(nodeObj.get("maxRadius").getAsInt());
-                            if (nodeObj.has("thickness")) hcn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("drawCenter")) hcn.setDrawCenter(nodeObj.get("drawCenter").getAsBoolean());
-                            if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
-                        } else if (node instanceof HarrisCornersNode) {
-                            HarrisCornersNode harn = (HarrisCornersNode) node;
-                            if (nodeObj.has("showOriginal")) harn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                            if (nodeObj.has("drawFeatures")) harn.setDrawFeatures(nodeObj.get("drawFeatures").getAsBoolean());
-                            if (nodeObj.has("blockSize")) harn.setBlockSize(nodeObj.get("blockSize").getAsInt());
-                            if (nodeObj.has("ksize")) harn.setKsize(nodeObj.get("ksize").getAsInt());
-                            if (nodeObj.has("kPercent")) harn.setKPercent(nodeObj.get("kPercent").getAsInt());
-                            if (nodeObj.has("thresholdPercent")) harn.setThresholdPercent(nodeObj.get("thresholdPercent").getAsInt());
-                            if (nodeObj.has("markerSize")) harn.setMarkerSize(nodeObj.get("markerSize").getAsInt());
-                            if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
-                        } else if (node instanceof ShiTomasiCornersNode) {
-                            ShiTomasiCornersNode stc = (ShiTomasiCornersNode) node;
-                            if (nodeObj.has("maxCorners")) stc.setMaxCorners(nodeObj.get("maxCorners").getAsInt());
-                            if (nodeObj.has("qualityLevel")) stc.setQualityLevel(nodeObj.get("qualityLevel").getAsInt());
-                            if (nodeObj.has("minDistance")) stc.setMinDistance(nodeObj.get("minDistance").getAsInt());
-                            if (nodeObj.has("blockSize")) stc.setBlockSize(nodeObj.get("blockSize").getAsInt());
-                            if (nodeObj.has("useHarrisDetector")) stc.setUseHarrisDetector(nodeObj.get("useHarrisDetector").getAsBoolean());
-                            if (nodeObj.has("kPercent")) stc.setKPercent(nodeObj.get("kPercent").getAsInt());
-                            if (nodeObj.has("markerSize")) stc.setMarkerSize(nodeObj.get("markerSize").getAsInt());
-                            if (nodeObj.has("colorR")) stc.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) stc.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) stc.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("drawFeatures")) stc.setDrawFeatures(nodeObj.get("drawFeatures").getAsBoolean());
-                        } else if (node instanceof ScharrNode) {
-                            ScharrNode sn = (ScharrNode) node;
-                            if (nodeObj.has("directionIndex")) sn.setDirectionIndex(nodeObj.get("directionIndex").getAsInt());
-                            if (nodeObj.has("scalePercent")) sn.setScalePercent(nodeObj.get("scalePercent").getAsInt());
-                            if (nodeObj.has("delta")) sn.setDelta(nodeObj.get("delta").getAsInt());
-                        } else if (node instanceof SobelNode) {
-                            SobelNode sn = (SobelNode) node;
-                            if (nodeObj.has("dx")) sn.setDx(nodeObj.get("dx").getAsInt());
-                            if (nodeObj.has("dy")) sn.setDy(nodeObj.get("dy").getAsInt());
-                            if (nodeObj.has("kernelSizeIndex")) sn.setKernelSizeIndex(nodeObj.get("kernelSizeIndex").getAsInt());
-                        } else if (node instanceof LaplacianNode) {
-                            LaplacianNode ln = (LaplacianNode) node;
-                            if (nodeObj.has("kernelSizeIndex")) ln.setKernelSizeIndex(nodeObj.get("kernelSizeIndex").getAsInt());
-                            if (nodeObj.has("scalePercent")) ln.setScalePercent(nodeObj.get("scalePercent").getAsInt());
-                            if (nodeObj.has("delta")) ln.setDelta(nodeObj.get("delta").getAsInt());
-                            if (nodeObj.has("useAbsolute")) ln.setUseAbsolute(nodeObj.get("useAbsolute").getAsBoolean());
-                        } else if (node instanceof GainNode) {
-                            GainNode gn = (GainNode) node;
-                            if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
-                        } else if (node instanceof Filter2DNode) {
-                            Filter2DNode f2d = (Filter2DNode) node;
-                            if (nodeObj.has("kernelSize")) f2d.setKernelSize(nodeObj.get("kernelSize").getAsInt());
-                            if (nodeObj.has("kernelValues")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("kernelValues");
-                                int[] values = new int[arr.size()];
-                                for (int j = 0; j < arr.size(); j++) {
-                                    values[j] = arr.get(j).getAsInt();
-                                }
-                                f2d.setKernelValues(values);
-                            }
-                        } else if (node instanceof MorphologyExNode) {
-                            MorphologyExNode men = (MorphologyExNode) node;
-                            if (nodeObj.has("operationIndex")) men.setOperationIndex(nodeObj.get("operationIndex").getAsInt());
-                            if (nodeObj.has("shapeIndex")) men.setShapeIndex(nodeObj.get("shapeIndex").getAsInt());
-                            if (nodeObj.has("kernelWidth")) men.setKernelWidth(nodeObj.get("kernelWidth").getAsInt());
-                            if (nodeObj.has("kernelHeight")) men.setKernelHeight(nodeObj.get("kernelHeight").getAsInt());
-                            if (nodeObj.has("iterations")) men.setIterations(nodeObj.get("iterations").getAsInt());
-                            if (nodeObj.has("anchorX")) men.setAnchorX(nodeObj.get("anchorX").getAsInt());
-                            if (nodeObj.has("anchorY")) men.setAnchorY(nodeObj.get("anchorY").getAsInt());
-                        } else if (node instanceof BitPlanesGrayscaleNode) {
-                            BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
-                            if (nodeObj.has("bitEnabled")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("bitEnabled");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitEnabled(j, arr.get(j).getAsBoolean());
-                                }
-                            }
-                            if (nodeObj.has("bitGain")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("bitGain");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitGain(j, arr.get(j).getAsDouble());
-                                }
-                            }
-                        } else if (node instanceof BitPlanesColorNode) {
-                            BitPlanesColorNode bpn = (BitPlanesColorNode) node;
-                            // Load Red channel
-                            if (nodeObj.has("redBitEnabled")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("redBitEnabled");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitEnabled(0, j, arr.get(j).getAsBoolean());
-                                }
-                            }
-                            if (nodeObj.has("redBitGain")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("redBitGain");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitGain(0, j, arr.get(j).getAsDouble());
-                                }
-                            }
-                            // Load Green channel
-                            if (nodeObj.has("greenBitEnabled")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("greenBitEnabled");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitEnabled(1, j, arr.get(j).getAsBoolean());
-                                }
-                            }
-                            if (nodeObj.has("greenBitGain")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("greenBitGain");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitGain(1, j, arr.get(j).getAsDouble());
-                                }
-                            }
-                            // Load Blue channel
-                            if (nodeObj.has("blueBitEnabled")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("blueBitEnabled");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitEnabled(2, j, arr.get(j).getAsBoolean());
-                                }
-                            }
-                            if (nodeObj.has("blueBitGain")) {
-                                JsonArray arr = nodeObj.getAsJsonArray("blueBitGain");
-                                for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                    bpn.setBitGain(2, j, arr.get(j).getAsDouble());
-                                }
-                            }
-                        } else if (node instanceof RectangleNode) {
-                            RectangleNode rn = (RectangleNode) node;
-                            if (nodeObj.has("x1")) rn.setX1(nodeObj.get("x1").getAsInt());
-                            if (nodeObj.has("y1")) rn.setY1(nodeObj.get("y1").getAsInt());
-                            if (nodeObj.has("x2")) rn.setX2(nodeObj.get("x2").getAsInt());
-                            if (nodeObj.has("y2")) rn.setY2(nodeObj.get("y2").getAsInt());
-                            if (nodeObj.has("colorR")) rn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) rn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) rn.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) rn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("filled")) rn.setFilled(nodeObj.get("filled").getAsBoolean());
-                        } else if (node instanceof CircleNode) {
-                            CircleNode cn = (CircleNode) node;
-                            if (nodeObj.has("centerX")) cn.setCenterX(nodeObj.get("centerX").getAsInt());
-                            if (nodeObj.has("centerY")) cn.setCenterY(nodeObj.get("centerY").getAsInt());
-                            if (nodeObj.has("radius")) cn.setRadius(nodeObj.get("radius").getAsInt());
-                            if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("filled")) cn.setFilled(nodeObj.get("filled").getAsBoolean());
-                        } else if (node instanceof EllipseNode) {
-                            EllipseNode en = (EllipseNode) node;
-                            if (nodeObj.has("centerX")) en.setCenterX(nodeObj.get("centerX").getAsInt());
-                            if (nodeObj.has("centerY")) en.setCenterY(nodeObj.get("centerY").getAsInt());
-                            if (nodeObj.has("axisX")) en.setAxisX(nodeObj.get("axisX").getAsInt());
-                            if (nodeObj.has("axisY")) en.setAxisY(nodeObj.get("axisY").getAsInt());
-                            if (nodeObj.has("angle")) en.setAngle(nodeObj.get("angle").getAsInt());
-                            if (nodeObj.has("startAngle")) en.setStartAngle(nodeObj.get("startAngle").getAsInt());
-                            if (nodeObj.has("endAngle")) en.setEndAngle(nodeObj.get("endAngle").getAsInt());
-                            if (nodeObj.has("colorR")) en.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) en.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) en.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) en.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("filled")) en.setFilled(nodeObj.get("filled").getAsBoolean());
-                        } else if (node instanceof LineNode) {
-                            LineNode ln = (LineNode) node;
-                            if (nodeObj.has("x1")) ln.setX1(nodeObj.get("x1").getAsInt());
-                            if (nodeObj.has("y1")) ln.setY1(nodeObj.get("y1").getAsInt());
-                            if (nodeObj.has("x2")) ln.setX2(nodeObj.get("x2").getAsInt());
-                            if (nodeObj.has("y2")) ln.setY2(nodeObj.get("y2").getAsInt());
-                            if (nodeObj.has("colorR")) ln.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) ln.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) ln.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) ln.setThickness(nodeObj.get("thickness").getAsInt());
-                        } else if (node instanceof ArrowNode) {
-                            ArrowNode an = (ArrowNode) node;
-                            if (nodeObj.has("x1")) an.setX1(nodeObj.get("x1").getAsInt());
-                            if (nodeObj.has("y1")) an.setY1(nodeObj.get("y1").getAsInt());
-                            if (nodeObj.has("x2")) an.setX2(nodeObj.get("x2").getAsInt());
-                            if (nodeObj.has("y2")) an.setY2(nodeObj.get("y2").getAsInt());
-                            if (nodeObj.has("tipLength")) an.setTipLength(nodeObj.get("tipLength").getAsDouble());
-                            if (nodeObj.has("colorR")) an.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
-                        } else if (node instanceof CropNode) {
-                            CropNode crn = (CropNode) node;
-                            if (nodeObj.has("cropX")) crn.setCropX(nodeObj.get("cropX").getAsInt());
-                            if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
-                            if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
-                            if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
-                        // AddClampNode and SubtractClampNode have no properties to load
-                        } else if (node instanceof AddWeightedNode) {
-                            AddWeightedNode awn = (AddWeightedNode) node;
-                            if (nodeObj.has("alpha")) awn.setAlpha(nodeObj.get("alpha").getAsDouble());
-                            if (nodeObj.has("beta")) awn.setBeta(nodeObj.get("beta").getAsDouble());
-                            if (nodeObj.has("gamma")) awn.setGamma(nodeObj.get("gamma").getAsDouble());
-                        } else if (node instanceof TextNode) {
-                            TextNode tn = (TextNode) node;
-                            if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
-                            if (nodeObj.has("posX")) tn.setPosX(nodeObj.get("posX").getAsInt());
-                            if (nodeObj.has("posY")) tn.setPosY(nodeObj.get("posY").getAsInt());
-                            if (nodeObj.has("fontIndex")) tn.setFontIndex(nodeObj.get("fontIndex").getAsInt());
-                            if (nodeObj.has("fontScale")) tn.setFontScale(nodeObj.get("fontScale").getAsDouble());
-                            if (nodeObj.has("colorR")) tn.setColorR(nodeObj.get("colorR").getAsInt());
-                            if (nodeObj.has("colorG")) tn.setColorG(nodeObj.get("colorG").getAsInt());
-                            if (nodeObj.has("colorB")) tn.setColorB(nodeObj.get("colorB").getAsInt());
-                            if (nodeObj.has("thickness")) tn.setThickness(nodeObj.get("thickness").getAsInt());
-                            if (nodeObj.has("bold")) tn.setBold(nodeObj.get("bold").getAsBoolean());
-                            if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
-                        } else if (node instanceof HistogramNode) {
-                            HistogramNode hn = (HistogramNode) node;
-                            if (nodeObj.has("modeIndex")) hn.setModeIndex(nodeObj.get("modeIndex").getAsInt());
-                            if (nodeObj.has("backgroundMode")) hn.setBackgroundMode(nodeObj.get("backgroundMode").getAsInt());
-                            if (nodeObj.has("fillBars")) hn.setFillBars(nodeObj.get("fillBars").getAsBoolean());
-                            if (nodeObj.has("lineThickness")) hn.setLineThickness(nodeObj.get("lineThickness").getAsInt());
-                            if (nodeObj.has("queuesInSync")) hn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
-                        } else if (node instanceof MatchTemplateNode) {
-                            MatchTemplateNode mtn = (MatchTemplateNode) node;
-                            if (nodeObj.has("method")) mtn.setMethod(nodeObj.get("method").getAsInt());
-                            if (nodeObj.has("queuesInSync")) mtn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
-                            // Handle old showRectangle boolean (convert to outputMode)
-                            if (nodeObj.has("showRectangle") && !nodeObj.has("outputMode")) {
-                                mtn.setOutputMode(nodeObj.get("showRectangle").getAsBoolean() ? 1 : 0);
-                            }
-                            if (nodeObj.has("outputMode")) mtn.setOutputMode(nodeObj.get("outputMode").getAsInt());
-                            if (nodeObj.has("rectColorR")) mtn.setRectColorR(nodeObj.get("rectColorR").getAsInt());
-                            if (nodeObj.has("rectColorG")) mtn.setRectColorG(nodeObj.get("rectColorG").getAsInt());
-                            if (nodeObj.has("rectColorB")) mtn.setRectColorB(nodeObj.get("rectColorB").getAsInt());
-                            if (nodeObj.has("rectThickness")) mtn.setRectThickness(nodeObj.get("rectThickness").getAsInt());
-                        }
-                        // InvertNode has no properties to load
-                        node.setOnChanged(() -> { markDirty(); executePipeline(); });
-                        nodes.add(node);
-                    }
+            // Set up change callbacks for ProcessingNodes
+            for (PipelineNode node : nodes) {
+                if (node instanceof ProcessingNode) {
+                    ((ProcessingNode) node).setOnChanged(() -> { markDirty(); executePipeline(); });
                 }
             }
 
-            // Load thumbnails from cache for ProcessingNodes and WebcamSourceNodes
+            // Load thumbnails from cache
             String cacheDir = getCacheDir(path);
             for (int i = 0; i < nodes.size(); i++) {
-                PipelineNode node = nodes.get(i);
-                if (node instanceof WebcamSourceNode) {
-                    ((WebcamSourceNode) node).loadThumbnailFromCache(cacheDir, i);
-                } else if (node instanceof ProcessingNode) {
-                    ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
-                }
-            }
-
-            // Load connections
-            JsonArray connsArray = root.getAsJsonArray("connections");
-            for (JsonElement elem : connsArray) {
-                JsonObject connObj = elem.getAsJsonObject();
-                int sourceId = connObj.get("sourceId").getAsInt();
-                int targetId = connObj.get("targetId").getAsInt();
-                int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
-                if (sourceId >= 0 && sourceId < nodes.size() &&
-                    targetId >= 0 && targetId < nodes.size()) {
-                    Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx);
-                    if (connObj.has("queueCapacity")) {
-                        conn.setConfiguredCapacity(connObj.get("queueCapacity").getAsInt());
-                    }
-                    if (connObj.has("queueCount")) {
-                        conn.setLastQueueSize(connObj.get("queueCount").getAsInt());
-                    }
-                    connections.add(conn);
-                }
-            }
-
-            // Load dangling connections
-            if (root.has("danglingConnections")) {
-                JsonArray danglingArray = root.getAsJsonArray("danglingConnections");
-                for (JsonElement elem : danglingArray) {
-                    JsonObject dangObj = elem.getAsJsonObject();
-                    int sourceId = dangObj.get("sourceId").getAsInt();
-                    int freeEndX = dangObj.get("freeEndX").getAsInt();
-                    int freeEndY = dangObj.get("freeEndY").getAsInt();
-                    if (sourceId >= 0 && sourceId < nodes.size()) {
-                        DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY));
-                        if (dangObj.has("queueCapacity")) {
-                            dc.setConfiguredCapacity(dangObj.get("queueCapacity").getAsInt());
-                        }
-                        if (dangObj.has("queueCount")) {
-                            dc.setLastQueueSize(dangObj.get("queueCount").getAsInt());
-                        }
-                        danglingConnections.add(dc);
-                    }
-                }
-            }
-
-            // Load reverse dangling connections
-            if (root.has("reverseDanglingConnections")) {
-                JsonArray reverseArray = root.getAsJsonArray("reverseDanglingConnections");
-                for (JsonElement elem : reverseArray) {
-                    JsonObject revObj = elem.getAsJsonObject();
-                    int targetId = revObj.get("targetId").getAsInt();
-                    int freeEndX = revObj.get("freeEndX").getAsInt();
-                    int freeEndY = revObj.get("freeEndY").getAsInt();
-                    if (targetId >= 0 && targetId < nodes.size()) {
-                        ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY));
-                        if (revObj.has("queueCapacity")) {
-                            rdc.setConfiguredCapacity(revObj.get("queueCapacity").getAsInt());
-                        }
-                        if (revObj.has("queueCount")) {
-                            rdc.setLastQueueSize(revObj.get("queueCount").getAsInt());
-                        }
-                        reverseDanglingConnections.add(rdc);
-                    }
-                }
-            }
-
-            // Load free connections
-            if (root.has("freeConnections")) {
-                JsonArray freeArray = root.getAsJsonArray("freeConnections");
-                for (JsonElement elem : freeArray) {
-                    JsonObject freeObj = elem.getAsJsonObject();
-                    int startEndX = freeObj.get("startEndX").getAsInt();
-                    int startEndY = freeObj.get("startEndY").getAsInt();
-                    int arrowEndX = freeObj.get("arrowEndX").getAsInt();
-                    int arrowEndY = freeObj.get("arrowEndY").getAsInt();
-                    FreeConnection fc = new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY));
-                    if (freeObj.has("queueCapacity")) {
-                        fc.setConfiguredCapacity(freeObj.get("queueCapacity").getAsInt());
-                    }
-                    if (freeObj.has("queueCount")) {
-                        fc.setLastQueueSize(freeObj.get("queueCount").getAsInt());
-                    }
-                    freeConnections.add(fc);
-                }
+                nodes.get(i).loadThumbnailFromCache(cacheDir, i);
             }
 
             currentFilePath = path;
@@ -1232,10 +659,14 @@ public class PipelineEditor {
         // Get display names from temp node instances
         java.util.Map<String, java.util.List<String[]>> categoryNodes = new java.util.LinkedHashMap<>();
 
-        for (com.ttennebkram.pipeline.registry.NodeRegistry.NodeInfo info :
+        for (com.ttennebkram.pipeline.registry.NodeRegistry.NodeRegistration info :
              com.ttennebkram.pipeline.registry.NodeRegistry.getAllNodes()) {
+            // Skip source nodes - they have their own toolbar section
+            if (SourceNode.class.isAssignableFrom(info.nodeClass)) {
+                continue;
+            }
             // Create temp node to get display name and category
-            ProcessingNode tempNode = com.ttennebkram.pipeline.registry.NodeRegistry.createNode(
+            ProcessingNode tempNode = com.ttennebkram.pipeline.registry.NodeRegistry.createProcessingNode(
                 info.name, display, shell, 0, 0);
             if (tempNode != null) {
                 String displayName = tempNode.getDisplayName();
@@ -1473,394 +904,14 @@ public class PipelineEditor {
 
     private void saveDiagramToPath(String path) {
         try {
-            JsonObject root = new JsonObject();
-
-            // Save nodes
-            JsonArray nodesArray = new JsonArray();
-            for (int i = 0; i < nodes.size(); i++) {
-                PipelineNode node = nodes.get(i);
-                JsonObject nodeObj = new JsonObject();
-                nodeObj.addProperty("id", i);
-                nodeObj.addProperty("x", node.x);
-                nodeObj.addProperty("y", node.y);
-                nodeObj.addProperty("threadPriority", node.getThreadPriority());
-                nodeObj.addProperty("workUnitsCompleted", node.getWorkUnitsCompleted());
-
-                if (node instanceof FileSourceNode) {
-                    nodeObj.addProperty("type", "FileSource");
-                    FileSourceNode isn = (FileSourceNode) node;
-                    if (isn.getImagePath() != null) {
-                        nodeObj.addProperty("imagePath", isn.getImagePath());
-                    }
-                    nodeObj.addProperty("fpsMode", isn.getFpsMode());
-                } else if (node instanceof WebcamSourceNode) {
-                    nodeObj.addProperty("type", "WebcamSource");
-                    WebcamSourceNode wsn = (WebcamSourceNode) node;
-                    nodeObj.addProperty("cameraIndex", wsn.getCameraIndex());
-                    nodeObj.addProperty("resolutionIndex", wsn.getResolutionIndex());
-                    nodeObj.addProperty("mirrorHorizontal", wsn.isMirrorHorizontal());
-                    nodeObj.addProperty("fpsIndex", wsn.getFpsIndex());
-                } else if (node instanceof BlankSourceNode) {
-                    nodeObj.addProperty("type", "BlankSource");
-                    BlankSourceNode bsn = (BlankSourceNode) node;
-                    nodeObj.addProperty("imageWidth", bsn.getImageWidth());
-                    nodeObj.addProperty("imageHeight", bsn.getImageHeight());
-                    nodeObj.addProperty("colorIndex", bsn.getColorIndex());
-                    nodeObj.addProperty("fpsIndex", bsn.getFpsIndex());
-                } else if (node instanceof ProcessingNode) {
-                    nodeObj.addProperty("type", "Processing");
-                    nodeObj.addProperty("name", ((ProcessingNode) node).getName());
-
-                    // Save node-specific properties
-                    if (node instanceof GaussianBlurNode) {
-                        GaussianBlurNode gbn = (GaussianBlurNode) node;
-                        nodeObj.addProperty("kernelSizeX", gbn.getKernelSizeX());
-                        nodeObj.addProperty("kernelSizeY", gbn.getKernelSizeY());
-                        nodeObj.addProperty("sigmaX", gbn.getSigmaX());
-                    } else if (node instanceof BoxBlurNode) {
-                        BoxBlurNode bbn = (BoxBlurNode) node;
-                        nodeObj.addProperty("kernelSizeX", bbn.getKernelSizeX());
-                        nodeObj.addProperty("kernelSizeY", bbn.getKernelSizeY());
-                    } else if (node instanceof GrayscaleNode) {
-                        GrayscaleNode gn = (GrayscaleNode) node;
-                        nodeObj.addProperty("conversionIndex", gn.getConversionIndex());
-                    } else if (node instanceof ThresholdNode) {
-                        ThresholdNode tn = (ThresholdNode) node;
-                        nodeObj.addProperty("threshValue", tn.getThreshValue());
-                        nodeObj.addProperty("maxValue", tn.getMaxValue());
-                        nodeObj.addProperty("typeIndex", tn.getTypeIndex());
-                        nodeObj.addProperty("modifierIndex", tn.getModifierIndex());
-                        nodeObj.addProperty("returnedThreshold", tn.getReturnedThreshold());
-                    } else if (node instanceof ContoursNode) {
-                        ContoursNode cn = (ContoursNode) node;
-                        nodeObj.addProperty("thresholdValue", cn.getThresholdValue());
-                        nodeObj.addProperty("retrievalMode", cn.getRetrievalMode());
-                        nodeObj.addProperty("approxMethod", cn.getApproxMethod());
-                        nodeObj.addProperty("thickness", cn.getThickness());
-                        nodeObj.addProperty("colorR", cn.getColorR());
-                        nodeObj.addProperty("colorG", cn.getColorG());
-                        nodeObj.addProperty("colorB", cn.getColorB());
-                        nodeObj.addProperty("showOriginal", cn.getShowOriginal());
-                        nodeObj.addProperty("sortMethod", cn.getSortMethod());
-                        nodeObj.addProperty("minIndex", cn.getMinIndex());
-                        nodeObj.addProperty("maxIndex", cn.getMaxIndex());
-                        nodeObj.addProperty("drawMode", cn.getDrawMode());
-                    } else if (node instanceof BlobDetectorNode) {
-                        BlobDetectorNode bdn = (BlobDetectorNode) node;
-                        nodeObj.addProperty("minThreshold", bdn.getMinThreshold());
-                        nodeObj.addProperty("maxThreshold", bdn.getMaxThreshold());
-                        nodeObj.addProperty("showOriginal", bdn.getShowOriginal());
-                        nodeObj.addProperty("filterByArea", bdn.isFilterByArea());
-                        nodeObj.addProperty("minArea", bdn.getMinArea());
-                        nodeObj.addProperty("maxArea", bdn.getMaxArea());
-                        nodeObj.addProperty("filterByCircularity", bdn.isFilterByCircularity());
-                        nodeObj.addProperty("minCircularity", bdn.getMinCircularity());
-                        nodeObj.addProperty("filterByConvexity", bdn.isFilterByConvexity());
-                        nodeObj.addProperty("minConvexity", bdn.getMinConvexity());
-                        nodeObj.addProperty("filterByInertia", bdn.isFilterByInertia());
-                        nodeObj.addProperty("minInertiaRatio", bdn.getMinInertiaRatio());
-                        nodeObj.addProperty("filterByColor", bdn.isFilterByColor());
-                        nodeObj.addProperty("blobColor", bdn.getBlobColor());
-                        nodeObj.addProperty("colorR", bdn.getColorR());
-                        nodeObj.addProperty("colorG", bdn.getColorG());
-                        nodeObj.addProperty("colorB", bdn.getColorB());
-                    } else if (node instanceof HoughCirclesNode) {
-                        HoughCirclesNode hcn = (HoughCirclesNode) node;
-                        nodeObj.addProperty("showOriginal", hcn.getShowOriginal());
-                        nodeObj.addProperty("minDist", hcn.getMinDist());
-                        nodeObj.addProperty("param1", hcn.getParam1());
-                        nodeObj.addProperty("param2", hcn.getParam2());
-                        nodeObj.addProperty("minRadius", hcn.getMinRadius());
-                        nodeObj.addProperty("maxRadius", hcn.getMaxRadius());
-                        nodeObj.addProperty("thickness", hcn.getThickness());
-                        nodeObj.addProperty("drawCenter", hcn.isDrawCenter());
-                        nodeObj.addProperty("colorR", hcn.getColorR());
-                        nodeObj.addProperty("colorG", hcn.getColorG());
-                        nodeObj.addProperty("colorB", hcn.getColorB());
-                    } else if (node instanceof HarrisCornersNode) {
-                        HarrisCornersNode harn = (HarrisCornersNode) node;
-                        nodeObj.addProperty("showOriginal", harn.getShowOriginal());
-                        nodeObj.addProperty("drawFeatures", harn.isDrawFeatures());
-                        nodeObj.addProperty("blockSize", harn.getBlockSize());
-                        nodeObj.addProperty("ksize", harn.getKsize());
-                        nodeObj.addProperty("kPercent", harn.getKPercent());
-                        nodeObj.addProperty("thresholdPercent", harn.getThresholdPercent());
-                        nodeObj.addProperty("markerSize", harn.getMarkerSize());
-                        nodeObj.addProperty("colorR", harn.getColorR());
-                        nodeObj.addProperty("colorG", harn.getColorG());
-                        nodeObj.addProperty("colorB", harn.getColorB());
-                    } else if (node instanceof ShiTomasiCornersNode) {
-                        ShiTomasiCornersNode stc = (ShiTomasiCornersNode) node;
-                        nodeObj.addProperty("maxCorners", stc.getMaxCorners());
-                        nodeObj.addProperty("qualityLevel", stc.getQualityLevel());
-                        nodeObj.addProperty("minDistance", stc.getMinDistance());
-                        nodeObj.addProperty("blockSize", stc.getBlockSize());
-                        nodeObj.addProperty("useHarrisDetector", stc.isUseHarrisDetector());
-                        nodeObj.addProperty("kPercent", stc.getKPercent());
-                        nodeObj.addProperty("markerSize", stc.getMarkerSize());
-                        nodeObj.addProperty("colorR", stc.getColorR());
-                        nodeObj.addProperty("colorG", stc.getColorG());
-                        nodeObj.addProperty("colorB", stc.getColorB());
-                        nodeObj.addProperty("drawFeatures", stc.isDrawFeatures());
-                    } else if (node instanceof ScharrNode) {
-                        ScharrNode sn = (ScharrNode) node;
-                        nodeObj.addProperty("directionIndex", sn.getDirectionIndex());
-                        nodeObj.addProperty("scalePercent", sn.getScalePercent());
-                        nodeObj.addProperty("delta", sn.getDelta());
-                    } else if (node instanceof SobelNode) {
-                        SobelNode sn = (SobelNode) node;
-                        nodeObj.addProperty("dx", sn.getDx());
-                        nodeObj.addProperty("dy", sn.getDy());
-                        nodeObj.addProperty("kernelSizeIndex", sn.getKernelSizeIndex());
-                    } else if (node instanceof LaplacianNode) {
-                        LaplacianNode ln = (LaplacianNode) node;
-                        nodeObj.addProperty("kernelSizeIndex", ln.getKernelSizeIndex());
-                        nodeObj.addProperty("scalePercent", ln.getScalePercent());
-                        nodeObj.addProperty("delta", ln.getDelta());
-                        nodeObj.addProperty("useAbsolute", ln.isUseAbsolute());
-                    } else if (node instanceof GainNode) {
-                        GainNode gn = (GainNode) node;
-                        nodeObj.addProperty("gain", gn.getGain());
-                    } else if (node instanceof Filter2DNode) {
-                        Filter2DNode f2d = (Filter2DNode) node;
-                        nodeObj.addProperty("kernelSize", f2d.getKernelSize());
-                        JsonArray kernelArray = new JsonArray();
-                        int[] values = f2d.getKernelValues();
-                        if (values != null) {
-                            for (int val : values) {
-                                kernelArray.add(val);
-                            }
-                        }
-                        nodeObj.add("kernelValues", kernelArray);
-                    } else if (node instanceof MorphologyExNode) {
-                        MorphologyExNode men = (MorphologyExNode) node;
-                        nodeObj.addProperty("operationIndex", men.getOperationIndex());
-                        nodeObj.addProperty("shapeIndex", men.getShapeIndex());
-                        nodeObj.addProperty("kernelWidth", men.getKernelWidth());
-                        nodeObj.addProperty("kernelHeight", men.getKernelHeight());
-                        nodeObj.addProperty("iterations", men.getIterations());
-                        nodeObj.addProperty("anchorX", men.getAnchorX());
-                        nodeObj.addProperty("anchorY", men.getAnchorY());
-                    } else if (node instanceof BitPlanesGrayscaleNode) {
-                        BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
-                        JsonArray enabledArray = new JsonArray();
-                        JsonArray gainArray = new JsonArray();
-                        for (int j = 0; j < 8; j++) {
-                            enabledArray.add(bpn.getBitEnabled(j));
-                            gainArray.add(bpn.getBitGain(j));
-                        }
-                        nodeObj.add("bitEnabled", enabledArray);
-                        nodeObj.add("bitGain", gainArray);
-                    } else if (node instanceof BitPlanesColorNode) {
-                        BitPlanesColorNode bpn = (BitPlanesColorNode) node;
-                        // Save Red channel
-                        JsonArray redEnabled = new JsonArray();
-                        JsonArray redGain = new JsonArray();
-                        for (int j = 0; j < 8; j++) {
-                            redEnabled.add(bpn.getBitEnabled(0, j));
-                            redGain.add(bpn.getBitGain(0, j));
-                        }
-                        nodeObj.add("redBitEnabled", redEnabled);
-                        nodeObj.add("redBitGain", redGain);
-                        // Save Green channel
-                        JsonArray greenEnabled = new JsonArray();
-                        JsonArray greenGain = new JsonArray();
-                        for (int j = 0; j < 8; j++) {
-                            greenEnabled.add(bpn.getBitEnabled(1, j));
-                            greenGain.add(bpn.getBitGain(1, j));
-                        }
-                        nodeObj.add("greenBitEnabled", greenEnabled);
-                        nodeObj.add("greenBitGain", greenGain);
-                        // Save Blue channel
-                        JsonArray blueEnabled = new JsonArray();
-                        JsonArray blueGain = new JsonArray();
-                        for (int j = 0; j < 8; j++) {
-                            blueEnabled.add(bpn.getBitEnabled(2, j));
-                            blueGain.add(bpn.getBitGain(2, j));
-                        }
-                        nodeObj.add("blueBitEnabled", blueEnabled);
-                        nodeObj.add("blueBitGain", blueGain);
-                    } else if (node instanceof RectangleNode) {
-                        RectangleNode rn = (RectangleNode) node;
-                        nodeObj.addProperty("x1", rn.getX1());
-                        nodeObj.addProperty("y1", rn.getY1());
-                        nodeObj.addProperty("x2", rn.getX2());
-                        nodeObj.addProperty("y2", rn.getY2());
-                        nodeObj.addProperty("colorR", rn.getColorR());
-                        nodeObj.addProperty("colorG", rn.getColorG());
-                        nodeObj.addProperty("colorB", rn.getColorB());
-                        nodeObj.addProperty("thickness", rn.getThickness());
-                        nodeObj.addProperty("filled", rn.isFilled());
-                    } else if (node instanceof CircleNode) {
-                        CircleNode cn = (CircleNode) node;
-                        nodeObj.addProperty("centerX", cn.getCenterX());
-                        nodeObj.addProperty("centerY", cn.getCenterY());
-                        nodeObj.addProperty("radius", cn.getRadius());
-                        nodeObj.addProperty("colorR", cn.getColorR());
-                        nodeObj.addProperty("colorG", cn.getColorG());
-                        nodeObj.addProperty("colorB", cn.getColorB());
-                        nodeObj.addProperty("thickness", cn.getThickness());
-                        nodeObj.addProperty("filled", cn.isFilled());
-                    } else if (node instanceof EllipseNode) {
-                        EllipseNode en = (EllipseNode) node;
-                        nodeObj.addProperty("centerX", en.getCenterX());
-                        nodeObj.addProperty("centerY", en.getCenterY());
-                        nodeObj.addProperty("axisX", en.getAxisX());
-                        nodeObj.addProperty("axisY", en.getAxisY());
-                        nodeObj.addProperty("angle", en.getAngle());
-                        nodeObj.addProperty("startAngle", en.getStartAngle());
-                        nodeObj.addProperty("endAngle", en.getEndAngle());
-                        nodeObj.addProperty("colorR", en.getColorR());
-                        nodeObj.addProperty("colorG", en.getColorG());
-                        nodeObj.addProperty("colorB", en.getColorB());
-                        nodeObj.addProperty("thickness", en.getThickness());
-                        nodeObj.addProperty("filled", en.isFilled());
-                    } else if (node instanceof LineNode) {
-                        LineNode ln = (LineNode) node;
-                        nodeObj.addProperty("x1", ln.getX1());
-                        nodeObj.addProperty("y1", ln.getY1());
-                        nodeObj.addProperty("x2", ln.getX2());
-                        nodeObj.addProperty("y2", ln.getY2());
-                        nodeObj.addProperty("colorR", ln.getColorR());
-                        nodeObj.addProperty("colorG", ln.getColorG());
-                        nodeObj.addProperty("colorB", ln.getColorB());
-                        nodeObj.addProperty("thickness", ln.getThickness());
-                    } else if (node instanceof ArrowNode) {
-                        ArrowNode an = (ArrowNode) node;
-                        nodeObj.addProperty("x1", an.getX1());
-                        nodeObj.addProperty("y1", an.getY1());
-                        nodeObj.addProperty("x2", an.getX2());
-                        nodeObj.addProperty("y2", an.getY2());
-                        nodeObj.addProperty("tipLength", an.getTipLength());
-                        nodeObj.addProperty("colorR", an.getColorR());
-                        nodeObj.addProperty("colorG", an.getColorG());
-                        nodeObj.addProperty("colorB", an.getColorB());
-                        nodeObj.addProperty("thickness", an.getThickness());
-                    } else if (node instanceof CropNode) {
-                        CropNode crn = (CropNode) node;
-                        nodeObj.addProperty("cropX", crn.getCropX());
-                        nodeObj.addProperty("cropY", crn.getCropY());
-                        nodeObj.addProperty("cropWidth", crn.getCropWidth());
-                        nodeObj.addProperty("cropHeight", crn.getCropHeight());
-                    // AddClampNode and SubtractClampNode have no properties to save
-                    } else if (node instanceof AddWeightedNode) {
-                        AddWeightedNode awn = (AddWeightedNode) node;
-                        nodeObj.addProperty("alpha", awn.getAlpha());
-                        nodeObj.addProperty("beta", awn.getBeta());
-                        nodeObj.addProperty("gamma", awn.getGamma());
-                    } else if (node instanceof TextNode) {
-                        TextNode tn = (TextNode) node;
-                        nodeObj.addProperty("text", tn.getText());
-                        nodeObj.addProperty("posX", tn.getPosX());
-                        nodeObj.addProperty("posY", tn.getPosY());
-                        nodeObj.addProperty("fontIndex", tn.getFontIndex());
-                        nodeObj.addProperty("fontScale", tn.getFontScale());
-                        nodeObj.addProperty("colorR", tn.getColorR());
-                        nodeObj.addProperty("colorG", tn.getColorG());
-                        nodeObj.addProperty("colorB", tn.getColorB());
-                        nodeObj.addProperty("thickness", tn.getThickness());
-                        nodeObj.addProperty("bold", tn.isBold());
-                        nodeObj.addProperty("italic", tn.isItalic());
-                    } else if (node instanceof HistogramNode) {
-                        HistogramNode hn = (HistogramNode) node;
-                        nodeObj.addProperty("modeIndex", hn.getModeIndex());
-                        nodeObj.addProperty("backgroundMode", hn.getBackgroundMode());
-                        nodeObj.addProperty("fillBars", hn.getFillBars());
-                        nodeObj.addProperty("lineThickness", hn.getLineThickness());
-                        nodeObj.addProperty("queuesInSync", hn.isQueuesInSync());
-                    } else if (node instanceof MatchTemplateNode) {
-                        MatchTemplateNode mtn = (MatchTemplateNode) node;
-                        nodeObj.addProperty("method", mtn.getMethod());
-                        nodeObj.addProperty("queuesInSync", mtn.isQueuesInSync());
-                        nodeObj.addProperty("outputMode", mtn.getOutputMode());
-                        nodeObj.addProperty("rectColorR", mtn.getRectColorR());
-                        nodeObj.addProperty("rectColorG", mtn.getRectColorG());
-                        nodeObj.addProperty("rectColorB", mtn.getRectColorB());
-                        nodeObj.addProperty("rectThickness", mtn.getRectThickness());
-                    }
-                    // InvertNode has no properties to save
-                }
-
-                nodesArray.add(nodeObj);
-            }
-            root.add("nodes", nodesArray);
-
-            // Save connections
-            JsonArray connsArray = new JsonArray();
-            for (Connection conn : connections) {
-                JsonObject connObj = new JsonObject();
-                connObj.addProperty("sourceId", nodes.indexOf(conn.source));
-                connObj.addProperty("targetId", nodes.indexOf(conn.target));
-                connObj.addProperty("inputIndex", conn.inputIndex);
-                connObj.addProperty("queueCapacity", conn.getConfiguredCapacity());
-                int queueSize = conn.getQueueSize();
-                System.out.println("SAVE: Connection " + nodes.indexOf(conn.source) + " -> " +
-                                 nodes.indexOf(conn.target) + " queue size: " + queueSize +
-                                 " (queue null? " + (conn.getQueue() == null) + ")");
-                connObj.addProperty("queueCount", queueSize);
-                connsArray.add(connObj);
-            }
-            root.add("connections", connsArray);
-
-            // Save dangling connections (source node attached, free end)
-            JsonArray danglingArray = new JsonArray();
-            for (DanglingConnection dc : danglingConnections) {
-                JsonObject dcObj = new JsonObject();
-                dcObj.addProperty("sourceId", nodes.indexOf(dc.source));
-                dcObj.addProperty("freeEndX", dc.freeEnd.x);
-                dcObj.addProperty("freeEndY", dc.freeEnd.y);
-                dcObj.addProperty("queueCapacity", dc.getConfiguredCapacity());
-                dcObj.addProperty("queueCount", dc.getQueueSize());
-                danglingArray.add(dcObj);
-            }
-            root.add("danglingConnections", danglingArray);
-
-            // Save reverse dangling connections (target node attached, free end)
-            JsonArray reverseDanglingArray = new JsonArray();
-            for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
-                JsonObject rdcObj = new JsonObject();
-                rdcObj.addProperty("targetId", nodes.indexOf(rdc.target));
-                rdcObj.addProperty("freeEndX", rdc.freeEnd.x);
-                rdcObj.addProperty("freeEndY", rdc.freeEnd.y);
-                rdcObj.addProperty("queueCapacity", rdc.getConfiguredCapacity());
-                rdcObj.addProperty("queueCount", rdc.getQueueSize());
-                reverseDanglingArray.add(rdcObj);
-            }
-            root.add("reverseDanglingConnections", reverseDanglingArray);
-
-            // Save free connections (both ends free)
-            JsonArray freeArray = new JsonArray();
-            for (FreeConnection fc : freeConnections) {
-                JsonObject fcObj = new JsonObject();
-                fcObj.addProperty("startEndX", fc.startEnd.x);
-                fcObj.addProperty("startEndY", fc.startEnd.y);
-                fcObj.addProperty("arrowEndX", fc.arrowEnd.x);
-                fcObj.addProperty("arrowEndY", fc.arrowEnd.y);
-                fcObj.addProperty("queueCapacity", fc.getConfiguredCapacity());
-                fcObj.addProperty("queueCount", fc.getQueueSize());
-                freeArray.add(fcObj);
-            }
-            root.add("freeConnections", freeArray);
-
-            // Write to file
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            try (FileWriter writer = new FileWriter(path)) {
-                gson.toJson(root, writer);
-            }
-
+            // Save via PipelineSerializer
+            PipelineSerializer.save(path, nodes, connections, danglingConnections,
+                                    reverseDanglingConnections, freeConnections);
 
             // Save thumbnails to cache directory
             String cacheDir = getCacheDir(path);
-            int nodeIndex = 0;
-            for (PipelineNode node : nodes) {
-                if (node instanceof FileSourceNode) {
-                    ((FileSourceNode) node).saveThumbnailToCache(cacheDir);
-                } else if (node instanceof WebcamSourceNode) {
-                    ((WebcamSourceNode) node).saveThumbnailToCache(cacheDir, nodeIndex);
-                } else if (node instanceof ProcessingNode) {
-                    ((ProcessingNode) node).saveThumbnailToCache(cacheDir, nodeIndex);
-                }
-                nodeIndex++;
+            for (int i = 0; i < nodes.size(); i++) {
+                nodes.get(i).saveThumbnailToCache(cacheDir, i);
             }
 
             currentFilePath = path;
@@ -1884,398 +935,7 @@ public class PipelineEditor {
 
         String path = dialog.open();
         if (path != null) {
-            try {
-                // Clear existing
-                for (PipelineNode node : nodes) {
-                    if (node instanceof SourceNode) {
-                        ((SourceNode) node).dispose();
-                    }
-                }
-                nodes.clear();
-                connections.clear();
-                danglingConnections.clear();
-                reverseDanglingConnections.clear();
-                freeConnections.clear();
-
-                // Load JSON
-                Gson gson = new Gson();
-                JsonObject root;
-                try (FileReader reader = new FileReader(path)) {
-                    root = gson.fromJson(reader, JsonObject.class);
-                }
-
-                // Load nodes
-                JsonArray nodesArray = root.getAsJsonArray("nodes");
-                for (JsonElement elem : nodesArray) {
-                    JsonObject nodeObj = elem.getAsJsonObject();
-                    int x = nodeObj.get("x").getAsInt();
-                    int y = nodeObj.get("y").getAsInt();
-                    String type = nodeObj.get("type").getAsString();
-
-                    if ("FileSource".equals(type)) {
-                        FileSourceNode node = new FileSourceNode(shell, display, canvas, x, y);
-                        if (nodeObj.has("threadPriority")) {
-                            node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                        }
-                        if (nodeObj.has("workUnitsCompleted")) {
-                            node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                        }
-                        if (nodeObj.has("imagePath")) {
-                            String imgPath = nodeObj.get("imagePath").getAsString();
-                            node.setImagePath(imgPath);
-                            // Load the media (creates thumbnail and loads image for execution)
-                            node.loadMedia(imgPath);
-                        } else {
-                        }
-                        nodes.add(node);
-                    } else if ("Processing".equals(type)) {
-                        String name = nodeObj.get("name").getAsString();
-                        ProcessingNode node = createEffectNode(name, x, y);
-                        if (node != null) {
-                            if (nodeObj.has("threadPriority")) {
-                                node.setThreadPriority(nodeObj.get("threadPriority").getAsInt());
-                            }
-                            if (nodeObj.has("workUnitsCompleted")) {
-                                node.setWorkUnitsCompleted(nodeObj.get("workUnitsCompleted").getAsLong());
-                            }
-                            // Load node-specific properties
-                            if (node instanceof GaussianBlurNode) {
-                                GaussianBlurNode gbn = (GaussianBlurNode) node;
-                                if (nodeObj.has("kernelSizeX")) gbn.setKernelSizeX(nodeObj.get("kernelSizeX").getAsInt());
-                                if (nodeObj.has("kernelSizeY")) gbn.setKernelSizeY(nodeObj.get("kernelSizeY").getAsInt());
-                                if (nodeObj.has("sigmaX")) gbn.setSigmaX(nodeObj.get("sigmaX").getAsDouble());
-                            } else if (node instanceof GrayscaleNode) {
-                                GrayscaleNode gn = (GrayscaleNode) node;
-                                if (nodeObj.has("conversionIndex")) {
-                                    int loadedIndex = nodeObj.get("conversionIndex").getAsInt();
-                                    gn.setConversionIndex(loadedIndex);
-                                } else {
-                                }
-                            } else if (node instanceof ThresholdNode) {
-                                ThresholdNode tn = (ThresholdNode) node;
-                                if (nodeObj.has("threshValue")) tn.setThreshValue(nodeObj.get("threshValue").getAsInt());
-                                if (nodeObj.has("maxValue")) tn.setMaxValue(nodeObj.get("maxValue").getAsInt());
-                                if (nodeObj.has("typeIndex")) tn.setTypeIndex(nodeObj.get("typeIndex").getAsInt());
-                                if (nodeObj.has("modifierIndex")) tn.setModifierIndex(nodeObj.get("modifierIndex").getAsInt());
-                                if (nodeObj.has("returnedThreshold")) tn.setReturnedThreshold(nodeObj.get("returnedThreshold").getAsDouble());
-                            } else if (node instanceof ContoursNode) {
-                                ContoursNode cn = (ContoursNode) node;
-                                if (nodeObj.has("thresholdValue")) cn.setThresholdValue(nodeObj.get("thresholdValue").getAsInt());
-                                if (nodeObj.has("retrievalMode")) cn.setRetrievalMode(nodeObj.get("retrievalMode").getAsInt());
-                                if (nodeObj.has("approxMethod")) cn.setApproxMethod(nodeObj.get("approxMethod").getAsInt());
-                                if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("showOriginal")) cn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                                if (nodeObj.has("sortMethod")) cn.setSortMethod(nodeObj.get("sortMethod").getAsInt());
-                                if (nodeObj.has("minIndex")) cn.setMinIndex(nodeObj.get("minIndex").getAsInt());
-                                if (nodeObj.has("maxIndex")) cn.setMaxIndex(nodeObj.get("maxIndex").getAsInt());
-                                if (nodeObj.has("drawMode")) cn.setDrawMode(nodeObj.get("drawMode").getAsInt());
-                            } else if (node instanceof BlobDetectorNode) {
-                                BlobDetectorNode bdn = (BlobDetectorNode) node;
-                                if (nodeObj.has("minThreshold")) bdn.setMinThreshold(nodeObj.get("minThreshold").getAsInt());
-                                if (nodeObj.has("maxThreshold")) bdn.setMaxThreshold(nodeObj.get("maxThreshold").getAsInt());
-                                if (nodeObj.has("showOriginal")) bdn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                                if (nodeObj.has("filterByArea")) bdn.setFilterByArea(nodeObj.get("filterByArea").getAsBoolean());
-                                if (nodeObj.has("minArea")) bdn.setMinArea(nodeObj.get("minArea").getAsInt());
-                                if (nodeObj.has("maxArea")) bdn.setMaxArea(nodeObj.get("maxArea").getAsInt());
-                                if (nodeObj.has("filterByCircularity")) bdn.setFilterByCircularity(nodeObj.get("filterByCircularity").getAsBoolean());
-                                if (nodeObj.has("minCircularity")) bdn.setMinCircularity(nodeObj.get("minCircularity").getAsInt());
-                                if (nodeObj.has("filterByConvexity")) bdn.setFilterByConvexity(nodeObj.get("filterByConvexity").getAsBoolean());
-                                if (nodeObj.has("minConvexity")) bdn.setMinConvexity(nodeObj.get("minConvexity").getAsInt());
-                                if (nodeObj.has("filterByInertia")) bdn.setFilterByInertia(nodeObj.get("filterByInertia").getAsBoolean());
-                                if (nodeObj.has("minInertiaRatio")) bdn.setMinInertiaRatio(nodeObj.get("minInertiaRatio").getAsInt());
-                                if (nodeObj.has("filterByColor")) bdn.setFilterByColor(nodeObj.get("filterByColor").getAsBoolean());
-                                if (nodeObj.has("blobColor")) bdn.setBlobColor(nodeObj.get("blobColor").getAsInt());
-                                if (nodeObj.has("colorR")) bdn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) bdn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) bdn.setColorB(nodeObj.get("colorB").getAsInt());
-                            } else if (node instanceof HoughCirclesNode) {
-                                HoughCirclesNode hcn = (HoughCirclesNode) node;
-                                if (nodeObj.has("showOriginal")) hcn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                                if (nodeObj.has("minDist")) hcn.setMinDist(nodeObj.get("minDist").getAsInt());
-                                if (nodeObj.has("param1")) hcn.setParam1(nodeObj.get("param1").getAsInt());
-                                if (nodeObj.has("param2")) hcn.setParam2(nodeObj.get("param2").getAsInt());
-                                if (nodeObj.has("minRadius")) hcn.setMinRadius(nodeObj.get("minRadius").getAsInt());
-                                if (nodeObj.has("maxRadius")) hcn.setMaxRadius(nodeObj.get("maxRadius").getAsInt());
-                                if (nodeObj.has("thickness")) hcn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("drawCenter")) hcn.setDrawCenter(nodeObj.get("drawCenter").getAsBoolean());
-                                if (nodeObj.has("colorR")) hcn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) hcn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) hcn.setColorB(nodeObj.get("colorB").getAsInt());
-                            } else if (node instanceof HarrisCornersNode) {
-                                HarrisCornersNode harn = (HarrisCornersNode) node;
-                                if (nodeObj.has("showOriginal")) harn.setShowOriginal(nodeObj.get("showOriginal").getAsBoolean());
-                                if (nodeObj.has("blockSize")) harn.setBlockSize(nodeObj.get("blockSize").getAsInt());
-                                if (nodeObj.has("ksize")) harn.setKsize(nodeObj.get("ksize").getAsInt());
-                                if (nodeObj.has("kPercent")) harn.setKPercent(nodeObj.get("kPercent").getAsInt());
-                                if (nodeObj.has("thresholdPercent")) harn.setThresholdPercent(nodeObj.get("thresholdPercent").getAsInt());
-                                if (nodeObj.has("markerSize")) harn.setMarkerSize(nodeObj.get("markerSize").getAsInt());
-                                if (nodeObj.has("colorR")) harn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) harn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) harn.setColorB(nodeObj.get("colorB").getAsInt());
-                            } else if (node instanceof ScharrNode) {
-                                ScharrNode sn = (ScharrNode) node;
-                                if (nodeObj.has("directionIndex")) sn.setDirectionIndex(nodeObj.get("directionIndex").getAsInt());
-                                if (nodeObj.has("scalePercent")) sn.setScalePercent(nodeObj.get("scalePercent").getAsInt());
-                                if (nodeObj.has("delta")) sn.setDelta(nodeObj.get("delta").getAsInt());
-                            } else if (node instanceof GainNode) {
-                                GainNode gn = (GainNode) node;
-                                if (nodeObj.has("gain")) gn.setGain(nodeObj.get("gain").getAsDouble());
-                            } else if (node instanceof BitPlanesGrayscaleNode) {
-                                BitPlanesGrayscaleNode bpn = (BitPlanesGrayscaleNode) node;
-                                System.out.println("Loading BitPlanesGrayscaleNode, has bitEnabled: " + nodeObj.has("bitEnabled") + ", has bitGain: " + nodeObj.has("bitGain"));
-                                if (nodeObj.has("bitEnabled")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("bitEnabled");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitEnabled(j, arr.get(j).getAsBoolean());
-                                    }
-                                }
-                                if (nodeObj.has("bitGain")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("bitGain");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitGain(j, arr.get(j).getAsDouble());
-                                    }
-                                }
-                            } else if (node instanceof BitPlanesColorNode) {
-                                System.out.println("Loading BitPlanesColorNode, has redBitEnabled: " + nodeObj.has("redBitEnabled"));
-                                BitPlanesColorNode bpn = (BitPlanesColorNode) node;
-                                // Load Red channel
-                                if (nodeObj.has("redBitEnabled")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("redBitEnabled");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitEnabled(0, j, arr.get(j).getAsBoolean());
-                                    }
-                                }
-                                if (nodeObj.has("redBitGain")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("redBitGain");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitGain(0, j, arr.get(j).getAsDouble());
-                                    }
-                                }
-                                // Load Green channel
-                                if (nodeObj.has("greenBitEnabled")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("greenBitEnabled");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitEnabled(1, j, arr.get(j).getAsBoolean());
-                                    }
-                                }
-                                if (nodeObj.has("greenBitGain")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("greenBitGain");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitGain(1, j, arr.get(j).getAsDouble());
-                                    }
-                                }
-                                // Load Blue channel
-                                if (nodeObj.has("blueBitEnabled")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("blueBitEnabled");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitEnabled(2, j, arr.get(j).getAsBoolean());
-                                    }
-                                }
-                                if (nodeObj.has("blueBitGain")) {
-                                    JsonArray arr = nodeObj.getAsJsonArray("blueBitGain");
-                                    for (int j = 0; j < 8 && j < arr.size(); j++) {
-                                        bpn.setBitGain(2, j, arr.get(j).getAsDouble());
-                                    }
-                                }
-                            } else if (node instanceof RectangleNode) {
-                                RectangleNode rn = (RectangleNode) node;
-                                if (nodeObj.has("x1")) rn.setX1(nodeObj.get("x1").getAsInt());
-                                if (nodeObj.has("y1")) rn.setY1(nodeObj.get("y1").getAsInt());
-                                if (nodeObj.has("x2")) rn.setX2(nodeObj.get("x2").getAsInt());
-                                if (nodeObj.has("y2")) rn.setY2(nodeObj.get("y2").getAsInt());
-                                if (nodeObj.has("colorR")) rn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) rn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) rn.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) rn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("filled")) rn.setFilled(nodeObj.get("filled").getAsBoolean());
-                            } else if (node instanceof CircleNode) {
-                                CircleNode cn = (CircleNode) node;
-                                if (nodeObj.has("centerX")) cn.setCenterX(nodeObj.get("centerX").getAsInt());
-                                if (nodeObj.has("centerY")) cn.setCenterY(nodeObj.get("centerY").getAsInt());
-                                if (nodeObj.has("radius")) cn.setRadius(nodeObj.get("radius").getAsInt());
-                                if (nodeObj.has("colorR")) cn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) cn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) cn.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) cn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("filled")) cn.setFilled(nodeObj.get("filled").getAsBoolean());
-                            } else if (node instanceof EllipseNode) {
-                                EllipseNode en = (EllipseNode) node;
-                                if (nodeObj.has("centerX")) en.setCenterX(nodeObj.get("centerX").getAsInt());
-                                if (nodeObj.has("centerY")) en.setCenterY(nodeObj.get("centerY").getAsInt());
-                                if (nodeObj.has("axisX")) en.setAxisX(nodeObj.get("axisX").getAsInt());
-                                if (nodeObj.has("axisY")) en.setAxisY(nodeObj.get("axisY").getAsInt());
-                                if (nodeObj.has("angle")) en.setAngle(nodeObj.get("angle").getAsInt());
-                                if (nodeObj.has("startAngle")) en.setStartAngle(nodeObj.get("startAngle").getAsInt());
-                                if (nodeObj.has("endAngle")) en.setEndAngle(nodeObj.get("endAngle").getAsInt());
-                                if (nodeObj.has("colorR")) en.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) en.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) en.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) en.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("filled")) en.setFilled(nodeObj.get("filled").getAsBoolean());
-                            } else if (node instanceof LineNode) {
-                                LineNode ln = (LineNode) node;
-                                if (nodeObj.has("x1")) ln.setX1(nodeObj.get("x1").getAsInt());
-                                if (nodeObj.has("y1")) ln.setY1(nodeObj.get("y1").getAsInt());
-                                if (nodeObj.has("x2")) ln.setX2(nodeObj.get("x2").getAsInt());
-                                if (nodeObj.has("y2")) ln.setY2(nodeObj.get("y2").getAsInt());
-                                if (nodeObj.has("colorR")) ln.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) ln.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) ln.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) ln.setThickness(nodeObj.get("thickness").getAsInt());
-                            } else if (node instanceof ArrowNode) {
-                                ArrowNode an = (ArrowNode) node;
-                                if (nodeObj.has("x1")) an.setX1(nodeObj.get("x1").getAsInt());
-                                if (nodeObj.has("y1")) an.setY1(nodeObj.get("y1").getAsInt());
-                                if (nodeObj.has("x2")) an.setX2(nodeObj.get("x2").getAsInt());
-                                if (nodeObj.has("y2")) an.setY2(nodeObj.get("y2").getAsInt());
-                                if (nodeObj.has("tipLength")) an.setTipLength(nodeObj.get("tipLength").getAsDouble());
-                                if (nodeObj.has("colorR")) an.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) an.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) an.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) an.setThickness(nodeObj.get("thickness").getAsInt());
-                            } else if (node instanceof CropNode) {
-                                CropNode crn = (CropNode) node;
-                                if (nodeObj.has("cropX")) crn.setCropX(nodeObj.get("cropX").getAsInt());
-                                if (nodeObj.has("cropY")) crn.setCropY(nodeObj.get("cropY").getAsInt());
-                                if (nodeObj.has("cropWidth")) crn.setCropWidth(nodeObj.get("cropWidth").getAsInt());
-                                if (nodeObj.has("cropHeight")) crn.setCropHeight(nodeObj.get("cropHeight").getAsInt());
-                            // AddClampNode and SubtractClampNode have no properties to load
-                            } else if (node instanceof AddWeightedNode) {
-                                AddWeightedNode awn = (AddWeightedNode) node;
-                                if (nodeObj.has("alpha")) awn.setAlpha(nodeObj.get("alpha").getAsDouble());
-                                if (nodeObj.has("beta")) awn.setBeta(nodeObj.get("beta").getAsDouble());
-                                if (nodeObj.has("gamma")) awn.setGamma(nodeObj.get("gamma").getAsDouble());
-                            } else if (node instanceof TextNode) {
-                                TextNode tn = (TextNode) node;
-                                if (nodeObj.has("text")) tn.setText(nodeObj.get("text").getAsString());
-                                if (nodeObj.has("posX")) tn.setPosX(nodeObj.get("posX").getAsInt());
-                                if (nodeObj.has("posY")) tn.setPosY(nodeObj.get("posY").getAsInt());
-                                if (nodeObj.has("fontIndex")) tn.setFontIndex(nodeObj.get("fontIndex").getAsInt());
-                                if (nodeObj.has("fontScale")) tn.setFontScale(nodeObj.get("fontScale").getAsDouble());
-                                if (nodeObj.has("colorR")) tn.setColorR(nodeObj.get("colorR").getAsInt());
-                                if (nodeObj.has("colorG")) tn.setColorG(nodeObj.get("colorG").getAsInt());
-                                if (nodeObj.has("colorB")) tn.setColorB(nodeObj.get("colorB").getAsInt());
-                                if (nodeObj.has("thickness")) tn.setThickness(nodeObj.get("thickness").getAsInt());
-                                if (nodeObj.has("italic")) tn.setItalic(nodeObj.get("italic").getAsBoolean());
-                            }
-                            // InvertNode has no properties to load
-                            node.setOnChanged(() -> { markDirty(); executePipeline(); });
-                            nodes.add(node);
-                        }
-                    }
-                }
-
-                // Load thumbnails from cache for ProcessingNodes and WebcamSourceNodes
-                String cacheDir = getCacheDir(path);
-                for (int i = 0; i < nodes.size(); i++) {
-                    PipelineNode node = nodes.get(i);
-                    if (node instanceof WebcamSourceNode) {
-                        ((WebcamSourceNode) node).loadThumbnailFromCache(cacheDir, i);
-                    } else if (node instanceof ProcessingNode) {
-                        ((ProcessingNode) node).loadThumbnailFromCache(cacheDir, i);
-                    }
-                }
-
-                // Load connections
-                if (root.has("connections")) {
-                    JsonArray connsArray = root.getAsJsonArray("connections");
-                    for (JsonElement elem : connsArray) {
-                        JsonObject connObj = elem.getAsJsonObject();
-                        int sourceId = connObj.get("sourceId").getAsInt();
-                        int targetId = connObj.get("targetId").getAsInt();
-                        int inputIdx = connObj.has("inputIndex") ? connObj.get("inputIndex").getAsInt() : 1;
-                        if (sourceId >= 0 && sourceId < nodes.size() &&
-                            targetId >= 0 && targetId < nodes.size()) {
-                            Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIdx);
-                            if (connObj.has("queueCapacity")) {
-                                conn.setConfiguredCapacity(connObj.get("queueCapacity").getAsInt());
-                            }
-                            if (connObj.has("queueCount")) {
-                                conn.setLastQueueSize(connObj.get("queueCount").getAsInt());
-                            }
-                            connections.add(conn);
-                        }
-                    }
-                }
-
-                // Load dangling connections (source node attached, free end)
-                if (root.has("danglingConnections")) {
-                    JsonArray danglingArray = root.getAsJsonArray("danglingConnections");
-                    for (JsonElement elem : danglingArray) {
-                        JsonObject dcObj = elem.getAsJsonObject();
-                        int sourceId = dcObj.get("sourceId").getAsInt();
-                        int freeEndX = dcObj.get("freeEndX").getAsInt();
-                        int freeEndY = dcObj.get("freeEndY").getAsInt();
-                        if (sourceId >= 0 && sourceId < nodes.size()) {
-                            DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), new Point(freeEndX, freeEndY));
-                            if (dcObj.has("queueCapacity")) {
-                                dc.setConfiguredCapacity(dcObj.get("queueCapacity").getAsInt());
-                            }
-                            if (dcObj.has("queueCount")) {
-                                dc.setLastQueueSize(dcObj.get("queueCount").getAsInt());
-                            }
-                            danglingConnections.add(dc);
-                        }
-                    }
-                }
-
-                // Load reverse dangling connections (target node attached, free end)
-                if (root.has("reverseDanglingConnections")) {
-                    JsonArray reverseDanglingArray = root.getAsJsonArray("reverseDanglingConnections");
-                    for (JsonElement elem : reverseDanglingArray) {
-                        JsonObject rdcObj = elem.getAsJsonObject();
-                        int targetId = rdcObj.get("targetId").getAsInt();
-                        int freeEndX = rdcObj.get("freeEndX").getAsInt();
-                        int freeEndY = rdcObj.get("freeEndY").getAsInt();
-                        if (targetId >= 0 && targetId < nodes.size()) {
-                            ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), new Point(freeEndX, freeEndY));
-                            if (rdcObj.has("queueCapacity")) {
-                                rdc.setConfiguredCapacity(rdcObj.get("queueCapacity").getAsInt());
-                            }
-                            if (rdcObj.has("queueCount")) {
-                                rdc.setLastQueueSize(rdcObj.get("queueCount").getAsInt());
-                            }
-                            reverseDanglingConnections.add(rdc);
-                        }
-                    }
-                }
-
-                // Load free connections (both ends free)
-                if (root.has("freeConnections")) {
-                    JsonArray freeArray = root.getAsJsonArray("freeConnections");
-                    for (JsonElement elem : freeArray) {
-                        JsonObject fcObj = elem.getAsJsonObject();
-                        int startEndX = fcObj.get("startEndX").getAsInt();
-                        int startEndY = fcObj.get("startEndY").getAsInt();
-                        int arrowEndX = fcObj.get("arrowEndX").getAsInt();
-                        int arrowEndY = fcObj.get("arrowEndY").getAsInt();
-                        FreeConnection fc = new FreeConnection(new Point(startEndX, startEndY), new Point(arrowEndX, arrowEndY));
-                        if (fcObj.has("queueCapacity")) {
-                            fc.setConfiguredCapacity(fcObj.get("queueCapacity").getAsInt());
-                        }
-                        if (fcObj.has("queueCount")) {
-                            fc.setLastQueueSize(fcObj.get("queueCount").getAsInt());
-                        }
-                        freeConnections.add(fc);
-                    }
-                }
-
-                currentFilePath = path;
-                addToRecentFiles(path);
-
-                canvas.redraw();
-                shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
-                updateCanvasSize();
-
-            } catch (Exception e) {
-                MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
-                mb.setText("Load Error");
-                mb.setMessage("Failed to load: " + e.getMessage());
-                mb.open();
-            }
+            loadDiagramFromPath(path);
         }
     }
 
@@ -2678,10 +1338,10 @@ public class PipelineEditor {
         // Find all nodes and build execution order
         // For now, simple linear execution following connections
 
-        // Find source node (FileSourceNode, WebcamSourceNode, or BlankSourceNode with no incoming connections)
-        PipelineNode sourceNode = null;
+        // Find source node (any SourceNode with no incoming connections)
+        SourceNode sourceNode = null;
         for (PipelineNode node : nodes) {
-            if (node instanceof FileSourceNode || node instanceof WebcamSourceNode || node instanceof BlankSourceNode) {
+            if (node instanceof SourceNode) {
                 boolean hasIncoming = false;
                 for (Connection conn : connections) {
                     if (conn.target == node) {
@@ -2690,7 +1350,7 @@ public class PipelineEditor {
                     }
                 }
                 if (!hasIncoming) {
-                    sourceNode = node;
+                    sourceNode = (SourceNode) node;
                     break;
                 }
             }
@@ -2702,14 +1362,7 @@ public class PipelineEditor {
         }
 
         // Get current frame from source
-        Mat currentMat = null;
-        if (sourceNode instanceof FileSourceNode) {
-            currentMat = ((FileSourceNode) sourceNode).getLoadedImage();
-        } else if (sourceNode instanceof WebcamSourceNode) {
-            currentMat = ((WebcamSourceNode) sourceNode).getNextFrame();
-        } else if (sourceNode instanceof BlankSourceNode) {
-            currentMat = ((BlankSourceNode) sourceNode).getNextFrame();
-        }
+        Mat currentMat = sourceNode.getNextFrame();
 
         if (currentMat == null || currentMat.empty()) {
             return;
@@ -2821,6 +1474,13 @@ public class PipelineEditor {
         // Clear old state
         stopPipeline();
 
+        // Reset all node counters
+        for (PipelineNode node : nodes) {
+            node.setWorkUnitsCompleted(0);
+            node.setInputReads1(0);
+            node.setInputReads2(0);
+        }
+
         // Activate all connections (creates queues and wires them to nodes)
         for (Connection conn : connections) {
             conn.activate();
@@ -2856,27 +1516,46 @@ public class PipelineEditor {
         for (PipelineNode node : nodes) {
             final PipelineNode n = node;
             node.setOnFrameCallback(frame -> {
+                // Frame is a clone owned by this callback - we must release it when done
+                if (frame == null || frame.empty()) {
+                    if (frame != null) frame.release();
+                    return;
+                }
                 if (!display.isDisposed()) {
-                    // Clone frame before async call since it will be released
-                    Mat frameClone = frame.clone();
+                    // Clone for the async UI thread - must be done synchronously before frame is released
+                    Mat uiClone;
+                    try {
+                        uiClone = frame.clone();
+                    } catch (Exception e) {
+                        // Clone failed - frame may have been released by another thread
+                        return;
+                    } finally {
+                        // Always release the frame passed to this callback
+                        frame.release();
+                    }
+
                     display.asyncExec(() -> {
-                        if (canvas.isDisposed()) {
-                            frameClone.release();
-                            return;
-                        }
-                        canvas.redraw();
+                        try {
+                            if (canvas.isDisposed() || uiClone.empty()) {
+                                return;
+                            }
+                            canvas.redraw();
 
-                        // Update preview if this node is selected
-                        if (selectedNodes.size() == 1 && selectedNodes.contains(n)) {
-                            updatePreview(frameClone);
-                        } else if (selectedNodes.isEmpty() && n.getOutputQueue() == null) {
-                            // No selection and this is the last node - show its output
-                            updatePreview(frameClone);
+                            // Update preview if this node is selected
+                            if (selectedNodes.size() == 1 && selectedNodes.contains(n)) {
+                                updatePreview(uiClone);
+                            } else if (selectedNodes.isEmpty() && n.getOutputQueue() == null) {
+                                // No selection and this is the last node - show its output
+                                updatePreview(uiClone);
+                            }
+                        } finally {
+                            // Always release the UI clone
+                            uiClone.release();
                         }
-
-                        // Release the cloned frame after use
-                        frameClone.release();
                     });
+                } else {
+                    // Display is disposed - just release the frame
+                    frame.release();
                 }
             });
         }
@@ -3171,11 +1850,12 @@ public class PipelineEditor {
             gc.drawLine(start.x, start.y, end.x, end.y);
             drawArrow(gc, start, end);
 
-            // Draw queue size (always show, whether running or not)
+            // Draw queue size and total frames (always show, whether running or not)
             int queueSize = conn.getQueueSize();
+            long totalFrames = conn.getTotalFramesSent();
             int midX = (start.x + end.x) / 2;
             int midY = (start.y + end.y) / 2;
-            String sizeText = String.valueOf(queueSize);
+            String sizeText = queueSize + " / " + totalFrames;
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
             Point textExtent = gc.textExtent(sizeText);
@@ -3312,8 +1992,8 @@ public class PipelineEditor {
 
     // Helper to get the correct input point for a connection based on its inputIndex
     private Point getConnectionTargetPoint(Connection conn) {
-        if (conn.inputIndex == 2 && conn.target instanceof DualInputNode) {
-            return ((DualInputNode) conn.target).getInputPoint2();
+        if (conn.inputIndex == 2 && conn.target.hasDualInput()) {
+            return conn.target.getInputPoint2();
         }
         return conn.target.getInputPoint();
     }
@@ -3373,8 +2053,8 @@ public class PipelineEditor {
                 PipelineNode node = nodes.get(i);
 
                 // Check for second input point on dual-input nodes first
-                if (node instanceof DualInputNode) {
-                    Point inputPoint2 = ((DualInputNode) node).getInputPoint2();
+                if (node.hasDualInput()) {
+                    Point inputPoint2 = node.getInputPoint2();
                     double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint2.y, 2));
                     if (dist2 <= radius) {
@@ -3815,8 +2495,8 @@ public class PipelineEditor {
             for (PipelineNode node : nodes) {
                 if (node != connectionSource) {
                     // Check second input point for dual-input nodes first
-                    if (node instanceof DualInputNode) {
-                        Point inputPoint2 = ((DualInputNode) node).getInputPoint2();
+                    if (node.hasDualInput()) {
+                        Point inputPoint2 = node.getInputPoint2();
                         int radius = 8;
                         double dist2 = Math.sqrt(Math.pow(clickPoint.x - inputPoint2.x, 2) +
                                                Math.pow(clickPoint.y - inputPoint2.y, 2));

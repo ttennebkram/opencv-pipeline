@@ -25,7 +25,7 @@ public abstract class PipelineNode implements NodeSerializable {
     public static final int SOURCE_NODE_THUMB_WIDTH = 280;
     public static final int SOURCE_NODE_THUMB_HEIGHT = 90;
 
-    public static final int NODE_WIDTH = PROCESSING_NODE_THUMB_WIDTH + 20;  // thumbnail + 10px padding each side
+    public static final int NODE_WIDTH = PROCESSING_NODE_THUMB_WIDTH + 60;  // thumbnail + space for queue stats
     public static final int NODE_HEIGHT = PROCESSING_NODE_THUMB_HEIGHT + 40; // thumbnail + 25px title + 15px bottom
     public static final int SOURCE_NODE_HEIGHT = SOURCE_NODE_THUMB_HEIGHT + 32; // thumbnail + 22px title + 10px bottom
 
@@ -58,6 +58,10 @@ public abstract class PipelineNode implements NodeSerializable {
     // Work unit tracking
     protected long workUnitsCompleted = 0; // Count of work units completed (persists across runs)
 
+    // Input read counters (persists across runs)
+    protected long inputReads1 = 0; // Frames read from input queue 1
+    protected long inputReads2 = 0; // Frames read from input queue 2 (for dual-input nodes)
+
     // Callback for frame updates (used for preview)
     protected java.util.function.Consumer<Mat> onFrameCallback;
 
@@ -75,6 +79,22 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public Point getInputPoint() {
         return new Point(x, y + height / 2);
+    }
+
+    /**
+     * Get the second input point for dual-input nodes.
+     * Default implementation returns null (single input).
+     * Override in DualInputNode subclasses.
+     */
+    public Point getInputPoint2() {
+        return null;
+    }
+
+    /**
+     * Check if this node has a second input.
+     */
+    public boolean hasDualInput() {
+        return getInputPoint2() != null;
     }
 
     public int getX() {
@@ -210,6 +230,22 @@ public abstract class PipelineNode implements NodeSerializable {
         }
     }
 
+    /**
+     * Save thumbnail to cache directory.
+     * Default implementation does nothing - subclasses override as needed.
+     */
+    public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
+        // Default: no caching
+    }
+
+    /**
+     * Load thumbnail from cache directory.
+     * Default implementation returns false - subclasses override as needed.
+     */
+    public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
+        return false;
+    }
+
     // Queue management for pipeline connections
     public void setInputQueue(BlockingQueue<Mat> queue) {
         this.inputQueue = queue;
@@ -266,6 +302,30 @@ public abstract class PipelineNode implements NodeSerializable {
 
     protected void incrementWorkUnits() {
         workUnitsCompleted++;
+    }
+
+    public long getInputReads1() {
+        return inputReads1;
+    }
+
+    public void setInputReads1(long count) {
+        this.inputReads1 = count;
+    }
+
+    protected void incrementInputReads1() {
+        inputReads1++;
+    }
+
+    public long getInputReads2() {
+        return inputReads2;
+    }
+
+    public void setInputReads2(long count) {
+        this.inputReads2 = count;
+    }
+
+    protected void incrementInputReads2() {
+        inputReads2++;
     }
 
     public void setInputNode(PipelineNode node) {
@@ -386,6 +446,8 @@ public abstract class PipelineNode implements NodeSerializable {
         json.addProperty("y", y);
         json.addProperty("threadPriority", threadPriority);
         json.addProperty("workUnitsCompleted", workUnitsCompleted);
+        json.addProperty("inputReads1", inputReads1);
+        json.addProperty("inputReads2", inputReads2);
     }
 
     /**
@@ -404,6 +466,12 @@ public abstract class PipelineNode implements NodeSerializable {
         }
         if (json.has("workUnitsCompleted")) {
             workUnitsCompleted = json.get("workUnitsCompleted").getAsLong();
+        }
+        if (json.has("inputReads1")) {
+            inputReads1 = json.get("inputReads1").getAsLong();
+        }
+        if (json.has("inputReads2")) {
+            inputReads2 = json.get("inputReads2").getAsLong();
         }
     }
 

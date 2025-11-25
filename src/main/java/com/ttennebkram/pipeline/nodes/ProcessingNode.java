@@ -89,16 +89,27 @@ public abstract class ProcessingNode extends PipelineNode {
         gc.drawString(getThreadPriorityLabel(), x + 10, y + 20, true);
         smallFont.dispose();
 
-        // Draw thumbnail if available
+        // Draw input read counts on the left side
+        Font tinyFont = new Font(display, "Arial", 7, SWT.NORMAL);
+        gc.setFont(tinyFont);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        int statsX = x + 5;
+        gc.drawString("In1:" + inputReads1, statsX, y + 40, true);
+        if (hasDualInput()) {
+            gc.drawString("In2:" + inputReads2, statsX, y + 70, true);
+        }
+        tinyFont.dispose();
+
+        // Draw thumbnail if available (to the right of stats)
         if (thumbnail != null && !thumbnail.isDisposed()) {
             Rectangle bounds = thumbnail.getBounds();
-            int thumbX = x + (width - bounds.width) / 2;
+            int thumbX = x + 40; // Offset to make room for stats on left
             int thumbY = y + 35;
             gc.drawImage(thumbnail, thumbX, thumbY);
         } else {
             // Draw placeholder
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(no output)", x + 10, y + 50, true);
+            gc.drawString("(no output)", x + 45, y + 50, true);
         }
 
         // Draw connection points
@@ -126,6 +137,7 @@ public abstract class ProcessingNode extends PipelineNode {
     }
 
     // Save thumbnail to cache directory
+    @Override
     public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
         if (outputMat != null && !outputMat.empty()) {
             try {
@@ -149,6 +161,7 @@ public abstract class ProcessingNode extends PipelineNode {
     }
 
     // Load thumbnail from cache directory
+    @Override
     public boolean loadThumbnailFromCache(String cacheDir, int nodeIndex) {
         String thumbPath = cacheDir + File.separator + "node_" + nodeIndex + "_thumb.png";
         File thumbFile = new File(thumbPath);
@@ -228,7 +241,6 @@ public abstract class ProcessingNode extends PipelineNode {
         workUnitsCompleted = 0; // Reset counter on start
 
         processingThread = new Thread(() -> {
-
             while (running.get()) {
                 try {
                     // Take from input queue (blocks until available)
@@ -238,6 +250,7 @@ public abstract class ProcessingNode extends PipelineNode {
                     }
 
                     Mat input = inputQueue.take();
+                    incrementInputReads1(); // Track frames read from input
                     if (input == null) {
                         continue;
                     }
@@ -250,21 +263,28 @@ public abstract class ProcessingNode extends PipelineNode {
 
                     // Update thumbnail and put on output queue
                     if (output != null) {
-                        setOutputMat(output);
-                        notifyFrame(output);
+                        // Clone for persistent storage (outputMat for preview/thumbnail)
+                        setOutputMat(output.clone());
+
+                        // Clone for preview callback (callback may run async after output is released)
+                        Mat previewClone = output.clone();
+                        notifyFrame(previewClone);
+                        // Note: previewClone will be released by the callback
 
                         if (outputQueue != null) {
-                            outputQueue.put(output);
+                            // Clone for downstream node (they will release it)
+                            outputQueue.put(output.clone());
                         }
+
+                        // Release the original output from process()
+                        output.release();
                     }
 
                     // Check for backpressure and signal upstream if needed
                     checkBackpressure();
 
-                    // Release input if it's different from output
-                    if (input != output) {
-                        input.release();
-                    }
+                    // Release input
+                    input.release();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;

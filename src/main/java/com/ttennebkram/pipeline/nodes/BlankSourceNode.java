@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
@@ -12,6 +14,7 @@ import org.opencv.core.Scalar;
 /**
  * Blank source node - generates a solid color (default black) image.
  */
+@NodeInfo(name = "BlankSource", category = "Source", aliases = {"Blank Source"})
 public class BlankSourceNode extends SourceNode {
     private int imageWidth = 640;
     private int imageHeight = 480;
@@ -66,8 +69,8 @@ public class BlankSourceNode extends SourceNode {
         }
         blankImage = new Mat(imageHeight, imageWidth, CvType.CV_8UC3,
             new Scalar(getBlue(), getGreen(), getRed()));
-        // Update thumbnail to show the blank image
-        setOutputMat(blankImage);
+        // Update thumbnail to show the blank image (clone so blankImage isn't released)
+        setOutputMat(blankImage.clone());
     }
 
     public Mat getNextFrame() {
@@ -219,45 +222,17 @@ public class BlankSourceNode extends SourceNode {
         }
     }
 
-    @Override
-    public void startProcessing() {
-        if (running.get()) {
-            return;
-        }
+    // startProcessing() inherited from SourceNode
 
-        running.set(true);
-        workUnitsCompleted = 0; // Reset counter on start
-        frameDelayMs = (long) (1000.0 / getFps());
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("imageWidth", imageWidth);
+        json.addProperty("imageHeight", imageHeight);
+        json.addProperty("colorIndex", colorIndex);
+    }
 
-        processingThread = new Thread(() -> {
-            while (running.get()) {
-                try {
-                    Mat frame = getNextFrame();
-
-                    // Increment work units regardless of output (even if null)
-                    incrementWorkUnits();
-
-                    if (frame != null) {
-                        // Update thumbnail
-                        setOutputMat(frame);
-                        notifyFrame(frame);
-                        // Put frame on output queue (blocks if full)
-                        if (outputQueue != null) {
-                            outputQueue.put(frame);
-                        }
-                    }
-
-                    // Throttle frame rate
-                    if (frameDelayMs > 0) {
-                        Thread.sleep(frameDelayMs);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }, "BlankSource-Thread");
-        processingThread.setPriority(threadPriority);
-        processingThread.start();
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("imageWidth")) imageWidth = json.get("imageWidth").getAsInt();
+        if (json.has("imageHeight")) imageHeight = json.get("imageHeight").getAsInt();
+        if (json.has("colorIndex")) colorIndex = json.get("colorIndex").getAsInt();
     }
 }
