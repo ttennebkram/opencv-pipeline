@@ -1871,21 +1871,26 @@ public class PipelineEditor {
                 gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
             }
 
-            gc.drawLine(start.x, start.y, end.x, end.y);
-            drawArrow(gc, start, end);
+            // Calculate routed path around obstacles
+            java.util.List<Point> path = calculateRoutedPath(start, end, conn.source, conn.target);
+            drawRoutedPath(gc, path, conn.source, conn.target);
+
+            // Draw arrow - for bezier, arrow comes from control point direction
+            int[] cp = calculateBezierControlPoints(start, end, conn.source, conn.target);
+            Point arrowFrom = new Point(cp[2], cp[3]); // Use second control point for arrow direction
+            drawArrow(gc, arrowFrom, end);
 
             // Draw queue size and total frames (always show, whether running or not)
             int queueSize = conn.getQueueSize();
             long totalFrames = conn.getTotalFramesSent();
-            int midX = (start.x + end.x) / 2;
-            int midY = (start.y + end.y) / 2;
+            Point midPoint = getPathMidpoint(path, conn.source, conn.target);
             String sizeText = queueSize + " / " + totalFrames;
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
             Point textExtent = gc.textExtent(sizeText);
-            gc.fillRoundRectangle(midX - textExtent.x/2 - 3, midY - textExtent.y/2 - 2,
+            gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
                 textExtent.x + 6, textExtent.y + 4, 6, 6);
-            gc.drawString(sizeText, midX - textExtent.x/2, midY - textExtent.y/2, true);
+            gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
         }
 
         // Draw dangling connections with dashed lines
@@ -2033,6 +2038,242 @@ public class PipelineEditor {
 
         gc.drawLine(end.x, end.y, x1, y1);
         gc.drawLine(end.x, end.y, x2, y2);
+    }
+
+    /**
+     * Calculate a routed path from start to end that avoids nodes.
+     * The path connects at connection points on node edges but doesn't pass through node bodies.
+     */
+    private java.util.List<Point> calculateRoutedPath(Point start, Point end, PipelineNode sourceNode, PipelineNode targetNode) {
+        java.util.List<Point> path = new java.util.ArrayList<>();
+        path.add(start);
+
+        int margin = 15; // Margin around nodes for routing
+
+        // Calculate exit point (just past the source node's right edge)
+        int exitX = sourceNode.x + sourceNode.width + margin;
+        // Calculate entry point (just before the target node's left edge)
+        int entryX = targetNode.x - margin;
+
+        // Collect ALL nodes as potential obstacles (including source and target)
+        // for checking the vertical segment
+        java.util.List<PipelineNode> allObstacles = new java.util.ArrayList<>(nodes);
+
+        // Find the bounds of all nodes that overlap with the horizontal span
+        int topMost = Integer.MAX_VALUE;
+        int bottomMost = Integer.MIN_VALUE;
+
+        for (PipelineNode node : allObstacles) {
+            int nodeLeft = node.x - margin;
+            int nodeRight = node.x + node.width + margin;
+
+            // Check if node overlaps horizontally with the routing area
+            if (nodeRight >= exitX && nodeLeft <= entryX) {
+                topMost = Math.min(topMost, node.y - margin);
+                bottomMost = Math.max(bottomMost, node.y + node.height + margin);
+            }
+        }
+
+        // Check if any obstacle blocks a direct vertical segment at exitX or entryX
+        boolean needsDetour = false;
+        int minPathY = Math.min(start.y, end.y);
+        int maxPathY = Math.max(start.y, end.y);
+
+        for (PipelineNode node : allObstacles) {
+            // Skip source and target for vertical segment check
+            // (we'll route around them with the exit/entry points)
+            if (node == sourceNode || node == targetNode) {
+                continue;
+            }
+
+            int nodeLeft = node.x - margin;
+            int nodeRight = node.x + node.width + margin;
+            int nodeTop = node.y - margin;
+            int nodeBottom = node.y + node.height + margin;
+
+            // Check if a vertical segment at exitX would pass through this node
+            if (exitX >= nodeLeft && exitX <= nodeRight) {
+                if (!(maxPathY < nodeTop || minPathY > nodeBottom)) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+
+            // Check if a vertical segment at entryX would pass through this node
+            if (entryX >= nodeLeft && entryX <= nodeRight) {
+                if (!(maxPathY < nodeTop || minPathY > nodeBottom)) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+
+            // Check if the horizontal segment at start.y or end.y would pass through
+            if (start.y >= nodeTop && start.y <= nodeBottom) {
+                if (exitX < nodeRight && entryX > nodeLeft) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+            if (end.y >= nodeTop && end.y <= nodeBottom) {
+                if (exitX < nodeRight && entryX > nodeLeft) {
+                    needsDetour = true;
+                    break;
+                }
+            }
+        }
+
+        if (!needsDetour && start.y == end.y) {
+            // Same Y level and no obstacles - simple straight line via exit/entry points
+            path.add(new Point(exitX, start.y));
+            path.add(new Point(entryX, end.y));
+        } else {
+            // Need to find a clear Y level for the horizontal segment
+            // This Y must be outside BOTH source and target node bodies
+
+            // Calculate the vertical bounds we need to avoid (source and target nodes)
+            int sourceTop = sourceNode.y - margin;
+            int sourceBottom = sourceNode.y + sourceNode.height + margin;
+            int targetTop = targetNode.y - margin;
+            int targetBottom = targetNode.y + targetNode.height + margin;
+
+            // Find a routeY that's clear of both source and target
+            int routeY;
+
+            // Option 1: Go above both nodes
+            int aboveY = Math.min(sourceTop, targetTop) - 10;
+            // Option 2: Go below both nodes
+            int belowY = Math.max(sourceBottom, targetBottom) + 10;
+            // Option 3: Go between them (if there's a gap)
+            int betweenY = -1;
+            if (sourceBottom < targetTop - 20) {
+                // Gap between source (above) and target (below)
+                betweenY = (sourceBottom + targetTop) / 2;
+            } else if (targetBottom < sourceTop - 20) {
+                // Gap between target (above) and source (below)
+                betweenY = (targetBottom + sourceTop) / 2;
+            }
+
+            // Also consider middle obstacles for the route
+            if (needsDetour && topMost != Integer.MAX_VALUE) {
+                aboveY = Math.min(aboveY, topMost - 10);
+            }
+            if (needsDetour && bottomMost != Integer.MIN_VALUE) {
+                belowY = Math.max(belowY, bottomMost + 10);
+            }
+
+            // Choose the shortest path
+            int distAbove = Math.abs(start.y - aboveY) + Math.abs(end.y - aboveY);
+            int distBelow = Math.abs(start.y - belowY) + Math.abs(end.y - belowY);
+            int distBetween = betweenY >= 0 ? Math.abs(start.y - betweenY) + Math.abs(end.y - betweenY) : Integer.MAX_VALUE;
+
+            if (distBetween <= distAbove && distBetween <= distBelow) {
+                routeY = betweenY;
+            } else if (distAbove <= distBelow) {
+                routeY = aboveY;
+            } else {
+                routeY = belowY;
+            }
+
+            // Build a 5-segment path: out horizontally, up/down, across, down/up, in horizontally
+            path.add(new Point(exitX, start.y));
+            path.add(new Point(exitX, routeY));
+            path.add(new Point(entryX, routeY));
+            path.add(new Point(entryX, end.y));
+        }
+
+        path.add(end);
+        return path;
+    }
+
+    /**
+     * Draw a smooth bezier curve from start to end.
+     */
+    private void drawRoutedPath(GC gc, java.util.List<Point> path, PipelineNode sourceNode, PipelineNode targetNode) {
+        if (path.size() < 2) return;
+
+        Point start = path.get(0);
+        Point end = path.get(path.size() - 1);
+
+        int[] cp = calculateBezierControlPoints(start, end, sourceNode, targetNode);
+
+        Path swtPath = new Path(gc.getDevice());
+        try {
+            swtPath.moveTo(start.x, start.y);
+            swtPath.cubicTo(cp[0], cp[1], cp[2], cp[3], end.x, end.y);
+            gc.drawPath(swtPath);
+        } finally {
+            swtPath.dispose();
+        }
+    }
+
+    /**
+     * Overload for cases without node info (dangling connections, etc.)
+     */
+    private void drawRoutedPath(GC gc, java.util.List<Point> path) {
+        drawRoutedPath(gc, path, null, null);
+    }
+
+    /**
+     * Calculate bezier control points for a smooth curve from start to end.
+     * Returns [cx1, cy1, cx2, cy2].
+     */
+    private int[] calculateBezierControlPoints(Point start, Point end, PipelineNode sourceNode, PipelineNode targetNode) {
+        int cx1, cy1, cx2, cy2;
+        int dx = end.x - start.x;
+        int dy = end.y - start.y;
+
+        // If nearly horizontal (small Y difference), draw straight
+        if (Math.abs(dy) < 10) {
+            cx1 = start.x + dx / 3;
+            cy1 = start.y + dy / 3;
+            cx2 = start.x + 2 * dx / 3;
+            cy2 = start.y + 2 * dy / 3;
+        } else {
+            // Has vertical offset - use S-curve with horizontal tangents
+            int controlDist = Math.max(40, Math.abs(dx) / 2);
+            cx1 = start.x + controlDist;
+            cy1 = start.y;
+            cx2 = end.x - controlDist;
+            cy2 = end.y;
+        }
+
+        return new int[] { cx1, cy1, cx2, cy2 };
+    }
+
+    /**
+     * Get the midpoint of a bezier curve (for label placement).
+     * Uses the bezier formula at t=0.5.
+     */
+    private Point getPathMidpoint(java.util.List<Point> path, PipelineNode sourceNode, PipelineNode targetNode) {
+        if (path.size() < 2) return path.get(0);
+
+        Point start = path.get(0);
+        Point end = path.get(path.size() - 1);
+
+        // Get the same control points used for drawing
+        int[] cp = calculateBezierControlPoints(start, end, sourceNode, targetNode);
+        int cx1 = cp[0], cy1 = cp[1], cx2 = cp[2], cy2 = cp[3];
+
+        // Cubic bezier at t=0.5: B(0.5) = (1-t)^3*P0 + 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3*P3
+        // At t=0.5: B(0.5) = 0.125*P0 + 0.375*P1 + 0.375*P2 + 0.125*P3
+        double t = 0.5;
+        double mt = 1 - t;
+        double mt2 = mt * mt;
+        double mt3 = mt2 * mt;
+        double t2 = t * t;
+        double t3 = t2 * t;
+
+        int midX = (int) (mt3 * start.x + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * end.x);
+        int midY = (int) (mt3 * start.y + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * end.y);
+
+        return new Point(midX, midY);
+    }
+
+    /**
+     * Overload for cases without node info.
+     */
+    private Point getPathMidpoint(java.util.List<Point> path) {
+        return getPathMidpoint(path, null, null);
     }
 
     // Helper method to calculate distance from point to line segment
@@ -2589,27 +2830,36 @@ public class PipelineEditor {
         if (connectionTarget != null) {
             boolean connected = false;
             PipelineNode sourceNode = null;
+            int sourceOutputIndex = 0;
 
-            // Check if dropped on an output point
+            // Check if dropped on an output point (check all outputs for multi-output nodes)
             for (PipelineNode node : nodes) {
                 if (node != connectionTarget) {
-                    Point outputPoint = node.getOutputPoint();
                     int radius = 8;
-                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
-                                           Math.pow(clickPoint.y - outputPoint.y, 2));
-                    if (dist <= radius) {
-                        sourceNode = node;
-                        connected = true;
-                        break;
+                    int outputCount = node.getOutputCount();
+                    for (int outIdx = 0; outIdx < outputCount; outIdx++) {
+                        Point outputPoint = node.getOutputPoint(outIdx);
+                        if (outputPoint != null) {
+                            double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                                   Math.pow(clickPoint.y - outputPoint.y, 2));
+                            if (dist <= radius) {
+                                sourceNode = node;
+                                sourceOutputIndex = outIdx;
+                                connected = true;
+                                break;
+                            }
+                        }
                     }
+                    if (connected) break;
                 }
             }
 
-            // If not on output point, check if on node body as fallback
+            // If not on output point, check if on node body as fallback (use output 0)
             if (!connected) {
                 for (PipelineNode node : nodes) {
                     if (node != connectionTarget && node.containsPoint(clickPoint)) {
                         sourceNode = node;
+                        sourceOutputIndex = 0;
                         connected = true;
                         break;
                     }
@@ -2617,8 +2867,8 @@ public class PipelineEditor {
             }
 
             if (connected && sourceNode != null) {
-                // Create a new connection with the correct input index
-                connections.add(new Connection(sourceNode, connectionTarget, targetInputIndex));
+                // Create a new connection with the correct input and output index
+                connections.add(new Connection(sourceNode, connectionTarget, targetInputIndex, sourceOutputIndex));
                 markDirty();
             } else if (connectionEndPoint != null) {
                 // Create a reverse dangling connection
@@ -2642,22 +2892,30 @@ public class PipelineEditor {
             int radius = 8;
 
             if (draggingFreeConnectionSource) {
-                // Dragging the source end - check if dropped on output point
+                // Dragging the source end - check if dropped on output point (check all for multi-output)
                 PipelineNode sourceNode = null;
+                int sourceOutputIndex = 0;
                 for (PipelineNode node : nodes) {
-                    Point outputPoint = node.getOutputPoint();
-                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
-                                           Math.pow(clickPoint.y - outputPoint.y, 2));
-                    if (dist <= radius) {
-                        sourceNode = node;
-                        connected = true;
-                        break;
+                    int outputCount = node.getOutputCount();
+                    for (int outIdx = 0; outIdx < outputCount; outIdx++) {
+                        Point outputPoint = node.getOutputPoint(outIdx);
+                        if (outputPoint != null) {
+                            double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                                   Math.pow(clickPoint.y - outputPoint.y, 2));
+                            if (dist <= radius) {
+                                sourceNode = node;
+                                sourceOutputIndex = outIdx;
+                                connected = true;
+                                break;
+                            }
+                        }
                     }
+                    if (connected) break;
                 }
 
                 if (connected && sourceNode != null) {
-                    // Connected to output point - create DanglingConnection
-                    danglingConnections.add(new DanglingConnection(sourceNode, freeConnectionFixedEnd));
+                    // Connected to output point - create DanglingConnection with output index
+                    danglingConnections.add(new DanglingConnection(sourceNode, sourceOutputIndex, freeConnectionFixedEnd));
                 } else {
                     // Not connected - create FreeConnection at current position
                     freeConnections.add(new FreeConnection(connectionEndPoint, freeConnectionFixedEnd));
