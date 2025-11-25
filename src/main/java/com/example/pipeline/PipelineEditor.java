@@ -99,6 +99,7 @@ public class PipelineEditor {
         NodeRegistry.register("HarrisCorners", "Detection", HarrisCornersNode.class);
         NodeRegistry.register("HoughCircles", "Detection", HoughCirclesNode.class);
         NodeRegistry.register("HoughLines", "Detection", HoughLinesNode.class);
+        NodeRegistry.register("MatchTemplate", "Detection", MatchTemplateNode.class);
         NodeRegistry.register("ORBFeatures", "Detection", ORBFeaturesNode.class);
         NodeRegistry.register("ShiTomasi", "Detection", ShiTomasiCornersNode.class);
         NodeRegistry.register("SIFTFeatures", "Detection", SIFTFeaturesNode.class);
@@ -141,6 +142,8 @@ public class PipelineEditor {
         NodeRegistry.registerAlias("Grayscale/Color Convert", "Grayscale");
         NodeRegistry.registerAlias("Unknown: Grayscale/Color Convert", "Grayscale");
         NodeRegistry.registerAlias("Warp Affine", "WarpAffine");
+        NodeRegistry.registerAlias("Match Template", "MatchTemplate");
+        NodeRegistry.registerAlias("Unknown: Match Template", "MatchTemplate");
         NodeRegistry.registerAlias("Add Clamp", "AddClamp");
         NodeRegistry.registerAlias("Add Weighted", "AddWeighted");
         NodeRegistry.registerAlias("Subtract Clamp", "SubtractClamp");
@@ -985,6 +988,10 @@ public class PipelineEditor {
                             if (nodeObj.has("fillBars")) hn.setFillBars(nodeObj.get("fillBars").getAsBoolean());
                             if (nodeObj.has("lineThickness")) hn.setLineThickness(nodeObj.get("lineThickness").getAsInt());
                             if (nodeObj.has("queuesInSync")) hn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
+                        } else if (node instanceof MatchTemplateNode) {
+                            MatchTemplateNode mtn = (MatchTemplateNode) node;
+                            if (nodeObj.has("method")) mtn.setMethod(nodeObj.get("method").getAsInt());
+                            if (nodeObj.has("queuesInSync")) mtn.setQueuesInSync(nodeObj.get("queuesInSync").getAsBoolean());
                         }
                         // InvertNode has no properties to load
                         node.setOnChanged(() -> { markDirty(); executePipeline(); });
@@ -1752,6 +1759,10 @@ public class PipelineEditor {
                         nodeObj.addProperty("fillBars", hn.getFillBars());
                         nodeObj.addProperty("lineThickness", hn.getLineThickness());
                         nodeObj.addProperty("queuesInSync", hn.isQueuesInSync());
+                    } else if (node instanceof MatchTemplateNode) {
+                        MatchTemplateNode mtn = (MatchTemplateNode) node;
+                        nodeObj.addProperty("method", mtn.getMethod());
+                        nodeObj.addProperty("queuesInSync", mtn.isQueuesInSync());
                     }
                     // InvertNode has no properties to save
                 }
@@ -2832,17 +2843,25 @@ public class PipelineEditor {
             final PipelineNode n = node;
             node.setOnFrameCallback(frame -> {
                 if (!display.isDisposed()) {
+                    // Clone frame before async call since it will be released
+                    Mat frameClone = frame.clone();
                     display.asyncExec(() -> {
-                        if (canvas.isDisposed()) return;
+                        if (canvas.isDisposed()) {
+                            frameClone.release();
+                            return;
+                        }
                         canvas.redraw();
 
                         // Update preview if this node is selected
                         if (selectedNodes.size() == 1 && selectedNodes.contains(n)) {
-                            updatePreview(frame);
+                            updatePreview(frameClone);
                         } else if (selectedNodes.isEmpty() && n.getOutputQueue() == null) {
                             // No selection and this is the last node - show its output
-                            updatePreview(frame);
+                            updatePreview(frameClone);
                         }
+
+                        // Release the cloned frame after use
+                        frameClone.release();
                     });
                 }
             });
@@ -3022,14 +3041,24 @@ public class PipelineEditor {
             previewImage.dispose();
         }
 
+        // Ensure Mat is 8-bit (normalize if floating-point)
+        Mat mat8u = new Mat();
+        int depth = mat.depth();
+        if (depth != org.opencv.core.CvType.CV_8U && depth != org.opencv.core.CvType.CV_8S) {
+            // Floating-point or other type - normalize to 8-bit
+            Core.normalize(mat, mat8u, 0, 255, Core.NORM_MINMAX, org.opencv.core.CvType.CV_8U);
+        } else {
+            mat8u = mat;
+        }
+
         // Convert Mat to SWT Image
         Mat rgb = new Mat();
-        if (mat.channels() == 3) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (mat.channels() == 1) {
-            Imgproc.cvtColor(mat, rgb, Imgproc.COLOR_GRAY2RGB);
+        if (mat8u.channels() == 3) {
+            Imgproc.cvtColor(mat8u, rgb, Imgproc.COLOR_BGR2RGB);
+        } else if (mat8u.channels() == 1) {
+            Imgproc.cvtColor(mat8u, rgb, Imgproc.COLOR_GRAY2RGB);
         } else {
-            rgb = mat;
+            rgb = mat8u;
         }
 
         int width = rgb.width();
@@ -3037,12 +3066,32 @@ public class PipelineEditor {
         byte[] data = new byte[width * height * 3];
         rgb.get(0, 0, data);
 
-        ImageData imageData = new ImageData(width, height, 24,
-            new PaletteData(0xFF0000, 0x00FF00, 0x0000FF));
-        imageData.data = data;
+        // Create ImageData with direct data copy (accounts for scanline padding)
+        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+        ImageData imageData = new ImageData(width, height, 24, palette);
+
+        // Copy data row by row to handle scanline padding
+        int bytesPerLine = imageData.bytesPerLine;
+        for (int row = 0; row < height; row++) {
+            int srcOffset = row * width * 3;
+            int dstOffset = row * bytesPerLine;
+            for (int col = 0; col < width; col++) {
+                int srcIdx = srcOffset + col * 3;
+                int dstIdx = dstOffset + col * 3;
+                // Direct copy - data is already RGB from cvtColor
+                imageData.data[dstIdx] = data[srcIdx];         // R
+                imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
+                imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
+            }
+        }
 
         previewImage = new Image(display, imageData);
         previewCanvas.redraw();
+
+        // Clean up temporary mat8u if it was created
+        if (mat8u != mat && !mat8u.empty()) {
+            mat8u.release();
+        }
     }
 
     private void updatePreviewFromSelection() {

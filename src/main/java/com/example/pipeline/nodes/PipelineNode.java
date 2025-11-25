@@ -128,6 +128,10 @@ public abstract class PipelineNode {
     }
 
     public void setOutputMat(Mat mat) {
+        // Release old outputMat if it exists
+        if (this.outputMat != null && !this.outputMat.empty()) {
+            this.outputMat.release();
+        }
         this.outputMat = mat;
         updateThumbnail();
     }
@@ -231,7 +235,6 @@ public abstract class PipelineNode {
         this.threadPriority = Math.max(Thread.MIN_PRIORITY, Math.min(Thread.MAX_PRIORITY, priority));
         this.originalPriority = this.threadPriority; // Track original priority
         this.lastRunningPriority = this.threadPriority; // Initialize last running priority
-        System.out.println("[" + getNodeName() + "] setThreadPriority(" + priority + ") -> threadPriority=" + this.threadPriority + ", originalPriority=" + this.originalPriority);
     }
 
     public int getThreadPriority() {
@@ -239,11 +242,8 @@ public abstract class PipelineNode {
         if (processingThread != null && processingThread.isAlive()) {
             int currentPriority = processingThread.getPriority();
             lastRunningPriority = currentPriority; // Track it
-            int qSize = (outputQueue != null) ? outputQueue.size() : -1;
-            System.out.println("[" + getNodeName() + "] getThreadPriority() ALIVE: returning " + currentPriority + " (outputQueue=" + qSize + ")");
             return currentPriority;
         }
-        System.out.println("[" + getNodeName() + "] getThreadPriority() STOPPED: returning lastRunningPriority=" + lastRunningPriority);
         return lastRunningPriority; // Return last known priority when stopped
     }
 
@@ -313,20 +313,15 @@ public abstract class PipelineNode {
                 targetPriority = Math.max(Thread.MIN_PRIORITY, originalPriority - reductionAmount);
             }
 
-            System.out.println("[" + getNodeName() + "] checkBackpressure: queueSize=" + queueSize + ", currentPriority=" + currentPriority + ", targetPriority=" + targetPriority + ", originalPriority=" + originalPriority);
             if (currentPriority != targetPriority) {
                 // Check if enough time has passed since last adjustment
                 long currentTime = System.currentTimeMillis();
                 long timeSinceLastAdjustment = currentTime - lastPriorityAdjustmentTime;
 
                 if (timeSinceLastAdjustment >= PRIORITY_ADJUSTMENT_TIMEOUT_MS) {
-                    System.out.println("[" + getNodeName() + "] BACKPRESSURE: CHANGING priority " + currentPriority + " -> " + targetPriority);
                     processingThread.setPriority(targetPriority);
                     lastPriorityAdjustmentTime = currentTime;
                     lastRunningPriority = targetPriority;
-                } else {
-                    long remainingMs = PRIORITY_ADJUSTMENT_TIMEOUT_MS - timeSinceLastAdjustment;
-                    System.out.println("[" + getNodeName() + "] BACKPRESSURE: Adjustment locked for " + (remainingMs / 1000) + " more seconds");
                 }
             } else {
                 // Always update cached priority to reflect current state

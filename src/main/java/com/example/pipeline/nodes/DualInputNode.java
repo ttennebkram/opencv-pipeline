@@ -119,8 +119,11 @@ public abstract class DualInputNode extends ProcessingNode {
                         incrementWorkUnits();
 
                         if (output != null) {
-                            // Update thumbnail
-                            setOutputMat(output);
+                            // Clone output for persistent storage (will be released when new output arrives)
+                            Mat outputClone = output.clone();
+
+                            // Update thumbnail and store output
+                            setOutputMat(outputClone);
                             notifyFrame(output);
 
                             // Send to output queue if available

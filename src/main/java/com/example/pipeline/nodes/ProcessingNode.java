@@ -157,7 +157,13 @@ public abstract class ProcessingNode extends PipelineNode {
                 if (!loaded.empty()) {
                     // Convert to RGB for display
                     Mat rgb = new Mat();
-                    Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_BGR2RGB);
+                    if (loaded.channels() == 3) {
+                        Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_BGR2RGB);
+                    } else if (loaded.channels() == 1) {
+                        Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_GRAY2RGB);
+                    } else {
+                        rgb = loaded;
+                    }
 
                     int w = rgb.width();
                     int h = rgb.height();
@@ -184,6 +190,21 @@ public abstract class ProcessingNode extends PipelineNode {
                         thumbnail.dispose();
                     }
                     thumbnail = new Image(display, imageData);
+
+                    // Also set outputMat so preview works before pipeline runs
+                    // Convert loaded image back to BGR for consistency with OpenCV
+                    Mat bgr = new Mat();
+                    if (loaded.channels() == 3) {
+                        bgr = loaded.clone();
+                    } else if (loaded.channels() == 1) {
+                        bgr = loaded.clone();
+                    }
+
+                    // Release old outputMat if it exists
+                    if (outputMat != null && !outputMat.empty()) {
+                        outputMat.release();
+                    }
+                    outputMat = bgr;
 
                     loaded.release();
                     rgb.release();
