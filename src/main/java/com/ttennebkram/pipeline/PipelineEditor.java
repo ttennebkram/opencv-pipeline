@@ -2754,6 +2754,9 @@ public class PipelineEditor {
         int canvasX = toCanvasX(e.x);
         int canvasY = toCanvasY(e.y);
 
+        // Check for tooltip on multi-output nodes
+        updateOutputTooltip(canvasX, canvasY);
+
         if (isDragging && selectedNode != null) {
             // Calculate the delta movement
             int deltaX = canvasX - dragOffset.x - selectedNode.x;
@@ -2782,6 +2785,37 @@ public class PipelineEditor {
         } else if (isSelectionBoxDragging) {
             selectionBoxEnd = new Point(canvasX, canvasY);
             canvas.redraw();
+        }
+    }
+
+    /**
+     * Update canvas tooltip based on mouse position over multi-output nodes.
+     */
+    private void updateOutputTooltip(int canvasX, int canvasY) {
+        String tooltip = null;
+
+        // Check multi-output nodes for output point hover
+        for (PipelineNode node : nodes) {
+            if (node instanceof MultiOutputNode) {
+                MultiOutputNode multiNode = (MultiOutputNode) node;
+                int outputIndex = multiNode.getOutputIndexAt(canvasX, canvasY);
+                if (outputIndex >= 0) {
+                    tooltip = multiNode.getOutputTooltip(outputIndex);
+                    break;
+                }
+            }
+        }
+
+        // Update canvas tooltip
+        String currentTooltip = canvas.getToolTipText();
+        if (tooltip == null) {
+            if (currentTooltip != null) {
+                canvas.setToolTipText(null);
+            }
+        } else {
+            if (!tooltip.equals(currentTooltip)) {
+                canvas.setToolTipText(tooltip);
+            }
         }
     }
 

@@ -16,6 +16,8 @@ import java.util.concurrent.BlockingQueue;
  * Handles output queue array management and connection point drawing.
  */
 public abstract class MultiOutputNode extends ProcessingNode {
+    // Output labels for tooltips (subclasses can override getOutputLabels)
+    protected String[] outputLabels = null;
     // Output queues array
     protected BlockingQueue<Mat>[] multiOutputQueues;
     protected int numOutputs = 2;  // Default to 2 outputs
@@ -135,6 +137,58 @@ public abstract class MultiOutputNode extends ProcessingNode {
     @Override
     public Point getOutputPoint() {
         return getOutputPoint(0);
+    }
+
+    /**
+     * Get output labels for tooltips. Subclasses can override this.
+     * Default returns numbered labels: "Output 1", "Output 2", etc.
+     */
+    public String[] getOutputLabels() {
+        if (outputLabels != null) {
+            return outputLabels;
+        }
+        // Default labels
+        String[] labels = new String[numOutputs];
+        for (int i = 0; i < numOutputs; i++) {
+            labels[i] = "Output " + (i + 1);
+        }
+        return labels;
+    }
+
+    /**
+     * Set custom output labels.
+     */
+    protected void setOutputLabels(String... labels) {
+        this.outputLabels = labels;
+    }
+
+    /**
+     * Get the tooltip text for a specific output index.
+     */
+    public String getOutputTooltip(int index) {
+        String[] labels = getOutputLabels();
+        if (index >= 0 && index < labels.length) {
+            return labels[index];
+        }
+        return "Output " + (index + 1);
+    }
+
+    /**
+     * Check if a point is near an output connection point and return the index.
+     * Returns -1 if not near any output.
+     */
+    public int getOutputIndexAt(int px, int py) {
+        int hitRadius = 12;
+        for (int i = 0; i < numOutputs; i++) {
+            Point output = getOutputPoint(i);
+            if (output != null) {
+                double dist = Math.sqrt((px - output.x) * (px - output.x) + (py - output.y) * (py - output.y));
+                if (dist <= hitRadius) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /**
