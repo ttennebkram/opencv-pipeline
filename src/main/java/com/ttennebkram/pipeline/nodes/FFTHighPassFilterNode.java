@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -16,6 +18,7 @@ import java.util.List;
 /**
  * FFT High-Pass Filter node.
  */
+@NodeInfo(name = "FFTHighPass", category = "Filter", aliases = {"FFT High-Pass Filter"})
 public class FFTHighPassFilterNode extends ProcessingNode {
     private int radius = 0;
     private int smoothness = 0;
@@ -282,5 +285,17 @@ public class FFTHighPassFilterNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("radius", radius);
+        json.addProperty("smoothness", smoothness);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("radius")) radius = json.get("radius").getAsInt();
+        if (json.has("smoothness")) smoothness = json.get("smoothness").getAsInt();
     }
 }

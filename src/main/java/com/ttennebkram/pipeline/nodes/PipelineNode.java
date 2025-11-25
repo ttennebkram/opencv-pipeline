@@ -41,7 +41,9 @@ public abstract class PipelineNode implements NodeSerializable {
     protected Thread processingThread;
     protected AtomicBoolean running = new AtomicBoolean(false);
     protected BlockingQueue<Mat> inputQueue;
-    protected BlockingQueue<Mat> outputQueue;
+    protected BlockingQueue<Mat> outputQueue;  // Primary output (index 0) - kept for backwards compatibility
+    protected BlockingQueue<Mat>[] outputQueues;  // Array for multi-output nodes
+    protected int outputCount = 1;  // Number of outputs this node has (default 1)
     protected long frameDelayMs = 0; // Frame rate throttling (0 = no delay)
     protected int threadPriority = Thread.NORM_PRIORITY; // Thread priority (1-10, default 5)
     protected int originalPriority = Thread.NORM_PRIORITY; // Original priority before backpressure adjustments
@@ -73,8 +75,30 @@ public abstract class PipelineNode implements NodeSerializable {
         return p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
     }
 
+    /**
+     * Get the primary output point (index 0).
+     * For single-output nodes, this is at the vertical center.
+     * For multi-output nodes, outputs are distributed vertically.
+     */
     public Point getOutputPoint() {
-        return new Point(x + width, y + height / 2);
+        return getOutputPoint(0);
+    }
+
+    /**
+     * Get the output point for a specific output index.
+     * Outputs are distributed vertically on the right side of the node.
+     */
+    public Point getOutputPoint(int index) {
+        if (index < 0 || index >= outputCount) {
+            return null;
+        }
+        if (outputCount == 1) {
+            return new Point(x + width, y + height / 2);
+        }
+        // Distribute outputs vertically, evenly spaced
+        int spacing = height / (outputCount + 1);
+        int yPos = y + spacing * (index + 1);
+        return new Point(x + width, yPos);
     }
 
     public Point getInputPoint() {
@@ -95,6 +119,20 @@ public abstract class PipelineNode implements NodeSerializable {
      */
     public boolean hasDualInput() {
         return getInputPoint2() != null;
+    }
+
+    /**
+     * Get the number of outputs this node has.
+     */
+    public int getOutputCount() {
+        return outputCount;
+    }
+
+    /**
+     * Check if this node has multiple outputs.
+     */
+    public boolean hasMultipleOutputs() {
+        return outputCount > 1;
     }
 
     public int getX() {
@@ -251,16 +289,71 @@ public abstract class PipelineNode implements NodeSerializable {
         this.inputQueue = queue;
     }
 
+    /**
+     * Set the primary output queue (index 0).
+     * For backwards compatibility with single-output nodes.
+     */
     public void setOutputQueue(BlockingQueue<Mat> queue) {
         this.outputQueue = queue;
+        // Also set in array if multi-output
+        if (outputQueues != null && outputQueues.length > 0) {
+            outputQueues[0] = queue;
+        }
+    }
+
+    /**
+     * Set an output queue by index.
+     * Index 0 is the primary output.
+     */
+    @SuppressWarnings("unchecked")
+    public void setOutputQueue(int index, BlockingQueue<Mat> queue) {
+        if (index < 0 || index >= outputCount) {
+            return;
+        }
+        // Initialize array if needed
+        if (outputQueues == null) {
+            outputQueues = (BlockingQueue<Mat>[]) new BlockingQueue[outputCount];
+        }
+        outputQueues[index] = queue;
+        // Keep primary output in sync
+        if (index == 0) {
+            outputQueue = queue;
+        }
     }
 
     public BlockingQueue<Mat> getInputQueue() {
         return inputQueue;
     }
 
+    /**
+     * Get the primary output queue (index 0).
+     */
     public BlockingQueue<Mat> getOutputQueue() {
         return outputQueue;
+    }
+
+    /**
+     * Get an output queue by index.
+     */
+    public BlockingQueue<Mat> getOutputQueue(int index) {
+        if (outputQueues != null && index >= 0 && index < outputQueues.length) {
+            return outputQueues[index];
+        }
+        // Fallback to primary for index 0
+        if (index == 0) {
+            return outputQueue;
+        }
+        return null;
+    }
+
+    /**
+     * Initialize the output queues array for a multi-output node.
+     * Call this when setting the output count.
+     */
+    @SuppressWarnings("unchecked")
+    protected void initOutputQueues(int count) {
+        this.outputCount = count;
+        this.outputQueues = (BlockingQueue<Mat>[]) new BlockingQueue[count];
     }
 
     public void setFrameDelayMs(long delayMs) {

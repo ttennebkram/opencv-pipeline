@@ -23,6 +23,12 @@ public class ReverseDanglingConnection {
         this.queue = null; // Queue is created when pipeline starts
     }
 
+    public ReverseDanglingConnection(PipelineNode target, int inputIndex, int startX, int startY) {
+        this.target = target;
+        this.freeEnd = new Point(startX, startY);
+        this.queue = null;
+    }
+
     public int getConfiguredCapacity() {
         return queueCapacity;
     }

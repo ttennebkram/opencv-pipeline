@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -13,6 +15,7 @@ import org.opencv.imgproc.Imgproc;
 /**
  * Color In Range node - HSV/BGR color filtering.
  */
+@NodeInfo(name = "ColorInRange", category = "Filter", aliases = {"Color In Range"})
 public class ColorInRangeNode extends ProcessingNode {
     private boolean useHSV = true;
     private int hLow = 0, hHigh = 179;
@@ -254,5 +257,29 @@ public class ColorInRangeNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("useHSV", useHSV);
+        json.addProperty("hLow", hLow);
+        json.addProperty("hHigh", hHigh);
+        json.addProperty("sLow", sLow);
+        json.addProperty("sHigh", sHigh);
+        json.addProperty("vLow", vLow);
+        json.addProperty("vHigh", vHigh);
+        json.addProperty("outputMode", outputMode);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("useHSV")) useHSV = json.get("useHSV").getAsBoolean();
+        if (json.has("hLow")) hLow = json.get("hLow").getAsInt();
+        if (json.has("hHigh")) hHigh = json.get("hHigh").getAsInt();
+        if (json.has("sLow")) sLow = json.get("sLow").getAsInt();
+        if (json.has("sHigh")) sHigh = json.get("sHigh").getAsInt();
+        if (json.has("vLow")) vLow = json.get("vLow").getAsInt();
+        if (json.has("vHigh")) vHigh = json.get("vHigh").getAsInt();
+        if (json.has("outputMode")) outputMode = json.get("outputMode").getAsInt();
     }
 }

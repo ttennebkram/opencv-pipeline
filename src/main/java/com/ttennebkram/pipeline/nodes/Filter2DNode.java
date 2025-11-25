@@ -1,5 +1,8 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -13,6 +16,7 @@ import org.opencv.imgproc.Imgproc;
  * Filter2D node - applies a custom convolution kernel to the image.
  * User can select kernel size (3x3, 5x5, 7x7, 9x9) and edit individual kernel values.
  */
+@NodeInfo(name = "Filter2D", category = "Filter", aliases = {"Filter 2D"})
 public class Filter2DNode extends ProcessingNode {
     private int kernelSize = 3;
     private int[] kernelValues; // Stored as flat array
@@ -298,5 +302,23 @@ public class Filter2DNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("kernelSize", kernelSize);
+        JsonArray arr = new JsonArray();
+        for (int val : kernelValues) arr.add(val);
+        json.add("kernelValues", arr);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("kernelSize")) kernelSize = json.get("kernelSize").getAsInt();
+        if (json.has("kernelValues")) {
+            JsonArray arr = json.getAsJsonArray("kernelValues");
+            kernelValues = new int[arr.size()];
+            for (int i = 0; i < arr.size(); i++) kernelValues[i] = arr.get(i).getAsInt();
+        }
     }
 }

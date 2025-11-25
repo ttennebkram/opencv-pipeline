@@ -12,18 +12,24 @@ public class Connection {
     public PipelineNode source;
     public PipelineNode target;
     public int inputIndex; // 1 for primary input, 2 for secondary input (dual-input nodes)
+    public int outputIndex; // 0 for primary output, 1+ for additional outputs (multi-output nodes)
     private CountingBlockingQueue<Mat> queue;
     private int queueCapacity = 0; // 0 = unlimited, >0 = fixed capacity
     private int lastQueueSize = 0; // Track queue size for persistence
 
     public Connection(PipelineNode source, PipelineNode target) {
-        this(source, target, 1);
+        this(source, target, 1, 0);
     }
 
     public Connection(PipelineNode source, PipelineNode target, int inputIndex) {
+        this(source, target, inputIndex, 0);
+    }
+
+    public Connection(PipelineNode source, PipelineNode target, int inputIndex, int outputIndex) {
         this.source = source;
         this.target = target;
         this.inputIndex = inputIndex;
+        this.outputIndex = outputIndex;
         this.queue = null; // Queue is created when pipeline starts
     }
 
@@ -152,8 +158,12 @@ public class Connection {
             createQueue();
         }
 
-        // Wire the queue: source's output -> this queue -> target's input
-        source.setOutputQueue(queue);
+        // Wire the queue: source's output (by index) -> this queue -> target's input
+        if (source.hasMultipleOutputs()) {
+            source.setOutputQueue(outputIndex, queue);
+        } else {
+            source.setOutputQueue(queue);
+        }
 
         // For dual-input nodes, use the appropriate input queue
         if (inputIndex == 2) {

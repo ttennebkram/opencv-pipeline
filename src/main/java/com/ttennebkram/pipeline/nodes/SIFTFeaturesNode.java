@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -15,6 +17,7 @@ import org.opencv.imgproc.Imgproc;
 /**
  * SIFT (Scale-Invariant Feature Transform) feature detection node.
  */
+@NodeInfo(name = "SIFTFeatures", category = "Detection", aliases = {"SIFT Features"})
 public class SIFTFeaturesNode extends ProcessingNode {
     private int nFeatures = 500;
     private int nOctaveLayers = 3;
@@ -205,5 +208,27 @@ public class SIFTFeaturesNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("nFeatures", nFeatures);
+        json.addProperty("nOctaveLayers", nOctaveLayers);
+        json.addProperty("contrastThreshold", contrastThreshold);
+        json.addProperty("edgeThreshold", edgeThreshold);
+        json.addProperty("sigma", sigma);
+        json.addProperty("showRichKeypoints", showRichKeypoints);
+        json.addProperty("colorIndex", colorIndex);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("nFeatures")) nFeatures = json.get("nFeatures").getAsInt();
+        if (json.has("nOctaveLayers")) nOctaveLayers = json.get("nOctaveLayers").getAsInt();
+        if (json.has("contrastThreshold")) contrastThreshold = json.get("contrastThreshold").getAsDouble();
+        if (json.has("edgeThreshold")) edgeThreshold = json.get("edgeThreshold").getAsDouble();
+        if (json.has("sigma")) sigma = json.get("sigma").getAsDouble();
+        if (json.has("showRichKeypoints")) showRichKeypoints = json.get("showRichKeypoints").getAsBoolean();
+        if (json.has("colorIndex")) colorIndex = json.get("colorIndex").getAsInt();
     }
 }

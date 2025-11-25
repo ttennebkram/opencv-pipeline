@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -14,6 +16,7 @@ import java.util.Random;
 /**
  * Connected Components labeling node.
  */
+@NodeInfo(name = "ConnectedComponents", category = "Detection", aliases = {"Connected Components"})
 public class ConnectedComponentsNode extends ProcessingNode {
     private int threshold = 127;
     private boolean invertThreshold = false;
@@ -196,5 +199,21 @@ public class ConnectedComponentsNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("threshold", threshold);
+        json.addProperty("invertThreshold", invertThreshold);
+        json.addProperty("connectivity", connectivity);
+        json.addProperty("minArea", minArea);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("threshold")) threshold = json.get("threshold").getAsInt();
+        if (json.has("invertThreshold")) invertThreshold = json.get("invertThreshold").getAsBoolean();
+        if (json.has("connectivity")) connectivity = json.get("connectivity").getAsInt();
+        if (json.has("minArea")) minArea = json.get("minArea").getAsInt();
     }
 }

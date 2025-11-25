@@ -12,15 +12,25 @@ import org.opencv.core.Mat;
  */
 public class DanglingConnection {
     public PipelineNode source;
+    public int outputIndex = 0; // Which output of source (for multi-output nodes)
     public Point freeEnd;
     private BlockingQueue<Mat> queue;
     private int queueCapacity = 0; // 0 = unlimited, >0 = fixed capacity
     private int lastQueueSize = 0; // Track queue size for persistence
 
     public DanglingConnection(PipelineNode source, Point freeEnd) {
+        this(source, 0, freeEnd);
+    }
+
+    public DanglingConnection(PipelineNode source, int outputIndex, Point freeEnd) {
         this.source = source;
+        this.outputIndex = outputIndex;
         this.freeEnd = new Point(freeEnd.x, freeEnd.y);
         this.queue = null; // Queue is created when pipeline starts
+    }
+
+    public DanglingConnection(PipelineNode source, int endX, int endY) {
+        this(source, 0, new Point(endX, endY));
     }
 
     public int getConfiguredCapacity() {
@@ -96,8 +106,12 @@ public class DanglingConnection {
         if (queue == null) {
             createQueue();
         }
-        // Wire the queue: source's output -> this queue (no target)
-        source.setOutputQueue(queue);
+        // Wire the queue: source's output (by index) -> this queue (no target)
+        if (source.hasMultipleOutputs()) {
+            source.setOutputQueue(outputIndex, queue);
+        } else {
+            source.setOutputQueue(queue);
+        }
     }
 
     /**

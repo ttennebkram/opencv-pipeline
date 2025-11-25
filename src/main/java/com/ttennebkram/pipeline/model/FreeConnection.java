@@ -22,6 +22,12 @@ public class FreeConnection {
         this.queue = null; // Queue is created when pipeline starts
     }
 
+    public FreeConnection(int startX, int startY, int endX, int endY) {
+        this.startEnd = new Point(startX, startY);
+        this.arrowEnd = new Point(endX, endY);
+        this.queue = null;
+    }
+
     public int getConfiguredCapacity() {
         return queueCapacity;
     }

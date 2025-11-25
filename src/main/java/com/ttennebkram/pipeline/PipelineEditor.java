@@ -81,6 +81,7 @@ public class PipelineEditor {
 
     // Connection drawing state
     private PipelineNode connectionSource = null;
+    private int connectionSourceOutputIndex = 0; // Which output to connect from (for multi-output nodes)
     private Point connectionEndPoint = null;
 
     // Dangling connections (one end attached, one end free)
@@ -1374,35 +1375,58 @@ public class PipelineEditor {
         // Set output on source node
         sourceNode.setOutputMat(currentMat);
 
-        // Follow connections and execute each node
-        PipelineNode currentNode = sourceNode;
-        while (currentNode != null) {
-            // Find next node
-            PipelineNode nextNode = null;
-            for (Connection conn : connections) {
-                if (conn.source == currentNode) {
-                    nextNode = conn.target;
-                    break;
-                }
-            }
+        // Follow connections and execute each node (handles branching for multi-output)
+        executeNodeChain(sourceNode, currentMat, new java.util.HashSet<>());
 
-            if (nextNode == null) break;
+        // Update preview and redraw canvas to show thumbnails
+        canvas.redraw();
+    }
+
+    /**
+     * Recursively execute a chain of nodes from the given node.
+     * Handles multi-output nodes by following all output connections.
+     */
+    private void executeNodeChain(PipelineNode node, Mat inputMat, java.util.Set<PipelineNode> visited) {
+        if (node == null || inputMat == null || visited.contains(node)) {
+            return;
+        }
+        visited.add(node);
+
+        // Find all connections from this node (may have multiple for multi-output nodes)
+        java.util.List<Connection> outConnections = new java.util.ArrayList<>();
+        for (Connection conn : connections) {
+            if (conn.source == node) {
+                outConnections.add(conn);
+            }
+        }
+
+        if (outConnections.isEmpty()) {
+            // This is a terminal node - update preview
+            updatePreview(inputMat);
+            return;
+        }
+
+        // Process each output connection
+        for (Connection conn : outConnections) {
+            PipelineNode nextNode = conn.target;
+            if (nextNode == null || visited.contains(nextNode)) continue;
+
+            Mat outputMat = inputMat;
 
             // Execute the processing
             if (nextNode instanceof ProcessingNode) {
                 ProcessingNode procNode = (ProcessingNode) nextNode;
-                // Use the node's process method instead of hardcoded switch
-                currentMat = procNode.process(currentMat);
+                // Clone input so each branch gets its own copy
+                outputMat = procNode.process(inputMat.clone());
                 // Set output on this node for thumbnail
-                nextNode.setOutputMat(currentMat);
+                nextNode.setOutputMat(outputMat != null ? outputMat.clone() : null);
             }
 
-            currentNode = nextNode;
+            // Continue down this branch
+            if (outputMat != null) {
+                executeNodeChain(nextNode, outputMat, visited);
+            }
         }
-
-        // Update preview and redraw canvas to show thumbnails
-        updatePreview(currentMat);
-        canvas.redraw();
     }
 
     private void startPipeline() {
@@ -1835,7 +1859,7 @@ public class PipelineEditor {
 
         // Draw connections first (so nodes appear on top)
         for (Connection conn : connections) {
-            Point start = conn.source.getOutputPoint();
+            Point start = conn.source.getOutputPoint(conn.outputIndex);
             Point end = getConnectionTargetPoint(conn);
 
             // Highlight selected connections
@@ -1867,7 +1891,7 @@ public class PipelineEditor {
         // Draw dangling connections with dashed lines
         gc.setLineStyle(SWT.LINE_DASH);
         for (DanglingConnection dangling : danglingConnections) {
-            Point start = dangling.source.getOutputPoint();
+            Point start = dangling.source.getOutputPoint(dangling.outputIndex);
             // Highlight selected dangling connections
             if (selectedDanglingConnections.contains(dangling)) {
                 gc.setLineWidth(3);
@@ -1926,7 +1950,7 @@ public class PipelineEditor {
         // Draw connection being made (from source)
         if (connectionSource != null && connectionEndPoint != null) {
             gc.setForeground(display.getSystemColor(SWT.COLOR_BLUE));
-            Point start = connectionSource.getOutputPoint();
+            Point start = connectionSource.getOutputPoint(connectionSourceOutputIndex);
             gc.drawLine(start.x, start.y, connectionEndPoint.x, connectionEndPoint.y);
         }
         // Draw connection being made (from target - reverse direction)
@@ -2294,55 +2318,62 @@ public class PipelineEditor {
             // Iterate in reverse for z-order - last added is on top
             for (int i = nodes.size() - 1; i >= 0; i--) {
                 PipelineNode node = nodes.get(i);
-                Point outputPoint = node.getOutputPoint();
-                double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
-                                       Math.pow(clickPoint.y - outputPoint.y, 2));
-                if (dist <= radius) {
-                    // Check if this connection point is obscured by another node on top
-                    boolean obscured = false;
-                    for (int j = i + 1; j < nodes.size(); j++) {
-                        if (nodes.get(j).containsPoint(clickPoint)) {
-                            obscured = true;
-                            break;
+                // Check all output points for multi-output nodes
+                int numOutputs = node.getOutputCount();
+                for (int outputIdx = 0; outputIdx < numOutputs; outputIdx++) {
+                    Point outputPoint = node.getOutputPoint(outputIdx);
+                    if (outputPoint == null) continue;
+                    double dist = Math.sqrt(Math.pow(clickPoint.x - outputPoint.x, 2) +
+                                           Math.pow(clickPoint.y - outputPoint.y, 2));
+                    if (dist <= radius) {
+                        // Check if this connection point is obscured by another node on top
+                        boolean obscured = false;
+                        for (int j = i + 1; j < nodes.size(); j++) {
+                            if (nodes.get(j).containsPoint(clickPoint)) {
+                                obscured = true;
+                                break;
+                            }
                         }
-                    }
-                    if (obscured) continue;
-                    // Check if there's a connection from this output
-                    Connection connToRemove = null;
-                    for (Connection conn : connections) {
-                        if (conn.source == node) {
-                            connToRemove = conn;
-                            break;
+                        if (obscured) continue;
+                        // Check if there's a connection from this specific output
+                        Connection connToRemove = null;
+                        for (Connection conn : connections) {
+                            if (conn.source == node && conn.outputIndex == outputIdx) {
+                                connToRemove = conn;
+                                break;
+                            }
                         }
-                    }
-                    if (connToRemove != null) {
-                        // Yank off the connection - remove it and start dragging from the target
-                        connectionTarget = connToRemove.target;
+                        if (connToRemove != null) {
+                            // Yank off the connection - remove it and start dragging from the target
+                            connectionTarget = connToRemove.target;
+                            targetInputIndex = connToRemove.inputIndex;
+                            connectionEndPoint = clickPoint;
+                            connections.remove(connToRemove);
+                            canvas.redraw();
+                            return;
+                        }
+                        // Check if there's a dangling connection from this specific output
+                        // If so, we should yank it to create a FreeConnection
+                        DanglingConnection danglingToYank = null;
+                        for (DanglingConnection dangling : danglingConnections) {
+                            if (dangling.source == node && dangling.outputIndex == outputIdx) {
+                                danglingToYank = dangling;
+                                break;
+                            }
+                        }
+                        if (danglingToYank != null) {
+                            danglingConnections.remove(danglingToYank);
+                            freeConnections.add(new FreeConnection(new Point(outputPoint.x, outputPoint.y), danglingToYank.freeEnd));
+                            canvas.redraw();
+                            return;
+                        }
+                        // No existing connection - start a new connection from output point
+                        connectionSource = node;
+                        connectionSourceOutputIndex = outputIdx;
                         connectionEndPoint = clickPoint;
-                        connections.remove(connToRemove);
                         canvas.redraw();
                         return;
                     }
-                    // Check if there's a dangling connection from this output
-                    // If so, we should yank it to create a FreeConnection
-                    DanglingConnection danglingToYank = null;
-                    for (DanglingConnection dangling : danglingConnections) {
-                        if (dangling.source == node) {
-                            danglingToYank = dangling;
-                            break;
-                        }
-                    }
-                    if (danglingToYank != null) {
-                        danglingConnections.remove(danglingToYank);
-                        freeConnections.add(new FreeConnection(new Point(outputPoint.x, outputPoint.y), danglingToYank.freeEnd));
-                        canvas.redraw();
-                        return;
-                    }
-                    // No existing connection - start a new connection from output point
-                    connectionSource = node;
-                    connectionEndPoint = clickPoint;
-                    canvas.redraw();
-                    return;
                 }
             }
 
@@ -2534,17 +2565,18 @@ public class PipelineEditor {
             }
 
             if (connected && targetNode != null) {
-                // Create a new connection
-                connections.add(new Connection(connectionSource, targetNode, inputIdx));
+                // Create a new connection with the outputIndex
+                connections.add(new Connection(connectionSource, targetNode, inputIdx, connectionSourceOutputIndex));
                 markDirty();
             } else if (connectionEndPoint != null) {
-                // Create a dangling connection
-                danglingConnections.add(new DanglingConnection(connectionSource, connectionEndPoint));
+                // Create a dangling connection with the outputIndex
+                danglingConnections.add(new DanglingConnection(connectionSource, connectionSourceOutputIndex, connectionEndPoint));
                 markDirty();
             } else {
             }
 
             connectionSource = null;
+            connectionSourceOutputIndex = 0;
             connectionEndPoint = null;
             canvas.redraw();
 

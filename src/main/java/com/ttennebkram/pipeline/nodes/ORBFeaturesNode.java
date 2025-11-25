@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
+import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
@@ -15,6 +17,7 @@ import org.opencv.imgproc.Imgproc;
 /**
  * ORB Features detection node.
  */
+@NodeInfo(name = "ORBFeatures", category = "Detection", aliases = {"ORB Features"})
 public class ORBFeaturesNode extends ProcessingNode {
     private int nFeatures = 500;
     private int fastThreshold = 20;
@@ -173,5 +176,27 @@ public class ORBFeaturesNode extends ProcessingNode {
         Point cursor = shell.getDisplay().getCursorLocation();
         dialog.setLocation(cursor.x, cursor.y);
         dialog.open();
+    }
+
+    @Override
+    public void serializeProperties(JsonObject json) {
+        json.addProperty("nFeatures", nFeatures);
+        json.addProperty("fastThreshold", fastThreshold);
+        json.addProperty("nLevels", nLevels);
+        json.addProperty("showRich", showRich);
+        json.addProperty("colorR", colorR);
+        json.addProperty("colorG", colorG);
+        json.addProperty("colorB", colorB);
+    }
+
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("nFeatures")) nFeatures = json.get("nFeatures").getAsInt();
+        if (json.has("fastThreshold")) fastThreshold = json.get("fastThreshold").getAsInt();
+        if (json.has("nLevels")) nLevels = json.get("nLevels").getAsInt();
+        if (json.has("showRich")) showRich = json.get("showRich").getAsBoolean();
+        if (json.has("colorR")) colorR = json.get("colorR").getAsInt();
+        if (json.has("colorG")) colorG = json.get("colorG").getAsInt();
+        if (json.has("colorB")) colorB = json.get("colorB").getAsInt();
     }
 }

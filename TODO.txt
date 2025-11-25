@@ -2,6 +2,9 @@ compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
 change package name
 
+fft filter first have 2 outputs
+    also clone node
+
 lots of "hard coding" in the registry
 
 ? grid pattern doesn't change on zoom
