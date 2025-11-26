@@ -331,9 +331,20 @@ public abstract class MultiOutputNode extends ProcessingNode {
         gc.setFont(tinyFont);
         gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
         int statsX = x + 5;
-        gc.drawString("In1:" + inputReads1, statsX, y + 40, true);
+        // Display input counts, wrapping to next line if 4+ digits
+        if (inputReads1 >= 1000) {
+            gc.drawString("In1:", statsX, y + 40, true);
+            gc.drawString(formatNumber(inputReads1), statsX, y + 50, true);
+        } else {
+            gc.drawString("In1:" + formatNumber(inputReads1), statsX, y + 40, true);
+        }
         if (hasDualInput()) {
-            gc.drawString("In2:" + inputReads2, statsX, y + 70, true);
+            if (inputReads2 >= 1000) {
+                gc.drawString("In2:", statsX, y + 70, true);
+                gc.drawString(formatNumber(inputReads2), statsX, y + 80, true);
+            } else {
+                gc.drawString("In2:" + formatNumber(inputReads2), statsX, y + 70, true);
+            }
         }
         tinyFont.dispose();
     }

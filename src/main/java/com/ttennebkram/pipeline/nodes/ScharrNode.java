@@ -112,7 +112,7 @@ public class ScharrNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Edge Detection";
+        return "Edges";
     }
 
     @Override

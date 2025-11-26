@@ -398,7 +398,14 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public String getThreadPriorityLabel() {
         // Show raw priority number and work units completed
-        return "Priority: " + getThreadPriority() + " | Work: " + workUnitsCompleted;
+        return "Priority: " + getThreadPriority() + " | Work: " + formatNumber(workUnitsCompleted);
+    }
+
+    /**
+     * Format a number with commas for display (e.g., 1234567 -> "1,234,567").
+     */
+    protected static String formatNumber(long number) {
+        return String.format("%,d", number);
     }
 
     public long getWorkUnitsCompleted() {

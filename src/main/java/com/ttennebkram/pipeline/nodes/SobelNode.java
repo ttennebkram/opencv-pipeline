@@ -88,7 +88,7 @@ public class SobelNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Edge Detection";
+        return "Edges";
     }
 
     @Override

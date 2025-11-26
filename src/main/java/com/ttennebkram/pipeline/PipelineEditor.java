@@ -1884,7 +1884,7 @@ public class PipelineEditor {
             int queueSize = conn.getQueueSize();
             long totalFrames = conn.getTotalFramesSent();
             Point midPoint = getPathMidpoint(path, conn.source, conn.target);
-            String sizeText = queueSize + " / " + totalFrames;
+            String sizeText = String.format("%,d / %,d", queueSize, totalFrames);
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
             Point textExtent = gc.textExtent(sizeText);

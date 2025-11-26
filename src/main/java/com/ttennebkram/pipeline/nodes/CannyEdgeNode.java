@@ -86,7 +86,7 @@ public class CannyEdgeNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Edge Detection";
+        return "Edges";
     }
 
     @Override
