@@ -69,10 +69,19 @@ click and drag on connection point on node in Container editor moves the node in
 .Add w/Clamp not showing In1: In2: counts, and not incrementing its Work counter
     can we check if it's not inheriting from its base classes and just doing an old outdated .paint()
 
-.Cursor keys should move Node just 1 pixel when at 100% mode, and equiv of 1 pixel when zoomed in or out, so when zoomed out would be hard to see just 1 push of arrow key direction
 
-.Queue stats not showing on connections inside Container Editor 
+When a node's output queue is falling behind, and it's already lowered its priority to 1, let's have it send a "slow down" signal to the node behind it 
 
+
+/Double click should bring up Container editor; right click to get Properties
+    right click should also have Edit Container Contents
+
+What happens when Container diagram is changed, but main diagram is not dirty, does it pause to let you save the Container?
+
+.zoom in needs to stay at the center of what you were looking at
+    same for zoom out
+
+.Container: priority low-priority back pressure not working
 
 .c nodes under Basic category in button bar are all sorted alphabetically,
     but Grayscale needs to be an exception to that, it needs to be at the top b/c it's very common
@@ -215,6 +224,10 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/Cursor keys should move Node just 1 pixel when at 100% mode, and equiv of 1 pixel when zoomed in or out,
+/   so when zoomed out would be hard to see just 1 push of arrow key direction
+/Queue stats not showing on connections inside Container Editor 
+/When the q's backlog hits 5 or above the background color should shift from blue to dark red 
 /c arrow heads need to be bigger
 /Container Node Properties Name in the root diagram doesn't retain value on OK (at least not displayed) and doesn't set the dirty bit for name change
 /Container with clone node, can't click and drag from bottom node

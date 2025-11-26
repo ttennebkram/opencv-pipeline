@@ -4,6 +4,7 @@ import com.google.gson.*;
 import com.ttennebkram.pipeline.model.*;
 import com.ttennebkram.pipeline.nodes.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -15,6 +16,13 @@ import java.util.List;
 /**
  * Handles serialization and deserialization of pipeline documents.
  * Each node handles its own property serialization via NodeSerializable interface.
+ *
+ * Connection model: All connections (complete, dangling, free) are stored in a single
+ * unified list. Each connection can have:
+ * - sourceId: node index or -1 if source is disconnected
+ * - targetId: node index or -1 if target is disconnected
+ * - freeSourceX/Y: position of source end when disconnected
+ * - freeTargetX/Y: position of target end when disconnected
  */
 public class PipelineSerializer {
 
@@ -26,20 +34,21 @@ public class PipelineSerializer {
     public static class PipelineDocument {
         public final List<PipelineNode> nodes;
         public final List<Connection> connections;
-        public final List<DanglingConnection> danglingConnections;
-        public final List<ReverseDanglingConnection> reverseDanglingConnections;
-        public final List<FreeConnection> freeConnections;
 
-        public PipelineDocument(List<PipelineNode> nodes,
-                                List<Connection> connections,
-                                List<DanglingConnection> danglingConnections,
-                                List<ReverseDanglingConnection> reverseDanglingConnections,
-                                List<FreeConnection> freeConnections) {
+        public PipelineDocument(List<PipelineNode> nodes, List<Connection> connections) {
             this.nodes = nodes;
             this.connections = connections;
-            this.danglingConnections = danglingConnections;
-            this.reverseDanglingConnections = reverseDanglingConnections;
-            this.freeConnections = freeConnections;
+        }
+
+        // Legacy constructor for backwards compatibility during transition
+        @Deprecated
+        public PipelineDocument(List<PipelineNode> nodes,
+                                List<Connection> connections,
+                                List<?> danglingConnections,
+                                List<?> reverseDanglingConnections,
+                                List<?> freeConnections) {
+            this.nodes = nodes;
+            this.connections = connections;
         }
     }
 
@@ -48,10 +57,7 @@ public class PipelineSerializer {
      */
     public static void save(String path,
                            List<PipelineNode> nodes,
-                           List<Connection> connections,
-                           List<DanglingConnection> danglingConnections,
-                           List<ReverseDanglingConnection> reverseDanglingConnections,
-                           List<FreeConnection> freeConnections) throws IOException {
+                           List<Connection> connections) throws IOException {
 
         JsonObject root = new JsonObject();
 
@@ -79,66 +85,87 @@ public class PipelineSerializer {
         }
         root.add("nodes", nodesArray);
 
-        // Serialize connections
+        // Serialize connections (unified format)
         JsonArray connectionsArray = new JsonArray();
         for (Connection conn : connections) {
             JsonObject connJson = new JsonObject();
-            connJson.addProperty("sourceId", nodes.indexOf(conn.source));
-            connJson.addProperty("targetId", nodes.indexOf(conn.target));
-            connJson.addProperty("inputIndex", conn.inputIndex);
+
+            // Source: node index or -1 if disconnected
+            int sourceId = conn.source != null ? nodes.indexOf(conn.source) : -1;
+            connJson.addProperty("sourceId", sourceId);
             connJson.addProperty("outputIndex", conn.outputIndex);
+
+            // Target: node index or -1 if disconnected
+            int targetId = conn.target != null ? nodes.indexOf(conn.target) : -1;
+            connJson.addProperty("targetId", targetId);
+            connJson.addProperty("inputIndex", conn.inputIndex);
+
+            // Free endpoint positions (only when disconnected)
+            if (conn.source == null && conn.getFreeSourcePoint() != null) {
+                connJson.addProperty("freeSourceX", conn.getFreeSourcePoint().x);
+                connJson.addProperty("freeSourceY", conn.getFreeSourcePoint().y);
+            }
+            if (conn.target == null && conn.getFreeTargetPoint() != null) {
+                connJson.addProperty("freeTargetX", conn.getFreeTargetPoint().x);
+                connJson.addProperty("freeTargetY", conn.getFreeTargetPoint().y);
+            }
+
+            // Queue state
             connJson.addProperty("queueCapacity", conn.getConfiguredCapacity());
             connJson.addProperty("queueCount", conn.getQueueSize());
             connJson.addProperty("totalFramesSent", conn.getTotalFramesSent());
+
             connectionsArray.add(connJson);
         }
         root.add("connections", connectionsArray);
-
-        // Serialize dangling connections
-        JsonArray danglingArray = new JsonArray();
-        for (DanglingConnection dc : danglingConnections) {
-            JsonObject dcJson = new JsonObject();
-            dcJson.addProperty("sourceId", nodes.indexOf(dc.source));
-            dcJson.addProperty("outputIndex", dc.outputIndex);
-            dcJson.addProperty("freeEndX", dc.freeEnd.x);
-            dcJson.addProperty("freeEndY", dc.freeEnd.y);
-            dcJson.addProperty("queueCapacity", dc.getConfiguredCapacity());
-            dcJson.addProperty("queueCount", dc.getQueueSize());
-            danglingArray.add(dcJson);
-        }
-        root.add("danglingConnections", danglingArray);
-
-        // Serialize reverse dangling connections
-        JsonArray reverseDanglingArray = new JsonArray();
-        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
-            JsonObject rdcJson = new JsonObject();
-            rdcJson.addProperty("targetId", nodes.indexOf(rdc.target));
-            rdcJson.addProperty("freeEndX", rdc.freeEnd.x);
-            rdcJson.addProperty("freeEndY", rdc.freeEnd.y);
-            rdcJson.addProperty("queueCapacity", rdc.getConfiguredCapacity());
-            rdcJson.addProperty("queueCount", rdc.getQueueSize());
-            reverseDanglingArray.add(rdcJson);
-        }
-        root.add("reverseDanglingConnections", reverseDanglingArray);
-
-        // Serialize free connections
-        JsonArray freeArray = new JsonArray();
-        for (FreeConnection fc : freeConnections) {
-            JsonObject fcJson = new JsonObject();
-            fcJson.addProperty("startEndX", fc.startEnd.x);
-            fcJson.addProperty("startEndY", fc.startEnd.y);
-            fcJson.addProperty("arrowEndX", fc.arrowEnd.x);
-            fcJson.addProperty("arrowEndY", fc.arrowEnd.y);
-            fcJson.addProperty("queueCapacity", fc.getConfiguredCapacity());
-            fcJson.addProperty("queueCount", fc.getQueueSize());
-            freeArray.add(fcJson);
-        }
-        root.add("freeConnections", freeArray);
 
         // Write to file
         try (FileWriter writer = new FileWriter(path)) {
             GSON.toJson(root, writer);
         }
+    }
+
+    /**
+     * Legacy save method for backwards compatibility during transition.
+     * Converts old connection types to unified format.
+     */
+    @Deprecated
+    public static void save(String path,
+                           List<PipelineNode> nodes,
+                           List<Connection> connections,
+                           List<DanglingConnection> danglingConnections,
+                           List<ReverseDanglingConnection> reverseDanglingConnections,
+                           List<FreeConnection> freeConnections) throws IOException {
+
+        // Convert all connection types to unified Connection list
+        List<Connection> allConnections = new ArrayList<>(connections);
+
+        // Convert dangling connections (source connected, target free)
+        for (DanglingConnection dc : danglingConnections) {
+            Connection conn = Connection.createSourceDangling(dc.source, dc.outputIndex, dc.freeEnd);
+            conn.setConfiguredCapacity(dc.getConfiguredCapacity());
+            conn.setLastQueueSize(dc.getQueueSize());
+            allConnections.add(conn);
+        }
+
+        // Convert reverse dangling connections (target connected, source free)
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            Connection conn = Connection.createTargetDangling(rdc.target, 1, rdc.freeEnd);
+            conn.setConfiguredCapacity(rdc.getConfiguredCapacity());
+            conn.setLastQueueSize(rdc.getQueueSize());
+            allConnections.add(conn);
+        }
+
+        // Convert free connections (both ends free)
+        for (FreeConnection fc : freeConnections) {
+            Connection conn = Connection.createFree(fc.startEnd, fc.arrowEnd);
+            conn.setConfiguredCapacity(fc.getConfiguredCapacity());
+            conn.setLastQueueSize(fc.getQueueSize());
+            allConnections.add(conn);
+        }
+
+        // Save using unified format
+        save(path, nodes, allConnections);
     }
 
     /**
@@ -154,9 +181,6 @@ public class PipelineSerializer {
 
         List<PipelineNode> nodes = new ArrayList<>();
         List<Connection> connections = new ArrayList<>();
-        List<DanglingConnection> danglingConnections = new ArrayList<>();
-        List<ReverseDanglingConnection> reverseDanglingConnections = new ArrayList<>();
-        List<FreeConnection> freeConnections = new ArrayList<>();
 
         // Deserialize nodes
         if (root.has("nodes")) {
@@ -179,64 +203,97 @@ public class PipelineSerializer {
             }
         }
 
-        // Deserialize connections
+        // Deserialize connections (new unified format)
         if (root.has("connections")) {
             for (JsonElement elem : root.getAsJsonArray("connections")) {
                 JsonObject connJson = elem.getAsJsonObject();
+
                 int sourceId = connJson.get("sourceId").getAsInt();
                 int targetId = connJson.get("targetId").getAsInt();
                 int inputIndex = connJson.has("inputIndex") ? connJson.get("inputIndex").getAsInt() : 1;
                 int outputIndex = connJson.has("outputIndex") ? connJson.get("outputIndex").getAsInt() : 0;
 
-                if (sourceId >= 0 && sourceId < nodes.size() &&
-                    targetId >= 0 && targetId < nodes.size()) {
+                // Determine connection type based on source/target IDs
+                PipelineNode sourceNode = (sourceId >= 0 && sourceId < nodes.size()) ? nodes.get(sourceId) : null;
+                PipelineNode targetNode = (targetId >= 0 && targetId < nodes.size()) ? nodes.get(targetId) : null;
 
-                    Connection conn = new Connection(nodes.get(sourceId), nodes.get(targetId), inputIndex, outputIndex);
+                Connection conn;
+                if (sourceNode != null && targetNode != null) {
+                    // Complete connection
+                    conn = new Connection(sourceNode, targetNode, inputIndex, outputIndex);
+                } else if (sourceNode != null) {
+                    // Source-dangling (target free)
+                    int freeX = connJson.has("freeTargetX") ? connJson.get("freeTargetX").getAsInt() : 0;
+                    int freeY = connJson.has("freeTargetY") ? connJson.get("freeTargetY").getAsInt() : 0;
+                    conn = Connection.createSourceDangling(sourceNode, outputIndex, new Point(freeX, freeY));
+                } else if (targetNode != null) {
+                    // Target-dangling (source free)
+                    int freeX = connJson.has("freeSourceX") ? connJson.get("freeSourceX").getAsInt() : 0;
+                    int freeY = connJson.has("freeSourceY") ? connJson.get("freeSourceY").getAsInt() : 0;
+                    conn = Connection.createTargetDangling(targetNode, inputIndex, new Point(freeX, freeY));
+                } else {
+                    // Free connection (both ends free)
+                    int srcX = connJson.has("freeSourceX") ? connJson.get("freeSourceX").getAsInt() : 0;
+                    int srcY = connJson.has("freeSourceY") ? connJson.get("freeSourceY").getAsInt() : 0;
+                    int tgtX = connJson.has("freeTargetX") ? connJson.get("freeTargetX").getAsInt() : 0;
+                    int tgtY = connJson.has("freeTargetY") ? connJson.get("freeTargetY").getAsInt() : 0;
+                    conn = Connection.createFree(new Point(srcX, srcY), new Point(tgtX, tgtY));
+                }
 
-                    // Restore queue capacity if specified
-                    if (connJson.has("queueCapacity")) {
-                        conn.setConfiguredCapacity(connJson.get("queueCapacity").getAsInt());
-                    }
-                    if (connJson.has("queueCount")) {
-                        conn.setLastQueueSize(connJson.get("queueCount").getAsInt());
-                    }
-                    if (connJson.has("totalFramesSent")) {
-                        conn.setPendingTotalFrames(connJson.get("totalFramesSent").getAsLong());
-                    }
+                // Restore queue state
+                if (connJson.has("queueCapacity")) {
+                    conn.setConfiguredCapacity(connJson.get("queueCapacity").getAsInt());
+                }
+                if (connJson.has("queueCount")) {
+                    conn.setLastQueueSize(connJson.get("queueCount").getAsInt());
+                }
+                if (connJson.has("totalFramesSent")) {
+                    conn.setPendingTotalFrames(connJson.get("totalFramesSent").getAsLong());
+                }
 
+                connections.add(conn);
+            }
+        }
+
+        // Load legacy connection formats for backwards compatibility
+        loadLegacyConnections(root, nodes, connections);
+
+        return new PipelineDocument(nodes, connections);
+    }
+
+    /**
+     * Load legacy connection formats (danglingConnections, reverseDanglingConnections, freeConnections)
+     * and convert them to unified Connection objects.
+     */
+    private static void loadLegacyConnections(JsonObject root, List<PipelineNode> nodes, List<Connection> connections) {
+        // Load legacy dangling connections
+        if (root.has("danglingConnections")) {
+            for (JsonElement elem : root.getAsJsonArray("danglingConnections")) {
+                JsonObject dcJson = elem.getAsJsonObject();
+                int sourceId = dcJson.get("sourceId").getAsInt();
+                int outputIndex = dcJson.has("outputIndex") ? dcJson.get("outputIndex").getAsInt() : 0;
+                int endX = dcJson.has("freeEndX") ? dcJson.get("freeEndX").getAsInt() : dcJson.get("endX").getAsInt();
+                int endY = dcJson.has("freeEndY") ? dcJson.get("freeEndY").getAsInt() : dcJson.get("endY").getAsInt();
+
+                if (sourceId >= 0 && sourceId < nodes.size()) {
+                    Connection conn = Connection.createSourceDangling(nodes.get(sourceId), outputIndex, new Point(endX, endY));
+                    if (dcJson.has("queueCapacity")) {
+                        conn.setConfiguredCapacity(dcJson.get("queueCapacity").getAsInt());
+                    }
+                    if (dcJson.has("queueCount")) {
+                        conn.setLastQueueSize(dcJson.get("queueCount").getAsInt());
+                    }
                     connections.add(conn);
                 }
             }
         }
 
-        // Deserialize dangling connections
-        if (root.has("danglingConnections")) {
-            for (JsonElement elem : root.getAsJsonArray("danglingConnections")) {
-                JsonObject dcJson = elem.getAsJsonObject();
-                int sourceId = dcJson.get("sourceId").getAsInt();
-                int endX = dcJson.has("freeEndX") ? dcJson.get("freeEndX").getAsInt() : dcJson.get("endX").getAsInt();
-                int endY = dcJson.has("freeEndY") ? dcJson.get("freeEndY").getAsInt() : dcJson.get("endY").getAsInt();
-
-                if (sourceId >= 0 && sourceId < nodes.size()) {
-                    DanglingConnection dc = new DanglingConnection(nodes.get(sourceId), endX, endY);
-                    if (dcJson.has("queueCapacity")) {
-                        dc.setConfiguredCapacity(dcJson.get("queueCapacity").getAsInt());
-                    }
-                    if (dcJson.has("queueCount")) {
-                        dc.setLastQueueSize(dcJson.get("queueCount").getAsInt());
-                    }
-                    danglingConnections.add(dc);
-                }
-            }
-        }
-
-        // Deserialize reverse dangling connections
+        // Load legacy reverse dangling connections
         if (root.has("reverseDanglingConnections")) {
             for (JsonElement elem : root.getAsJsonArray("reverseDanglingConnections")) {
                 JsonObject rdcJson = elem.getAsJsonObject();
                 int targetId = rdcJson.get("targetId").getAsInt();
-                int inputIndex = rdcJson.has("inputIndex") ? rdcJson.get("inputIndex").getAsInt() : 0;
-                // Support both old (freeEndX) and legacy (freeStartX) field names
+                int inputIndex = rdcJson.has("inputIndex") ? rdcJson.get("inputIndex").getAsInt() : 1;
                 int startX = rdcJson.has("freeEndX") ? rdcJson.get("freeEndX").getAsInt() :
                              rdcJson.has("freeStartX") ? rdcJson.get("freeStartX").getAsInt() :
                              rdcJson.get("startX").getAsInt();
@@ -245,41 +302,37 @@ public class PipelineSerializer {
                              rdcJson.get("startY").getAsInt();
 
                 if (targetId >= 0 && targetId < nodes.size()) {
-                    ReverseDanglingConnection rdc = new ReverseDanglingConnection(nodes.get(targetId), inputIndex, startX, startY);
+                    Connection conn = Connection.createTargetDangling(nodes.get(targetId), inputIndex, new Point(startX, startY));
                     if (rdcJson.has("queueCapacity")) {
-                        rdc.setConfiguredCapacity(rdcJson.get("queueCapacity").getAsInt());
+                        conn.setConfiguredCapacity(rdcJson.get("queueCapacity").getAsInt());
                     }
                     if (rdcJson.has("queueCount")) {
-                        rdc.setLastQueueSize(rdcJson.get("queueCount").getAsInt());
+                        conn.setLastQueueSize(rdcJson.get("queueCount").getAsInt());
                     }
-                    reverseDanglingConnections.add(rdc);
+                    connections.add(conn);
                 }
             }
         }
 
-        // Deserialize free connections
+        // Load legacy free connections
         if (root.has("freeConnections")) {
             for (JsonElement elem : root.getAsJsonArray("freeConnections")) {
                 JsonObject fcJson = elem.getAsJsonObject();
-                // Support both old (startEndX) and new (startX) field names
                 int startX = fcJson.has("startEndX") ? fcJson.get("startEndX").getAsInt() : fcJson.get("startX").getAsInt();
                 int startY = fcJson.has("startEndY") ? fcJson.get("startEndY").getAsInt() : fcJson.get("startY").getAsInt();
                 int endX = fcJson.has("arrowEndX") ? fcJson.get("arrowEndX").getAsInt() : fcJson.get("endX").getAsInt();
                 int endY = fcJson.has("arrowEndY") ? fcJson.get("arrowEndY").getAsInt() : fcJson.get("endY").getAsInt();
 
-                FreeConnection fc = new FreeConnection(startX, startY, endX, endY);
+                Connection conn = Connection.createFree(new Point(startX, startY), new Point(endX, endY));
                 if (fcJson.has("queueCapacity")) {
-                    fc.setConfiguredCapacity(fcJson.get("queueCapacity").getAsInt());
+                    conn.setConfiguredCapacity(fcJson.get("queueCapacity").getAsInt());
                 }
                 if (fcJson.has("queueCount")) {
-                    fc.setLastQueueSize(fcJson.get("queueCount").getAsInt());
+                    conn.setLastQueueSize(fcJson.get("queueCount").getAsInt());
                 }
-                freeConnections.add(fc);
+                connections.add(conn);
             }
         }
-
-        return new PipelineDocument(nodes, connections, danglingConnections,
-                                    reverseDanglingConnections, freeConnections);
     }
 
     /**

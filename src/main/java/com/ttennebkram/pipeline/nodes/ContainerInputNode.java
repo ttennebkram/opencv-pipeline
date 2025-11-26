@@ -119,6 +119,9 @@ public class ContainerInputNode extends SourceNode {
 
                         // Release the original frame
                         frame.release();
+
+                        // Check for backpressure
+                        checkBackpressure();
                     }
 
                     // No frame delay - process as fast as input arrives

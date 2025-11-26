@@ -27,49 +27,16 @@ import java.util.Set;
 /**
  * Editor window for editing the internal pipeline of a ContainerNode.
  * Non-modal window that allows adding/connecting processing nodes inside the container.
+ * Extends PipelineCanvasBase for shared canvas/editing functionality.
  */
-public class ContainerEditorWindow {
-
-    private Shell shell;
-    private Display display;
-    private Canvas canvas;
-    private ScrolledComposite scrolledCanvas;
-    private Canvas previewCanvas;
-    private Image previewImage;
+public class ContainerEditorWindow extends PipelineCanvasBase {
 
     private ContainerNode container;
     private Shell parentShell;
 
-    // Zoom support
-    private double zoomLevel = 1.0;
-    private Combo zoomCombo;
-    private Label nodeCountLabel;
-    private static final int[] ZOOM_LEVELS = {25, 50, 75, 100, 125, 150, 200, 300, 400};
-
     // Node lists reference the container's internal lists
     private List<PipelineNode> nodes;
     private List<Connection> connections;
-
-    // Selection and interaction state
-    private PipelineNode selectedNode = null;
-    private Set<PipelineNode> selectedNodes = new HashSet<>();
-    private Set<Connection> selectedConnections = new HashSet<>();
-    private Point dragOffset = null;
-    private boolean isDragging = false;
-
-    // Connection drawing state
-    private PipelineNode connectionSource = null;
-    private int connectionSourceOutputIndex = 0;
-    private Point connectionEndPoint = null;
-
-    // Yanked connection original target (to restore if dropped in empty space)
-    private PipelineNode yankedOriginalTarget = null;
-    private int yankedOriginalInputIndex = 0;
-
-    // Selection box (marquee selection) state
-    private Point selectionBoxStart = null;
-    private Point selectionBoxEnd = null;
-    private boolean isSelectionBoxDragging = false;
 
     // Toolbar builder
     private ToolbarBuilder toolbarBuilder;
@@ -94,6 +61,7 @@ public class ContainerEditorWindow {
     public ContainerEditorWindow(Shell parentShell, Display display, ContainerNode container) {
         this.parentShell = parentShell;
         this.display = display;
+        this.shell = null; // Will be created in createWindow()
         this.container = container;
 
         // Reference the container's internal lists
@@ -101,6 +69,48 @@ public class ContainerEditorWindow {
         this.connections = container.getChildConnections();
 
         createWindow();
+    }
+
+    // ========== Abstract method implementations from PipelineCanvasBase ==========
+
+    @Override
+    protected List<PipelineNode> getNodes() {
+        return nodes;
+    }
+
+    @Override
+    protected List<Connection> getConnections() {
+        return connections;
+    }
+
+    @Override
+    protected void redrawCanvas() {
+        if (canvas != null && !canvas.isDisposed()) {
+            canvas.redraw();
+        }
+    }
+
+    @Override
+    protected void notifyModified() {
+        if (onModified != null) {
+            onModified.run();
+        }
+        updateNodeCount();
+    }
+
+    @Override
+    protected void addNodeAt(String nodeType, int x, int y) {
+        ProcessingNode node = NodeRegistry.createProcessingNode(nodeType, display, shell, x, y);
+        if (node != null) {
+            nodes.add(node);
+            notifyModified();
+            redrawCanvas();
+        }
+    }
+
+    @Override
+    protected void deleteSelected() {
+        deleteSelectedImpl();
     }
 
     public void setOnModified(Runnable callback) {
@@ -146,14 +156,6 @@ public class ContainerEditorWindow {
         }
     }
 
-    private void notifyModified() {
-        if (onModified != null) {
-            onModified.run();
-        }
-        if (nodeCountLabel != null && !nodeCountLabel.isDisposed()) {
-            updateNodeCountLabel();
-        }
-    }
 
     private String getBasePath() {
         if (basePathSupplier != null) {
@@ -295,7 +297,7 @@ public class ContainerEditorWindow {
         scrolledCanvas.setContent(canvas);
         scrolledCanvas.setMinSize(1200, 800);
 
-        // Mouse wheel zoom (Cmd/Ctrl + scroll)
+        // Mouse wheel zoom (Cmd/Ctrl + scroll) - stays centered on view
         scrolledCanvas.addListener(SWT.MouseVerticalWheel, e -> {
             if ((e.stateMask & SWT.MOD1) != 0) {
                 // Cmd/Ctrl + wheel = zoom
@@ -304,9 +306,7 @@ public class ContainerEditorWindow {
                 int newIdx = currentIdx + direction;
                 if (newIdx >= 0 && newIdx < ZOOM_LEVELS.length) {
                     zoomCombo.select(newIdx);
-                    zoomLevel = ZOOM_LEVELS[newIdx] / 100.0;
-                    updateCanvasSize();
-                    canvas.redraw();
+                    setZoomLevelCentered(ZOOM_LEVELS[newIdx] / 100.0);
                 }
                 e.doit = false;
             }
@@ -322,7 +322,7 @@ public class ContainerEditorWindow {
 
         // Node count on the left
         nodeCountLabel = new Label(statusComp, SWT.NONE);
-        updateNodeCountLabel();
+        updateNodeCount();
         nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
         nodeCountLabel.setBackground(new Color(160, 160, 160));
         nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
@@ -345,9 +345,7 @@ public class ContainerEditorWindow {
         zoomCombo.addListener(SWT.Selection, e -> {
             int idx = zoomCombo.getSelectionIndex();
             if (idx >= 0 && idx < ZOOM_LEVELS.length) {
-                zoomLevel = ZOOM_LEVELS[idx] / 100.0;
-                updateCanvasSize();
-                canvas.redraw();
+                setZoomLevelCentered(ZOOM_LEVELS[idx] / 100.0);
             }
         });
 
@@ -388,44 +386,8 @@ public class ContainerEditorWindow {
         });
     }
 
-    /**
-     * Move all selected nodes by arrow key direction.
-     * Moves 1 canvas pixel (adjusted for zoom level).
-     */
-    private void moveSelectedNodes(int keyCode) {
-        if (selectedNodes.isEmpty()) {
-            return;
-        }
-
-        int deltaX = 0;
-        int deltaY = 0;
-        int moveAmount = 1; // 1 canvas pixel per key press
-
-        switch (keyCode) {
-            case SWT.ARROW_UP:
-                deltaY = -moveAmount;
-                break;
-            case SWT.ARROW_DOWN:
-                deltaY = moveAmount;
-                break;
-            case SWT.ARROW_LEFT:
-                deltaX = -moveAmount;
-                break;
-            case SWT.ARROW_RIGHT:
-                deltaX = moveAmount;
-                break;
-        }
-
-        for (PipelineNode node : selectedNodes) {
-            node.setX(node.getX() + deltaX);
-            node.setY(node.getY() + deltaY);
-        }
-
-        notifyModified();
-        canvas.redraw();
-    }
-
-    private void updateCanvasSize() {
+    @Override
+    protected void updateCanvasSize() {
         int baseWidth = 1200;
         int baseHeight = 800;
         int scaledWidth = (int) (baseWidth * zoomLevel);
@@ -434,10 +396,14 @@ public class ContainerEditorWindow {
         scrolledCanvas.setMinSize(scaledWidth, scaledHeight);
     }
 
-    private void updateNodeCountLabel() {
-        // Count includes boundary nodes + child nodes
-        int count = nodes.size() + 2; // +2 for boundary input and output
-        nodeCountLabel.setText("Nodes: " + count);
+    @Override
+    protected void updateNodeCount() {
+        if (nodeCountLabel != null && !nodeCountLabel.isDisposed()) {
+            // Count includes boundary nodes + child nodes
+            int nodeCount = nodes.size() + 2; // +2 for boundary input and output
+            int connectionCount = connections.size();
+            nodeCountLabel.setText(String.format("Nodes: %d  Connections: %d", nodeCount, connectionCount));
+        }
     }
 
     private void createPreviewPanel(Composite parent) {
@@ -505,10 +471,6 @@ public class ContainerEditorWindow {
         });
     }
 
-    private Point toCanvasPoint(int screenX, int screenY) {
-        return new Point((int) (screenX / zoomLevel), (int) (screenY / zoomLevel));
-    }
-
     private void paintCanvas(GC gc) {
         gc.setAntialias(SWT.ON);
 
@@ -556,17 +518,8 @@ public class ContainerEditorWindow {
             // Draw arrow from second control point direction
             drawArrow(gc, new Point(cp[2], cp[3]), end);
 
-            // Draw queue size and total frames (blue box on connection)
-            int queueSize = conn.getQueueSize();
-            long totalFrames = conn.getTotalFramesSent();
-            Point midPoint = getBezierMidpoint(start, end, cp);
-            String sizeText = String.format("%,d / %,d", queueSize, totalFrames);
-            gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
-            gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
-            Point textExtent = gc.textExtent(sizeText);
-            gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
-                textExtent.x + 6, textExtent.y + 4, 6, 6);
-            gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
+            // Draw queue stats (uses shared method with backpressure coloring)
+            drawQueueStats(gc, conn, start, end, cp);
         }
 
         // Draw connection being created
@@ -618,74 +571,6 @@ public class ContainerEditorWindow {
         }
 
         transform.dispose();
-    }
-
-    private Point getConnectionTargetPoint(Connection conn) {
-        if (conn.inputIndex == 2 && conn.target.hasDualInput()) {
-            return conn.target.getInputPoint2();
-        }
-        return conn.target.getInputPoint();
-    }
-
-    /**
-     * Calculate bezier control points for a smooth curve from start to end.
-     * Returns [cx1, cy1, cx2, cy2]. Same algorithm as main editor.
-     */
-    private int[] calculateBezierControlPoints(Point start, Point end) {
-        int cx1, cy1, cx2, cy2;
-        int dx = end.x - start.x;
-        int dy = end.y - start.y;
-
-        // If nearly horizontal (small Y difference), draw straight
-        if (Math.abs(dy) < 10) {
-            cx1 = start.x + dx / 3;
-            cy1 = start.y + dy / 3;
-            cx2 = start.x + 2 * dx / 3;
-            cy2 = start.y + 2 * dy / 3;
-        } else {
-            // Has vertical offset - use S-curve with horizontal tangents
-            int controlDist = Math.max(40, Math.abs(dx) / 2);
-            cx1 = start.x + controlDist;
-            cy1 = start.y;
-            cx2 = end.x - controlDist;
-            cy2 = end.y;
-        }
-
-        return new int[] { cx1, cy1, cx2, cy2 };
-    }
-
-    /**
-     * Calculate the midpoint of a cubic bezier curve.
-     * Uses the cubic bezier formula at t=0.5.
-     */
-    private Point getBezierMidpoint(Point start, Point end, int[] cp) {
-        int cx1 = cp[0], cy1 = cp[1], cx2 = cp[2], cy2 = cp[3];
-
-        // Cubic bezier at t=0.5: B(0.5) = 0.125*P0 + 0.375*P1 + 0.375*P2 + 0.125*P3
-        double t = 0.5;
-        double mt = 1 - t;
-        double mt2 = mt * mt;
-        double mt3 = mt2 * mt;
-        double t2 = t * t;
-        double t3 = t2 * t;
-
-        int midX = (int) (mt3 * start.x + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * end.x);
-        int midY = (int) (mt3 * start.y + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * end.y);
-
-        return new Point(midX, midY);
-    }
-
-    private void drawArrow(GC gc, Point from, Point to) {
-        double angle = Math.atan2(to.y - from.y, to.x - from.x);
-        int arrowSize = 14;
-
-        int x1 = (int) (to.x - arrowSize * Math.cos(angle - Math.PI / 6));
-        int y1 = (int) (to.y - arrowSize * Math.sin(angle - Math.PI / 6));
-        int x2 = (int) (to.x - arrowSize * Math.cos(angle + Math.PI / 6));
-        int y2 = (int) (to.y - arrowSize * Math.sin(angle + Math.PI / 6));
-
-        gc.drawLine(to.x, to.y, x1, y1);
-        gc.drawLine(to.x, to.y, x2, y2);
     }
 
     private void handleMouseDown(MouseEvent e) {
@@ -839,18 +724,6 @@ public class ContainerEditorWindow {
     }
 
     /**
-     * Find a connection going to the given target node's input.
-     */
-    private Connection findConnectionToTarget(PipelineNode target, int inputIndex) {
-        for (Connection conn : connections) {
-            if (conn.target == target && conn.inputIndex == inputIndex) {
-                return conn;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Find a connection originating from the given source node's output.
      */
     private Connection findConnectionFromSource(PipelineNode source, int outputIndex) {
@@ -860,38 +733,6 @@ public class ContainerEditorWindow {
             }
         }
         return null;
-    }
-
-    /**
-     * Check if a point is near a connection line (for selection).
-     */
-    private boolean isNearConnectionLine(Connection conn, Point click) {
-        Point start = conn.source.getOutputPoint(conn.outputIndex);
-        Point end = getConnectionTargetPoint(conn);
-
-        // Calculate distance from point to bezier curve (simplified: check distance to line segments)
-        int[] cp = calculateBezierControlPoints(start, end);
-
-        // Sample points along the bezier curve and check distance
-        double minDist = Double.MAX_VALUE;
-        int samples = 20;
-        for (int i = 0; i <= samples; i++) {
-            double t = (double) i / samples;
-            double x = bezierPoint(start.x, cp[0], cp[2], end.x, t);
-            double y = bezierPoint(start.y, cp[1], cp[3], end.y, t);
-            double dist = Math.sqrt(Math.pow(click.x - x, 2) + Math.pow(click.y - y, 2));
-            minDist = Math.min(minDist, dist);
-        }
-
-        return minDist < 8; // 8 pixel tolerance
-    }
-
-    /**
-     * Calculate a point on a cubic bezier curve.
-     */
-    private double bezierPoint(double p0, double p1, double p2, double p3, double t) {
-        double u = 1 - t;
-        return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
     }
 
     private void handleMouseMove(MouseEvent e) {
@@ -1126,7 +967,7 @@ public class ContainerEditorWindow {
         }
     }
 
-    private void deleteSelected() {
+    private void deleteSelectedImpl() {
         if (selectedNode != null) {
             // Don't delete boundary nodes
             if (selectedNode instanceof ContainerInputNode || selectedNode instanceof ContainerOutputNode) {
@@ -1151,7 +992,8 @@ public class ContainerEditorWindow {
         canvas.redraw();
     }
 
-    private void updatePreviewFromNode(PipelineNode node) {
+    @Override
+    protected void updatePreviewFromNode(PipelineNode node) {
         Mat outputMat = node.getOutputMat();
         if (outputMat != null && !outputMat.empty()) {
             // Convert to SWT Image
