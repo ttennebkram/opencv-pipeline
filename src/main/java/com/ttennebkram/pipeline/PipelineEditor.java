@@ -35,6 +35,7 @@ import com.ttennebkram.pipeline.nodes.*;
 import com.ttennebkram.pipeline.model.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
 import com.ttennebkram.pipeline.serialization.PipelineSerializer;
+import com.ttennebkram.pipeline.ui.ContainerEditorWindow;
 
 public class PipelineEditor {
 
@@ -143,6 +144,9 @@ public class PipelineEditor {
     private AtomicBoolean pipelineRunning = new AtomicBoolean(false);
     private Button startStopBtn;
 
+    // Open container editor windows
+    private List<ContainerEditorWindow> containerWindows = new ArrayList<>();
+
     public static void main(String[] args) {
         // Load OpenCV native library
         nu.pattern.OpenCV.loadLocally();
@@ -237,6 +241,7 @@ public class PipelineEditor {
         // Right side - SashForm containing canvas and preview panel
         sashForm = new SashForm(shell, SWT.HORIZONTAL);
         sashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        sashForm.setSashWidth(6); // Make sash easier to grab
 
         // Center - canvas (inside sashForm)
         createCanvas();
@@ -522,6 +527,18 @@ public class PipelineEditor {
                 if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).setOnChanged(() -> { markDirty(); executePipeline(); });
                 }
+                // Set up container callback for ContainerNodes
+                if (node instanceof ContainerNode) {
+                    ContainerNode container = (ContainerNode) node;
+                    container.setOnEditSubDiagram(() -> openContainerEditor(container));
+                    container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
+
+                    // Load the container's internal pipeline if it has a file path
+                    String containerFilePath = container.getPipelineFilePath();
+                    if (containerFilePath != null && !containerFilePath.isEmpty()) {
+                        loadContainerInternalPipeline(container, path);
+                    }
+                }
             }
 
             // Load thumbnails from cache
@@ -664,6 +681,10 @@ public class PipelineEditor {
              com.ttennebkram.pipeline.registry.NodeRegistry.getAllNodes()) {
             // Skip source nodes - they have their own toolbar section
             if (SourceNode.class.isAssignableFrom(info.nodeClass)) {
+                continue;
+            }
+            // Skip container boundary nodes - they're auto-created, not user-addable
+            if (info.name.equals("ContainerInput") || info.name.equals("ContainerOutput")) {
                 continue;
             }
             // Create temp node to get display name and category
@@ -1043,7 +1064,7 @@ public class PipelineEditor {
 
         // Pipeline status in the center
         statusBar = new Label(statusComp, SWT.NONE);
-        statusBar.setText("Pipeline Stopped");
+        statusBar.setText("Pipeline Stopped (" + Thread.activeCount() + " threads)");
         statusBar.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
         statusBar.setBackground(new Color(160, 160, 160));
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
@@ -1144,8 +1165,13 @@ public class PipelineEditor {
             }
             // Delete or Backspace to delete selected nodes and connections
             // SWT.DEL = 127 (forward delete), SWT.BS = 8 (backspace)
+            // Only process if main shell is active (not when a dialog is open)
             else if (event.keyCode == SWT.DEL || event.keyCode == SWT.BS ||
                      event.character == '\b' || event.character == 127) {
+                Shell activeShell = display.getActiveShell();
+                if (activeShell != shell) {
+                    return; // Dialog is open, don't process delete
+                }
                 boolean hasSelection = !selectedNodes.isEmpty() || !selectedConnections.isEmpty() ||
                     !selectedDanglingConnections.isEmpty() || !selectedReverseDanglingConnections.isEmpty() ||
                     !selectedFreeConnections.isEmpty();
@@ -1248,6 +1274,7 @@ public class PipelineEditor {
     private void createPreviewPanel() {
         // Create vertical SashForm for top panel and preview
         SashForm rightSash = new SashForm(sashForm, SWT.VERTICAL);
+        rightSash.setSashWidth(6); // Make sash easier to grab
 
         // Top panel - for content moved from left toolbar
         Composite topPanel = new Composite(rightSash, SWT.BORDER);
@@ -1597,7 +1624,8 @@ public class PipelineEditor {
         }
 
         pipelineRunning.set(true);
-        statusBar.setText("Pipeline Running (" + pipelineCount + " pipeline" + (pipelineCount > 1 ? "s" : "") + ")");
+        int threadCount = Thread.activeCount();
+        statusBar.setText("Pipeline Running (" + pipelineCount + " pipeline" + (pipelineCount > 1 ? "s" : "") + ", " + threadCount + " threads)");
         statusBar.setForeground(new Color(0, 128, 0)); // Green text
 
         // Start all nodes
@@ -1608,11 +1636,15 @@ public class PipelineEditor {
         // Update button
         startStopBtn.setText("Stop Pipeline");
         startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
+
+        // Update all container editor window buttons
+        updateContainerWindowPipelineButtons();
     }
 
     private void stopPipeline() {
         pipelineRunning.set(false);
-        statusBar.setText("Pipeline Stopped");
+        int threadCount = Thread.activeCount();
+        statusBar.setText("Pipeline Stopped (" + threadCount + " threads)");
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
         // Stop all nodes
@@ -1651,6 +1683,20 @@ public class PipelineEditor {
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
             startStopBtn.setText("Start Pipeline");
             startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+        }
+
+        // Update all container editor window buttons
+        updateContainerWindowPipelineButtons();
+    }
+
+    /**
+     * Update all container editor window pipeline buttons to reflect current state.
+     */
+    private void updateContainerWindowPipelineButtons() {
+        for (ContainerEditorWindow window : containerWindows) {
+            if (!window.isDisposed()) {
+                window.updatePipelineButtonState();
+            }
         }
     }
 
@@ -2637,6 +2683,14 @@ public class PipelineEditor {
             for (int i = nodes.size() - 1; i >= 0; i--) {
                 PipelineNode node = nodes.get(i);
                 if (node.containsPoint(clickPoint)) {
+                    // Check if clicking on container icon - open container editor
+                    if (node instanceof ContainerNode) {
+                        ContainerNode container = (ContainerNode) node;
+                        if (container.isOnContainerIcon(clickPoint)) {
+                            openContainerEditor(container);
+                            return;
+                        }
+                    }
                     // Handle selection
                     if (cmdHeld) {
                         // Toggle selection of this node
@@ -3109,6 +3163,8 @@ public class PipelineEditor {
         Point clickPoint = toCanvasPoint(e.x, e.y);
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
+                // All nodes show properties dialog on double-click
+                // (Container editor is opened via icon click, not double-click)
                 if (node instanceof ProcessingNode) {
                     ((ProcessingNode) node).showPropertiesDialog();
                 } else if (node instanceof SourceNode) {
@@ -3116,6 +3172,150 @@ public class PipelineEditor {
                 }
                 return;
             }
+        }
+    }
+
+    /**
+     * Open or focus the container editor window for a ContainerNode.
+     */
+    private void openContainerEditor(ContainerNode container) {
+        // Check if already open
+        for (ContainerEditorWindow window : containerWindows) {
+            if (!window.isDisposed() && window.getContainer() == container) {
+                window.getShell().setActive();
+                window.getShell().setFocus();
+                return;
+            }
+        }
+
+        // Clean up disposed windows
+        containerWindows.removeIf(ContainerEditorWindow::isDisposed);
+
+        // Create new window
+        ContainerEditorWindow window = new ContainerEditorWindow(shell, display, container);
+        window.setOnModified(() -> {
+            markDirty();
+            canvas.redraw();
+        });
+        window.setBasePathSupplier(() -> currentFilePath);
+        // When container requests save, save the main pipeline to persist container file reference
+        window.setOnRequestGlobalSave(() -> {
+            if (currentFilePath != null) {
+                saveDiagramToPath(currentFilePath);
+            }
+        });
+        // Wire up pipeline control callbacks
+        window.setOnStartPipeline(() -> startPipeline());
+        window.setOnStopPipeline(() -> stopPipeline());
+        window.setIsPipelineRunning(() -> pipelineRunning.get());
+        containerWindows.add(window);
+        window.open();
+    }
+
+    /**
+     * Save all pipelines: main pipeline and all container pipelines.
+     */
+    private void saveAllPipelines() {
+        // Save container pipelines first
+        for (ContainerEditorWindow window : containerWindows) {
+            if (!window.isDisposed()) {
+                window.saveContainerPipeline();
+            }
+        }
+
+        // Also save any containers not currently open in an editor
+        for (PipelineNode node : nodes) {
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                String filePath = container.getPipelineFilePath();
+                if (filePath != null && !filePath.isEmpty()) {
+                    // Check if already handled by an open window
+                    boolean handled = false;
+                    for (ContainerEditorWindow window : containerWindows) {
+                        if (!window.isDisposed() && window.getContainer() == container) {
+                            handled = true;
+                            break;
+                        }
+                    }
+                    if (!handled) {
+                        saveContainerToFile(container);
+                    }
+                }
+            }
+        }
+
+        // Save main pipeline
+        if (currentFilePath != null) {
+            saveDiagramToPath(currentFilePath);
+        }
+    }
+
+    /**
+     * Save a container's internal pipeline to its file.
+     */
+    private void saveContainerToFile(ContainerNode container) {
+        String filePath = container.getPipelineFilePath();
+        if (filePath == null || filePath.isEmpty()) {
+            return;
+        }
+
+        // Resolve relative path
+        java.io.File file = new java.io.File(filePath);
+        if (!file.isAbsolute() && currentFilePath != null) {
+            java.io.File baseFile = new java.io.File(currentFilePath);
+            java.io.File baseDir = baseFile.getParentFile();
+            if (baseDir != null) {
+                filePath = new java.io.File(baseDir, filePath).getAbsolutePath();
+            }
+        }
+
+        try {
+            List<PipelineNode> allNodes = new ArrayList<>();
+            allNodes.add(container.getBoundaryInput());
+            allNodes.addAll(container.getChildNodes());
+            allNodes.add(container.getBoundaryOutput());
+
+            PipelineSerializer.save(filePath, allNodes, container.getChildConnections(),
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+
+            System.out.println("Saved container pipeline: " + filePath);
+        } catch (Exception e) {
+            System.err.println("Failed to save container: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Load a container's internal pipeline from its file.
+     * @param container The container to load into
+     * @param mainPipelinePath The path to the main pipeline (for resolving relative paths)
+     */
+    private void loadContainerInternalPipeline(ContainerNode container, String mainPipelinePath) {
+        String containerFilePath = container.getPipelineFilePath();
+        if (containerFilePath == null || containerFilePath.isEmpty()) {
+            return;
+        }
+
+        // Resolve relative path
+        java.io.File file = new java.io.File(containerFilePath);
+        if (!file.isAbsolute() && mainPipelinePath != null) {
+            java.io.File baseFile = new java.io.File(mainPipelinePath);
+            java.io.File baseDir = baseFile.getParentFile();
+            if (baseDir != null) {
+                containerFilePath = new java.io.File(baseDir, containerFilePath).getAbsolutePath();
+            }
+        }
+
+        // Check if file exists
+        if (!new java.io.File(containerFilePath).exists()) {
+            System.err.println("Container pipeline file not found: " + containerFilePath);
+            return;
+        }
+
+        try {
+            PipelineSerializer.loadContainerPipeline(containerFilePath, container, display, shell);
+            System.out.println("Loaded container pipeline: " + containerFilePath);
+        } catch (Exception e) {
+            System.err.println("Failed to load container pipeline: " + e.getMessage());
         }
     }
 
@@ -3286,6 +3486,12 @@ public class PipelineEditor {
         ProcessingNode node = createEffectNode(type, x, y);
         if (node != null) {
             node.setOnChanged(() -> { markDirty(); executePipeline(); });
+            // Set up container callback if this is a ContainerNode
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                container.setOnEditSubDiagram(() -> openContainerEditor(container));
+                container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
+            }
             nodes.add(node);
             markDirty();
             updateCanvasSize();

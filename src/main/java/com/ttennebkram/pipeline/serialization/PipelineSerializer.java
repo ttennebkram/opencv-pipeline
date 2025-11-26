@@ -295,6 +295,10 @@ public class PipelineSerializer {
             return new WebcamSourceNode(shell, display, canvas, x, y);
         } else if ("BlankSource".equals(type) || "BlankSourceNode".equals(type)) {
             return new BlankSourceNode(shell, display, x, y);
+        } else if ("ContainerInput".equals(type) || "ContainerInputNode".equals(type)) {
+            return new ContainerInputNode(shell, display, x, y);
+        } else if ("ContainerOutput".equals(type) || "ContainerOutputNode".equals(type)) {
+            return new ContainerOutputNode(display, shell, x, y);
         }
 
         // Handle legacy "Processing" type - look at "name" field
@@ -316,5 +320,105 @@ public class PipelineSerializer {
 
         System.err.println("Unknown node type: " + type);
         return null;
+    }
+
+    /**
+     * Load a container's internal pipeline from a JSON file.
+     * Unlike regular load, this updates the existing boundary nodes in the container
+     * with positions from the file, rather than creating new ones.
+     *
+     * @param path The path to the JSON file
+     * @param container The container whose internal pipeline is being loaded
+     * @param display The SWT display
+     * @param shell The SWT shell
+     * @return true if loading succeeded, false otherwise
+     */
+    public static boolean loadContainerPipeline(String path, ContainerNode container,
+                                                 Display display, Shell shell) throws IOException {
+        JsonObject root;
+        try (FileReader reader = new FileReader(path)) {
+            root = JsonParser.parseReader(reader).getAsJsonObject();
+        }
+
+        // Clear existing child nodes and connections (but keep boundary nodes)
+        container.getChildNodes().clear();
+        container.getChildConnections().clear();
+
+        // Build a list of all nodes for connection resolution
+        // Index 0 will be boundary input, last will be boundary output
+        List<PipelineNode> allNodes = new ArrayList<>();
+
+        // Deserialize nodes
+        if (root.has("nodes")) {
+            for (JsonElement elem : root.getAsJsonArray("nodes")) {
+                JsonObject nodeJson = elem.getAsJsonObject();
+
+                String type = nodeJson.get("type").getAsString();
+                int x = nodeJson.has("x") ? nodeJson.get("x").getAsInt() : 0;
+                int y = nodeJson.has("y") ? nodeJson.get("y").getAsInt() : 0;
+
+                // Handle boundary nodes specially - update existing ones
+                if ("ContainerInput".equals(type) || "ContainerInputNode".equals(type)) {
+                    ContainerInputNode boundaryInput = container.getBoundaryInput();
+                    boundaryInput.setX(x);
+                    boundaryInput.setY(y);
+                    boundaryInput.deserializeCommon(nodeJson);
+                    boundaryInput.deserializeProperties(nodeJson);
+                    allNodes.add(boundaryInput);
+                } else if ("ContainerOutput".equals(type) || "ContainerOutputNode".equals(type)) {
+                    ContainerOutputNode boundaryOutput = container.getBoundaryOutput();
+                    boundaryOutput.setX(x);
+                    boundaryOutput.setY(y);
+                    boundaryOutput.deserializeCommon(nodeJson);
+                    boundaryOutput.deserializeProperties(nodeJson);
+                    allNodes.add(boundaryOutput);
+                } else {
+                    // Regular node - create it
+                    PipelineNode node = createNode(type, nodeJson, display, shell, null, x, y);
+                    if (node != null) {
+                        node.deserializeCommon(nodeJson);
+                        node.deserializeProperties(nodeJson);
+                        container.addChildNode(node);
+                        allNodes.add(node);
+                    } else {
+                        System.err.println("Failed to create node of type: " + type);
+                        allNodes.add(null); // Placeholder to keep indices aligned
+                    }
+                }
+            }
+        }
+
+        // Deserialize connections
+        if (root.has("connections")) {
+            for (JsonElement elem : root.getAsJsonArray("connections")) {
+                JsonObject connJson = elem.getAsJsonObject();
+                int sourceId = connJson.get("sourceId").getAsInt();
+                int targetId = connJson.get("targetId").getAsInt();
+                int inputIndex = connJson.has("inputIndex") ? connJson.get("inputIndex").getAsInt() : 1;
+                int outputIndex = connJson.has("outputIndex") ? connJson.get("outputIndex").getAsInt() : 0;
+
+                if (sourceId >= 0 && sourceId < allNodes.size() &&
+                    targetId >= 0 && targetId < allNodes.size() &&
+                    allNodes.get(sourceId) != null && allNodes.get(targetId) != null) {
+
+                    Connection conn = new Connection(allNodes.get(sourceId), allNodes.get(targetId), inputIndex, outputIndex);
+
+                    // Restore queue capacity if specified
+                    if (connJson.has("queueCapacity")) {
+                        conn.setConfiguredCapacity(connJson.get("queueCapacity").getAsInt());
+                    }
+                    if (connJson.has("queueCount")) {
+                        conn.setLastQueueSize(connJson.get("queueCount").getAsInt());
+                    }
+                    if (connJson.has("totalFramesSent")) {
+                        conn.setPendingTotalFrames(connJson.get("totalFramesSent").getAsLong());
+                    }
+
+                    container.addChildConnection(conn);
+                }
+            }
+        }
+
+        return true;
     }
 }

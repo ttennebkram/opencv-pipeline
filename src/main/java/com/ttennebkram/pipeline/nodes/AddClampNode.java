@@ -73,13 +73,17 @@ public class AddClampNode extends DualInputNode {
     @Override
     public void paint(GC gc) {
         // Draw node background
-        gc.setBackground(new Color(255, 230, 200)); // Light orange for arithmetic
+        Color bgColor = new Color(255, 230, 200); // Light orange for arithmetic
+        gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
 
         // Draw border
-        gc.setForeground(new Color(200, 100, 0));
+        Color borderColor = new Color(200, 100, 0);
+        gc.setForeground(borderColor);
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
+        borderColor.dispose();
 
         // Draw title
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
@@ -88,15 +92,42 @@ public class AddClampNode extends DualInputNode {
         gc.drawString(name, x + 10, y + 5, true);
         boldFont.dispose();
 
-        // Draw thumbnail if available
+        // Draw thread priority label
+        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
+        gc.setFont(smallFont);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        gc.drawString(getThreadPriorityLabel(), x + 10, y + 20, true);
+        smallFont.dispose();
+
+        // Draw input read counts on the left side
+        Font tinyFont = new Font(display, "Arial", 7, SWT.NORMAL);
+        gc.setFont(tinyFont);
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        int statsX = x + 5;
+        // Display input counts
+        if (inputReads1 >= 1000) {
+            gc.drawString("In1:", statsX, y + 40, true);
+            gc.drawString(formatNumber(inputReads1), statsX, y + 50, true);
+        } else {
+            gc.drawString("In1:" + formatNumber(inputReads1), statsX, y + 40, true);
+        }
+        if (inputReads2 >= 1000) {
+            gc.drawString("In2:", statsX, y + 70, true);
+            gc.drawString(formatNumber(inputReads2), statsX, y + 80, true);
+        } else {
+            gc.drawString("In2:" + formatNumber(inputReads2), statsX, y + 70, true);
+        }
+        tinyFont.dispose();
+
+        // Draw thumbnail if available (offset to right to not overlap stats)
         if (thumbnail != null && !thumbnail.isDisposed()) {
             Rectangle bounds = thumbnail.getBounds();
-            int thumbX = x + (width - bounds.width) / 2;
-            int thumbY = y + 25;
+            int thumbX = x + 40;
+            int thumbY = y + 35;
             gc.drawImage(thumbnail, thumbX, thumbY);
         } else {
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
-            gc.drawString("(no output)", x + 10, y + 40, true);
+            gc.drawString("(no output)", x + 45, y + 50, true);
         }
 
         // Draw connection points (custom for dual input)

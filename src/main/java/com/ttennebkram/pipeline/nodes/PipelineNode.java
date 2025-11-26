@@ -472,7 +472,8 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public String getThreadPriorityLabel() {
         // Show raw priority number and work units completed
-        return "Priority: " + getThreadPriority() + " | Work: " + formatNumber(workUnitsCompleted);
+        // Use getWorkUnitsCompleted() to allow ContainerNode to return sum of child nodes
+        return "Priority: " + getThreadPriority() + " | Work: " + formatNumber(getWorkUnitsCompleted());
     }
 
     /**

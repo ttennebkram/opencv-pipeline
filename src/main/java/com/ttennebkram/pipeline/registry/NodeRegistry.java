@@ -86,6 +86,13 @@ public class NodeRegistry {
         registeredNodes.sort((a, b) -> {
             int catCmp = getCategoryOrder(a.category) - getCategoryOrder(b.category);
             if (catCmp != 0) return catCmp;
+            // Within Basic category, put Grayscale first (most commonly used)
+            if (a.category.equals("Basic") && b.category.equals("Basic")) {
+                boolean aIsGrayscale = a.name.equals("Grayscale");
+                boolean bIsGrayscale = b.name.equals("Grayscale");
+                if (aIsGrayscale && !bIsGrayscale) return -1;
+                if (bIsGrayscale && !aIsGrayscale) return 1;
+            }
             return a.name.compareTo(b.name);
         });
 

@@ -37,6 +37,14 @@ public abstract class ProcessingNode extends PipelineNode {
         this.onChanged = onChanged;
     }
 
+    public Shell getShell() {
+        return shell;
+    }
+
+    public void setShell(Shell shell) {
+        this.shell = shell;
+    }
+
     protected void notifyChanged() {
         if (onChanged != null) {
             onChanged.run();
@@ -141,10 +149,6 @@ public abstract class ProcessingNode extends PipelineNode {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public Shell getShell() {
-        return shell;
     }
 
     public Display getDisplay() {

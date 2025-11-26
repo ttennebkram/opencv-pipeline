@@ -74,15 +74,25 @@ public class GainNode extends ProcessingNode {
         sep.setLayoutData(sepGd);
 
         new Label(dialog, SWT.NONE).setText("Gain (0.1x - 10x):");
-        Scale gainScale = new Scale(dialog, SWT.HORIZONTAL);
+
+        // Composite to hold scale and value label on same row
+        Composite scaleComp = new Composite(dialog, SWT.NONE);
+        scaleComp.setLayout(new GridLayout(2, false));
+        scaleComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        Scale gainScale = new Scale(scaleComp, SWT.HORIZONTAL);
         gainScale.setMinimum(1);
         gainScale.setMaximum(100);
         // Use logarithmic mapping: scale value = log10(gain) * 50 + 50
         gainScale.setSelection((int)(Math.log10(gain) * 50 + 50));
         gainScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
-        Label gainLabel = new Label(dialog, SWT.NONE);
+        Label gainLabel = new Label(scaleComp, SWT.NONE);
         gainLabel.setText(String.format("%.2fx", gain));
+        GridData labelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+        labelGd.widthHint = 50;
+        gainLabel.setLayoutData(labelGd);
+
         gainScale.addListener(SWT.Selection, e -> {
             double logVal = (gainScale.getSelection() - 50) / 50.0;
             double g = Math.pow(10, logVal);
@@ -93,7 +103,7 @@ public class GainNode extends ProcessingNode {
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
         GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 3;
+        gd.horizontalSpan = 2;
         buttonComp.setLayoutData(gd);
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);

@@ -48,6 +48,7 @@ public abstract class MultiOutputNode extends ProcessingNode {
     @SuppressWarnings("unchecked")
     protected void initMultiOutputQueues(int count) {
         this.numOutputs = count;
+        this.outputCount = count; // Sync with base class for getOutputIndexNear()
         this.multiOutputQueues = (BlockingQueue<Mat>[]) new BlockingQueue[count];
     }
 

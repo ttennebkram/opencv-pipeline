@@ -600,6 +600,9 @@ public class FFTHighPass4Node extends MultiOutputNode {
 
         Label radiusLabel = new Label(dialog, SWT.NONE);
         radiusLabel.setText(String.valueOf(radius));
+        GridData radiusLabelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+        radiusLabelGd.widthHint = 30;
+        radiusLabel.setLayoutData(radiusLabelGd);
         radiusScale.addListener(SWT.Selection, e -> radiusLabel.setText(String.valueOf(radiusScale.getSelection())));
 
         // Smoothness
@@ -612,6 +615,9 @@ public class FFTHighPass4Node extends MultiOutputNode {
 
         Label smoothnessLabel = new Label(dialog, SWT.NONE);
         smoothnessLabel.setText(String.valueOf(smoothness));
+        GridData smoothnessLabelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+        smoothnessLabelGd.widthHint = 30;
+        smoothnessLabel.setLayoutData(smoothnessLabelGd);
         smoothnessScale.addListener(SWT.Selection, e -> smoothnessLabel.setText(String.valueOf(smoothnessScale.getSelection())));
 
         // Buttons
