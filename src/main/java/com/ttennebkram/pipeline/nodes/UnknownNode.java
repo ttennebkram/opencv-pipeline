@@ -36,6 +36,15 @@ public class UnknownNode extends ProcessingNode {
         return "Unknown";
     }
 
+    /**
+     * Override to preserve the original type when saving.
+     * This allows the node to be loaded correctly if the type becomes available later.
+     */
+    @Override
+    public String getSerializationType() {
+        return originalType;
+    }
+
     @Override
     public String getCategory() {
         return "Other";

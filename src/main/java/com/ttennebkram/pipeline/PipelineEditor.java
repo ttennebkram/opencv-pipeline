@@ -1852,25 +1852,24 @@ public class PipelineEditor {
         gc.setAntialias(SWT.ON);
         updateNodeCount();
 
-        // Apply zoom transform for all content (including grid)
+        // Draw grid BEFORE transform (in screen coordinates, but scaled spacing)
+        Rectangle bounds = canvas.getClientArea();
+        int gridSize = 20;
+        int scaledGrid = (int) Math.round(gridSize * zoomLevel);
+        if (scaledGrid < 1) scaledGrid = 1;
+        gc.setForeground(new Color(230, 230, 230));
+        gc.setLineWidth(1);
+        for (int x = 0; x <= bounds.width; x += scaledGrid) {
+            gc.drawLine(x, 0, x, bounds.height);
+        }
+        for (int y = 0; y <= bounds.height; y += scaledGrid) {
+            gc.drawLine(0, y, bounds.width, y);
+        }
+
+        // Apply zoom transform for nodes and connections only
         Transform transform = new Transform(display);
         transform.scale((float)zoomLevel, (float)zoomLevel);
         gc.setTransform(transform);
-
-        // Draw grid background (scales with zoom)
-        Rectangle bounds = canvas.getClientArea();
-        int gridSize = 20;
-        // Calculate canvas area in world coordinates (accounting for zoom)
-        int worldWidth = (int)(bounds.width / zoomLevel) + gridSize;
-        int worldHeight = (int)(bounds.height / zoomLevel) + gridSize;
-        gc.setForeground(new Color(230, 230, 230));
-        gc.setLineWidth(1);
-        for (int x = 0; x < worldWidth; x += gridSize) {
-            gc.drawLine(x, 0, x, worldHeight);
-        }
-        for (int y = 0; y < worldHeight; y += gridSize) {
-            gc.drawLine(0, y, worldWidth, y);
-        }
 
         // Draw connections first (so nodes appear on top)
         for (Connection conn : connections) {
