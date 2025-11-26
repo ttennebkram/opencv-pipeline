@@ -69,12 +69,12 @@ click and drag on connection point on node in Container editor moves the node in
 .Add w/Clamp not showing In1: In2: counts, and not incrementing its Work counter
     can we check if it's not inheriting from its base classes and just doing an old outdated .paint()
 
+.When I click the upper left red x in a mac window, the windows all close, but I think if the pipeline is running therre's still threads in the
+  background.  CAn you intercept the window close even, before exitign the app, to cleanly shut down the threads? 
 
-When a node's output queue is falling behind, and it's already lowered its priority to 1, let's have it send a "slow down" signal to the node behind it 
+.When a node's output queue is falling behind, and it's already lowered its priority to 1, let's have it send a "slow down" signal to the node behind it 
 
 
-/Double click should bring up Container editor; right click to get Properties
-    right click should also have Edit Container Contents
 
 What happens when Container diagram is changed, but main diagram is not dirty, does it pause to let you save the Container?
 
@@ -224,6 +224,8 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/Double click should bring up Container editor; right click to get Properties
+/   /right click should also have Edit Container Contents
 /Cursor keys should move Node just 1 pixel when at 100% mode, and equiv of 1 pixel when zoomed in or out,
 /   so when zoomed out would be hard to see just 1 push of arrow key direction
 /Queue stats not showing on connections inside Container Editor 

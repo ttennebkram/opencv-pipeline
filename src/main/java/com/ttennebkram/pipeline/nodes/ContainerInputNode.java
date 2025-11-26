@@ -80,6 +80,43 @@ public class ContainerInputNode extends SourceNode {
     }
 
     /**
+     * Receive a slowdown signal from a downstream node inside the container.
+     * Since ContainerInputNode has no FPS to reduce, it cascades the slowdown
+     * to the parent container's upstream node.
+     */
+    @Override
+    public synchronized void receiveSlowdownSignal() {
+        long now = System.currentTimeMillis();
+        lastSlowdownReceivedTime = now;
+        inSlowdownMode = true;
+
+        Thread pt = processingThread; // Local copy for thread safety
+        if (pt != null && pt.isAlive()) {
+            int currentPriority = pt.getPriority();
+
+            if (currentPriority > Thread.MIN_PRIORITY) {
+                // First, reduce priority like other nodes
+                int newPriority = currentPriority - 1;
+                System.out.println("[" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN, " +
+                    "lowering priority: " + currentPriority + " -> " + newPriority);
+                pt.setPriority(newPriority);
+                lastRunningPriority = newPriority;
+                slowdownPriorityReduction++;
+            } else {
+                // Already at minimum priority, cascade to parent container's upstream
+                System.out.println("[" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN at min priority, cascading to parent container");
+                if (parentContainer != null) {
+                    // Signal the container's upstream node directly
+                    PipelineNode containerUpstream = parentContainer.getInputNode();
+                    if (containerUpstream != null) {
+                        containerUpstream.receiveSlowdownSignal();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Override startProcessing to not apply frame rate delay.
      */
     @Override
@@ -94,6 +131,9 @@ public class ContainerInputNode extends SourceNode {
         processingThread = new Thread(() -> {
             while (running.get()) {
                 try {
+                    // Check for slowdown recovery
+                    checkSlowdownRecovery();
+
                     Mat frame = getNextFrame();
 
                     if (frame != null) {
@@ -184,10 +224,17 @@ public class ContainerInputNode extends SourceNode {
         gc.drawString("Input Images", x + 25, y + 8, true);
         boldFont.dispose();
 
-        // Draw thread priority label
+        // Draw thread priority label (red if priority < 5)
         Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
         gc.setFont(smallFont);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            Color redColor = new Color(200, 0, 0);
+            gc.setForeground(redColor);
+            redColor.dispose();
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
         gc.drawString(getThreadPriorityLabel(), x + 25, y + 22, true);
         smallFont.dispose();
 

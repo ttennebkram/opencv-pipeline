@@ -290,6 +290,9 @@ public abstract class ProcessingNode extends PipelineNode {
                         notifyFrame(previewClone);
                         // Note: previewClone will be released by the callback
 
+                        // Check for backpressure BEFORE trying to put (so we can lower priority while blocked)
+                        checkBackpressure();
+
                         if (outputQueue != null) {
                             // Clone for downstream node (they will release it)
                             outputQueue.put(output.clone());
@@ -298,9 +301,6 @@ public abstract class ProcessingNode extends PipelineNode {
                         // Release the original output from process()
                         output.release();
                     }
-
-                    // Check for backpressure and signal upstream if needed
-                    checkBackpressure();
 
                     // Release input
                     input.release();

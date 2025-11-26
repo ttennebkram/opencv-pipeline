@@ -47,16 +47,26 @@ public abstract class PipelineNode implements NodeSerializable {
     protected BlockingQueue<Mat> outputQueue;  // Primary output (index 0) - kept for backwards compatibility
     protected BlockingQueue<Mat>[] outputQueues;  // Array for multi-output nodes
     protected int outputCount = 1;  // Number of outputs this node has (default 1)
-    protected long frameDelayMs = 0; // Frame rate throttling (0 = no delay)
+    protected volatile long frameDelayMs = 0; // Frame rate throttling (0 = no delay)
     protected int threadPriority = Thread.NORM_PRIORITY; // Thread priority (1-10, default 5)
     protected int originalPriority = Thread.NORM_PRIORITY; // Original priority before backpressure adjustments
     protected int lastRunningPriority = Thread.NORM_PRIORITY; // Last actual running priority (persists after stop)
 
-    // Backpressure management
-    protected static final long PRIORITY_ADJUSTMENT_COOLDOWN_MS = 5000; // Wait 5 seconds between priority changes to let system stabilize
+    // Backpressure timing constants
+    /** Cooldown between priority reductions (going down) - 1 second per step */
+    protected static final long PRIORITY_LOWER_COOLDOWN_MS = 1000;
+    /** Cooldown between priority increases (going up) - 10 seconds per step */
+    protected static final long PRIORITY_RAISE_COOLDOWN_MS = 10000;
+    /** How long after last slowdown signal before starting recovery */
+    protected static final long SLOWDOWN_RECOVERY_MS = 10000;
     protected long lastPriorityAdjustmentTime = 0;
     protected PipelineNode inputNode = null; // Reference to upstream node
     protected PipelineNode inputNode2 = null; // Reference to second upstream node for dual-input nodes
+
+    // Slowdown signaling (cascading backpressure)
+    protected volatile long lastSlowdownReceivedTime = 0; // When we last received a slowdown signal
+    protected volatile boolean inSlowdownMode = false; // Whether we're currently slowed due to downstream request
+    protected int slowdownPriorityReduction = 0; // How much we've reduced priority due to slowdown signals
 
     // Work unit tracking
     protected long workUnitsCompleted = 0; // Count of work units completed (persists across runs)
@@ -471,7 +481,7 @@ public abstract class PipelineNode implements NodeSerializable {
     public String getThreadPriorityLabel() {
         // Show raw priority number and work units completed
         // Use getWorkUnitsCompleted() to allow ContainerNode to return sum of child nodes
-        return "Priority: " + getThreadPriority() + " | Work: " + formatNumber(getWorkUnitsCompleted());
+        return "Pri: " + getThreadPriority() + "   Work: " + formatNumber(getWorkUnitsCompleted());
     }
 
     /**
@@ -542,10 +552,16 @@ public abstract class PipelineNode implements NodeSerializable {
      * - And so on, down to minimum priority of 1
      * This causes a cascading effect: upstream nodes will back up and lower their own priorities.
      *
+     * If already at minimum priority and queue still backed up after cooldown, send slowdown
+     * signal to upstream nodes.
+     *
      * Important: Priority boosts are capped at the originalPriority, so a node configured
      * as low-priority will stay low-priority even when its queue drains.
      */
     protected void checkBackpressure() {
+        // First, check if we should recover from slowdown mode
+        checkSlowdownRecovery();
+
         // Calculate total queue size across all outputs
         int queueSize = 0;
 
@@ -568,34 +584,145 @@ public abstract class PipelineNode implements NodeSerializable {
             return;
         }
 
-        int targetPriority;
-
         if (processingThread != null && processingThread.isAlive()) {
             int currentPriority = processingThread.getPriority();
+            long now = System.currentTimeMillis();
 
-            // Progressive backpressure/boost based on queue size
-            if (queueSize == 0) {
-                // Queue empty: restore to original priority (not NORM_PRIORITY!)
-                targetPriority = originalPriority;
-            } else if (queueSize < 5) {
-                // Queue has 1-4 items: try to increase toward original priority
-                targetPriority = Math.min(originalPriority, currentPriority + 1);
-            } else {
-                // Queue >= 5: apply backpressure, reduce by 1 for every 5 items
-                int reductionAmount = queueSize / 5;
-                targetPriority = Math.max(Thread.MIN_PRIORITY, originalPriority - reductionAmount);
+            // If in slowdown mode, don't raise priority - let checkSlowdownRecovery() handle it
+            if (inSlowdownMode) {
+                if (queueSize >= 5) {
+                    if (currentPriority > Thread.MIN_PRIORITY) {
+                        // Lower by 1 if cooldown has passed
+                        if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
+                            int newPriority = currentPriority - 1;
+                            System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
+                                currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ", inSlowdownMode)");
+                            processingThread.setPriority(newPriority);
+                            lastPriorityAdjustmentTime = now;
+                            lastRunningPriority = newPriority;
+                        }
+                    } else {
+                        // At min priority, signal upstream
+                        if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
+                            signalUpstreamSlowdown();
+                            lastPriorityAdjustmentTime = now;
+                        }
+                    }
+                }
+                return; // Don't raise priority - let slowdown recovery handle it
             }
 
-            if (currentPriority != targetPriority) {
-                // Wait for cooldown period before adjusting priority (let system stabilize)
-                long now = System.currentTimeMillis();
-                if (now - lastPriorityAdjustmentTime >= PRIORITY_ADJUSTMENT_COOLDOWN_MS) {
-                    String direction = targetPriority < currentPriority ? "LOWERING" : "RAISING";
-                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] " + direction +
-                        " priority: " + currentPriority + " -> " + targetPriority + " (queueSize=" + queueSize + ")");
-                    processingThread.setPriority(targetPriority);
-                    lastPriorityAdjustmentTime = now;
-                    lastRunningPriority = targetPriority;
+            // Normal backpressure logic (not in slowdown mode)
+            if (queueSize >= 5) {
+                // Queue backed up - lower priority by 1 if cooldown has passed
+                if (currentPriority > Thread.MIN_PRIORITY) {
+                    if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
+                        int newPriority = currentPriority - 1;
+                        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
+                            currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
+                        processingThread.setPriority(newPriority);
+                        lastPriorityAdjustmentTime = now;
+                        lastRunningPriority = newPriority;
+                    }
+                } else {
+                    // At min priority and still backed up - signal upstream
+                    if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
+                        signalUpstreamSlowdown();
+                        lastPriorityAdjustmentTime = now;
+                    }
+                }
+            } else if (queueSize == 0) {
+                // Queue empty - raise priority by 1 toward original if cooldown has passed
+                if (currentPriority < originalPriority) {
+                    if (now - lastPriorityAdjustmentTime >= PRIORITY_RAISE_COOLDOWN_MS) {
+                        int newPriority = currentPriority + 1;
+                        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RAISING priority: " +
+                            currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
+                        processingThread.setPriority(newPriority);
+                        lastPriorityAdjustmentTime = now;
+                        lastRunningPriority = newPriority;
+                    }
+                }
+            }
+            // If queue is 1-4, do nothing - hold current priority
+        }
+    }
+
+    /**
+     * Signal upstream nodes to slow down because this node is overwhelmed.
+     * Called when this node is at minimum priority and still has backlog.
+     */
+    protected void signalUpstreamSlowdown() {
+        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SIGNALING SLOWDOWN to upstream nodes");
+        if (inputNode != null) {
+            inputNode.receiveSlowdownSignal();
+        }
+        if (inputNode2 != null) {
+            inputNode2.receiveSlowdownSignal();
+        }
+    }
+
+    /**
+     * Receive a slowdown signal from a downstream node.
+     * Reduces priority and enters slowdown mode for at least 10 seconds.
+     */
+    public synchronized void receiveSlowdownSignal() {
+        long now = System.currentTimeMillis();
+        lastSlowdownReceivedTime = now;
+        inSlowdownMode = true;
+
+        Thread pt = processingThread; // Local copy for thread safety
+        if (pt != null && pt.isAlive()) {
+            int currentPriority = pt.getPriority();
+
+            if (currentPriority > Thread.MIN_PRIORITY) {
+                // Reduce priority by 1
+                int newPriority = currentPriority - 1;
+                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN, " +
+                    "lowering priority: " + currentPriority + " -> " + newPriority);
+                pt.setPriority(newPriority);
+                lastRunningPriority = newPriority;
+                slowdownPriorityReduction++;
+            } else {
+                // Already at minimum priority, cascade the slowdown upstream
+                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN at min priority, cascading upstream");
+                signalUpstreamSlowdown();
+            }
+        }
+    }
+
+    /**
+     * Check if we should recover from slowdown mode.
+     * After 10 seconds without a slowdown signal, increase priority by 1.
+     * Continue recovering every 10 seconds until back to original priority.
+     */
+    protected void checkSlowdownRecovery() {
+        if (!inSlowdownMode || slowdownPriorityReduction <= 0) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long timeSinceSlowdown = now - lastSlowdownReceivedTime;
+
+        if (timeSinceSlowdown >= SLOWDOWN_RECOVERY_MS) {
+            if (processingThread != null && processingThread.isAlive()) {
+                int currentPriority = processingThread.getPriority();
+                int maxAllowedPriority = originalPriority;
+
+                if (currentPriority < maxAllowedPriority) {
+                    // Recover one priority level
+                    int newPriority = currentPriority + 1;
+                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
+                        "raising priority: " + currentPriority + " -> " + newPriority);
+                    processingThread.setPriority(newPriority);
+                    lastRunningPriority = newPriority;
+                    slowdownPriorityReduction--;
+                    lastSlowdownReceivedTime = now; // Reset timer for next recovery step
+                }
+
+                if (slowdownPriorityReduction <= 0) {
+                    inSlowdownMode = false;
+                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] EXITED SLOWDOWN MODE");
                 }
             }
         }

@@ -167,7 +167,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     private void createWindow() {
         shell = new Shell(display, SWT.SHELL_TRIM);
         shell.setText("Container: " + container.getContainerName());
-        shell.setSize(900, 600);
+        shell.setSize(1200, 800);
 
         // Same layout as main editor: GridLayout with toolbar + SashForm
         shell.setLayout(new GridLayout(2, false));

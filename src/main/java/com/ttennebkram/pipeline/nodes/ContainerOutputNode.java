@@ -137,10 +137,17 @@ public class ContainerOutputNode extends ProcessingNode {
         gc.drawString("Output Images", x + 20, y + 8, true);
         boldFont.dispose();
 
-        // Draw thread priority label
+        // Draw thread priority label (red if priority < 5)
         Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
         gc.setFont(smallFont);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            Color redColor = new Color(200, 0, 0);
+            gc.setForeground(redColor);
+            redColor.dispose();
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
         gc.drawString(getThreadPriorityLabel(), x + 20, y + 22, true);
         smallFont.dispose();
 

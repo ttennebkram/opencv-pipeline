@@ -259,18 +259,8 @@ public class WebcamSourceNode extends SourceNode {
         gc.drawString("Webcam Source", x + 10, y + 4, true);
         boldFont.dispose();
 
-        // Draw thread priority label
-        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
-        gc.setFont(smallFont);
-        // Red text if priority is below 5, otherwise dark gray
-        int currentPriority = getThreadPriority();
-        if (currentPriority < 5) {
-            gc.setForeground(new Color(200, 0, 0)); // Red for low priority
-        } else {
-            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
-        }
-        gc.drawString(getThreadPriorityLabel(), x + 10, y + 19, true);
-        smallFont.dispose();
+        // Draw thread priority, work units, and FPS stats line
+        drawFpsStatsLine(gc, x + 10, y + 19);
 
         // Draw thumbnail if available
         if (thumbnail != null && !thumbnail.isDisposed()) {

@@ -158,6 +158,17 @@ public class ContainerNode extends ProcessingNode {
             conn.activate();
         }
 
+        // Set up input node references for backpressure/slowdown signaling
+        for (Connection conn : childConnections) {
+            if (conn.target != null && conn.source != null) {
+                if (conn.inputIndex == 2) {
+                    conn.target.setInputNode2(conn.source);
+                } else {
+                    conn.target.setInputNode(conn.source);
+                }
+            }
+        }
+
         // Wire the boundary output to the container's output queue
         boundaryOutput.setContainerOutputQueue(outputQueue);
 
@@ -192,6 +203,13 @@ public class ContainerNode extends ProcessingNode {
         }
 
         boundaryInput.stopProcessing();
+
+        // Clear input node references
+        for (PipelineNode child : childNodes) {
+            child.setInputNode(null);
+            child.setInputNode2(null);
+        }
+        boundaryOutput.setInputNode(null);
 
         // Deactivate connections (but keep queues for inspection)
         for (Connection conn : childConnections) {

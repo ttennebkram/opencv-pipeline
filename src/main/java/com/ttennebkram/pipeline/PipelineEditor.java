@@ -260,9 +260,15 @@ public class PipelineEditor {
             createSamplePipeline();
         }
 
-        // Add close listener to check for unsaved changes
+        // Add close listener to check for unsaved changes and stop pipeline
         shell.addListener(SWT.Close, event -> {
-            event.doit = checkUnsavedChanges();
+            if (checkUnsavedChanges()) {
+                // Stop the pipeline before closing to clean up threads
+                stopPipeline();
+                event.doit = true;
+            } else {
+                event.doit = false;
+            }
         });
 
         shell.open();
