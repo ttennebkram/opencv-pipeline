@@ -10,6 +10,8 @@ import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -595,7 +597,7 @@ public abstract class PipelineNode implements NodeSerializable {
                         // Lower by 1 if cooldown has passed
                         if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                             int newPriority = currentPriority - 1;
-                            System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
+                            System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
                                 currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ", inSlowdownMode)");
                             processingThread.setPriority(newPriority);
                             lastPriorityAdjustmentTime = now;
@@ -618,7 +620,7 @@ public abstract class PipelineNode implements NodeSerializable {
                 if (currentPriority > Thread.MIN_PRIORITY) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                         int newPriority = currentPriority - 1;
-                        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
+                        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] LOWERING priority: " +
                             currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
@@ -636,7 +638,7 @@ public abstract class PipelineNode implements NodeSerializable {
                 if (currentPriority < originalPriority) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_RAISE_COOLDOWN_MS) {
                         int newPriority = currentPriority + 1;
-                        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RAISING priority: " +
+                        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RAISING priority: " +
                             currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
@@ -653,7 +655,7 @@ public abstract class PipelineNode implements NodeSerializable {
      * Called when this node is at minimum priority and still has backlog.
      */
     protected void signalUpstreamSlowdown() {
-        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SIGNALING SLOWDOWN to upstream nodes");
+        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] SIGNALING SLOWDOWN to upstream nodes");
         if (inputNode != null) {
             inputNode.receiveSlowdownSignal();
         }
@@ -678,14 +680,14 @@ public abstract class PipelineNode implements NodeSerializable {
             if (currentPriority > Thread.MIN_PRIORITY) {
                 // Reduce priority by 1
                 int newPriority = currentPriority - 1;
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN, " +
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN, " +
                     "lowering priority: " + currentPriority + " -> " + newPriority);
                 pt.setPriority(newPriority);
                 lastRunningPriority = newPriority;
                 slowdownPriorityReduction++;
             } else {
                 // Already at minimum priority, cascade the slowdown upstream
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN at min priority, cascading upstream");
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN at min priority, cascading upstream");
                 signalUpstreamSlowdown();
             }
         }
@@ -696,7 +698,7 @@ public abstract class PipelineNode implements NodeSerializable {
      * After 10 seconds without a slowdown signal, increase priority by 1.
      * Continue recovering every 10 seconds until back to original priority.
      */
-    protected void checkSlowdownRecovery() {
+    protected synchronized void checkSlowdownRecovery() {
         if (!inSlowdownMode || slowdownPriorityReduction <= 0) {
             return;
         }
@@ -712,7 +714,7 @@ public abstract class PipelineNode implements NodeSerializable {
                 if (currentPriority < maxAllowedPriority) {
                     // Recover one priority level
                     int newPriority = currentPriority + 1;
-                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
+                    System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
                         "raising priority: " + currentPriority + " -> " + newPriority);
                     processingThread.setPriority(newPriority);
                     lastRunningPriority = newPriority;
@@ -722,7 +724,7 @@ public abstract class PipelineNode implements NodeSerializable {
 
                 if (slowdownPriorityReduction <= 0) {
                     inSlowdownMode = false;
-                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] EXITED SLOWDOWN MODE");
+                    System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] EXITED SLOWDOWN MODE");
                 }
             }
         }
@@ -740,6 +742,14 @@ public abstract class PipelineNode implements NodeSerializable {
         if (onFrameCallback != null && frame != null) {
             onFrameCallback.accept(frame);
         }
+    }
+
+    /**
+     * Get a timestamp string for logging.
+     */
+    private static final SimpleDateFormat LOG_TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSS");
+    protected String timestamp() {
+        return LOG_TIME_FORMAT.format(new Date());
     }
 
     /**

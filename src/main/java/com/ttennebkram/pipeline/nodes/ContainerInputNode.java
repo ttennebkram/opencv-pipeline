@@ -97,14 +97,14 @@ public class ContainerInputNode extends SourceNode {
             if (currentPriority > Thread.MIN_PRIORITY) {
                 // First, reduce priority like other nodes
                 int newPriority = currentPriority - 1;
-                System.out.println("[" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN, " +
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN, " +
                     "lowering priority: " + currentPriority + " -> " + newPriority);
                 pt.setPriority(newPriority);
                 lastRunningPriority = newPriority;
                 slowdownPriorityReduction++;
             } else {
                 // Already at minimum priority, cascade to parent container's upstream
-                System.out.println("[" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN at min priority, cascading to parent container");
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + "] RECEIVED SLOWDOWN at min priority, cascading to parent container");
                 if (parentContainer != null) {
                     // Signal the container's upstream node directly
                     PipelineNode containerUpstream = parentContainer.getInputNode();

@@ -185,7 +185,7 @@ public abstract class SourceNode extends PipelineNode {
             if (currentPriority > Thread.MIN_PRIORITY) {
                 // First, reduce priority like other nodes
                 int newPriority = currentPriority - 1;
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN, " +
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN, " +
                     "lowering priority: " + currentPriority + " -> " + newPriority);
                 pt.setPriority(newPriority);
                 lastRunningPriority = newPriority;
@@ -195,11 +195,11 @@ public abstract class SourceNode extends PipelineNode {
                 fpsSlowdownLevel++;
                 double effectiveFps = getEffectiveFps();
                 frameDelayMs = effectiveFps > 0 ? (long) (1000.0 / effectiveFps) : 0;
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN at min priority, " +
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN at min priority, " +
                     "reducing FPS: " + String.format("%.3f", originalFps) + " -> " + String.format("%.3f", effectiveFps) +
                     " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
             } else {
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN but already at max slowdown");
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] RECEIVED SLOWDOWN but already at max slowdown");
             }
         }
     }
@@ -220,7 +220,7 @@ public abstract class SourceNode extends PipelineNode {
      * Override parent to recover FPS first (with longer interval), then priority.
      */
     @Override
-    protected void checkSlowdownRecovery() {
+    protected synchronized void checkSlowdownRecovery() {
         if (!inSlowdownMode) {
             return;
         }
@@ -235,7 +235,7 @@ public abstract class SourceNode extends PipelineNode {
                 fpsSlowdownLevel--;
                 double newFps = getEffectiveFps();
                 frameDelayMs = newFps > 0 ? (long) (1000.0 / newFps) : 0;
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
                     "raising FPS: " + String.format("%.3f", oldFps) + " -> " + String.format("%.3f", newFps) +
                     " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
                 lastSlowdownReceivedTime = now; // Reset timer for next recovery step
@@ -253,7 +253,7 @@ public abstract class SourceNode extends PipelineNode {
 
                     if (currentPriority < maxAllowedPriority) {
                         int newPriority = currentPriority + 1;
-                        System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
+                        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] SLOWDOWN RECOVERY, " +
                             "raising priority: " + currentPriority + " -> " + newPriority);
                         pt.setPriority(newPriority);
                         lastRunningPriority = newPriority;
@@ -267,7 +267,7 @@ public abstract class SourceNode extends PipelineNode {
             // Fully recovered
             if (slowdownPriorityReduction <= 0 && fpsSlowdownLevel <= 0) {
                 inSlowdownMode = false;
-                System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] EXITED SLOWDOWN MODE");
+                System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + getNodeName() + "] EXITED SLOWDOWN MODE");
             }
         }
     }

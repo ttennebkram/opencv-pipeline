@@ -357,7 +357,7 @@ public abstract class MultiOutputNode extends ProcessingNode {
                         // Lower by 1 if cooldown has passed
                         if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                             int newPriority = currentPriority - 1;
-                            System.out.println("[" + getClass().getSimpleName() + " " + name + "] LOWERING priority: " +
+                            System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + name + "] LOWERING priority: " +
                                 currentPriority + " -> " + newPriority + " (maxQueueSize=" + maxQueueSize + ", inSlowdownMode)");
                             processingThread.setPriority(newPriority);
                             lastPriorityAdjustmentTime = now;
@@ -380,7 +380,7 @@ public abstract class MultiOutputNode extends ProcessingNode {
                 if (currentPriority > Thread.MIN_PRIORITY) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                         int newPriority = currentPriority - 1;
-                        System.out.println("[" + getClass().getSimpleName() + " " + name + "] LOWERING priority: " +
+                        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + name + "] LOWERING priority: " +
                             currentPriority + " -> " + newPriority + " (maxQueueSize=" + maxQueueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
@@ -398,7 +398,7 @@ public abstract class MultiOutputNode extends ProcessingNode {
                 if (currentPriority < originalPriority) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_RAISE_COOLDOWN_MS) {
                         int newPriority = currentPriority + 1;
-                        System.out.println("[" + getClass().getSimpleName() + " " + name + "] RAISING priority: " +
+                        System.out.println("[" + timestamp() + "] [" + getClass().getSimpleName() + " " + name + "] RAISING priority: " +
                             currentPriority + " -> " + newPriority + " (maxQueueSize=" + maxQueueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
