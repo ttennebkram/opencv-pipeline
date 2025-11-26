@@ -359,6 +359,7 @@ public class WebcamSourceNode extends SourceNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             int newCameraIndex = cameraCombo.getSelectionIndex();
             int newResolution = resCombo.getSelectionIndex();

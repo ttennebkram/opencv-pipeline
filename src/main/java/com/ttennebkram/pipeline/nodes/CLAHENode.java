@@ -163,6 +163,7 @@ public class CLAHENode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             clipLimit = clipScale.getSelection() / 10.0;
             tileSize = tileScale.getSelection();

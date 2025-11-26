@@ -164,6 +164,7 @@ public class SobelNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             if (dx0.getSelection()) {
                 dx = 0;

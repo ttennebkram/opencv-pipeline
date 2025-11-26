@@ -238,6 +238,7 @@ public class AddWeightedNode extends DualInputNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             alpha = alphaScale.getSelection() / 100.0;
             beta = betaScale.getSelection() / 100.0;

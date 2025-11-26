@@ -731,8 +731,8 @@ public class PipelineEditor {
                 lastNodeButtonClickTime = now;
 
                 action.run();
-                // Clear search and show all after adding
-                searchBox.setText("");
+                // Don't clear search - user may want to add more of the same node
+                // Press Esc to clear search
             }
         });
 
@@ -807,8 +807,8 @@ public class PipelineEditor {
             SearchableButton sb = searchableButtons.get(selectedButtonIndex);
             if (sb.button.isVisible()) {
                 sb.action.run();
-                searchBox.setText("");
-                selectedButtonIndex = -1;
+                // Don't clear search - user may want to add more of the same node
+                // Press Esc to clear search
                 return;
             }
         }
@@ -816,8 +816,8 @@ public class PipelineEditor {
         for (SearchableButton sb : searchableButtons) {
             if (sb.button.isVisible()) {
                 sb.action.run();
-                searchBox.setText("");
-                selectedButtonIndex = -1;
+                // Don't clear search - user may want to add more of the same node
+                // Press Esc to clear search
                 break;
             }
         }
@@ -1123,6 +1123,18 @@ public class PipelineEditor {
         display.addFilter(SWT.KeyDown, event -> {
             // Only handle keys when our shell is active
             if (shell.isDisposed() || !shell.isVisible()) return;
+
+            // Global Esc to clear search (works from anywhere when main shell is active)
+            if (event.keyCode == SWT.ESC) {
+                // Only clear search if a dialog is not open (active shell is our main shell)
+                Shell activeShell = display.getActiveShell();
+                if (activeShell == shell && searchBox != null && !searchBox.isDisposed()
+                        && !searchBox.getText().isEmpty()) {
+                    searchBox.setText("");
+                    event.doit = false;
+                    return;
+                }
+            }
 
             // Cmd-A to select all nodes
             if (event.character == 'a' && (event.stateMask & SWT.MOD1) != 0) {

@@ -192,6 +192,7 @@ public class WarpAffineNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             translateX = txScale.getSelection() - 500;
             translateY = tyScale.getSelection() - 500;

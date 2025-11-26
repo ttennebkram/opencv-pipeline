@@ -98,6 +98,7 @@ public class GainNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             double logVal = (gainScale.getSelection() - 50) / 50.0;
             gain = Math.pow(10, logVal);

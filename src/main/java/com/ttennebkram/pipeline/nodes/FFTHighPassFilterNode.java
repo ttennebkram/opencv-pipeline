@@ -269,6 +269,7 @@ public class FFTHighPassFilterNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             radius = radiusScale.getSelection();
             smoothness = smoothnessScale.getSelection();

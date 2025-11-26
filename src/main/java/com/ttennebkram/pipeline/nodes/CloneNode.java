@@ -59,7 +59,7 @@ public class CloneNode extends MultiOutputNode {
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name + " (" + numOutputs + ")", x + 10, y + 5, true);
+        gc.drawString(name + " (" + numOutputs + " outputs)", x + 10, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label
@@ -131,6 +131,7 @@ public class CloneNode extends MultiOutputNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             int newCount = outputCombo.getSelectionIndex() + MIN_OUTPUTS;
             setNumOutputs(newCount);

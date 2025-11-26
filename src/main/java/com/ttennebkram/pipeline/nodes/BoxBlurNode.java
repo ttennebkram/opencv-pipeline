@@ -122,6 +122,7 @@ public class BoxBlurNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             kernelSizeX = kxScale.getSelection() * 2 + 1; // Convert back to odd integer
             kernelSizeY = kyScale.getSelection() * 2 + 1; // Convert back to odd integer

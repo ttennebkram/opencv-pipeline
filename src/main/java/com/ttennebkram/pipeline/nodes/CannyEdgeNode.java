@@ -163,6 +163,7 @@ public class CannyEdgeNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             threshold1 = t1Scale.getSelection();
             threshold2 = t2Scale.getSelection();

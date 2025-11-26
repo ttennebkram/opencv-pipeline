@@ -174,6 +174,7 @@ public class LaplacianNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             kernelSizeIndex = ksizeCombo.getSelectionIndex();
             scalePercent = scaleSlider.getSelection();

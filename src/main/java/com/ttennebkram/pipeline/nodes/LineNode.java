@@ -176,6 +176,7 @@ public class LineNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             x1 = x1Spinner.getSelection();
             y1 = y1Spinner.getSelection();

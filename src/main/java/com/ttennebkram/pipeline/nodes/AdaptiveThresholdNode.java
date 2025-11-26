@@ -175,6 +175,7 @@ public class AdaptiveThresholdNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             maxValue = maxScale.getSelection();
             methodIndex = methodCombo.getSelectionIndex();

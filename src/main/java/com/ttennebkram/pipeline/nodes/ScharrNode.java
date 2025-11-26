@@ -166,6 +166,7 @@ public class ScharrNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             directionIndex = dirCombo.getSelectionIndex();
             scalePercent = scaleScale.getSelection();

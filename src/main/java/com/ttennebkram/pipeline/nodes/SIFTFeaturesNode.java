@@ -189,6 +189,7 @@ public class SIFTFeaturesNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             nFeatures = featuresScale.getSelection();
             contrastThreshold = contrastScale.getSelection() / 1000.0;

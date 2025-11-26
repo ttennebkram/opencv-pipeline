@@ -139,6 +139,7 @@ public class GaussianBlurNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             kernelSizeX = kxScale.getSelection();
             kernelSizeY = kyScale.getSelection();

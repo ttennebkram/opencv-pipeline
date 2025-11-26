@@ -126,6 +126,7 @@ public class MorphOpenNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             kernelSize = kScale.getSelection();
             shapeIndex = shapeCombo.getSelectionIndex();

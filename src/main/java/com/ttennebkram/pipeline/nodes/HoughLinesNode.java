@@ -208,6 +208,7 @@ public class HoughLinesNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             cannyThresh1 = c1Scale.getSelection();
             cannyThresh2 = c2Scale.getSelection();

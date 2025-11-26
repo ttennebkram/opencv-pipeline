@@ -614,6 +614,7 @@ public class FFTLowPass4Node extends MultiOutputNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             radius = radiusScale.getSelection();
             smoothness = smoothnessScale.getSelection();

@@ -236,6 +236,7 @@ public class ColorInRangeNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             useHSV = hsvCheck.getSelection();
             hLow = hLowScale.getSelection();

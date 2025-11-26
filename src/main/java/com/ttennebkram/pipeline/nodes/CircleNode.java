@@ -173,6 +173,7 @@ public class CircleNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             centerX = centerXSpinner.getSelection();
             centerY = centerYSpinner.getSelection();

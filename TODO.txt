@@ -1,13 +1,15 @@
 restaring pipeline doesn't clear previous queue count stats
 
+Clone (2) -> Clone (2 outputs)
+
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
 change package name
 
-fft filter first have 2 outputs
-    also clone node
+/fft filter first have 2 outputs
+    /also clone node
 
-lots of "hard coding" in the registry
+.lots of "hard coding" in the registry
 
 ? grid pattern doesn't change on zoom
     maybe just the dots where they intersect?
@@ -117,9 +119,12 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/Node Properties dialog:
+    /Enter to click the OK button to save and close and save
+    /Esc to cancel and close the dialog and not save
+    /If only 1 OK button, than Esc clicks OK
 /need bitwise NOT
     doc: same effect as Invert, but diff math, just mention in README
-
 /accuracy of mouse on connection points when zoomed way out
 /Histogram node
 /maybe not clamp values that are externally edited in JSON

@@ -61,6 +61,7 @@ public class MonitorNode extends ProcessingNode {
 
         Button okBtn = new Button(dialog, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
         okBtn.addListener(SWT.Selection, e -> dialog.dispose());
 

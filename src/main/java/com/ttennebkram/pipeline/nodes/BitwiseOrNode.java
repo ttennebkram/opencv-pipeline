@@ -188,6 +188,7 @@ public class BitwiseOrNode extends DualInputNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             queuesInSync = syncCheckbox.getSelection();
             dialog.dispose();

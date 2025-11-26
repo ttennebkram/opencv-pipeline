@@ -196,6 +196,7 @@ public class BlankSourceNode extends SourceNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             imageWidth = widthSpinner.getSelection();
             imageHeight = heightSpinner.getSelection();

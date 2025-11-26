@@ -159,6 +159,7 @@ public class ORBFeaturesNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             nFeatures = featScale.getSelection();
             fastThreshold = fastScale.getSelection();

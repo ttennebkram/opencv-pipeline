@@ -186,6 +186,7 @@ public class ThresholdNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             threshValue = threshScale.getSelection();
             maxValue = maxScale.getSelection();

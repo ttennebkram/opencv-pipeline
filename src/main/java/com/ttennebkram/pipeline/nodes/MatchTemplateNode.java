@@ -406,6 +406,7 @@ public class MatchTemplateNode extends DualInputNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             method = METHOD_VALUES[methodCombo.getSelectionIndex()];
             outputMode = outputModeCombo.getSelectionIndex();

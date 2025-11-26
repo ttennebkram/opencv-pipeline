@@ -253,6 +253,7 @@ public class BitPlanesColorNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             for (int c = 0; c < 3; c++) {
                 for (int i = 0; i < 8; i++) {

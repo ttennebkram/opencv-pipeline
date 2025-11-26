@@ -275,6 +275,7 @@ public class Filter2DNode extends ProcessingNode {
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
             // Save kernel values
             int size = currentSize[0];
