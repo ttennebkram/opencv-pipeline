@@ -58,6 +58,14 @@ public abstract class SourceNode extends PipelineNode {
     }
 
     /**
+     * Source nodes have no input connection point.
+     */
+    @Override
+    public org.eclipse.swt.graphics.Point getInputPoint() {
+        return null;
+    }
+
+    /**
      * Start processing - generates frames from this source.
      * This is the standard implementation for all source nodes.
      * Subclasses typically don't need to override this.

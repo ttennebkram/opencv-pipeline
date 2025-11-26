@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Implements NodeSerializable to handle common property serialization.
  */
 public abstract class PipelineNode implements NodeSerializable {
+    // Connection point data type suffix for tooltips
+    protected static final String CONNECTION_DATA_TYPE = "Images";
+
     // Node dimension constants
     public static final int PROCESSING_NODE_THUMB_WIDTH = 120;
     public static final int PROCESSING_NODE_THUMB_HEIGHT = 80;
@@ -149,6 +152,77 @@ public abstract class PipelineNode implements NodeSerializable {
      */
     public boolean hasMultipleOutputs() {
         return outputCount > 1;
+    }
+
+    /**
+     * Connection point hit radius for tooltip detection.
+     */
+    protected static final int CONNECTION_HIT_RADIUS = 10;
+
+    /**
+     * Check if a point is near the primary input connection point.
+     * Returns true if within CONNECTION_HIT_RADIUS pixels.
+     */
+    public boolean isNearInputPoint(int px, int py) {
+        Point input = getInputPoint();
+        if (input == null) return false;
+        double dist = Math.sqrt(Math.pow(px - input.x, 2) + Math.pow(py - input.y, 2));
+        return dist <= CONNECTION_HIT_RADIUS;
+    }
+
+    /**
+     * Check if a point is near the secondary input connection point (for dual-input nodes).
+     * Returns true if within CONNECTION_HIT_RADIUS pixels.
+     */
+    public boolean isNearInputPoint2(int px, int py) {
+        Point input2 = getInputPoint2();
+        if (input2 == null) return false;
+        double dist = Math.sqrt(Math.pow(px - input2.x, 2) + Math.pow(py - input2.y, 2));
+        return dist <= CONNECTION_HIT_RADIUS;
+    }
+
+    /**
+     * Check if a point is near the output connection point.
+     * Returns the output index (0-based) if near, or -1 if not near any output.
+     */
+    public int getOutputIndexNear(int px, int py) {
+        for (int i = 0; i < outputCount; i++) {
+            Point output = getOutputPoint(i);
+            if (output != null) {
+                double dist = Math.sqrt(Math.pow(px - output.x, 2) + Math.pow(py - output.y, 2));
+                if (dist <= CONNECTION_HIT_RADIUS) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Get tooltip text for the primary input connection point.
+     * Subclasses can override to provide custom tooltips.
+     */
+    public String getInputTooltip() {
+        return "Input " + CONNECTION_DATA_TYPE;
+    }
+
+    /**
+     * Get tooltip text for the secondary input connection point (dual-input nodes).
+     * Subclasses can override to provide custom tooltips.
+     */
+    public String getInput2Tooltip() {
+        return "Input 2 " + CONNECTION_DATA_TYPE;
+    }
+
+    /**
+     * Get tooltip text for the output connection point at the given index.
+     * Subclasses can override to provide custom tooltips.
+     */
+    public String getOutputTooltip(int index) {
+        if (outputCount == 1) {
+            return "Output " + CONNECTION_DATA_TYPE;
+        }
+        return "Output " + (index + 1) + " " + CONNECTION_DATA_TYPE;
     }
 
     public int getX() {

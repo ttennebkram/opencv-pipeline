@@ -1,5 +1,7 @@
 restaring pipeline doesn't clear previous queue count stats
 
+grid lines shrink/expand with zoom level
+
 Clone (2) -> Clone (2 outputs)
 
 compare all java nodes to python effects

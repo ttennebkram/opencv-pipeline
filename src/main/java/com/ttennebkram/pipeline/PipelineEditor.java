@@ -1852,22 +1852,25 @@ public class PipelineEditor {
         gc.setAntialias(SWT.ON);
         updateNodeCount();
 
-        // Draw grid background (not scaled - stays fixed)
-        Rectangle bounds = canvas.getClientArea();
-        int gridSize = 20;
-        gc.setForeground(new Color(230, 230, 230));
-        gc.setLineWidth(1);
-        for (int x = 0; x < bounds.width; x += gridSize) {
-            gc.drawLine(x, 0, x, bounds.height);
-        }
-        for (int y = 0; y < bounds.height; y += gridSize) {
-            gc.drawLine(0, y, bounds.width, y);
-        }
-
-        // Apply zoom transform for all content
+        // Apply zoom transform for all content (including grid)
         Transform transform = new Transform(display);
         transform.scale((float)zoomLevel, (float)zoomLevel);
         gc.setTransform(transform);
+
+        // Draw grid background (scales with zoom)
+        Rectangle bounds = canvas.getClientArea();
+        int gridSize = 20;
+        // Calculate canvas area in world coordinates (accounting for zoom)
+        int worldWidth = (int)(bounds.width / zoomLevel) + gridSize;
+        int worldHeight = (int)(bounds.height / zoomLevel) + gridSize;
+        gc.setForeground(new Color(230, 230, 230));
+        gc.setLineWidth(1);
+        for (int x = 0; x < worldWidth; x += gridSize) {
+            gc.drawLine(x, 0, x, worldHeight);
+        }
+        for (int y = 0; y < worldHeight; y += gridSize) {
+            gc.drawLine(0, y, worldWidth, y);
+        }
 
         // Draw connections first (so nodes appear on top)
         for (Connection conn : connections) {
@@ -2371,6 +2374,7 @@ public class PipelineEditor {
                 }
 
                 Point inputPoint = node.getInputPoint();
+                if (inputPoint == null) continue;  // SourceNodes have no input
                 double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                        Math.pow(clickPoint.y - inputPoint.y, 2));
                 if (dist <= radius) {
@@ -2793,6 +2797,7 @@ public class PipelineEditor {
                     }
 
                     Point inputPoint = node.getInputPoint();
+                    if (inputPoint == null) continue;  // SourceNodes have no input
                     int radius = 8;
                     double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint.y, 2));
@@ -2937,6 +2942,7 @@ public class PipelineEditor {
                 PipelineNode targetNode = null;
                 for (PipelineNode node : nodes) {
                     Point inputPoint = node.getInputPoint();
+                    if (inputPoint == null) continue;  // SourceNodes have no input
                     double dist = Math.sqrt(Math.pow(clickPoint.x - inputPoint.x, 2) +
                                            Math.pow(clickPoint.y - inputPoint.y, 2));
                     if (dist <= radius) {
@@ -3024,8 +3030,8 @@ public class PipelineEditor {
         int canvasX = toCanvasX(e.x);
         int canvasY = toCanvasY(e.y);
 
-        // Check for tooltip on multi-output nodes
-        updateOutputTooltip(canvasX, canvasY);
+        // Check for tooltip on connection points
+        updateConnectionTooltip(canvasX, canvasY);
 
         if (isDragging && selectedNode != null) {
             // Calculate the delta movement
@@ -3059,20 +3065,30 @@ public class PipelineEditor {
     }
 
     /**
-     * Update canvas tooltip based on mouse position over multi-output nodes.
+     * Update canvas tooltip based on mouse position over connection points.
      */
-    private void updateOutputTooltip(int canvasX, int canvasY) {
+    private void updateConnectionTooltip(int canvasX, int canvasY) {
         String tooltip = null;
 
-        // Check multi-output nodes for output point hover
+        // Check all nodes for connection point hover
         for (PipelineNode node : nodes) {
-            if (node instanceof MultiOutputNode) {
-                MultiOutputNode multiNode = (MultiOutputNode) node;
-                int outputIndex = multiNode.getOutputIndexAt(canvasX, canvasY);
-                if (outputIndex >= 0) {
-                    tooltip = multiNode.getOutputTooltip(outputIndex);
-                    break;
-                }
+            // Check output points
+            int outputIndex = node.getOutputIndexNear(canvasX, canvasY);
+            if (outputIndex >= 0) {
+                tooltip = node.getOutputTooltip(outputIndex);
+                break;
+            }
+
+            // Check primary input point
+            if (node.isNearInputPoint(canvasX, canvasY)) {
+                tooltip = node.getInputTooltip();
+                break;
+            }
+
+            // Check secondary input point (dual-input nodes)
+            if (node.isNearInputPoint2(canvasX, canvasY)) {
+                tooltip = node.getInput2Tooltip();
+                break;
             }
         }
 

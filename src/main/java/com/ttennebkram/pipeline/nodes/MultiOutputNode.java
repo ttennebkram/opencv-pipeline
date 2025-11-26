@@ -166,12 +166,13 @@ public abstract class MultiOutputNode extends ProcessingNode {
     /**
      * Get the tooltip text for a specific output index.
      */
+    @Override
     public String getOutputTooltip(int index) {
         String[] labels = getOutputLabels();
         if (index >= 0 && index < labels.length) {
-            return labels[index];
+            return labels[index] + " " + CONNECTION_DATA_TYPE;
         }
-        return "Output " + (index + 1);
+        return "Output " + (index + 1) + " " + CONNECTION_DATA_TYPE;
     }
 
     /**
