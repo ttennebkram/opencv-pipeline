@@ -47,13 +47,17 @@ public class CloneNode extends MultiOutputNode {
     @Override
     public void paint(GC gc) {
         // Draw node background - light purple for utility nodes
-        gc.setBackground(new Color(230, 230, 255));
+        Color bgColor = new Color(230, 230, 255);
+        gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
 
         // Draw border
-        gc.setForeground(new Color(80, 80, 150));
+        Color borderColor = new Color(80, 80, 150);
+        gc.setForeground(borderColor);
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
+        borderColor.dispose();
 
         // Draw title with output count
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
@@ -65,9 +69,20 @@ public class CloneNode extends MultiOutputNode {
         // Draw thread priority label
         Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
         gc.setFont(smallFont);
-        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        // Red text if priority is below 5, otherwise dark gray
+        int currentPriority = getThreadPriority();
+        if (currentPriority < 5) {
+            Color redColor = new Color(200, 0, 0);
+            gc.setForeground(redColor);
+            redColor.dispose();
+        } else {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        }
         gc.drawString(getThreadPriorityLabel(), x + 10, y + 20, true);
         smallFont.dispose();
+
+        // Draw input stats (frame counts)
+        drawInputStats(gc);
 
         // Draw thumbnail if available
         if (thumbnail != null && !thumbnail.isDisposed()) {

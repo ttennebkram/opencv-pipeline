@@ -325,6 +325,53 @@ public abstract class MultiOutputNode extends ProcessingNode {
     }
 
     /**
+     * Override checkBackpressure to use multiOutputQueues instead of outputQueues.
+     * Triggers backpressure if ANY output queue has >= 5 items.
+     */
+    @Override
+    protected void checkBackpressure() {
+        if (multiOutputQueues == null) {
+            return;
+        }
+
+        // Find the maximum queue size across all outputs
+        int maxQueueSize = 0;
+        for (int i = 0; i < multiOutputQueues.length; i++) {
+            BlockingQueue<Mat> q = multiOutputQueues[i];
+            if (q != null) {
+                maxQueueSize = Math.max(maxQueueSize, q.size());
+            }
+        }
+
+        if (processingThread != null && processingThread.isAlive()) {
+            int currentPriority = processingThread.getPriority();
+            int targetPriority;
+
+            if (maxQueueSize == 0) {
+                targetPriority = originalPriority;
+            } else if (maxQueueSize < 5) {
+                targetPriority = Math.min(originalPriority, currentPriority + 1);
+            } else {
+                // Reduce by 1 for every 5 items in the most backed-up queue
+                int reductionAmount = maxQueueSize / 5;
+                targetPriority = Math.max(Thread.MIN_PRIORITY, originalPriority - reductionAmount);
+            }
+
+            if (currentPriority != targetPriority) {
+                long now = System.currentTimeMillis();
+                if (now - lastPriorityAdjustmentTime >= PRIORITY_ADJUSTMENT_COOLDOWN_MS) {
+                    String direction = targetPriority < currentPriority ? "LOWERING" : "RAISING";
+                    System.out.println("[" + getClass().getSimpleName() + " " + name + "] " + direction +
+                        " priority: " + currentPriority + " -> " + targetPriority + " (maxQueueSize=" + maxQueueSize + ")");
+                    processingThread.setPriority(targetPriority);
+                    lastPriorityAdjustmentTime = now;
+                    lastRunningPriority = targetPriority;
+                }
+            }
+        }
+    }
+
+    /**
      * Draw input stats (frame counts) on the left side of the node.
      * Call this from paint() in subclasses that override paint().
      */

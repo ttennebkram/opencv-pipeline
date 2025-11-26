@@ -517,10 +517,31 @@ public class PipelineEditor {
 
             // Copy loaded data to this editor's collections
             nodes.addAll(doc.nodes);
-            connections.addAll(doc.connections);
-            danglingConnections.addAll(doc.danglingConnections);
-            reverseDanglingConnections.addAll(doc.reverseDanglingConnections);
-            freeConnections.addAll(doc.freeConnections);
+
+            // Distribute connections from unified list into legacy separate lists
+            for (Connection conn : doc.connections) {
+                if (conn.isComplete()) {
+                    connections.add(conn);
+                } else if (conn.isSourceDangling()) {
+                    // Source connected, target free -> DanglingConnection
+                    DanglingConnection dc = new DanglingConnection(conn.source, conn.outputIndex, conn.getFreeTargetPoint());
+                    dc.setConfiguredCapacity(conn.getConfiguredCapacity());
+                    dc.setLastQueueSize(conn.getQueueSize());
+                    danglingConnections.add(dc);
+                } else if (conn.isTargetDangling()) {
+                    // Target connected, source free -> ReverseDanglingConnection
+                    ReverseDanglingConnection rdc = new ReverseDanglingConnection(conn.target, conn.getFreeSourcePoint());
+                    rdc.setConfiguredCapacity(conn.getConfiguredCapacity());
+                    rdc.setLastQueueSize(conn.getQueueSize());
+                    reverseDanglingConnections.add(rdc);
+                } else if (conn.isFree()) {
+                    // Both ends free -> FreeConnection
+                    FreeConnection fc = new FreeConnection(conn.getFreeSourcePoint(), conn.getFreeTargetPoint());
+                    fc.setConfiguredCapacity(conn.getConfiguredCapacity());
+                    fc.setLastQueueSize(conn.getQueueSize());
+                    freeConnections.add(fc);
+                }
+            }
 
             // Set up change callbacks for ProcessingNodes
             for (PipelineNode node : nodes) {
@@ -977,6 +998,49 @@ public class PipelineEditor {
     }
 
     /**
+     * Change zoom level while keeping the viewport centered on the same canvas point.
+     */
+    private void setZoomLevelCentered(double newZoom) {
+        if (scrolledCanvas == null || canvas == null) {
+            zoomLevel = newZoom;
+            updateCanvasSize();
+            canvas.redraw();
+            return;
+        }
+
+        double oldZoom = zoomLevel;
+        if (Math.abs(oldZoom - newZoom) < 0.001) {
+            return; // No change
+        }
+
+        // Get current scroll position and viewport size
+        Point origin = scrolledCanvas.getOrigin();
+        Rectangle viewport = scrolledCanvas.getClientArea();
+
+        // Calculate the canvas coordinate at the center of the viewport (before zoom)
+        double centerCanvasX = (origin.x + viewport.width / 2.0) / oldZoom;
+        double centerCanvasY = (origin.y + viewport.height / 2.0) / oldZoom;
+
+        // Apply the new zoom level
+        zoomLevel = newZoom;
+        updateCanvasSize();
+
+        // Calculate new scroll position to keep the same canvas point centered
+        int newOriginX = (int) (centerCanvasX * newZoom - viewport.width / 2.0);
+        int newOriginY = (int) (centerCanvasY * newZoom - viewport.height / 2.0);
+
+        // Clamp to valid scroll range
+        Point canvasSize = canvas.getSize();
+        newOriginX = Math.max(0, Math.min(newOriginX, canvasSize.x - viewport.width));
+        newOriginY = Math.max(0, Math.min(newOriginY, canvasSize.y - viewport.height));
+
+        // Set the new scroll position
+        scrolledCanvas.setOrigin(newOriginX, newOriginY);
+
+        canvas.redraw();
+    }
+
+    /**
      * Update canvas size based on node positions and zoom level.
      * Canvas size = max(viewport size, (max node bounds + padding) * zoom)
      */
@@ -1088,9 +1152,7 @@ public class PipelineEditor {
         zoomCombo.addListener(SWT.Selection, e -> {
             int idx = zoomCombo.getSelectionIndex();
             if (idx >= 0 && idx < ZOOM_LEVELS.length) {
-                zoomLevel = ZOOM_LEVELS[idx] / 100.0;
-                updateCanvasSize();
-                canvas.redraw();
+                setZoomLevelCentered(ZOOM_LEVELS[idx] / 100.0);
             }
         });
 
@@ -1118,7 +1180,7 @@ public class PipelineEditor {
 
         canvas.addMouseMoveListener(e -> handleMouseMove(e));
 
-        // Ctrl+scroll wheel for zoom
+        // Ctrl+scroll wheel for zoom - stays centered on view
         canvas.addListener(SWT.MouseVerticalWheel, event -> {
             if ((event.stateMask & SWT.MOD1) != 0) { // Ctrl/Cmd held
                 int currentIdx = zoomCombo.getSelectionIndex();
@@ -1132,9 +1194,7 @@ public class PipelineEditor {
                 }
                 if (newIdx != currentIdx) {
                     zoomCombo.select(newIdx);
-                    zoomLevel = ZOOM_LEVELS[newIdx] / 100.0;
-                    updateCanvasSize();
-                    canvas.redraw();
+                    setZoomLevelCentered(ZOOM_LEVELS[newIdx] / 100.0);
                 }
                 event.doit = false; // Consume event
             }
@@ -1537,11 +1597,20 @@ public class PipelineEditor {
         // Clear old state
         stopPipeline();
 
-        // Reset all node counters
+        // Reset all node counters (including container children)
         for (PipelineNode node : nodes) {
             node.setWorkUnitsCompleted(0);
             node.setInputReads1(0);
             node.setInputReads2(0);
+            // Also reset counters for nodes inside containers
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                for (PipelineNode child : container.getChildNodes()) {
+                    child.setWorkUnitsCompleted(0);
+                    child.setInputReads1(0);
+                    child.setInputReads2(0);
+                }
+            }
         }
 
         // Activate all connections (creates queues and wires them to nodes)
@@ -1946,11 +2015,22 @@ public class PipelineEditor {
             Point midPoint = getPathMidpoint(path, conn.source, conn.target);
             String sizeText = String.format("%,d / %,d", queueSize, totalFrames);
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
-            gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
-            Point textExtent = gc.textExtent(sizeText);
-            gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
-                textExtent.x + 6, textExtent.y + 4, 6, 6);
-            gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
+            // Change background color based on queue backlog: blue for normal, dark red for backpressure
+            if (queueSize >= 5) {
+                Color backpressureColor = new Color(139, 0, 0); // Dark red
+                gc.setBackground(backpressureColor);
+                Point textExtent = gc.textExtent(sizeText);
+                gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
+                    textExtent.x + 6, textExtent.y + 4, 6, 6);
+                gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
+                backpressureColor.dispose();
+            } else {
+                gc.setBackground(display.getSystemColor(SWT.COLOR_DARK_BLUE));
+                Point textExtent = gc.textExtent(sizeText);
+                gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
+                    textExtent.x + 6, textExtent.y + 4, 6, 6);
+                gc.drawString(sizeText, midPoint.x - textExtent.x/2, midPoint.y - textExtent.y/2, true);
+            }
         }
 
         // Draw dangling connections with dashed lines
@@ -3163,9 +3243,11 @@ public class PipelineEditor {
         Point clickPoint = toCanvasPoint(e.x, e.y);
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
-                // All nodes show properties dialog on double-click
-                // (Container editor is opened via icon click, not double-click)
-                if (node instanceof ProcessingNode) {
+                // ContainerNodes: double-click opens container editor
+                if (node instanceof ContainerNode) {
+                    openContainerEditor((ContainerNode) node);
+                } else if (node instanceof ProcessingNode) {
+                    // Other ProcessingNodes: double-click opens properties
                     ((ProcessingNode) node).showPropertiesDialog();
                 } else if (node instanceof SourceNode) {
                     ((SourceNode) node).showPropertiesDialog();
@@ -3329,10 +3411,27 @@ public class PipelineEditor {
                 // Show context menu for the node
                 Menu contextMenu = new Menu(canvas);
 
-                // Edit Properties option (for ProcessingNode and FileSourceNode)
-                if (node instanceof ProcessingNode) {
+                // ContainerNode: Edit Container Contents first, then Properties
+                if (node instanceof ContainerNode) {
+                    ContainerNode container = (ContainerNode) node;
+
+                    MenuItem editContentsItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editContentsItem.setText("Edit Container Contents...");
+                    editContentsItem.addListener(SWT.Selection, evt -> {
+                        openContainerEditor(container);
+                    });
+
+                    MenuItem propsItem = new MenuItem(contextMenu, SWT.PUSH);
+                    propsItem.setText("Properties...");
+                    propsItem.addListener(SWT.Selection, evt -> {
+                        container.showPropertiesDialog();
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                } else if (node instanceof ProcessingNode) {
+                    // Other ProcessingNodes: Edit Properties
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
-                    editItem.setText("Edit Properties...");
+                    editItem.setText("Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
                         ((ProcessingNode) node).showPropertiesDialog();
                     });
@@ -3340,7 +3439,7 @@ public class PipelineEditor {
                     new MenuItem(contextMenu, SWT.SEPARATOR);
                 } else if (node instanceof FileSourceNode) {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
-                    editItem.setText("Edit Properties...");
+                    editItem.setText("Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
                         ((FileSourceNode) node).showPropertiesDialog();
                     });
@@ -3348,7 +3447,7 @@ public class PipelineEditor {
                     new MenuItem(contextMenu, SWT.SEPARATOR);
                 } else if (node instanceof BlankSourceNode) {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
-                    editItem.setText("Edit Properties...");
+                    editItem.setText("Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
                         ((BlankSourceNode) node).showPropertiesDialog();
                     });

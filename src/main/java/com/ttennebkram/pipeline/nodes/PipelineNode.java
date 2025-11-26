@@ -53,11 +53,9 @@ public abstract class PipelineNode implements NodeSerializable {
     protected int lastRunningPriority = Thread.NORM_PRIORITY; // Last actual running priority (persists after stop)
 
     // Backpressure management
-    protected static final int QUEUE_HIGH_WATERMARK = 10; // Reduce upstream priority when queue exceeds this
-    protected static final int QUEUE_LOW_WATERMARK = 3;   // Restore upstream priority when queue drops below this
-    protected static final long PRIORITY_ADJUSTMENT_TIMEOUT_MS = 10000; // 10 seconds between priority adjustments
-    protected long lastPriorityAdjustmentTime = 0; // Timestamp of last priority change
-    protected PipelineNode inputNode = null; // Reference to upstream node for backpressure signaling
+    protected static final long PRIORITY_ADJUSTMENT_COOLDOWN_MS = 5000; // Wait 5 seconds between priority changes to let system stabilize
+    protected long lastPriorityAdjustmentTime = 0;
+    protected PipelineNode inputNode = null; // Reference to upstream node
     protected PipelineNode inputNode2 = null; // Reference to second upstream node for dual-input nodes
 
     // Work unit tracking
@@ -543,13 +541,33 @@ public abstract class PipelineNode implements NodeSerializable {
      * - Queue size 15+: reduce by 3
      * - And so on, down to minimum priority of 1
      * This causes a cascading effect: upstream nodes will back up and lower their own priorities.
+     *
+     * Important: Priority boosts are capped at the originalPriority, so a node configured
+     * as low-priority will stay low-priority even when its queue drains.
      */
     protected void checkBackpressure() {
-        if (outputQueue == null) {
+        // Calculate total queue size across all outputs
+        int queueSize = 0;
+
+        // Check primary output queue
+        if (outputQueue != null) {
+            queueSize += outputQueue.size();
+        }
+
+        // Check multi-output queues
+        if (outputQueues != null) {
+            for (BlockingQueue<Mat> q : outputQueues) {
+                if (q != null && q != outputQueue) { // Avoid double-counting if same queue
+                    queueSize += q.size();
+                }
+            }
+        }
+
+        // If no queues at all, nothing to do
+        if (outputQueue == null && (outputQueues == null || outputQueues.length == 0)) {
             return;
         }
 
-        int queueSize = outputQueue.size();
         int targetPriority;
 
         if (processingThread != null && processingThread.isAlive()) {
@@ -557,11 +575,11 @@ public abstract class PipelineNode implements NodeSerializable {
 
             // Progressive backpressure/boost based on queue size
             if (queueSize == 0) {
-                // Queue empty: increase priority by 1 (up to max of 5)
-                targetPriority = Math.min(Thread.NORM_PRIORITY, currentPriority + 1);
+                // Queue empty: restore to original priority (not NORM_PRIORITY!)
+                targetPriority = originalPriority;
             } else if (queueSize < 5) {
-                // Queue has 1-4 items: increase priority by 1 (up to max of 5)
-                targetPriority = Math.min(Thread.NORM_PRIORITY, currentPriority + 1);
+                // Queue has 1-4 items: try to increase toward original priority
+                targetPriority = Math.min(originalPriority, currentPriority + 1);
             } else {
                 // Queue >= 5: apply backpressure, reduce by 1 for every 5 items
                 int reductionAmount = queueSize / 5;
@@ -569,18 +587,16 @@ public abstract class PipelineNode implements NodeSerializable {
             }
 
             if (currentPriority != targetPriority) {
-                // Check if enough time has passed since last adjustment
-                long currentTime = System.currentTimeMillis();
-                long timeSinceLastAdjustment = currentTime - lastPriorityAdjustmentTime;
-
-                if (timeSinceLastAdjustment >= PRIORITY_ADJUSTMENT_TIMEOUT_MS) {
+                // Wait for cooldown period before adjusting priority (let system stabilize)
+                long now = System.currentTimeMillis();
+                if (now - lastPriorityAdjustmentTime >= PRIORITY_ADJUSTMENT_COOLDOWN_MS) {
+                    String direction = targetPriority < currentPriority ? "LOWERING" : "RAISING";
+                    System.out.println("[" + getClass().getSimpleName() + " " + getNodeName() + "] " + direction +
+                        " priority: " + currentPriority + " -> " + targetPriority + " (queueSize=" + queueSize + ")");
                     processingThread.setPriority(targetPriority);
-                    lastPriorityAdjustmentTime = currentTime;
+                    lastPriorityAdjustmentTime = now;
                     lastRunningPriority = targetPriority;
                 }
-            } else {
-                // Always update cached priority to reflect current state
-                lastRunningPriority = targetPriority;
             }
         }
     }
