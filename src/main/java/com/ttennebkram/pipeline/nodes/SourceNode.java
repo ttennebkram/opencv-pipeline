@@ -1,9 +1,8 @@
 package com.ttennebkram.pipeline.nodes;
 
 import com.google.gson.JsonObject;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.graphics.ImageData;
-import org.eclipse.swt.graphics.PaletteData;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -20,6 +19,11 @@ import java.io.File;
  */
 public abstract class SourceNode extends PipelineNode {
     protected Shell shell;
+    protected boolean enabled = true;
+
+    // Checkbox dimensions for enabled toggle
+    protected static final int CHECKBOX_SIZE = 12;
+    protected static final int CHECKBOX_MARGIN = 5;
 
     // FPS slowdown tracking for cascading backpressure
     protected double originalFps = 0; // Original FPS before slowdown
@@ -28,6 +32,72 @@ public abstract class SourceNode extends PipelineNode {
     protected static final int MAX_FPS_SLOWDOWN_LEVELS = 7;
     /** Recovery interval for FPS - wait 1 minute before raising FPS back up */
     protected static final long FPS_RECOVERY_MS = 60000;
+
+    // Enabled state getters/setters
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    /**
+     * Get the bounds of the enabled checkbox for hit testing.
+     * @return Rectangle with the checkbox bounds in canvas coordinates
+     */
+    public Rectangle getEnabledCheckboxBounds() {
+        return new Rectangle(x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, CHECKBOX_SIZE, CHECKBOX_SIZE);
+    }
+
+    /**
+     * Check if a point is within the enabled checkbox.
+     * @param p Point to test in canvas coordinates
+     * @return true if point is within checkbox bounds
+     */
+    public boolean isOnEnabledCheckbox(Point p) {
+        Rectangle bounds = getEnabledCheckboxBounds();
+        return p.x >= bounds.x && p.x <= bounds.x + bounds.width &&
+               p.y >= bounds.y && p.y <= bounds.y + bounds.height;
+    }
+
+    /**
+     * Toggle the enabled state of this node.
+     */
+    public void toggleEnabled() {
+        this.enabled = !this.enabled;
+    }
+
+    /**
+     * Draw the enabled checkbox in the top-left corner of the node.
+     * Called by paint() - subclasses that override paint() should call this.
+     */
+    protected void drawEnabledCheckbox(GC gc) {
+        Rectangle bounds = getEnabledCheckboxBounds();
+
+        // Draw checkbox background
+        gc.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
+        gc.fillRectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Draw checkbox border
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        gc.setLineWidth(1);
+        gc.drawRectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Draw checkmark if enabled
+        if (enabled) {
+            gc.setForeground(new Color(0, 128, 0)); // Dark green checkmark
+            gc.setLineWidth(2);
+            // Draw checkmark as two lines
+            int cx = bounds.x + bounds.width / 2;
+            int cy = bounds.y + bounds.height / 2;
+            // Short line from bottom-left to center-bottom
+            gc.drawLine(bounds.x + 2, cy, cx - 1, bounds.y + bounds.height - 2);
+            // Long line from center-bottom to top-right
+            gc.drawLine(cx - 1, bounds.y + bounds.height - 2, bounds.x + bounds.width - 2, bounds.y + 2);
+            gc.setLineWidth(1);
+        }
+    }
 
     @Override
     public String getNodeName() {
@@ -127,6 +197,12 @@ public abstract class SourceNode extends PipelineNode {
         processingThread = new Thread(() -> {
             while (running.get()) {
                 try {
+                    // If disabled, just sleep and emit nothing
+                    if (!enabled) {
+                        Thread.sleep(100);
+                        continue;
+                    }
+
                     // Check for slowdown recovery
                     checkSlowdownRecovery();
 
@@ -326,5 +402,28 @@ public abstract class SourceNode extends PipelineNode {
             }
         }
         return false;
+    }
+
+    /**
+     * Serialize SourceNode-specific properties.
+     * Subclasses should call super.serializeProperties() and then add their own.
+     */
+    @Override
+    public void serializeProperties(JsonObject json) {
+        // Only serialize enabled if false (default is true)
+        if (!enabled) {
+            json.addProperty("enabled", enabled);
+        }
+    }
+
+    /**
+     * Deserialize SourceNode-specific properties.
+     * Subclasses should call super.deserializeProperties() and then read their own.
+     */
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("enabled")) {
+            enabled = json.get("enabled").getAsBoolean();
+        }
     }
 }

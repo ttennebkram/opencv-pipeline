@@ -158,6 +158,30 @@ public abstract class DualInputNode extends ProcessingNode {
 
                     // Process if we have at least one valid input
                     if (lastInput1 != null || lastInput2 != null) {
+                        if (!enabled) {
+                            // Bypass mode: move input1 frame to output, update thumbnail
+                            incrementWorkUnits();
+                            if (lastInput1 != null) {
+                                setOutputMat(lastInput1.clone());
+                                if (outputQueue != null) {
+                                    try {
+                                        outputQueue.put(lastInput1);
+                                        lastInput1 = null; // Don't release, we passed ownership
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        break;
+                                    }
+                                }
+                            }
+                            // Discard input2 frames
+                            if (lastInput2 != null) {
+                                lastInput2.release();
+                                lastInput2 = null;
+                            }
+                            continue;
+                        }
+
+                        // Process the frames normally
                         Mat output = processDual(lastInput1, lastInput2);
 
                         // Increment work units regardless of output (even if null)

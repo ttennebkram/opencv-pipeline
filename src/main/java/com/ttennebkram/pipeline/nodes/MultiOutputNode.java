@@ -199,8 +199,8 @@ public abstract class MultiOutputNode extends ProcessingNode {
      */
     @Override
     public void paint(GC gc) {
-        // Draw node background
-        Color bgColor = getBackgroundColor();
+        // Draw node background - light gray if disabled
+        Color bgColor = enabled ? getBackgroundColor() : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
         gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
@@ -212,11 +212,14 @@ public abstract class MultiOutputNode extends ProcessingNode {
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
         borderColor.dispose();
 
-        // Draw title
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name, x + 10, y + 5, true);
+        gc.drawString(name, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label
@@ -290,7 +293,19 @@ public abstract class MultiOutputNode extends ProcessingNode {
                         continue;
                     }
 
-                    // Process the frame (subclasses implement this)
+                    if (!enabled) {
+                        // Bypass mode: move frame to output 1 only, update thumbnail
+                        incrementWorkUnits();
+                        setOutputMat(input.clone());
+                        if (multiOutputQueues != null && multiOutputQueues.length > 0 && multiOutputQueues[0] != null) {
+                            multiOutputQueues[0].put(input);
+                        } else {
+                            input.release();
+                        }
+                        continue;
+                    }
+
+                    // Process the frame normally (subclasses implement this)
                     Mat output = process(input);
 
                     incrementWorkUnits();

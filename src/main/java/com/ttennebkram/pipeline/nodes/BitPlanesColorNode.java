@@ -190,7 +190,7 @@ public class BitPlanesColorNode extends ProcessingNode {
         dialog.setText("Bit Planes Color Properties");
         dialog.setLayout(new GridLayout(1, false));
 
-        // Node name field
+        // Type label and name field
         Text nameText = addNameField(dialog, 1);
 
         // Method signature
@@ -300,6 +300,7 @@ public class BitPlanesColorNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         // Serialize Red channel
         JsonArray redEnabled = new JsonArray();
         JsonArray redGain = new JsonArray();
@@ -333,6 +334,7 @@ public class BitPlanesColorNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         // Deserialize Red channel
         if (json.has("redBitEnabled")) {
             JsonArray arr = json.getAsJsonArray("redBitEnabled");

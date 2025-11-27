@@ -200,6 +200,7 @@ public class SIFTFeaturesNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("nFeatures", nFeatures);
         json.addProperty("nOctaveLayers", nOctaveLayers);
         json.addProperty("contrastThreshold", contrastThreshold);
@@ -211,6 +212,7 @@ public class SIFTFeaturesNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("nFeatures")) nFeatures = json.get("nFeatures").getAsInt();
         if (json.has("nOctaveLayers")) nOctaveLayers = json.get("nOctaveLayers").getAsInt();
         if (json.has("contrastThreshold")) contrastThreshold = json.get("contrastThreshold").getAsDouble();

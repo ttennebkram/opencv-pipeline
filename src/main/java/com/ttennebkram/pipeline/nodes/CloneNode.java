@@ -45,8 +45,8 @@ public class CloneNode extends MultiOutputNode {
 
     @Override
     public void paint(GC gc) {
-        // Draw node background - light purple for utility nodes
-        Color bgColor = new Color(230, 230, 255);
+        // Draw node background - light gray if disabled, otherwise light purple for utility nodes
+        Color bgColor = enabled ? new Color(230, 230, 255) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
         gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
@@ -58,11 +58,14 @@ public class CloneNode extends MultiOutputNode {
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
         borderColor.dispose();
 
-        // Draw title with output count
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title with output count - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name + " (" + numOutputs + " outputs)", x + 10, y + 5, true);
+        gc.drawString(name + " (" + numOutputs + " outputs)", x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label
@@ -141,11 +144,13 @@ public class CloneNode extends MultiOutputNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("numOutputs", numOutputs);
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("numOutputs")) {
             setNumOutputs(json.get("numOutputs").getAsInt());
         }

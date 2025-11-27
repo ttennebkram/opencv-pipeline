@@ -5,6 +5,8 @@ Legend:
     ! = urgent a = very high pri  b = important          c = avg/lower pri
     ? = question                  X or x = No/dismissed  = = dupe
 
+add to .gitignore files like .TODO.txt.swp
+
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
 
@@ -25,8 +27,13 @@ how many nodes override .paint()?
     inconsistent Cancel behavior
 
 
-Enabled Checkmark for all nodes, upper left next to the name
-    enabled/disabled checkbox, upper right? upper left?
+.Enabled Checkmark for all nodes, upper left next to the name
+    enabled/disabled checkbox, upper left
+    Multi input: just take from input 1
+    Multi output: just output to output 1
+    Container node: have monitoring thread do the work
+
+File Source node still sluggish to show new name after Properties name edit
 
 .debug log all json files that are read or saved, even for the contents of a container
 

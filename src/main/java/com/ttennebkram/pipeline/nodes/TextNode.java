@@ -229,6 +229,7 @@ public class TextNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("text", text);
         json.addProperty("posX", posX);
         json.addProperty("posY", posY);
@@ -244,6 +245,7 @@ public class TextNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("text")) text = json.get("text").getAsString();
         if (json.has("posX")) posX = json.get("posX").getAsInt();
         if (json.has("posY")) posY = json.get("posY").getAsInt();

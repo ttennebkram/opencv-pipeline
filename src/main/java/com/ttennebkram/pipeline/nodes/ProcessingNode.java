@@ -26,6 +26,10 @@ public abstract class ProcessingNode extends PipelineNode {
     protected boolean enabled = true;
     protected Runnable onChanged;  // Callback when properties change
 
+    // Checkbox dimensions for enabled toggle
+    protected static final int CHECKBOX_SIZE = 12;
+    protected static final int CHECKBOX_MARGIN = 5;
+
     public ProcessingNode(Display display, Shell shell, String name, int x, int y) {
         this.display = display;
         this.shell = shell;
@@ -53,13 +57,25 @@ public abstract class ProcessingNode extends PipelineNode {
     }
 
     /**
-     * Helper to add a standard name field to a properties dialog.
+     * Helper to add a Type label and Name field to a properties dialog.
      * Call this at the start of showPropertiesDialog() after creating the dialog.
      * @param dialog The dialog shell
      * @param columns The number of columns in the dialog's GridLayout
      * @return The Text widget for the name field (save reference to get value in OK handler)
      */
     protected Text addNameField(Shell dialog, int columns) {
+        // Type label at very top (read-only)
+        Label typeLabel = new Label(dialog, SWT.NONE);
+        typeLabel.setText("Type:");
+        Label typeValue = new Label(dialog, SWT.NONE);
+        typeValue.setText(getClass().getSimpleName());
+        GridData typeGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        if (columns > 2) {
+            typeGd.horizontalSpan = columns - 1;
+        }
+        typeValue.setLayoutData(typeGd);
+
+        // Name field
         new Label(dialog, SWT.NONE).setText("Name:");
         Text nameText = new Text(dialog, SWT.BORDER);
         nameText.setText(getDisplayLabel());
@@ -98,7 +114,7 @@ public abstract class ProcessingNode extends PipelineNode {
         dialog.setText(title);
         dialog.setLayout(new GridLayout(columns, false));
 
-        // Name field at top
+        // Type label and name field (addNameField adds both)
         Text nameText = addNameField(dialog, columns);
 
         // Let subclass add its content
@@ -193,8 +209,8 @@ public abstract class ProcessingNode extends PipelineNode {
 
     @Override
     public void paint(GC gc) {
-        // Draw node background
-        Color bgColor = getBackgroundColor();
+        // Draw node background - light gray if disabled
+        Color bgColor = enabled ? getBackgroundColor() : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
         gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
@@ -206,11 +222,14 @@ public abstract class ProcessingNode extends PipelineNode {
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
         borderColor.dispose();
 
-        // Draw title (use custom name if set, otherwise default node name)
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title (use custom name if set, otherwise default node name) - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(getDisplayLabel(), x + 10, y + 5, true);
+        gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label
@@ -274,6 +293,64 @@ public abstract class ProcessingNode extends PipelineNode {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    /**
+     * Get the bounds of the enabled checkbox for hit testing.
+     * @return Rectangle with the checkbox bounds in canvas coordinates
+     */
+    public Rectangle getEnabledCheckboxBounds() {
+        return new Rectangle(x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, CHECKBOX_SIZE, CHECKBOX_SIZE);
+    }
+
+    /**
+     * Check if a point is within the enabled checkbox.
+     * @param p Point to test in canvas coordinates
+     * @return true if point is within checkbox bounds
+     */
+    public boolean isOnEnabledCheckbox(Point p) {
+        Rectangle bounds = getEnabledCheckboxBounds();
+        return p.x >= bounds.x && p.x <= bounds.x + bounds.width &&
+               p.y >= bounds.y && p.y <= bounds.y + bounds.height;
+    }
+
+    /**
+     * Toggle the enabled state of this node.
+     */
+    public void toggleEnabled() {
+        this.enabled = !this.enabled;
+        notifyChanged();
+    }
+
+    /**
+     * Draw the enabled checkbox in the top-left corner of the node.
+     * Called by paint() - subclasses that override paint() should call this.
+     */
+    protected void drawEnabledCheckbox(GC gc) {
+        Rectangle bounds = getEnabledCheckboxBounds();
+
+        // Draw checkbox background
+        gc.setBackground(display.getSystemColor(SWT.COLOR_WHITE));
+        gc.fillRectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Draw checkbox border
+        gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
+        gc.setLineWidth(1);
+        gc.drawRectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Draw checkmark if enabled
+        if (enabled) {
+            gc.setForeground(new Color(0, 128, 0)); // Dark green checkmark
+            gc.setLineWidth(2);
+            // Draw checkmark as two lines
+            int cx = bounds.x + bounds.width / 2;
+            int cy = bounds.y + bounds.height / 2;
+            // Short line from bottom-left to center-bottom
+            gc.drawLine(bounds.x + 2, cy, cx - 1, bounds.y + bounds.height - 2);
+            // Long line from center-bottom to top-right
+            gc.drawLine(cx - 1, bounds.y + bounds.height - 2, bounds.x + bounds.width - 2, bounds.y + 2);
+            gc.setLineWidth(1);
+        }
     }
 
     public Display getDisplay() {
@@ -354,7 +431,19 @@ public abstract class ProcessingNode extends PipelineNode {
                         continue;
                     }
 
-                    // Process the frame
+                    if (!enabled) {
+                        // Bypass mode: move frame from input to output, update thumbnail
+                        incrementWorkUnits();
+                        setOutputMat(input.clone());
+                        if (outputQueue != null) {
+                            outputQueue.put(input);
+                        } else {
+                            input.release();
+                        }
+                        continue;
+                    }
+
+                    // Process the frame normally
                     Mat output = process(input);
 
                     // Increment work units regardless of output (even if null)
@@ -392,5 +481,28 @@ public abstract class ProcessingNode extends PipelineNode {
         }, "Processing-" + name + "-Thread");
         processingThread.setPriority(threadPriority);
         processingThread.start();
+    }
+
+    /**
+     * Serialize ProcessingNode-specific properties.
+     * Subclasses should call super.serializeProperties() and then add their own.
+     */
+    @Override
+    public void serializeProperties(JsonObject json) {
+        // Only serialize enabled if false (default is true)
+        if (!enabled) {
+            json.addProperty("enabled", enabled);
+        }
+    }
+
+    /**
+     * Deserialize ProcessingNode-specific properties.
+     * Subclasses should call super.deserializeProperties() and then read their own.
+     */
+    @Override
+    public void deserializeProperties(JsonObject json) {
+        if (json.has("enabled")) {
+            enabled = json.get("enabled").getAsBoolean();
+        }
     }
 }

@@ -86,20 +86,25 @@ public class BlankSourceNode extends SourceNode {
 
     @Override
     public void paint(GC gc) {
-        // Draw node background
-        gc.setBackground(new Color(230, 240, 255));
+        // Draw node background - light gray if disabled
+        Color bgColor = enabled ? new Color(230, 240, 255) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
 
         // Draw border
         gc.setForeground(new Color(0, 0, 139));
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
 
-        // Draw title (use custom name if set, otherwise default)
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title (use custom name if set, otherwise default) - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(getDisplayLabel(), x + 10, y + 4, true);
+        gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 4, true);
         boldFont.dispose();
 
         // Draw thread priority, work units, and FPS stats line
@@ -138,6 +143,18 @@ public class BlankSourceNode extends SourceNode {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Blank Source Properties");
         dialog.setLayout(new GridLayout(2, false));
+
+        // Type label at very top (read-only)
+        new Label(dialog, SWT.NONE).setText("Type:");
+        Label typeValue = new Label(dialog, SWT.NONE);
+        typeValue.setText(getClass().getSimpleName());
+        typeValue.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Node name field
+        new Label(dialog, SWT.NONE).setText("Name:");
+        Text nameText = new Text(dialog, SWT.BORDER);
+        nameText.setText(getDisplayLabel());
+        nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
@@ -188,6 +205,8 @@ public class BlankSourceNode extends SourceNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            // Save name
+            setCustomName(nameText.getText().trim());
             imageWidth = widthSpinner.getSelection();
             imageHeight = heightSpinner.getSelection();
             colorIndex = colorCombo.getSelectionIndex();
@@ -215,13 +234,17 @@ public class BlankSourceNode extends SourceNode {
 
     // startProcessing() inherited from SourceNode
 
+    @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("imageWidth", imageWidth);
         json.addProperty("imageHeight", imageHeight);
         json.addProperty("colorIndex", colorIndex);
     }
 
+    @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("imageWidth")) imageWidth = json.get("imageWidth").getAsInt();
         if (json.has("imageHeight")) imageHeight = json.get("imageHeight").getAsInt();
         if (json.has("colorIndex")) colorIndex = json.get("colorIndex").getAsInt();

@@ -188,6 +188,7 @@ public class CLAHENode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("clipLimit", clipLimit);
         json.addProperty("tileSize", tileSize);
         json.addProperty("colorModeIndex", colorModeIndex);
@@ -195,6 +196,7 @@ public class CLAHENode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("clipLimit")) {
             clipLimit = json.get("clipLimit").getAsDouble();
         }

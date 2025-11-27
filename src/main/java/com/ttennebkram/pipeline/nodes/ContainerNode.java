@@ -147,6 +147,7 @@ public class ContainerNode extends ProcessingNode {
     /**
      * Start processing the internal pipeline.
      * Wires up queues and starts all child nodes.
+     * If disabled (bypass mode), the monitoring thread passes input directly to output.
      */
     @Override
     public void startProcessing() {
@@ -157,79 +158,113 @@ public class ContainerNode extends ProcessingNode {
         running.set(true);
         // Note: Don't reset workUnitsCompleted here - it should persist across runs
 
-        // Reset work counters and input read counters on all internal nodes
-        boundaryInput.resetWorkUnitsCompleted();
-        boundaryInput.resetInputReads();
-        for (PipelineNode child : childNodes) {
-            child.resetWorkUnitsCompleted();
-            child.resetInputReads();
-        }
-        boundaryOutput.resetWorkUnitsCompleted();
-        boundaryOutput.resetInputReads();
+        if (enabled) {
+            // Normal mode: start internal pipeline
+            // Reset work counters and input read counters on all internal nodes
+            boundaryInput.resetWorkUnitsCompleted();
+            boundaryInput.resetInputReads();
+            for (PipelineNode child : childNodes) {
+                child.resetWorkUnitsCompleted();
+                child.resetInputReads();
+            }
+            boundaryOutput.resetWorkUnitsCompleted();
+            boundaryOutput.resetInputReads();
 
-        // Wire the container input queue to the boundary input node
-        boundaryInput.setContainerInputQueue(inputQueue);
+            // Wire the container input queue to the boundary input node
+            boundaryInput.setContainerInputQueue(inputQueue);
 
-        // Activate all internal connections
-        for (Connection conn : childConnections) {
-            conn.activate();
-        }
+            // Activate all internal connections
+            for (Connection conn : childConnections) {
+                conn.activate();
+            }
 
-        // Set up input node references for backpressure/slowdown signaling
-        for (Connection conn : childConnections) {
-            if (conn.target != null && conn.source != null) {
-                if (conn.inputIndex == 2) {
-                    conn.target.setInputNode2(conn.source);
-                } else {
-                    conn.target.setInputNode(conn.source);
+            // Set up input node references for backpressure/slowdown signaling
+            for (Connection conn : childConnections) {
+                if (conn.target != null && conn.source != null) {
+                    if (conn.inputIndex == 2) {
+                        conn.target.setInputNode2(conn.source);
+                    } else {
+                        conn.target.setInputNode(conn.source);
+                    }
                 }
             }
+
+            // Wire the boundary output to the container's output queue
+            boundaryOutput.setContainerOutputQueue(outputQueue);
+
+            // Start boundary input first (it's the source)
+            boundaryInput.startProcessing();
+
+            // Start all child nodes
+            for (PipelineNode child : childNodes) {
+                child.startProcessing();
+            }
+
+            // Start boundary output last
+            boundaryOutput.startProcessing();
         }
 
-        // Wire the boundary output to the container's output queue
-        boundaryOutput.setContainerOutputQueue(outputQueue);
-
-        // Start boundary input first (it's the source)
-        boundaryInput.startProcessing();
-
-        // Start all child nodes
-        for (PipelineNode child : childNodes) {
-            child.startProcessing();
-        }
-
-        // Start boundary output last
-        boundaryOutput.startProcessing();
-
-        // Start container monitoring thread (counts as 1 thread from parent's perspective)
+        // Start container monitoring thread (handles both normal monitoring and bypass mode)
         processingThread = new Thread(() -> {
-            long lastBoundaryOutputWork = boundaryOutput.getWorkUnitsCompleted();
+            long lastBoundaryOutputWork = enabled ? boundaryOutput.getWorkUnitsCompleted() : 0;
             while (running.get()) {
                 try {
-                    // Update thumbnail from boundary output's output
-                    Mat outputMat = boundaryOutput.getOutputMatClone();
-                    if (outputMat != null) {
-                        setOutputMat(outputMat);
-                    }
+                    if (enabled) {
+                        // Normal mode: monitor boundary output
+                        Mat outputMat = boundaryOutput.getOutputMatClone();
+                        if (outputMat != null) {
+                            setOutputMat(outputMat);
+                        }
 
-                    // Update container's work counter based on boundary output work
-                    long currentBoundaryOutputWork = boundaryOutput.getWorkUnitsCompleted();
-                    long delta = currentBoundaryOutputWork - lastBoundaryOutputWork;
-                    if (delta > 0) {
-                        workUnitsCompleted += delta;
-                        lastBoundaryOutputWork = currentBoundaryOutputWork;
-                    }
+                        // Update container's work counter based on boundary output work
+                        long currentBoundaryOutputWork = boundaryOutput.getWorkUnitsCompleted();
+                        long delta = currentBoundaryOutputWork - lastBoundaryOutputWork;
+                        if (delta > 0) {
+                            workUnitsCompleted += delta;
+                            lastBoundaryOutputWork = currentBoundaryOutputWork;
+                        }
 
-                    // Trigger stats update on the display thread
-                    if (onStatsUpdate != null && display != null && !display.isDisposed()) {
-                        display.asyncExec(() -> {
-                            if (onStatsUpdate != null && running.get()) {
-                                onStatsUpdate.run();
-                            }
-                        });
-                    }
+                        // Trigger stats update on the display thread
+                        if (onStatsUpdate != null && display != null && !display.isDisposed()) {
+                            display.asyncExec(() -> {
+                                if (onStatsUpdate != null && running.get()) {
+                                    onStatsUpdate.run();
+                                }
+                            });
+                        }
 
-                    // Update interval for stats display
-                    Thread.sleep(250);
+                        // Update interval for stats display
+                        Thread.sleep(250);
+                    } else {
+                        // Bypass mode: pass input directly to output
+                        if (inputQueue == null) {
+                            Thread.sleep(100);
+                            continue;
+                        }
+
+                        Mat input = inputQueue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        if (input == null) {
+                            continue;
+                        }
+
+                        // Increment work units
+                        incrementWorkUnits();
+
+                        // Clone for persistent storage (thumbnail)
+                        setOutputMat(input.clone());
+
+                        // Clone for preview callback
+                        Mat previewClone = input.clone();
+                        notifyFrame(previewClone);
+
+                        // Pass through to output queue
+                        if (outputQueue != null) {
+                            outputQueue.put(input.clone());
+                        }
+
+                        // Release input
+                        input.release();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -311,8 +346,8 @@ public class ContainerNode extends ProcessingNode {
      */
     @Override
     public void paint(GC gc) {
-        // Draw node background - light lavender for containers
-        Color bgColor = new Color(230, 230, 250); // Lavender
+        // Draw node background - light gray if disabled, otherwise light lavender for containers
+        Color bgColor = enabled ? new Color(230, 230, 250) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
         gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
@@ -328,13 +363,16 @@ public class ContainerNode extends ProcessingNode {
         borderColor.dispose();
         gc.setLineWidth(1);
 
-        // Draw title with container name and node count
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title with container name and node count - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
         int nodeCount = childNodes.size() + 2; // +2 for boundary input and output nodes
         String titleText = getDisplayLabel() + " (" + nodeCount + " node" + (nodeCount == 1 ? "" : "s") + ")";
-        gc.drawString(titleText, x + 10, y + 5, true);
+        gc.drawString(titleText, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw container icon (nested rectangles) in corner
@@ -392,9 +430,15 @@ public class ContainerNode extends ProcessingNode {
     }
 
     /**
-     * Draw a container icon (nested rectangles).
+     * Draw a container icon (nested rectangles) with opaque background.
      */
     private void drawContainerIcon(GC gc, int iconX, int iconY) {
+        // Fill background to prevent text bleed-through
+        Color bgColor = enabled ? new Color(230, 230, 250) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        gc.setBackground(bgColor);
+        gc.fillRectangle(iconX - 2, iconY - 1, 21, 15);
+        bgColor.dispose();
+
         Color iconColor = new Color(100, 80, 120);
         gc.setForeground(iconColor);
         gc.setLineWidth(1);
@@ -426,8 +470,17 @@ public class ContainerNode extends ProcessingNode {
     public void showPropertiesDialog() {
         org.eclipse.swt.widgets.Shell dialog = new org.eclipse.swt.widgets.Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Container Properties");
-        dialog.setSize(450, 200);
+        dialog.setSize(450, 220);
         dialog.setLayout(new org.eclipse.swt.layout.GridLayout(3, false));
+
+        // Type label at very top (read-only)
+        org.eclipse.swt.widgets.Label typeLabel = new org.eclipse.swt.widgets.Label(dialog, SWT.NONE);
+        typeLabel.setText("Type:");
+        org.eclipse.swt.widgets.Label typeValue = new org.eclipse.swt.widgets.Label(dialog, SWT.NONE);
+        typeValue.setText(getClass().getSimpleName());
+        org.eclipse.swt.layout.GridData typeGd = new org.eclipse.swt.layout.GridData(SWT.FILL, SWT.CENTER, true, false);
+        typeGd.horizontalSpan = 2;
+        typeValue.setLayoutData(typeGd);
 
         // Container name
         org.eclipse.swt.widgets.Label nameLabel = new org.eclipse.swt.widgets.Label(dialog, SWT.NONE);
@@ -558,6 +611,7 @@ public class ContainerNode extends ProcessingNode {
      */
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("containerName", containerName);
 
         // Save reference to external pipeline file (if set)
@@ -576,6 +630,7 @@ public class ContainerNode extends ProcessingNode {
      */
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("containerName")) {
             setContainerName(json.get("containerName").getAsString());
         }

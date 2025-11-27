@@ -382,6 +382,7 @@ public class BlobDetectorNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("minThreshold", minThreshold);
         json.addProperty("maxThreshold", maxThreshold);
         json.addProperty("showOriginal", showOriginal);
@@ -403,6 +404,7 @@ public class BlobDetectorNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("minThreshold")) minThreshold = json.get("minThreshold").getAsInt();
         if (json.has("maxThreshold")) maxThreshold = json.get("maxThreshold").getAsInt();
         if (json.has("showOriginal")) showOriginal = json.get("showOriginal").getAsBoolean();

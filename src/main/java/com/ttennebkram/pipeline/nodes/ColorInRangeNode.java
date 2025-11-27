@@ -281,6 +281,7 @@ public class ColorInRangeNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("useHSV", useHSV);
         json.addProperty("hLow", hLow);
         json.addProperty("hHigh", hHigh);
@@ -293,6 +294,7 @@ public class ColorInRangeNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("useHSV")) useHSV = json.get("useHSV").getAsBoolean();
         if (json.has("hLow")) hLow = json.get("hLow").getAsInt();
         if (json.has("hHigh")) hHigh = json.get("hHigh").getAsInt();

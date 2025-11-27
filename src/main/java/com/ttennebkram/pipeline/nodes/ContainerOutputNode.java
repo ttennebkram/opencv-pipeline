@@ -234,11 +234,13 @@ public class ContainerOutputNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         // No custom properties - position is handled by serializeCommon
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         // No custom properties
     }
 

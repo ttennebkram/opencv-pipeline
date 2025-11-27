@@ -189,6 +189,7 @@ public class ThresholdNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("threshValue", threshValue);
         json.addProperty("maxValue", maxValue);
         json.addProperty("typeIndex", typeIndex);
@@ -198,6 +199,7 @@ public class ThresholdNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("threshValue")) {
             threshValue = json.get("threshValue").getAsInt();
         }

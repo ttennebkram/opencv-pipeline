@@ -167,6 +167,7 @@ public class CropNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("cropX", cropX);
         json.addProperty("cropY", cropY);
         json.addProperty("cropWidth", cropWidth);
@@ -175,6 +176,7 @@ public class CropNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("cropX")) cropX = json.get("cropX").getAsInt();
         if (json.has("cropY")) cropY = json.get("cropY").getAsInt();
         if (json.has("cropWidth")) cropWidth = json.get("cropWidth").getAsInt();

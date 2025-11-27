@@ -638,12 +638,14 @@ public class FFTLowPass4Node extends MultiOutputNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("radius", radius);
         json.addProperty("smoothness", smoothness);
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("radius")) radius = json.get("radius").getAsInt();
         if (json.has("smoothness")) smoothness = json.get("smoothness").getAsInt();
     }

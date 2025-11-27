@@ -221,6 +221,7 @@ public class ShiTomasiCornersNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("maxCorners", maxCorners);
         json.addProperty("qualityLevel", qualityLevel);
         json.addProperty("minDistance", minDistance);
@@ -236,6 +237,7 @@ public class ShiTomasiCornersNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("maxCorners")) maxCorners = json.get("maxCorners").getAsInt();
         if (json.has("qualityLevel")) qualityLevel = json.get("qualityLevel").getAsInt();
         if (json.has("minDistance")) minDistance = json.get("minDistance").getAsInt();

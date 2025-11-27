@@ -97,11 +97,13 @@ public class GrayscaleNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("conversionIndex", conversionIndex);
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("conversionIndex")) {
             conversionIndex = json.get("conversionIndex").getAsInt();
         }

@@ -499,6 +499,7 @@ public class HistogramNode extends DualInputNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("modeIndex", modeIndex);
         json.addProperty("backgroundMode", backgroundMode);
         json.addProperty("fillBars", fillBars);
@@ -508,6 +509,7 @@ public class HistogramNode extends DualInputNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("modeIndex")) modeIndex = json.get("modeIndex").getAsInt();
         if (json.has("backgroundMode")) backgroundMode = json.get("backgroundMode").getAsInt();
         if (json.has("fillBars")) fillBars = json.get("fillBars").getAsBoolean();

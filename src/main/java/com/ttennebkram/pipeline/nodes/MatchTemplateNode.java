@@ -169,8 +169,8 @@ public class MatchTemplateNode extends DualInputNode {
 
     @Override
     public void paint(GC gc) {
-        // Draw node background
-        Color bgColor = new Color(255, 240, 220); // Light peach for template matching
+        // Draw node background - light gray if disabled
+        Color bgColor = enabled ? new Color(255, 240, 220) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
         gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
@@ -182,11 +182,14 @@ public class MatchTemplateNode extends DualInputNode {
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
         borderColor.dispose();
 
-        // Draw title
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name, x + 10, y + 5, true);
+        gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label
@@ -409,6 +412,7 @@ public class MatchTemplateNode extends DualInputNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("method", method);
         json.addProperty("queuesInSync", queuesInSync);
         json.addProperty("outputMode", outputMode);
@@ -420,6 +424,7 @@ public class MatchTemplateNode extends DualInputNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("method")) {
             method = json.get("method").getAsInt();
         }

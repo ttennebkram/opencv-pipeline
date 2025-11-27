@@ -85,20 +85,25 @@ public class AddWeightedNode extends DualInputNode {
 
     @Override
     public void paint(GC gc) {
-        // Draw node background
-        gc.setBackground(new Color(255, 230, 200)); // Light orange for arithmetic
+        // Draw node background - light gray if disabled
+        Color bgColor = enabled ? new Color(255, 230, 200) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        gc.setBackground(bgColor);
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
+        bgColor.dispose();
 
         // Draw border
         gc.setForeground(new Color(200, 100, 0));
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
 
-        // Draw title
+        // Draw enabled checkbox
+        drawEnabledCheckbox(gc);
+
+        // Draw title - shifted right for checkbox
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name, x + 10, y + 5, true);
+        gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
         // Draw thumbnail if available (centered horizontally)
@@ -264,6 +269,7 @@ public class AddWeightedNode extends DualInputNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("alpha", alpha);
         json.addProperty("beta", beta);
         json.addProperty("gamma", gamma);
@@ -271,6 +277,7 @@ public class AddWeightedNode extends DualInputNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("alpha")) alpha = json.get("alpha").getAsDouble();
         if (json.has("beta")) beta = json.get("beta").getAsDouble();
         if (json.has("gamma")) gamma = json.get("gamma").getAsDouble();

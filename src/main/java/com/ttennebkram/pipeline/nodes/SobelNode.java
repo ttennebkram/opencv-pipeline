@@ -170,6 +170,7 @@ public class SobelNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("dx", dx);
         json.addProperty("dy", dy);
         json.addProperty("kernelSizeIndex", kernelSizeIndex);
@@ -177,6 +178,7 @@ public class SobelNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("dx")) {
             dx = json.get("dx").getAsInt();
         }

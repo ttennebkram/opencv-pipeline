@@ -320,6 +320,7 @@ public class Filter2DNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("kernelSize", kernelSize);
         JsonArray arr = new JsonArray();
         for (int val : kernelValues) arr.add(val);
@@ -328,6 +329,7 @@ public class Filter2DNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("kernelSize")) kernelSize = json.get("kernelSize").getAsInt();
         if (json.has("kernelValues")) {
             JsonArray arr = json.getAsJsonArray("kernelValues");

@@ -150,7 +150,7 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
         dialog.setText("Bit Planes Grayscale Properties");
         dialog.setLayout(new GridLayout(4, false));
 
-        // Node name field
+        // Type label and name field
         Text nameText = addNameField(dialog, 4);
 
         // Method signature
@@ -248,6 +248,7 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         JsonArray enabledArr = new JsonArray();
         JsonArray gainArr = new JsonArray();
         for (int i = 0; i < 8; i++) {
@@ -260,6 +261,7 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("bitEnabled")) {
             JsonArray arr = json.getAsJsonArray("bitEnabled");
             for (int i = 0; i < 8 && i < arr.size(); i++) {

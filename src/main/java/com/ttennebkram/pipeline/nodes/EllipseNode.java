@@ -250,6 +250,7 @@ public class EllipseNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("centerX", centerX);
         json.addProperty("centerY", centerY);
         json.addProperty("axisX", axisX);
@@ -266,6 +267,7 @@ public class EllipseNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("centerX")) centerX = json.get("centerX").getAsInt();
         if (json.has("centerY")) centerY = json.get("centerY").getAsInt();
         if (json.has("axisX")) axisX = json.get("axisX").getAsInt();

@@ -242,6 +242,7 @@ public class HarrisCornersNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("showOriginal", showOriginal);
         json.addProperty("drawFeatures", drawFeatures);
         json.addProperty("blockSize", blockSize);
@@ -256,6 +257,7 @@ public class HarrisCornersNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("showOriginal")) showOriginal = json.get("showOriginal").getAsBoolean();
         if (json.has("drawFeatures")) drawFeatures = json.get("drawFeatures").getAsBoolean();
         if (json.has("blockSize")) blockSize = json.get("blockSize").getAsInt();

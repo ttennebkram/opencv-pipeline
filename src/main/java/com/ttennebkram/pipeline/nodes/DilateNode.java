@@ -135,6 +135,7 @@ public class DilateNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("kernelSize", kernelSize);
         json.addProperty("shapeIndex", shapeIndex);
         json.addProperty("iterations", iterations);
@@ -142,6 +143,7 @@ public class DilateNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("kernelSize")) kernelSize = json.get("kernelSize").getAsInt();
         if (json.has("shapeIndex")) shapeIndex = json.get("shapeIndex").getAsInt();
         if (json.has("iterations")) iterations = json.get("iterations").getAsInt();

@@ -521,6 +521,7 @@ public class ContoursNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("thresholdValue", thresholdValue);
         json.addProperty("retrievalMode", retrievalMode);
         json.addProperty("approxMethod", approxMethod);
@@ -537,6 +538,7 @@ public class ContoursNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("thresholdValue")) thresholdValue = json.get("thresholdValue").getAsInt();
         if (json.has("retrievalMode")) retrievalMode = json.get("retrievalMode").getAsInt();
         if (json.has("approxMethod")) approxMethod = json.get("approxMethod").getAsInt();

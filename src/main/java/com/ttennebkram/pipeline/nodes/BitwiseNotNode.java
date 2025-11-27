@@ -86,11 +86,13 @@ public class BitwiseNotNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         // No properties to serialize
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         // No properties to deserialize
     }
 }

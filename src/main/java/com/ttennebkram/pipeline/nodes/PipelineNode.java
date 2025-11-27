@@ -29,6 +29,11 @@ public abstract class PipelineNode implements NodeSerializable {
     public static final int SELECTION_COLOR_G = 120;
     public static final int SELECTION_COLOR_B = 215;
 
+    // Disabled node background color (RGB) - light gray
+    public static final int DISABLED_BG_R = 220;
+    public static final int DISABLED_BG_G = 220;
+    public static final int DISABLED_BG_B = 220;
+
     // Node dimension constants
     public static final int PROCESSING_NODE_THUMB_WIDTH = 120;
     public static final int PROCESSING_NODE_THUMB_HEIGHT = 80;

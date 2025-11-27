@@ -224,6 +224,7 @@ public class ConnectedComponentsNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("threshold", threshold);
         json.addProperty("invertThreshold", invertThreshold);
         json.addProperty("connectivity", connectivity);
@@ -232,6 +233,7 @@ public class ConnectedComponentsNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("threshold")) threshold = json.get("threshold").getAsInt();
         if (json.has("invertThreshold")) invertThreshold = json.get("invertThreshold").getAsBoolean();
         if (json.has("connectivity")) connectivity = json.get("connectivity").getAsInt();

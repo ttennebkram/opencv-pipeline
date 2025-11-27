@@ -160,6 +160,7 @@ public class ORBFeaturesNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("nFeatures", nFeatures);
         json.addProperty("fastThreshold", fastThreshold);
         json.addProperty("nLevels", nLevels);
@@ -171,6 +172,7 @@ public class ORBFeaturesNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("nFeatures")) nFeatures = json.get("nFeatures").getAsInt();
         if (json.has("fastThreshold")) fastThreshold = json.get("fastThreshold").getAsInt();
         if (json.has("nLevels")) nLevels = json.get("nLevels").getAsInt();

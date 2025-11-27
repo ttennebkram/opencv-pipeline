@@ -120,12 +120,14 @@ public class BoxBlurNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("kernelSizeX", kernelSizeX);
         json.addProperty("kernelSizeY", kernelSizeY);
     }
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("kernelSizeX")) kernelSizeX = json.get("kernelSizeX").getAsInt();
         if (json.has("kernelSizeY")) kernelSizeY = json.get("kernelSizeY").getAsInt();
     }

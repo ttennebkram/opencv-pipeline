@@ -223,6 +223,7 @@ public class MorphologyExNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("operationIndex", operationIndex);
         json.addProperty("shapeIndex", shapeIndex);
         json.addProperty("kernelWidth", kernelWidth);
@@ -234,6 +235,7 @@ public class MorphologyExNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("operationIndex")) operationIndex = json.get("operationIndex").getAsInt();
         if (json.has("shapeIndex")) shapeIndex = json.get("shapeIndex").getAsInt();
         if (json.has("kernelWidth")) kernelWidth = json.get("kernelWidth").getAsInt();

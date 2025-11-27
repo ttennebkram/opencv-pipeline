@@ -245,6 +245,7 @@ public class HoughCirclesNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("showOriginal", showOriginal);
         json.addProperty("minDist", minDist);
         json.addProperty("param1", param1);
@@ -260,6 +261,7 @@ public class HoughCirclesNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("showOriginal")) showOriginal = json.get("showOriginal").getAsBoolean();
         if (json.has("minDist")) minDist = json.get("minDist").getAsInt();
         if (json.has("param1")) param1 = json.get("param1").getAsInt();

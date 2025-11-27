@@ -600,11 +600,21 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Right-click context menu
         canvas.addMenuDetectListener(e -> handleRightClick(e));
 
-        // Keyboard handler for delete and arrow keys
+        // Keyboard handler for delete, arrow keys, and shortcuts
         canvas.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.keyCode == SWT.DEL || e.keyCode == SWT.BS) {
+                // Cmd-S (Mac) or Ctrl-S (Windows/Linux)
+                if (e.character == 's' && (e.stateMask & SWT.MOD1) != 0) {
+                    saveContainerPipeline();
+                    e.doit = false;
+                }
+                // Esc to close window
+                else if (e.keyCode == SWT.ESC) {
+                    shell.close();
+                    e.doit = false;
+                }
+                else if (e.keyCode == SWT.DEL || e.keyCode == SWT.BS) {
                     deleteSelected();
                 } else if (e.keyCode == SWT.ARROW_UP || e.keyCode == SWT.ARROW_DOWN ||
                            e.keyCode == SWT.ARROW_LEFT || e.keyCode == SWT.ARROW_RIGHT) {
@@ -1201,6 +1211,24 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         for (int i = nodes.size() - 1; i >= 0; i--) {
             PipelineNode node = nodes.get(i);
             if (node.containsPoint(click)) {
+                // Check if clicking on enabled checkbox (ProcessingNode or SourceNode)
+                if (node instanceof ProcessingNode) {
+                    ProcessingNode pNode = (ProcessingNode) node;
+                    if (pNode.isOnEnabledCheckbox(click)) {
+                        pNode.toggleEnabled();
+                        notifyModified();
+                        canvas.redraw();
+                        return;
+                    }
+                } else if (node instanceof SourceNode) {
+                    SourceNode sNode = (SourceNode) node;
+                    if (sNode.isOnEnabledCheckbox(click)) {
+                        sNode.toggleEnabled();
+                        notifyModified();
+                        canvas.redraw();
+                        return;
+                    }
+                }
                 // Check if clicking on container icon - open nested container editor
                 if (node instanceof ContainerNode) {
                     ContainerNode nestedContainer = (ContainerNode) node;

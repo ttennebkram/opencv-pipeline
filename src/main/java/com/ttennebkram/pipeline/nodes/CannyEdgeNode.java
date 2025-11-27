@@ -163,6 +163,7 @@ public class CannyEdgeNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("threshold1", threshold1);
         json.addProperty("threshold2", threshold2);
         json.addProperty("apertureIndex", apertureIndex);
@@ -171,6 +172,7 @@ public class CannyEdgeNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("threshold1")) {
             threshold1 = json.get("threshold1").getAsInt();
         }

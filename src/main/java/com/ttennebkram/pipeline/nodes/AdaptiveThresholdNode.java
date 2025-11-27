@@ -177,6 +177,7 @@ public class AdaptiveThresholdNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("maxValue", maxValue);
         json.addProperty("methodIndex", methodIndex);
         json.addProperty("typeIndex", typeIndex);
@@ -186,6 +187,7 @@ public class AdaptiveThresholdNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("maxValue")) {
             maxValue = json.get("maxValue").getAsInt();
         }

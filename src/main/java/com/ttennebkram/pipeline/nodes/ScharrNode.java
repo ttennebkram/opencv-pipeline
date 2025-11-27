@@ -159,6 +159,7 @@ public class ScharrNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("directionIndex", directionIndex);
         json.addProperty("scalePercent", scalePercent);
         json.addProperty("delta", delta);
@@ -166,6 +167,7 @@ public class ScharrNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("directionIndex")) {
             directionIndex = json.get("directionIndex").getAsInt();
         }

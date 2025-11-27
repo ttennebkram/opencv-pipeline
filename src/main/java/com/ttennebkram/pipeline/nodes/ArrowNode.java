@@ -219,6 +219,7 @@ public class ArrowNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("x1", x1);
         json.addProperty("y1", y1);
         json.addProperty("x2", x2);
@@ -232,6 +233,7 @@ public class ArrowNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("x1")) x1 = json.get("x1").getAsInt();
         if (json.has("y1")) y1 = json.get("y1").getAsInt();
         if (json.has("x2")) x2 = json.get("x2").getAsInt();

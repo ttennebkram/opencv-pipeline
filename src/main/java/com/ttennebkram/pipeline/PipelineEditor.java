@@ -2965,6 +2965,24 @@ public class PipelineEditor {
             for (int i = nodes.size() - 1; i >= 0; i--) {
                 PipelineNode node = nodes.get(i);
                 if (node.containsPoint(clickPoint)) {
+                    // Check if clicking on enabled checkbox (ProcessingNode or SourceNode)
+                    if (node instanceof ProcessingNode) {
+                        ProcessingNode pNode = (ProcessingNode) node;
+                        if (pNode.isOnEnabledCheckbox(clickPoint)) {
+                            pNode.toggleEnabled();
+                            markDirty();
+                            canvas.redraw();
+                            return;
+                        }
+                    } else if (node instanceof SourceNode) {
+                        SourceNode sNode = (SourceNode) node;
+                        if (sNode.isOnEnabledCheckbox(clickPoint)) {
+                            sNode.toggleEnabled();
+                            markDirty();
+                            canvas.redraw();
+                            return;
+                        }
+                    }
                     // Check if clicking on container icon - open container editor
                     if (node instanceof ContainerNode) {
                         ContainerNode container = (ContainerNode) node;

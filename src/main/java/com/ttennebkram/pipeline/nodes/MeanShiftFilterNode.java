@@ -132,6 +132,7 @@ public class MeanShiftFilterNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("spatialRadius", spatialRadius);
         json.addProperty("colorRadius", colorRadius);
         json.addProperty("maxLevel", maxLevel);
@@ -139,6 +140,7 @@ public class MeanShiftFilterNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("spatialRadius")) spatialRadius = json.get("spatialRadius").getAsInt();
         if (json.has("colorRadius")) colorRadius = json.get("colorRadius").getAsInt();
         if (json.has("maxLevel")) maxLevel = json.get("maxLevel").getAsInt();

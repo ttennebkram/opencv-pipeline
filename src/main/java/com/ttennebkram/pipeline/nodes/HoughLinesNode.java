@@ -217,6 +217,7 @@ public class HoughLinesNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("threshold", threshold);
         json.addProperty("minLineLength", minLineLength);
         json.addProperty("maxLineGap", maxLineGap);
@@ -230,6 +231,7 @@ public class HoughLinesNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("threshold")) threshold = json.get("threshold").getAsInt();
         if (json.has("minLineLength")) minLineLength = json.get("minLineLength").getAsInt();
         if (json.has("maxLineGap")) maxLineGap = json.get("maxLineGap").getAsInt();

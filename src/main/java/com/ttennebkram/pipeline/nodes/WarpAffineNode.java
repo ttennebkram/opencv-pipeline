@@ -189,6 +189,7 @@ public class WarpAffineNode extends ProcessingNode {
 
     @Override
     public void serializeProperties(JsonObject json) {
+        super.serializeProperties(json);
         json.addProperty("translateX", translateX);
         json.addProperty("translateY", translateY);
         json.addProperty("rotation", rotation);
@@ -198,6 +199,7 @@ public class WarpAffineNode extends ProcessingNode {
 
     @Override
     public void deserializeProperties(JsonObject json) {
+        super.deserializeProperties(json);
         if (json.has("translateX")) translateX = json.get("translateX").getAsInt();
         if (json.has("translateY")) translateY = json.get("translateY").getAsInt();
         if (json.has("rotation")) rotation = json.get("rotation").getAsDouble();
