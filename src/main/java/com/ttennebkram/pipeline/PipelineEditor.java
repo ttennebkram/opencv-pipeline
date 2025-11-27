@@ -3348,6 +3348,8 @@ public class PipelineEditor {
         window.setOnStartPipeline(() -> startPipeline());
         window.setOnStopPipeline(() -> stopPipeline());
         window.setIsPipelineRunning(() -> pipelineRunning.get());
+        // Wire up nested container opening
+        window.setOnOpenNestedContainer(nestedContainer -> openContainerEditor(nestedContainer));
         containerWindows.add(window);
         window.open();
         // Sync initial pipeline state

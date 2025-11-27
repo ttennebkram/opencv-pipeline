@@ -68,6 +68,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     private Runnable onStopPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
 
+    // Callback to open nested container editor
+    private java.util.function.Consumer<ContainerNode> onOpenNestedContainer;
+
     // Start/stop button (needs to update with pipeline state)
     private Button startStopBtn;
 
@@ -151,6 +154,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
     public void setIsPipelineRunning(java.util.function.Supplier<Boolean> supplier) {
         this.isPipelineRunning = supplier;
+    }
+
+    public void setOnOpenNestedContainer(java.util.function.Consumer<ContainerNode> callback) {
+        this.onOpenNestedContainer = callback;
     }
 
     /**
@@ -515,6 +522,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         });
 
         canvas.addMouseMoveListener(e -> handleMouseMove(e));
+
+        // Right-click context menu
+        canvas.addMenuDetectListener(e -> handleRightClick(e));
 
         // Keyboard handler for delete and arrow keys
         canvas.addKeyListener(new KeyAdapter() {
@@ -1112,6 +1122,16 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         for (int i = nodes.size() - 1; i >= 0; i--) {
             PipelineNode node = nodes.get(i);
             if (node.containsPoint(click)) {
+                // Check if clicking on container icon - open nested container editor
+                if (node instanceof ContainerNode) {
+                    ContainerNode nestedContainer = (ContainerNode) node;
+                    if (nestedContainer.isOnContainerIcon(click)) {
+                        if (onOpenNestedContainer != null) {
+                            onOpenNestedContainer.accept(nestedContainer);
+                        }
+                        return;
+                    }
+                }
                 // If node is not already selected, clear selection and select only this node
                 // If node IS already selected, keep current selection (for dragging multiple)
                 if (!selectedNodes.contains(node)) {
@@ -1722,7 +1742,13 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
         for (PipelineNode node : nodes) {
             if (node.containsPoint(click)) {
-                if (node instanceof ProcessingNode) {
+                // ContainerNodes: double-click opens nested container editor
+                if (node instanceof ContainerNode) {
+                    if (onOpenNestedContainer != null) {
+                        onOpenNestedContainer.accept((ContainerNode) node);
+                    }
+                } else if (node instanceof ProcessingNode) {
+                    // Other ProcessingNodes: double-click opens properties dialog
                     // Temporarily set node's shell to this container editor shell
                     // so the dialog appears as a child of this window
                     ProcessingNode pn = (ProcessingNode) node;
@@ -1731,6 +1757,92 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     pn.showPropertiesDialog();
                     pn.setShell(originalShell);
                 }
+                return;
+            }
+        }
+    }
+
+    private void handleRightClick(MenuDetectEvent e) {
+        // Convert to canvas coordinates accounting for zoom
+        Point screenPoint = display.map(null, canvas, new Point(e.x, e.y));
+        Point clickPoint = toCanvasPoint(screenPoint.x, screenPoint.y);
+
+        for (PipelineNode node : nodes) {
+            if (node.containsPoint(clickPoint)) {
+                // Show context menu for the node
+                Menu contextMenu = new Menu(canvas);
+
+                // ContainerNode: Edit Container Contents first, then Properties
+                if (node instanceof ContainerNode) {
+                    ContainerNode nestedContainer = (ContainerNode) node;
+
+                    MenuItem editContentsItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editContentsItem.setText("Edit Container Contents...");
+                    editContentsItem.addListener(SWT.Selection, evt -> {
+                        if (onOpenNestedContainer != null) {
+                            onOpenNestedContainer.accept(nestedContainer);
+                        }
+                    });
+
+                    MenuItem propsItem = new MenuItem(contextMenu, SWT.PUSH);
+                    propsItem.setText("Properties...");
+                    propsItem.addListener(SWT.Selection, evt -> {
+                        nestedContainer.showPropertiesDialog();
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                } else if (node instanceof ProcessingNode) {
+                    // Other ProcessingNodes: Edit Properties
+                    MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
+                    editItem.setText("Properties...");
+                    editItem.addListener(SWT.Selection, evt -> {
+                        ProcessingNode pn = (ProcessingNode) node;
+                        Shell originalShell = pn.getShell();
+                        pn.setShell(shell);
+                        pn.showPropertiesDialog();
+                        pn.setShell(originalShell);
+                    });
+
+                    new MenuItem(contextMenu, SWT.SEPARATOR);
+                }
+
+                // Delete Node option
+                MenuItem deleteItem = new MenuItem(contextMenu, SWT.PUSH);
+                deleteItem.setText("Delete Node");
+                deleteItem.addListener(SWT.Selection, evt -> {
+                    // Remove all connections involving this node
+                    connections.removeIf(c -> c.source == node || c.target == node);
+                    danglingConnections.removeIf(dc -> dc.source == node);
+                    reverseDanglingConnections.removeIf(rdc -> rdc.target == node);
+                    nodes.remove(node);
+                    notifyModified();
+                    canvas.redraw();
+                });
+
+                contextMenu.setLocation(e.x, e.y);
+                contextMenu.setVisible(true);
+                return;
+            }
+        }
+
+        // Check if right-clicked on a connection
+        for (Connection conn : connections) {
+            Point start = conn.source.getOutputPoint(conn.outputIndex);
+            Point end = getConnectionTargetPoint(conn);
+            if (isNearConnectionLine(conn, clickPoint)) {
+                // Show context menu for the connection
+                Menu contextMenu = new Menu(canvas);
+
+                MenuItem deleteItem = new MenuItem(contextMenu, SWT.PUSH);
+                deleteItem.setText("Delete Connection");
+                deleteItem.addListener(SWT.Selection, evt -> {
+                    connections.remove(conn);
+                    notifyModified();
+                    canvas.redraw();
+                });
+
+                contextMenu.setLocation(e.x, e.y);
+                contextMenu.setVisible(true);
                 return;
             }
         }

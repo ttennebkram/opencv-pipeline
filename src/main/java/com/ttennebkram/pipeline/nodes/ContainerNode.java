@@ -24,7 +24,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * - Child node threads (process internally)
  * - ContainerOutputNode thread (pushes to external output)
  */
-@NodeInfo(name = "Container", category = "Container", aliases = {"SubPipeline", "Group"})
+@NodeInfo(name = "Container", category = "Utility", aliases = {"SubPipeline", "Group"})
 public class ContainerNode extends ProcessingNode {
 
     // Internal pipeline components
@@ -211,7 +211,7 @@ public class ContainerNode extends ProcessingNode {
                     }
 
                     // Trigger stats update on the display thread
-                    if (onStatsUpdate != null) {
+                    if (onStatsUpdate != null && display != null && !display.isDisposed()) {
                         display.asyncExec(() -> {
                             if (onStatsUpdate != null && running.get()) {
                                 onStatsUpdate.run();
@@ -288,7 +288,7 @@ public class ContainerNode extends ProcessingNode {
 
     @Override
     public String getCategory() {
-        return "Container";
+        return "Utility";
     }
 
     /**
