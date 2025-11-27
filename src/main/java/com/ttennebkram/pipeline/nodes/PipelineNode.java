@@ -868,7 +868,7 @@ public abstract class PipelineNode implements NodeSerializable {
      * Get a timestamp string for logging.
      */
     private static final SimpleDateFormat LOG_TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSS");
-    protected String timestamp() {
+    public static String timestamp() {
         return LOG_TIME_FORMAT.format(new Date());
     }
 

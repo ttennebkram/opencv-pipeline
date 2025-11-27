@@ -409,10 +409,16 @@ public class PipelineEditor {
             display.dispose();
             System.exit(0);
         } catch (Exception ex) {
-            MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
-            mb.setText("Restart Error");
-            mb.setMessage("Failed to restart: " + ex.getMessage());
-            mb.open();
+            // Shell may be disposed, so check before showing error dialog
+            if (shell != null && !shell.isDisposed()) {
+                MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
+                mb.setText("Restart Error");
+                mb.setMessage("Failed to restart: " + ex.getMessage());
+                mb.open();
+            } else {
+                System.err.println("Failed to restart: " + ex.getMessage());
+                ex.printStackTrace();
+            }
         }
     }
 
@@ -579,7 +585,7 @@ public class PipelineEditor {
 
             currentFilePath = path;
             addToRecentFiles(path);
-            System.out.println("Loaded pipeline: " + path);
+            System.out.println("[" + PipelineNode.timestamp() + "] Loaded pipeline diagram: " + path);
 
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
@@ -971,7 +977,7 @@ public class PipelineEditor {
             addToRecentFiles(path);
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
             clearDirty();
-            System.out.println("Saved pipeline: " + path);
+            System.out.println("[" + PipelineNode.timestamp() + "] Saved pipeline diagram: " + path);
 
         } catch (Exception e) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -1383,7 +1389,8 @@ public class PipelineEditor {
             "• Drag nodes to move\n" +
             "• Click connection circles to connect\n" +
             "• Double-click node for properties\n" +
-            "• Single click any node to see its output in the Output Preview");
+            "• Single click any node to see its output in the Output Preview\n" +
+            "• Edit while running to see changes in real time");
         GridData instructionsGd = new GridData(SWT.FILL, SWT.FILL, true, true);
         instructionsGd.widthHint = 150;
         instructions.setLayoutData(instructionsGd);
@@ -3243,9 +3250,19 @@ public class PipelineEditor {
      */
     private void updateConnectionTooltip(int canvasX, int canvasY) {
         String tooltip = null;
+        Point p = new Point(canvasX, canvasY);
 
         // Check all nodes for connection point hover
         for (PipelineNode node : nodes) {
+            // Check container icon for ContainerNodes
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                if (container.isOnContainerIcon(p)) {
+                    tooltip = "Edit Container's Sub-diagram (can edit while running)";
+                    break;
+                }
+            }
+
             // Check output points
             int outputIndex = node.getOutputIndexNear(canvasX, canvasY);
             if (outputIndex >= 0) {
@@ -3403,7 +3420,7 @@ public class PipelineEditor {
             PipelineSerializer.save(filePath, allNodes, container.getChildConnections(),
                 new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
 
-            System.out.println("Saved container pipeline: " + filePath);
+            System.out.println("[" + PipelineNode.timestamp() + "] Saved container pipeline diagram: " + filePath);
         } catch (Exception e) {
             System.err.println("Failed to save container: " + e.getMessage());
         }
@@ -3438,7 +3455,7 @@ public class PipelineEditor {
 
         try {
             PipelineSerializer.loadContainerPipeline(containerFilePath, container, display, shell);
-            System.out.println("Loaded container pipeline: " + containerFilePath);
+            System.out.println("[" + PipelineNode.timestamp() + "] Loaded container pipeline diagram: " + containerFilePath);
         } catch (Exception e) {
             System.err.println("Failed to load container pipeline: " + e.getMessage());
         }

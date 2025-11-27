@@ -159,6 +159,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
      */
     public void updatePipelineButtonState() {
         boolean running = isPipelineRunning != null && isPipelineRunning.get();
+        System.out.println("[" + PipelineNode.timestamp() + "] updatePipelineButtonState called, running=" + running +
+            ", isPipelineRunning=" + (isPipelineRunning != null) +
+            ", pipelineStatusLabel=" + (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()));
 
         // Update start/stop button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
@@ -174,17 +177,26 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Update pipeline status label with thread count
         if (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()) {
             if (running) {
-                // Schedule thread count update after threads have started
-                display.timerExec(100, () -> {
+                // Show immediate status with thread count
+                int threadCount = countThreadsForContainer();
+                String text = "Pipeline Running (" + threadCount + " threads)";
+                System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: " + text);
+                pipelineStatusLabel.setText(text);
+                pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
+
+                // Schedule a delayed update to get accurate thread count after startup
+                display.timerExec(200, () -> {
                     if (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()) {
-                        int threadCount = countThreadsForContainer();
-                        pipelineStatusLabel.setText("Pipeline Running (" + threadCount + " threads)");
-                        pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
+                        boolean stillRunning = isPipelineRunning != null && isPipelineRunning.get();
+                        if (stillRunning) {
+                            int updatedCount = countThreadsForContainer();
+                            String updatedText = "Pipeline Running (" + updatedCount + " threads)";
+                            pipelineStatusLabel.setText(updatedText);
+                        }
                     }
                 });
-                pipelineStatusLabel.setText("Pipeline Starting...");
-                pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
             } else {
+                System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: Pipeline Stopped");
                 pipelineStatusLabel.setText("Pipeline Stopped");
                 pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red
             }
@@ -218,6 +230,11 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         if (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) {
             count++;
         }
+
+        System.out.println("[" + PipelineNode.timestamp() + "] Container " + container.getContainerName() +
+            " thread count: " + count + " (boundaryIn=" + (container.getBoundaryInput() != null && container.getBoundaryInput().hasActiveThread()) +
+            ", childNodes=" + nodes.size() +
+            ", boundaryOut=" + (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) + ")");
 
         return count;
     }
@@ -260,7 +277,22 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     private void createWindow() {
         shell = new Shell(display, SWT.SHELL_TRIM);
         shell.setText("Container: " + container.getContainerName());
-        shell.setSize(1200, 800);
+
+        // Size to match parent window, clamped to fit on screen
+        Rectangle screenBounds = display.getPrimaryMonitor().getClientArea();
+        int targetWidth = 1200;
+        int targetHeight = 800;
+        if (parentShell != null) {
+            Rectangle parentBounds = parentShell.getBounds();
+            targetWidth = parentBounds.width;
+            targetHeight = parentBounds.height;
+        }
+        // Clamp to screen size with some margin
+        int maxWidth = screenBounds.width - 50;
+        int maxHeight = screenBounds.height - 50;
+        targetWidth = Math.min(targetWidth, maxWidth);
+        targetHeight = Math.min(targetHeight, maxHeight);
+        shell.setSize(targetWidth, targetHeight);
 
         // Same layout as main editor: GridLayout with toolbar + SashForm
         shell.setLayout(new GridLayout(2, false));
@@ -308,12 +340,22 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             }
         });
 
-        // Center on parent
+        // Offset from parent (down and to the right), clamped to screen
         if (parentShell != null) {
             Rectangle parentBounds = parentShell.getBounds();
             Rectangle shellBounds = shell.getBounds();
-            int x = parentBounds.x + (parentBounds.width - shellBounds.width) / 2;
-            int y = parentBounds.y + (parentBounds.height - shellBounds.height) / 2;
+            int offsetX = 60;
+            int offsetY = 60;
+            int x = parentBounds.x + offsetX;
+            int y = parentBounds.y + offsetY;
+            // Clamp to screen bounds
+            Rectangle screenBounds2 = display.getPrimaryMonitor().getClientArea();
+            if (x + shellBounds.width > screenBounds2.x + screenBounds2.width) {
+                x = screenBounds2.x + screenBounds2.width - shellBounds.width;
+            }
+            if (y + shellBounds.height > screenBounds2.y + screenBounds2.height) {
+                y = screenBounds2.y + screenBounds2.height - shellBounds.height;
+            }
             shell.setLocation(x, y);
         }
     }
@@ -423,7 +465,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Pipeline status in center
         pipelineStatusLabel = new Label(statusComp, SWT.NONE);
         pipelineStatusLabel.setText("Pipeline Stopped");
-        pipelineStatusLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+        GridData statusGd = new GridData(SWT.CENTER, SWT.CENTER, true, false);
+        statusGd.widthHint = 200; // Reserve space for thread count text
+        pipelineStatusLabel.setLayoutData(statusGd);
         pipelineStatusLabel.setBackground(new Color(160, 160, 160));
         pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red for stopped
 

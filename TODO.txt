@@ -1,3 +1,9 @@
+TODO: List of items for OpenCV Java GEF Editor
+
+Legend:
+    / = complete(checkmark)       . = doing it           , = blocked by external
+    ! = urgent a = very high pri  b = important          c = avg/lower pri
+    ? = question                  X or x = No/dismissed  = = dupe
 
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
@@ -26,6 +32,13 @@ enabled/disabled checkbox, upper right? upper left?
 thread info
 
 Paramertize ALL numbers damnit!
+
+.Doc: Yes, you can edit while running, we encourage doing so to see the effects of your changes in real time 
+
+.Upper right corner icon in Container rendering in parent diagram, 
+    mouse over / tool tip "Edit Container's Sub-diagram"
+
+.opening container window, good initial position and good initial height, but width is too narrow, ideally same dims as parent window IF that would fit on their screen, so clamped
 
 .Container Editor status bar:
     Should show number of running threads, implication is that it's for that diagram down

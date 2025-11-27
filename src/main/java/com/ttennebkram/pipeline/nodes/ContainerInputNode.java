@@ -264,6 +264,16 @@ public class ContainerInputNode extends SourceNode {
     }
 
     /**
+     * Override to return centered output point regardless of outputCount.
+     * All outputs connect from the same visual point for boundary nodes.
+     */
+    @Override
+    public Point getOutputPoint(int index) {
+        // Always return center-right, regardless of index
+        return new Point(x + width, y + height / 2);
+    }
+
+    /**
      * Draw hollow/clear circle for output (boundary style).
      */
     @Override
