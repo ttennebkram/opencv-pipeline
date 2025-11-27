@@ -155,7 +155,7 @@ public class ContainerNode extends ProcessingNode {
         }
 
         running.set(true);
-        workUnitsCompleted = 0;
+        // Note: Don't reset workUnitsCompleted here - it should persist across runs
 
         // Reset work counters and input read counters on all internal nodes
         boundaryInput.resetWorkUnitsCompleted();
@@ -202,12 +202,21 @@ public class ContainerNode extends ProcessingNode {
 
         // Start container monitoring thread (counts as 1 thread from parent's perspective)
         processingThread = new Thread(() -> {
+            long lastBoundaryOutputWork = boundaryOutput.getWorkUnitsCompleted();
             while (running.get()) {
                 try {
                     // Update thumbnail from boundary output's output
                     Mat outputMat = boundaryOutput.getOutputMatClone();
                     if (outputMat != null) {
                         setOutputMat(outputMat);
+                    }
+
+                    // Update container's work counter based on boundary output work
+                    long currentBoundaryOutputWork = boundaryOutput.getWorkUnitsCompleted();
+                    long delta = currentBoundaryOutputWork - lastBoundaryOutputWork;
+                    if (delta > 0) {
+                        workUnitsCompleted += delta;
+                        lastBoundaryOutputWork = currentBoundaryOutputWork;
                     }
 
                     // Trigger stats update on the display thread
@@ -342,12 +351,11 @@ public class ContainerNode extends ProcessingNode {
         lightGray.dispose();
         italicFont.dispose();
 
-        // Work count in normal font/color - shows output queue size
+        // Work count in normal font/color - shows work units completed
         Font normalFont = new Font(display, "Arial", 8, SWT.NORMAL);
         gc.setFont(normalFont);
         gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
-        int queueSize = outputQueue != null ? outputQueue.size() : 0;
-        gc.drawString("   Work: " + formatNumber(queueSize), x + 10 + priWidth, y + 22, true);
+        gc.drawString("   Work: " + formatNumber(workUnitsCompleted), x + 10 + priWidth, y + 22, true);
         normalFont.dispose();
 
         // Draw input read count on the left side (use boundary input's count since container delegates to it)

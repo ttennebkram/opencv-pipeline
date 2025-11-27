@@ -173,14 +173,11 @@ public class BitwiseOrNode extends DualInputNode {
         sigGd.horizontalSpan = 2;
         sigLabel.setLayoutData(sigGd);
 
-        // Queues In Sync checkbox
+        // Queues In Sync checkbox - use Label + Checkbox pattern for consistent styling
+        new Label(dialog, SWT.NONE).setText("Queues In Sync:");
         Button syncCheckbox = new Button(dialog, SWT.CHECK);
-        syncCheckbox.setText("Queues In Sync");
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
-        GridData syncGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        syncGd.horizontalSpan = 2;
-        syncCheckbox.setLayoutData(syncGd);
 
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);

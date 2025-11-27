@@ -223,13 +223,13 @@ public class AddWeightedNode extends DualInputNode {
         gammaLabel.setText(String.valueOf((int)gamma));
         gammaScale.addListener(SWT.Selection, e -> gammaLabel.setText(String.valueOf(gammaScale.getSelection())));
 
-        // Queues In Sync checkbox
+        // Queues In Sync checkbox - use Label + Checkbox pattern for consistent styling
+        new Label(dialog, SWT.NONE).setText("Queues In Sync:");
         Button syncCheckbox = new Button(dialog, SWT.CHECK);
-        syncCheckbox.setText("Queues In Sync");
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
         GridData syncGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        syncGd.horizontalSpan = 3;
+        syncGd.horizontalSpan = 2;
         syncCheckbox.setLayoutData(syncGd);
 
         // Buttons

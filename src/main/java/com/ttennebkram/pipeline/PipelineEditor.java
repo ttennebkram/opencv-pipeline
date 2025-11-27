@@ -587,8 +587,8 @@ public class PipelineEditor {
                 if (node instanceof ContainerNode) {
                     ContainerNode container = (ContainerNode) node;
                     container.setOnEditSubDiagram(() -> openContainerEditor(container));
-                    container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
-                    container.setOnStatsUpdate(() -> canvas.redraw());
+                    container.setOnPropertiesChanged(() -> { markDirty(); if (!canvas.isDisposed()) canvas.redraw(); });
+                    container.setOnStatsUpdate(() -> { if (!canvas.isDisposed()) canvas.redraw(); });
 
                     // Load the container's internal pipeline if it has a file path
                     String containerFilePath = container.getPipelineFilePath();
@@ -3811,8 +3811,8 @@ public class PipelineEditor {
             if (node instanceof ContainerNode) {
                 ContainerNode container = (ContainerNode) node;
                 container.setOnEditSubDiagram(() -> openContainerEditor(container));
-                container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
-                container.setOnStatsUpdate(() -> canvas.redraw());
+                container.setOnPropertiesChanged(() -> { markDirty(); if (!canvas.isDisposed()) canvas.redraw(); });
+                container.setOnStatsUpdate(() -> { if (!canvas.isDisposed()) canvas.redraw(); });
             }
             nodes.add(node);
             markDirty();
