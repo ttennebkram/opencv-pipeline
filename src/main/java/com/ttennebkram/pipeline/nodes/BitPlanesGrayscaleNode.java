@@ -150,6 +150,9 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
         dialog.setText("Bit Planes Grayscale Properties");
         dialog.setLayout(new GridLayout(4, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 4);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -222,6 +225,7 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             for (int i = 0; i < 8; i++) {
                 bitEnabled[i] = checkButtons[i].getSelection();
                 // Convert slider to gain: gain = 10^((slider - CENTER) / SCALE)

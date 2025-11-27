@@ -164,6 +164,9 @@ public class AddWeightedNode extends DualInputNode {
         dialog.setText("Add Weighted Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -240,6 +243,7 @@ public class AddWeightedNode extends DualInputNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             alpha = alphaScale.getSelection() / 100.0;
             beta = betaScale.getSelection() / 100.0;
             gamma = gammaScale.getSelection();

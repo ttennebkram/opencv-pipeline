@@ -86,6 +86,9 @@ public class CropNode extends ProcessingNode {
         dialog.setText("Crop Properties");
         dialog.setLayout(new GridLayout(2, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 2);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -143,6 +146,7 @@ public class CropNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             cropX = xSpinner.getSelection();
             cropY = ySpinner.getSelection();
             cropWidth = widthSpinner.getSelection();

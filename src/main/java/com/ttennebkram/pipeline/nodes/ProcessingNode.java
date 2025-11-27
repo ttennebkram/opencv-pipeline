@@ -3,8 +3,9 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.*;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -51,11 +52,135 @@ public abstract class ProcessingNode extends PipelineNode {
         }
     }
 
+    /**
+     * Helper to add a standard name field to a properties dialog.
+     * Call this at the start of showPropertiesDialog() after creating the dialog.
+     * @param dialog The dialog shell
+     * @param columns The number of columns in the dialog's GridLayout
+     * @return The Text widget for the name field (save reference to get value in OK handler)
+     */
+    protected Text addNameField(Shell dialog, int columns) {
+        new Label(dialog, SWT.NONE).setText("Name:");
+        Text nameText = new Text(dialog, SWT.BORDER);
+        nameText.setText(getDisplayLabel());
+        GridData nameGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        if (columns > 2) {
+            nameGd.horizontalSpan = columns - 1;
+        }
+        nameText.setLayoutData(nameGd);
+        return nameText;
+    }
+
+    /**
+     * Helper to save the name from the name field in the OK handler.
+     * Call this at the start of the OK button listener.
+     * @param nameText The Text widget returned by addNameField()
+     */
+    protected void saveNameField(Text nameText) {
+        setCustomName(nameText.getText().trim());
+    }
+
+    /**
+     * Template method for showing properties dialog with automatic name field handling.
+     * Creates a dialog with:
+     * 1. Name field at the top
+     * 2. Custom content from subclass (via addPropertiesContent)
+     * 3. OK/Cancel buttons that automatically save the name
+     *
+     * Subclasses should override addPropertiesContent() instead of showPropertiesDialog()
+     * to add their specific fields.
+     *
+     * @param title The dialog title
+     * @param columns Number of columns for the GridLayout
+     */
+    protected void showPropertiesDialogWithName(String title, int columns) {
+        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+        dialog.setText(title);
+        dialog.setLayout(new GridLayout(columns, false));
+
+        // Name field at top
+        Text nameText = addNameField(dialog, columns);
+
+        // Let subclass add its content
+        Runnable onOk = addPropertiesContent(dialog, columns);
+
+        // Buttons
+        Composite buttonComp = new Composite(dialog, SWT.NONE);
+        buttonComp.setLayout(new GridLayout(2, true));
+        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+        gd.horizontalSpan = columns;
+        buttonComp.setLayoutData(gd);
+
+        Button okBtn = new Button(buttonComp, SWT.PUSH);
+        okBtn.setText("OK");
+        dialog.setDefaultButton(okBtn);
+        okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
+            if (onOk != null) {
+                onOk.run();
+            }
+            dialog.dispose();
+            notifyChanged();
+        });
+
+        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
+        cancelBtn.setText("Cancel");
+        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
+
+        dialog.pack();
+        Point cursor = shell.getDisplay().getCursorLocation();
+        dialog.setLocation(cursor.x, cursor.y);
+        dialog.open();
+    }
+
+    /**
+     * Override this method to add custom properties content to the dialog.
+     * The name field is already added at the top by showPropertiesDialogWithName().
+     *
+     * @param dialog The dialog shell to add content to
+     * @param columns The number of columns in the dialog's GridLayout
+     * @return A Runnable to execute when OK is clicked (to save properties), or null
+     */
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
+        // Default implementation adds just a description
+        Label sigLabel = new Label(dialog, SWT.NONE);
+        sigLabel.setText(getDescription());
+        sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
+        GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sigGd.horizontalSpan = columns;
+        sigLabel.setLayoutData(sigGd);
+        return null;
+    }
+
     // Process input Mat and return output Mat
     public abstract Mat process(Mat input);
 
-    // Show properties dialog
-    public abstract void showPropertiesDialog();
+    /**
+     * Show properties dialog with name field and node-specific content.
+     * Subclasses should NOT override this - instead override:
+     * - getPropertiesDialogTitle() to customize the dialog title
+     * - getPropertiesDialogColumns() to change the number of columns (default 2)
+     * - addPropertiesContent() to add node-specific fields
+     */
+    public void showPropertiesDialog() {
+        showPropertiesDialogWithName(getPropertiesDialogTitle(), getPropertiesDialogColumns());
+    }
+
+    /**
+     * Override to customize the properties dialog title.
+     * Default is "NodeDisplayName Properties"
+     */
+    protected String getPropertiesDialogTitle() {
+        return getDisplayName() + " Properties";
+    }
+
+    /**
+     * Override to change the number of columns in the properties dialog.
+     * Default is 2 columns.
+     */
+    protected int getPropertiesDialogColumns() {
+        return 2;
+    }
 
     // Get description for tooltip
     public abstract String getDescription();

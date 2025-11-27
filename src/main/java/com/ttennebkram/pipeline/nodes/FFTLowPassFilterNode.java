@@ -223,6 +223,9 @@ public class FFTLowPassFilterNode extends ProcessingNode {
         dialog.setText("FFT Low-Pass Filter Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -272,6 +275,7 @@ public class FFTLowPassFilterNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             radius = radiusScale.getSelection();
             smoothness = smoothnessScale.getSelection();
             dialog.dispose();

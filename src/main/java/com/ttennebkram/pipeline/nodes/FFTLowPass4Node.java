@@ -569,6 +569,9 @@ public class FFTLowPass4Node extends MultiOutputNode {
         dialog.setText("FFT Low-Pass Filter Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
@@ -616,6 +619,7 @@ public class FFTLowPass4Node extends MultiOutputNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             radius = radiusScale.getSelection();
             smoothness = smoothnessScale.getSelection();
             dialog.dispose();

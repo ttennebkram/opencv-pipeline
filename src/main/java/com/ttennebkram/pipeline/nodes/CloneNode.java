@@ -6,10 +6,8 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.GC;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Mat;
 
@@ -116,21 +114,17 @@ public class CloneNode extends MultiOutputNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Clone Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         Label infoLabel = new Label(dialog, SWT.NONE);
         infoLabel.setText("Duplicates input to multiple outputs.");
         GridData infoGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        infoGd.horizontalSpan = 2;
+        infoGd.horizontalSpan = columns;
         infoLabel.setLayoutData(infoGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Output count
@@ -139,31 +133,10 @@ public class CloneNode extends MultiOutputNode {
         outputCombo.setItems("2", "3", "4");
         outputCombo.select(numOutputs - MIN_OUTPUTS);
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             int newCount = outputCombo.getSelectionIndex() + MIN_OUTPUTS;
             setNumOutputs(newCount);
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

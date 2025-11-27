@@ -21,7 +21,9 @@ Support copy and paste
 how many nodes override .paint()?
     can they be refactored?
 
-each node can have its own custom name
+.each node can have its own custom name
+
+Enabled Checkmark for all nodes, upper left next to the name
 
 .debug log all json files that are read or saved, even for the contents of a container
 

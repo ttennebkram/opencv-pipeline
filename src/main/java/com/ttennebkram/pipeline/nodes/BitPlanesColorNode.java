@@ -190,6 +190,9 @@ public class BitPlanesColorNode extends ProcessingNode {
         dialog.setText("Bit Planes Color Properties");
         dialog.setLayout(new GridLayout(1, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 1);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -272,6 +275,7 @@ public class BitPlanesColorNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             for (int c = 0; c < 3; c++) {
                 for (int i = 0; i < 8; i++) {
                     bitEnabled[c][i] = checkButtons[c][i].getSelection();

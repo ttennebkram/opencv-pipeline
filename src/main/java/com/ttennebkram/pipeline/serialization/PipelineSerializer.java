@@ -427,8 +427,10 @@ public class PipelineSerializer {
                     allNodes.add(boundaryOutput);
                 } else {
                     // Regular node - create it
+                    System.out.println("Loading child node type: " + type);
                     PipelineNode node = createNode(type, nodeJson, display, shell, null, x, y);
                     if (node != null) {
+                        System.out.println("Created node: " + node.getClass().getSimpleName());
                         node.deserializeCommon(nodeJson);
                         node.deserializeProperties(nodeJson);
                         container.addChildNode(node);
@@ -438,6 +440,8 @@ public class PipelineSerializer {
                         if (node instanceof ContainerNode) {
                             ContainerNode nestedContainer = (ContainerNode) node;
                             String nestedFilePath = nestedContainer.getPipelineFilePath();
+                            System.out.println("Found nested container: " + nestedContainer.getContainerName() +
+                                ", pipelineFile=" + nestedFilePath);
                             if (nestedFilePath != null && !nestedFilePath.isEmpty()) {
                                 // Resolve relative path based on current file's directory
                                 java.io.File nestedFile = new java.io.File(nestedFilePath);
@@ -448,12 +452,15 @@ public class PipelineSerializer {
                                         nestedFilePath = new java.io.File(baseDir, nestedFilePath).getAbsolutePath();
                                     }
                                 }
+                                System.out.println("Resolved nested path: " + nestedFilePath +
+                                    ", exists=" + new java.io.File(nestedFilePath).exists());
                                 if (new java.io.File(nestedFilePath).exists()) {
                                     try {
                                         loadContainerPipeline(nestedFilePath, nestedContainer, display, shell);
                                         System.out.println("Loaded nested container pipeline: " + nestedFilePath);
                                     } catch (Exception e) {
                                         System.err.println("Failed to load nested container pipeline: " + e.getMessage());
+                                        e.printStackTrace();
                                     }
                                 } else {
                                     System.err.println("Nested container pipeline file not found: " + nestedFilePath);

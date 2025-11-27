@@ -100,6 +100,9 @@ public class EllipseNode extends ProcessingNode {
         dialog.setText("Ellipse Properties");
         dialog.setLayout(new GridLayout(2, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 2);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -218,6 +221,7 @@ public class EllipseNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             centerX = centerXSpinner.getSelection();
             centerY = centerYSpinner.getSelection();
             axisX = axisXSpinner.getSelection();

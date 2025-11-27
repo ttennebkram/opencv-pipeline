@@ -3,9 +3,12 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.*;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Font;
+import org.eclipse.swt.graphics.GC;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
@@ -177,17 +180,13 @@ public class AddClampNode extends DualInputNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Add with Clamping Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription() + "\n\nConnect two image sources to the input points.");
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Queues In Sync checkbox
@@ -196,28 +195,12 @@ public class AddClampNode extends DualInputNode {
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
         GridData syncGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        syncGd.horizontalSpan = 2;
+        syncGd.horizontalSpan = columns;
         syncCheckbox.setLayoutData(syncGd);
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(1, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             queuesInSync = syncCheckbox.getSelection();
-            dialog.dispose();
-        });
-
-        dialog.pack();
-        org.eclipse.swt.graphics.Point cursorLoc = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursorLoc.x, cursorLoc.y);
-        dialog.open();
+        };
     }
 
     @Override

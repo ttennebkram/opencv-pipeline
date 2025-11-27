@@ -93,6 +93,9 @@ public class ArrowNode extends ProcessingNode {
         dialog.setText("Arrow Properties");
         dialog.setLayout(new GridLayout(2, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 2);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -190,6 +193,7 @@ public class ArrowNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             x1 = x1Spinner.getSelection();
             y1 = y1Spinner.getSelection();
             x2 = x2Spinner.getSelection();

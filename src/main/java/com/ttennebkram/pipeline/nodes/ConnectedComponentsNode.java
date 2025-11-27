@@ -129,6 +129,9 @@ public class ConnectedComponentsNode extends ProcessingNode {
         dialog.setText("Connected Components Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -199,6 +202,7 @@ public class ConnectedComponentsNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             threshold = thresholdScale.getSelection();
             invertThreshold = invertCheck.getSelection();
             connectivity = connectivityCombo.getSelectionIndex() == 0 ? 4 : 8;

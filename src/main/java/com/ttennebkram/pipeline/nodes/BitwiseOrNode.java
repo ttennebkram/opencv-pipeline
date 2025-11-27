@@ -162,6 +162,9 @@ public class BitwiseOrNode extends DualInputNode {
         dialog.setText("Bitwise OR Properties");
         dialog.setLayout(new GridLayout(2, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 2);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription() + "\n\nConnect two image sources to the input points.");
@@ -190,8 +193,10 @@ public class BitwiseOrNode extends DualInputNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             queuesInSync = syncCheckbox.getSelection();
             dialog.dispose();
+            notifyChanged();
         });
 
         dialog.pack();

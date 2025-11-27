@@ -308,11 +308,14 @@ public class ContainerNode extends ProcessingNode {
         gc.fillRoundRectangle(x, y, width, height, 10, 10);
         bgColor.dispose();
 
-        // Draw thicker border - purple-gray for containers
+        // Draw double border - purple-gray for containers
         Color borderColor = new Color(120, 100, 140);
         gc.setForeground(borderColor);
-        gc.setLineWidth(3);
+        gc.setLineWidth(2);
+        // Outer border
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
+        // Inner border (3 pixels inside)
+        gc.drawRoundRectangle(x + 3, y + 3, width - 6, height - 6, 8, 8);
         borderColor.dispose();
         gc.setLineWidth(1);
 

@@ -107,6 +107,9 @@ public class CLAHENode extends ProcessingNode {
         dialog.setText("CLAHE Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
@@ -165,6 +168,7 @@ public class CLAHENode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             clipLimit = clipScale.getSelection() / 10.0;
             tileSize = tileScale.getSelection();
             colorModeIndex = modeCombo.getSelectionIndex();

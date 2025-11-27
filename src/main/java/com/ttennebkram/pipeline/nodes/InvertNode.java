@@ -3,9 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Mat;
 
@@ -48,11 +46,7 @@ public class InvertNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Invert Properties");
-        dialog.setLayout(new GridLayout(1, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -64,17 +58,7 @@ public class InvertNode extends ProcessingNode {
 
         new Label(dialog, SWT.NONE).setText("Inverts all pixel values (negative image).\nNo parameters to configure.");
 
-        Button okBtn = new Button(dialog, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-        okBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        // Position dialog near cursor
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        return null; // No extra save action needed
     }
 
     @Override

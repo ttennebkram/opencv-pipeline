@@ -132,6 +132,9 @@ public class ColorInRangeNode extends ProcessingNode {
         dialog.setText("Color In Range Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -253,6 +256,7 @@ public class ColorInRangeNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             useHSV = hsvCheck.getSelection();
             hLow = hLowScale.getSelection();
             hHigh = hHighScale.getSelection();

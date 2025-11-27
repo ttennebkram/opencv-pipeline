@@ -89,6 +89,9 @@ public class CircleNode extends ProcessingNode {
         dialog.setText("Circle Properties");
         dialog.setLayout(new GridLayout(2, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 2);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -175,6 +178,7 @@ public class CircleNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             centerX = centerXSpinner.getSelection();
             centerY = centerYSpinner.getSelection();
             radius = radiusSpinner.getSelection();

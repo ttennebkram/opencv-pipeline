@@ -189,6 +189,9 @@ public class BlobDetectorNode extends ProcessingNode {
         dialog.setText("Blob Detector Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 3);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -348,6 +351,7 @@ public class BlobDetectorNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
             showOriginal = showOrigBtn.getSelection();
             minThreshold = minThreshScale.getSelection();
             maxThreshold = maxThreshScale.getSelection();

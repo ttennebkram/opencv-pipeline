@@ -581,7 +581,7 @@ public class PipelineEditor {
             // Set up change callbacks for ProcessingNodes
             for (PipelineNode node : nodes) {
                 if (node instanceof ProcessingNode) {
-                    ((ProcessingNode) node).setOnChanged(() -> { markDirty(); executePipeline(); });
+                    ((ProcessingNode) node).setOnChanged(() -> { markDirty(); canvas.redraw(); executePipeline(); });
                 }
                 // Set up container callback for ContainerNodes
                 if (node instanceof ContainerNode) {
@@ -3693,7 +3693,7 @@ public class PipelineEditor {
     private void addEffectNodeAt(String type, int x, int y) {
         ProcessingNode node = createEffectNode(type, x, y);
         if (node != null) {
-            node.setOnChanged(() -> { markDirty(); executePipeline(); });
+            node.setOnChanged(() -> { markDirty(); canvas.redraw(); executePipeline(); });
             // Set up container callback if this is a ContainerNode
             if (node instanceof ContainerNode) {
                 ContainerNode container = (ContainerNode) node;

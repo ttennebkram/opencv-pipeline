@@ -106,6 +106,13 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         this.connections = container.getChildConnections();
 
         createWindow();
+
+        // Wire up change callbacks for existing nodes
+        for (PipelineNode node : nodes) {
+            if (node instanceof ProcessingNode) {
+                ((ProcessingNode) node).setOnChanged(() -> { notifyModified(); canvas.redraw(); });
+            }
+        }
     }
 
     // ========== Abstract method implementations from PipelineCanvasBase ==========
@@ -139,6 +146,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     protected void addNodeAt(String nodeType, int x, int y) {
         ProcessingNode node = NodeRegistry.createProcessingNode(nodeType, display, shell, x, y);
         if (node != null) {
+            node.setOnChanged(() -> { notifyModified(); canvas.redraw(); });
             nodes.add(node);
             notifyModified();
             redrawCanvas();
@@ -1811,6 +1819,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
         for (PipelineNode node : nodes) {
             if (node.containsPoint(click)) {
+                // Reset drag state - mouseDown fired before doubleClick and may have set isDragging
+                isDragging = false;
+                dragOffset = null;
+
                 // ContainerNodes: double-click opens nested container editor
                 if (node instanceof ContainerNode) {
                     openNestedContainerEditor((ContainerNode) node);
@@ -1867,6 +1879,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     MenuItem editItem = new MenuItem(contextMenu, SWT.PUSH);
                     editItem.setText("Properties...");
                     editItem.addListener(SWT.Selection, evt -> {
+                        // Reset drag state in case right-click happened while dragging
+                        isDragging = false;
+                        dragOffset = null;
+
                         ProcessingNode pn = (ProcessingNode) node;
                         Shell originalShell = pn.getShell();
                         pn.setShell(shell);

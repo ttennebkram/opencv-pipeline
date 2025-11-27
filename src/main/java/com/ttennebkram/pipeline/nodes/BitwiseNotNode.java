@@ -53,6 +53,9 @@ public class BitwiseNotNode extends ProcessingNode {
         dialog.setText("NOT Properties");
         dialog.setLayout(new GridLayout(1, false));
 
+        // Node name field
+        Text nameText = addNameField(dialog, 1);
+
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription() + "\n\nInverts all bits in the input image.");
@@ -69,7 +72,11 @@ public class BitwiseNotNode extends ProcessingNode {
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> dialog.dispose());
+        okBtn.addListener(SWT.Selection, e -> {
+            saveNameField(nameText);
+            dialog.dispose();
+            notifyChanged();
+        });
 
         dialog.pack();
         Point cursor = shell.getDisplay().getCursorLocation();
