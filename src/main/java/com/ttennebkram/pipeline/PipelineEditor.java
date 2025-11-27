@@ -39,6 +39,27 @@ import com.ttennebkram.pipeline.ui.ContainerEditorWindow;
 
 public class PipelineEditor {
 
+    // =========================== COLOR CONSTANTS ===========================
+    // Toolbar and button colors
+    private static final int[] COLOR_TOOLBAR_BG = {160, 200, 160};           // Light green toolbar background
+    private static final int[] COLOR_BUTTON_NORMAL = {160, 160, 160};        // Gray button background
+    private static final int[] COLOR_BUTTON_SELECTED = {100, 150, 255};      // Blue selected button
+
+    // Status bar colors
+    private static final int[] COLOR_STATUS_BAR_BG = {160, 160, 160};        // Gray status bar background
+    private static final int[] COLOR_STATUS_STOPPED = {180, 0, 0};           // Red text for stopped
+    private static final int[] COLOR_STATUS_RUNNING = {0, 128, 0};           // Green text for running
+
+    // Pipeline control button colors
+    private static final int[] COLOR_START_BUTTON = {100, 180, 100};         // Green start button
+    private static final int[] COLOR_STOP_BUTTON = {200, 100, 100};          // Red stop button
+
+    // Canvas colors
+    private static final int[] COLOR_GRID_LINES = {230, 230, 230};           // Light gray grid
+    private static final int[] COLOR_BACKPRESSURE = {139, 0, 0};             // Dark red for backpressure
+    private static final int[] COLOR_SELECTION_BOX = {0, 120, 215};          // Blue selection box
+    // ========================================================================
+
     // Static initialization - auto-discover all node types
     static {
         NodeRegistry.initialize();
@@ -694,7 +715,7 @@ public class PipelineEditor {
         toolbarContent.setLayout(toolbarLayout);
 
         // Set darker green background for toolbar (better text visibility in dark mode)
-        Color toolbarGreen = new Color(160, 200, 160);
+        Color toolbarGreen = new Color(COLOR_TOOLBAR_BG[0], COLOR_TOOLBAR_BG[1], COLOR_TOOLBAR_BG[2]);
         toolbarContent.setBackground(toolbarGreen);
         scrolledToolbar.setBackground(toolbarGreen);
         toolbarContainer.setBackground(toolbarGreen);
@@ -775,7 +796,7 @@ public class PipelineEditor {
         // Button text is just the node name (category is already shown in section headers)
         Button btn = new Button(parent, SWT.PUSH | SWT.FLAT);
         btn.setText(nodeName);
-        btn.setBackground(new Color(160, 160, 160));
+        btn.setBackground(new Color(COLOR_BUTTON_NORMAL[0], COLOR_BUTTON_NORMAL[1], COLOR_BUTTON_NORMAL[2]));
         GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         gd.heightHint = btn.computeSize(SWT.DEFAULT, SWT.DEFAULT).y + 2;
         // no gd.horizontalIndent = 3;  // Add left/right padding inside button area
@@ -923,8 +944,8 @@ public class PipelineEditor {
     }
 
     private void updateButtonHighlighting(int oldIndex) {
-        Color normalColor = new Color(160, 160, 160);
-        Color selectedColor = new Color(100, 150, 255);
+        Color normalColor = new Color(COLOR_BUTTON_NORMAL[0], COLOR_BUTTON_NORMAL[1], COLOR_BUTTON_NORMAL[2]);
+        Color selectedColor = new Color(COLOR_BUTTON_SELECTED[0], COLOR_BUTTON_SELECTED[1], COLOR_BUTTON_SELECTED[2]);
 
         // Reset old selection
         if (oldIndex >= 0 && oldIndex < searchableButtons.size()) {
@@ -938,7 +959,7 @@ public class PipelineEditor {
     }
 
     private void clearButtonHighlighting() {
-        Color normalColor = new Color(160, 160, 160);
+        Color normalColor = new Color(COLOR_BUTTON_NORMAL[0], COLOR_BUTTON_NORMAL[1], COLOR_BUTTON_NORMAL[2]);
         if (selectedButtonIndex >= 0 && selectedButtonIndex < searchableButtons.size()) {
             searchableButtons.get(selectedButtonIndex).button.setBackground(normalColor);
         }
@@ -1002,7 +1023,7 @@ public class PipelineEditor {
     private void createNodeButton(Composite parent, String text, Runnable action) {
         Button btn = new Button(parent, SWT.PUSH | SWT.FLAT);
         btn.setText(text);
-        btn.setBackground(new Color(160, 160, 160));
+        btn.setBackground(new Color(COLOR_BUTTON_NORMAL[0], COLOR_BUTTON_NORMAL[1], COLOR_BUTTON_NORMAL[2]));
         GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         gd.heightHint = btn.computeSize(SWT.DEFAULT, SWT.DEFAULT).y + 2;
         btn.setLayoutData(gd);
@@ -1134,21 +1155,21 @@ public class PipelineEditor {
         statusComp.setLayout(new GridLayout(3, false));
         ((GridLayout)statusComp.getLayout()).marginHeight = 2;
         ((GridLayout)statusComp.getLayout()).marginWidth = 5;
-        statusComp.setBackground(new Color(160, 160, 160));
+        statusComp.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
 
         // Node count on the left
         nodeCountLabel = new Label(statusComp, SWT.NONE);
         nodeCountLabel.setText("Nodes: 0");
         nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        nodeCountLabel.setBackground(new Color(160, 160, 160));
+        nodeCountLabel.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
         nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
 
         // Pipeline status in the center
         statusBar = new Label(statusComp, SWT.NONE);
         statusBar.setText("Pipeline Stopped");
         statusBar.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
-        statusBar.setBackground(new Color(160, 160, 160));
-        statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
+        statusBar.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
+        statusBar.setForeground(new Color(COLOR_STATUS_STOPPED[0], COLOR_STATUS_STOPPED[1], COLOR_STATUS_STOPPED[2]));
 
         // Zoom combo on the right
         zoomCombo = new Combo(statusComp, SWT.DROP_DOWN | SWT.READ_ONLY);
@@ -1365,7 +1386,7 @@ public class PipelineEditor {
         // Start/Stop button for continuous threaded execution
         startStopBtn = new Button(topPanel, SWT.PUSH);
         startStopBtn.setText("Start Pipeline");
-        startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+        startStopBtn.setBackground(new Color(COLOR_START_BUTTON[0], COLOR_START_BUTTON[1], COLOR_START_BUTTON[2]));
         startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         startStopBtn.addSelectionListener(new SelectionAdapter() {
             @Override
@@ -1701,7 +1722,7 @@ public class PipelineEditor {
 
         pipelineRunning.set(true);
         statusBar.setText("Pipeline Starting...");
-        statusBar.setForeground(new Color(0, 128, 0)); // Green text
+        statusBar.setForeground(new Color(COLOR_STATUS_RUNNING[0], COLOR_STATUS_RUNNING[1], COLOR_STATUS_RUNNING[2]));
 
         // Start all nodes
         for (PipelineNode node : nodes) {
@@ -1710,7 +1731,7 @@ public class PipelineEditor {
 
         // Update button
         startStopBtn.setText("Stop Pipeline");
-        startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
+        startStopBtn.setBackground(new Color(COLOR_STOP_BUTTON[0], COLOR_STOP_BUTTON[1], COLOR_STOP_BUTTON[2]));
 
         // Update all container editor window buttons
         updateContainerWindowPipelineButtons();
@@ -1756,7 +1777,7 @@ public class PipelineEditor {
     private void stopPipeline() {
         pipelineRunning.set(false);
         statusBar.setText("Pipeline Stopped");
-        statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
+        statusBar.setForeground(new Color(COLOR_STATUS_STOPPED[0], COLOR_STATUS_STOPPED[1], COLOR_STATUS_STOPPED[2]));
 
         // Stop all nodes
         for (PipelineNode node : nodes) {
@@ -1793,7 +1814,7 @@ public class PipelineEditor {
         // Update button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
             startStopBtn.setText("Start Pipeline");
-            startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+            startStopBtn.setBackground(new Color(COLOR_START_BUTTON[0], COLOR_START_BUTTON[1], COLOR_START_BUTTON[2]));
         }
 
         // Update all container editor window buttons
@@ -2016,7 +2037,7 @@ public class PipelineEditor {
         int gridSize = 20;
         int scaledGrid = (int) Math.round(gridSize * zoomLevel);
         if (scaledGrid < 1) scaledGrid = 1;
-        gc.setForeground(new Color(230, 230, 230));
+        gc.setForeground(new Color(COLOR_GRID_LINES[0], COLOR_GRID_LINES[1], COLOR_GRID_LINES[2]));
         gc.setLineWidth(1);
         for (int x = 0; x <= bounds.width; x += scaledGrid) {
             gc.drawLine(x, 0, x, bounds.height);
@@ -2063,7 +2084,7 @@ public class PipelineEditor {
             gc.setForeground(display.getSystemColor(SWT.COLOR_WHITE));
             // Change background color based on queue backlog: blue for normal, dark red for backpressure
             if (queueSize >= 5) {
-                Color backpressureColor = new Color(139, 0, 0); // Dark red
+                Color backpressureColor = new Color(COLOR_BACKPRESSURE[0], COLOR_BACKPRESSURE[1], COLOR_BACKPRESSURE[2]);
                 gc.setBackground(backpressureColor);
                 Point textExtent = gc.textExtent(sizeText);
                 gc.fillRoundRectangle(midPoint.x - textExtent.x/2 - 3, midPoint.y - textExtent.y/2 - 2,
@@ -2191,13 +2212,13 @@ public class PipelineEditor {
             int boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
 
             // Draw selection box with semi-transparent fill
-            gc.setBackground(new Color(0, 120, 215));
+            gc.setBackground(new Color(COLOR_SELECTION_BOX[0], COLOR_SELECTION_BOX[1], COLOR_SELECTION_BOX[2]));
             gc.setAlpha(30);
             gc.fillRectangle(boxX, boxY, boxWidth, boxHeight);
             gc.setAlpha(255);
 
             // Draw selection box border
-            gc.setForeground(new Color(0, 120, 215));
+            gc.setForeground(new Color(COLOR_SELECTION_BOX[0], COLOR_SELECTION_BOX[1], COLOR_SELECTION_BOX[2]));
             gc.setLineWidth(1);
             gc.drawRectangle(boxX, boxY, boxWidth, boxHeight);
         }

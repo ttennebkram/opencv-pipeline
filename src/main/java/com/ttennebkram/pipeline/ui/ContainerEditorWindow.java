@@ -34,6 +34,21 @@ import java.util.Set;
  */
 public class ContainerEditorWindow extends PipelineCanvasBase {
 
+    // =========================== COLOR CONSTANTS ===========================
+    // Status bar colors
+    private static final int[] COLOR_STATUS_BAR_BG = {160, 160, 160};        // Gray status bar background
+    private static final int[] COLOR_STATUS_STOPPED = {180, 0, 0};           // Red text for stopped
+    private static final int[] COLOR_STATUS_RUNNING = {0, 128, 0};           // Green text for running
+
+    // Pipeline control button colors
+    private static final int[] COLOR_START_BUTTON = {100, 180, 100};         // Green start button
+    private static final int[] COLOR_STOP_BUTTON = {200, 100, 100};          // Red stop button
+
+    // Canvas colors
+    private static final int[] COLOR_GRID_LINES = {230, 230, 230};           // Light gray grid
+    private static final int[] COLOR_SELECTION_BOX = {0, 120, 215};          // Blue selection box
+    // ========================================================================
+
     private ContainerNode container;
     private Shell parentShell;
 
@@ -174,10 +189,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
             if (running) {
                 startStopBtn.setText("Stop Pipeline");
-                startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
+                startStopBtn.setBackground(new Color(COLOR_STOP_BUTTON[0], COLOR_STOP_BUTTON[1], COLOR_STOP_BUTTON[2]));
             } else {
                 startStopBtn.setText("Start Pipeline");
-                startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+                startStopBtn.setBackground(new Color(COLOR_START_BUTTON[0], COLOR_START_BUTTON[1], COLOR_START_BUTTON[2]));
             }
         }
 
@@ -189,7 +204,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 String text = "Pipeline Running (" + threadCount + " threads)";
                 System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: " + text);
                 pipelineStatusLabel.setText(text);
-                pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
+                pipelineStatusLabel.setForeground(new Color(COLOR_STATUS_RUNNING[0], COLOR_STATUS_RUNNING[1], COLOR_STATUS_RUNNING[2]));
 
                 // Schedule a delayed update to get accurate thread count after startup
                 display.timerExec(200, () -> {
@@ -205,7 +220,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             } else {
                 System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: Pipeline Stopped");
                 pipelineStatusLabel.setText("Pipeline Stopped");
-                pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red
+                pipelineStatusLabel.setForeground(new Color(COLOR_STATUS_STOPPED[0], COLOR_STATUS_STOPPED[1], COLOR_STATUS_STOPPED[2]));
             }
         }
     }
@@ -460,13 +475,13 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         statusComp.setLayout(new GridLayout(3, false));
         ((GridLayout)statusComp.getLayout()).marginHeight = 2;
         ((GridLayout)statusComp.getLayout()).marginWidth = 5;
-        statusComp.setBackground(new Color(160, 160, 160));
+        statusComp.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
 
         // Node count on the left
         nodeCountLabel = new Label(statusComp, SWT.NONE);
         updateNodeCount();
         nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        nodeCountLabel.setBackground(new Color(160, 160, 160));
+        nodeCountLabel.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
         nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
 
         // Pipeline status in center
@@ -475,8 +490,8 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         GridData statusGd = new GridData(SWT.CENTER, SWT.CENTER, true, false);
         statusGd.widthHint = 200; // Reserve space for thread count text
         pipelineStatusLabel.setLayoutData(statusGd);
-        pipelineStatusLabel.setBackground(new Color(160, 160, 160));
-        pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red for stopped
+        pipelineStatusLabel.setBackground(new Color(COLOR_STATUS_BAR_BG[0], COLOR_STATUS_BAR_BG[1], COLOR_STATUS_BAR_BG[2]));
+        pipelineStatusLabel.setForeground(new Color(COLOR_STATUS_STOPPED[0], COLOR_STATUS_STOPPED[1], COLOR_STATUS_STOPPED[2]));
 
         // Zoom combo on the right
         zoomCombo = new Combo(statusComp, SWT.DROP_DOWN | SWT.READ_ONLY);
@@ -582,7 +597,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Start/Stop Pipeline button (shared with main editor)
         startStopBtn = new Button(previewPanel, SWT.PUSH);
         startStopBtn.setText("Start Pipeline");
-        startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+        startStopBtn.setBackground(new Color(COLOR_START_BUTTON[0], COLOR_START_BUTTON[1], COLOR_START_BUTTON[2]));
         startStopBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         startStopBtn.addListener(SWT.Selection, e -> {
             boolean running = isPipelineRunning != null && isPipelineRunning.get();
@@ -633,7 +648,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         int gridSize = 20;
         int scaledGrid = (int) Math.round(gridSize * zoomLevel);
         if (scaledGrid < 1) scaledGrid = 1;
-        gc.setForeground(new Color(230, 230, 230));
+        gc.setForeground(new Color(COLOR_GRID_LINES[0], COLOR_GRID_LINES[1], COLOR_GRID_LINES[2]));
         gc.setLineWidth(1);
         for (int x = 0; x <= bounds.width; x += scaledGrid) {
             gc.drawLine(x, 0, x, bounds.height);
@@ -793,13 +808,13 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             int boxHeight = Math.abs(selectionBoxEnd.y - selectionBoxStart.y);
 
             // Draw selection box with semi-transparent fill
-            gc.setBackground(new Color(0, 120, 215));
+            gc.setBackground(new Color(COLOR_SELECTION_BOX[0], COLOR_SELECTION_BOX[1], COLOR_SELECTION_BOX[2]));
             gc.setAlpha(30);
             gc.fillRectangle(boxX, boxY, boxWidth, boxHeight);
             gc.setAlpha(255);
 
             // Draw selection box border
-            gc.setForeground(new Color(0, 120, 215));
+            gc.setForeground(new Color(COLOR_SELECTION_BOX[0], COLOR_SELECTION_BOX[1], COLOR_SELECTION_BOX[2]));
             gc.setLineWidth(1);
             gc.drawRectangle(boxX, boxY, boxWidth, boxHeight);
         }
