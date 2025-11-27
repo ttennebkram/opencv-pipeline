@@ -74,6 +74,8 @@
                     <executable>/Library/Java/JavaVirtualMachines/temurin-21-arm64.jdk/Contents/Home/bin/java</executable>
                     <arguments>
                         <argument>-XstartOnFirstThread</argument>
+                        <argument>-Xms512m</argument>
+                        <argument>-Xmx4g</argument>
                         <argument>-classpath</argument>
                         <classpath/>
                         <argument>com.ttennebkram.pipeline.PipelineEditor</argument>

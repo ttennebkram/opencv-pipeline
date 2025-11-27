@@ -62,28 +62,38 @@ public class SIFTFeaturesNode extends ProcessingNode {
             return input;
         }
 
-        // Convert to grayscale for detection
-        Mat gray = new Mat();
-        if (input.channels() == 3) {
-            Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
-        } else {
-            gray = input.clone();
+        Mat gray = null;
+        MatOfKeyPoint keypoints = null;
+        Mat output = null;
+
+        try {
+            // Convert to grayscale for detection
+            gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Create SIFT detector
+            SIFT sift = SIFT.create(nFeatures, nOctaveLayers, contrastThreshold, edgeThreshold, sigma);
+
+            // Detect keypoints
+            keypoints = new MatOfKeyPoint();
+            sift.detect(gray, keypoints);
+
+            // Draw keypoints
+            output = new Mat();
+            int flags = showRichKeypoints ? Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS : Features2d.DrawMatchesFlags_DEFAULT;
+            Scalar color = COLORS[colorIndex < COLORS.length ? colorIndex : 0];
+            Features2d.drawKeypoints(input, keypoints, output, color, flags);
+
+            return output;
+        } finally {
+            // Release intermediate Mats (but not output which is returned)
+            if (gray != null) gray.release();
+            if (keypoints != null) keypoints.release();
         }
-
-        // Create SIFT detector
-        SIFT sift = SIFT.create(nFeatures, nOctaveLayers, contrastThreshold, edgeThreshold, sigma);
-
-        // Detect keypoints
-        MatOfKeyPoint keypoints = new MatOfKeyPoint();
-        sift.detect(gray, keypoints);
-
-        // Draw keypoints
-        Mat output = new Mat();
-        int flags = showRichKeypoints ? Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS : Features2d.DrawMatchesFlags_DEFAULT;
-        Scalar color = COLORS[colorIndex < COLORS.length ? colorIndex : 0];
-        Features2d.drawKeypoints(input, keypoints, output, color, flags);
-
-        return output;
     }
 
     @Override

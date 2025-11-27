@@ -80,76 +80,93 @@ public class BitPlanesColorNode extends ProcessingNode {
             return input;
         }
 
-        // Ensure we have a color image
-        Mat color = input;
-        if (input.channels() == 1) {
-            color = new Mat();
-            Imgproc.cvtColor(input, color, Imgproc.COLOR_GRAY2BGR);
-        }
-
-        // Split into BGR channels
+        Mat color = null;
+        boolean colorCreated = false;
         List<Mat> channels = new ArrayList<>();
-        Core.split(color, channels);
-
-        // Process each channel (BGR order in OpenCV)
-        // channels: 0=Blue, 1=Green, 2=Red
-        int[] channelMap = {2, 1, 0}; // Red, Green, Blue -> BGR indices
-
         List<Mat> resultChannels = new ArrayList<>();
-        for (int c = 0; c < 3; c++) {
-            resultChannels.add(new Mat());
-        }
+        Mat output = null;
 
-        for (int colorIdx = 0; colorIdx < 3; colorIdx++) {
-            int bgrIdx = channelMap[colorIdx];
-            Mat channel = channels.get(bgrIdx);
+        try {
+            // Ensure we have a color image
+            if (input.channels() == 1) {
+                color = new Mat();
+                colorCreated = true;
+                Imgproc.cvtColor(input, color, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                color = input;
+            }
 
-            // Initialize result as float for accumulation
-            Mat result = Mat.zeros(channel.rows(), channel.cols(), CvType.CV_32F);
+            // Split into BGR channels
+            Core.split(color, channels);
 
-            // Get channel data
-            byte[] channelData = new byte[channel.rows() * channel.cols()];
-            channel.get(0, 0, channelData);
+            // Process each channel (BGR order in OpenCV)
+            // channels: 0=Blue, 1=Green, 2=Red
+            int[] channelMap = {2, 1, 0}; // Red, Green, Blue -> BGR indices
 
-            float[] resultData = new float[channelData.length];
+            // Initialize result channels list
+            for (int c = 0; c < 3; c++) {
+                resultChannels.add(null);
+            }
 
-            // Process each bit plane
-            for (int i = 0; i < 8; i++) {
-                if (!bitEnabled[colorIdx][i]) {
-                    continue;
+            for (int colorIdx = 0; colorIdx < 3; colorIdx++) {
+                int bgrIdx = channelMap[colorIdx];
+                Mat channel = channels.get(bgrIdx);
+
+                // Get channel data
+                byte[] channelData = new byte[channel.rows() * channel.cols()];
+                channel.get(0, 0, channelData);
+
+                float[] resultData = new float[channelData.length];
+
+                // Process each bit plane
+                for (int i = 0; i < 8; i++) {
+                    if (!bitEnabled[colorIdx][i]) {
+                        continue;
+                    }
+
+                    // Extract bit plane (bit 7-i, since i=0 is MSB)
+                    int bitIndex = 7 - i;
+
+                    for (int j = 0; j < channelData.length; j++) {
+                        int pixelValue = channelData[j] & 0xFF;
+                        int bit = (pixelValue >> bitIndex) & 1;
+                        // Scale to original bit weight and apply gain
+                        resultData[j] += bit * (1 << bitIndex) * (float) bitGain[colorIdx][i];
+                    }
                 }
 
-                // Extract bit plane (bit 7-i, since i=0 is MSB)
-                int bitIndex = 7 - i;
+                // Clip to valid range [0, 255]
+                for (int j = 0; j < resultData.length; j++) {
+                    resultData[j] = Math.max(0, Math.min(255, resultData[j]));
+                }
 
-                for (int j = 0; j < channelData.length; j++) {
-                    int pixelValue = channelData[j] & 0xFF;
-                    int bit = (pixelValue >> bitIndex) & 1;
-                    // Scale to original bit weight and apply gain
-                    resultData[j] += bit * (1 << bitIndex) * (float) bitGain[colorIdx][i];
+                // Convert to 8-bit
+                Mat resultMat = new Mat(channel.rows(), channel.cols(), CvType.CV_32F);
+                Mat result8u = new Mat();
+                try {
+                    resultMat.put(0, 0, resultData);
+                    resultMat.convertTo(result8u, CvType.CV_8U);
+                    resultChannels.set(bgrIdx, result8u);
+                } finally {
+                    resultMat.release();
                 }
             }
 
-            // Clip to valid range [0, 255]
-            for (int j = 0; j < resultData.length; j++) {
-                resultData[j] = Math.max(0, Math.min(255, resultData[j]));
+            // Merge channels back
+            output = new Mat();
+            Core.merge(resultChannels, output);
+
+            return output;
+        } finally {
+            // Release intermediate Mats
+            if (colorCreated && color != null) color.release();
+            for (Mat ch : channels) {
+                if (ch != null) ch.release();
             }
-
-            // Convert to 8-bit
-            Mat resultMat = new Mat(channel.rows(), channel.cols(), CvType.CV_32F);
-            resultMat.put(0, 0, resultData);
-
-            Mat result8u = new Mat();
-            resultMat.convertTo(result8u, CvType.CV_8U);
-
-            resultChannels.set(bgrIdx, result8u);
+            for (Mat ch : resultChannels) {
+                if (ch != null) ch.release();
+            }
         }
-
-        // Merge channels back
-        Mat output = new Mat();
-        Core.merge(resultChannels, output);
-
-        return output;
     }
 
     @Override

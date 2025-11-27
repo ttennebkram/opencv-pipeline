@@ -51,49 +51,64 @@ public class ColorInRangeNode extends ProcessingNode {
     public Mat process(Mat input) {
         if (!enabled || input == null || input.empty()) return input;
 
-        // Ensure input is color
-        Mat colorInput = input;
-        if (input.channels() == 1) {
-            colorInput = new Mat();
-            Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
+        Mat colorInput = null;
+        boolean colorInputCreated = false;
+        Mat converted = null;
+        Mat mask = null;
+        Mat invMask = null;
+        Mat result = null;
+
+        try {
+            // Ensure input is color
+            if (input.channels() == 1) {
+                colorInput = new Mat();
+                colorInputCreated = true;
+                Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                colorInput = input;
+            }
+
+            // Convert to HSV if needed
+            converted = new Mat();
+            if (useHSV) {
+                Imgproc.cvtColor(colorInput, converted, Imgproc.COLOR_BGR2HSV);
+            } else {
+                colorInput.copyTo(converted);
+            }
+
+            // Create lower and upper bounds
+            Scalar lower = new Scalar(hLow, sLow, vLow);
+            Scalar upper = new Scalar(hHigh, sHigh, vHigh);
+
+            // Create mask
+            mask = new Mat();
+            Core.inRange(converted, lower, upper, mask);
+
+            result = new Mat();
+            switch (outputMode) {
+                case 0: // Mask only
+                    Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
+                    break;
+                case 1: // Keep in-range
+                    colorInput.copyTo(result, mask);
+                    break;
+                case 2: // Keep out-of-range (inverse)
+                    invMask = new Mat();
+                    Core.bitwise_not(mask, invMask);
+                    colorInput.copyTo(result, invMask);
+                    break;
+                default:
+                    Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
+            }
+
+            return result;
+        } finally {
+            // Release intermediate Mats (but not result which is returned)
+            if (colorInputCreated && colorInput != null) colorInput.release();
+            if (converted != null) converted.release();
+            if (mask != null) mask.release();
+            if (invMask != null) invMask.release();
         }
-
-        // Convert to HSV if needed
-        Mat converted = new Mat();
-        if (useHSV) {
-            Imgproc.cvtColor(colorInput, converted, Imgproc.COLOR_BGR2HSV);
-        } else {
-            converted = colorInput.clone();
-        }
-
-        // Create lower and upper bounds
-        Scalar lower = new Scalar(hLow, sLow, vLow);
-        Scalar upper = new Scalar(hHigh, sHigh, vHigh);
-
-        // Create mask
-        Mat mask = new Mat();
-        Core.inRange(converted, lower, upper, mask);
-
-        Mat result = new Mat();
-        switch (outputMode) {
-            case 0: // Mask only
-                Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
-                break;
-            case 1: // Keep in-range
-                result = new Mat();
-                colorInput.copyTo(result, mask);
-                break;
-            case 2: // Keep out-of-range (inverse)
-                Mat invMask = new Mat();
-                Core.bitwise_not(mask, invMask);
-                result = new Mat();
-                colorInput.copyTo(result, invMask);
-                break;
-            default:
-                Imgproc.cvtColor(mask, result, Imgproc.COLOR_GRAY2BGR);
-        }
-
-        return result;
     }
 
     @Override

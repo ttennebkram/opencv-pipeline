@@ -85,9 +85,34 @@ public abstract class PipelineNode implements NodeSerializable {
     // Callback for frame updates (used for preview)
     protected java.util.function.Consumer<Mat> onFrameCallback;
 
+    // Custom name for this node instance (null means use default getNodeName())
+    protected String customName = null;
+
     public abstract void paint(GC gc);
 
     public abstract String getNodeName();
+
+    /**
+     * Get the custom name for this node, or null if using default.
+     */
+    public String getCustomName() {
+        return customName;
+    }
+
+    /**
+     * Set a custom name for this node. Pass null to use the default name.
+     */
+    public void setCustomName(String name) {
+        this.customName = (name != null && name.trim().isEmpty()) ? null : name;
+    }
+
+    /**
+     * Get the label to display for this node.
+     * Returns customName if set, otherwise returns getNodeName().
+     */
+    public String getDisplayLabel() {
+        return customName != null ? customName : getNodeName();
+    }
 
     /**
      * Get the background color for this node.
@@ -445,9 +470,19 @@ public abstract class PipelineNode implements NodeSerializable {
                 pendingThumbnailData = null;
             }
 
-            // Draw the thumbnail
+            // Draw the thumbnail - wrap in try-catch to handle potential native crashes gracefully
+            // Note: This won't catch SIGSEGV, but will catch SWT exceptions
             if (thumbnail != null && !thumbnail.isDisposed()) {
-                gc.drawImage(thumbnail, thumbX, thumbY);
+                try {
+                    gc.drawImage(thumbnail, thumbX, thumbY);
+                } catch (Exception e) {
+                    // Image may have become invalid - dispose and let it be recreated
+                    System.err.println("Warning: Failed to draw thumbnail: " + e.getMessage());
+                    try {
+                        thumbnail.dispose();
+                    } catch (Exception ignored) {}
+                    thumbnail = null;
+                }
             }
         }
     }
@@ -912,6 +947,9 @@ public abstract class PipelineNode implements NodeSerializable {
         json.addProperty("workUnitsCompleted", workUnitsCompleted);
         json.addProperty("inputReads1", inputReads1);
         json.addProperty("inputReads2", inputReads2);
+        if (customName != null) {
+            json.addProperty("customName", customName);
+        }
     }
 
     /**
@@ -936,6 +974,9 @@ public abstract class PipelineNode implements NodeSerializable {
         }
         if (json.has("inputReads2")) {
             inputReads2 = json.get("inputReads2").getAsLong();
+        }
+        if (json.has("customName")) {
+            customName = json.get("customName").getAsString();
         }
     }
 

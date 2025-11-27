@@ -252,11 +252,11 @@ public class WebcamSourceNode extends SourceNode {
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
 
-        // Draw title
+        // Draw title (use custom name if set, otherwise default)
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString("Webcam Source", x + 10, y + 4, true);
+        gc.drawString(getDisplayLabel(), x + 10, y + 4, true);
         boldFont.dispose();
 
         // Draw thread priority, work units, and FPS stats line

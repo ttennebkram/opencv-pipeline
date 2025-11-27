@@ -81,11 +81,11 @@ public abstract class ProcessingNode extends PipelineNode {
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
         borderColor.dispose();
 
-        // Draw title
+        // Draw title (use custom name if set, otherwise default node name)
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString(name, x + 10, y + 5, true);
+        gc.drawString(getDisplayLabel(), x + 10, y + 5, true);
         boldFont.dispose();
 
         // Draw thread priority label

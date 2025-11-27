@@ -56,41 +56,53 @@ public class HoughLinesNode extends ProcessingNode {
     public Mat process(Mat input) {
         if (!enabled || input == null || input.empty()) return input;
 
-        // Convert to grayscale for detection
-        Mat gray = new Mat();
-        if (input.channels() == 3) {
-            Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
-        } else {
-            gray = input.clone();
+        Mat gray = null;
+        Mat edges = null;
+        Mat lines = null;
+        Mat result = null;
+
+        try {
+            // Convert to grayscale for detection
+            gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
+
+            // Apply Canny edge detection
+            edges = new Mat();
+            Imgproc.Canny(gray, edges, cannyThresh1, cannyThresh2);
+
+            // Create output image (color)
+            result = new Mat();
+            if (input.channels() == 1) {
+                Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                result = input.clone();
+            }
+
+            // Detect lines using probabilistic Hough transform
+            lines = new Mat();
+            Imgproc.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
+
+            // Draw lines
+            Scalar color = new Scalar(colorB, colorG, colorR);
+            for (int i = 0; i < lines.rows(); i++) {
+                double[] l = lines.get(i, 0);
+                Imgproc.line(result,
+                    new org.opencv.core.Point(l[0], l[1]),
+                    new org.opencv.core.Point(l[2], l[3]),
+                    color, thickness);
+            }
+
+            return result;
+        } finally {
+            // Release intermediate Mats (but not result which is returned)
+            if (gray != null) gray.release();
+            if (edges != null) edges.release();
+            if (lines != null) lines.release();
         }
-
-        // Apply Canny edge detection
-        Mat edges = new Mat();
-        Imgproc.Canny(gray, edges, cannyThresh1, cannyThresh2);
-
-        // Create output image (color)
-        Mat result = new Mat();
-        if (input.channels() == 1) {
-            Imgproc.cvtColor(input, result, Imgproc.COLOR_GRAY2BGR);
-        } else {
-            result = input.clone();
-        }
-
-        // Detect lines using probabilistic Hough transform
-        Mat lines = new Mat();
-        Imgproc.HoughLinesP(edges, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
-
-        // Draw lines
-        Scalar color = new Scalar(colorB, colorG, colorR);
-        for (int i = 0; i < lines.rows(); i++) {
-            double[] l = lines.get(i, 0);
-            Imgproc.line(result,
-                new org.opencv.core.Point(l[0], l[1]),
-                new org.opencv.core.Point(l[2], l[3]),
-                color, thickness);
-        }
-
-        return result;
     }
 
     @Override

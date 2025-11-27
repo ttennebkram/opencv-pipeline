@@ -83,8 +83,11 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     private Runnable onStopPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
 
-    // Callback to open nested container editor
+    // Callback to open nested container editor (from parent - used for window tracking)
     private java.util.function.Consumer<ContainerNode> onOpenNestedContainer;
+
+    // List of nested container editor windows opened from this window
+    private List<ContainerEditorWindow> nestedContainerWindows = new java.util.ArrayList<>();
 
     // Start/stop button (needs to update with pipeline state)
     private Button startStopBtn;
@@ -173,6 +176,54 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
     public void setOnOpenNestedContainer(java.util.function.Consumer<ContainerNode> callback) {
         this.onOpenNestedContainer = callback;
+    }
+
+    /**
+     * Open a nested container editor from within this container.
+     * Sets up the proper base path (this container's file) and save callbacks.
+     */
+    private void openNestedContainerEditor(ContainerNode nestedContainer) {
+        // Check if already open
+        for (ContainerEditorWindow window : nestedContainerWindows) {
+            if (!window.isDisposed() && window.getContainer() == nestedContainer) {
+                window.getShell().setActive();
+                window.getShell().setFocus();
+                return;
+            }
+        }
+
+        // Clean up disposed windows
+        nestedContainerWindows.removeIf(ContainerEditorWindow::isDisposed);
+
+        // Create new window with this container's shell as parent
+        ContainerEditorWindow window = new ContainerEditorWindow(shell, display, nestedContainer);
+        window.setOnModified(() -> {
+            notifyModified();
+            canvas.redraw();
+        });
+
+        // Set base path to THIS container's file (not the main pipeline)
+        window.setBasePathSupplier(() -> getAbsoluteFilePath());
+
+        // When nested container requests save, save THIS container's pipeline
+        window.setOnRequestGlobalSave(() -> saveContainerPipeline());
+
+        // Wire up pipeline control callbacks (pass through to parent)
+        window.setOnStartPipeline(onStartPipeline);
+        window.setOnStopPipeline(onStopPipeline);
+        window.setIsPipelineRunning(isPipelineRunning);
+
+        // Recursively wire up for further nesting
+        window.setOnOpenNestedContainer(deeplyNested -> window.openNestedContainerEditor(deeplyNested));
+
+        nestedContainerWindows.add(window);
+        window.open();
+        window.updatePipelineButtonState();
+
+        // Also notify the parent editor's callback for window tracking
+        if (onOpenNestedContainer != null) {
+            onOpenNestedContainer.accept(nestedContainer);
+        }
     }
 
     /**
@@ -626,16 +677,21 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
         previewCanvas.addPaintListener(e -> {
             if (previewImage != null && !previewImage.isDisposed()) {
-                Rectangle bounds = previewCanvas.getClientArea();
-                Rectangle imgBounds = previewImage.getBounds();
-                // Scale to fit
-                double scale = Math.min((double) bounds.width / imgBounds.width,
-                                       (double) bounds.height / imgBounds.height);
-                int w = (int) (imgBounds.width * scale);
-                int h = (int) (imgBounds.height * scale);
-                int x = (bounds.width - w) / 2;
-                int y = (bounds.height - h) / 2;
-                e.gc.drawImage(previewImage, 0, 0, imgBounds.width, imgBounds.height, x, y, w, h);
+                try {
+                    Rectangle bounds = previewCanvas.getClientArea();
+                    Rectangle imgBounds = previewImage.getBounds();
+                    // Scale to fit
+                    double scale = Math.min((double) bounds.width / imgBounds.width,
+                                           (double) bounds.height / imgBounds.height);
+                    int w = (int) (imgBounds.width * scale);
+                    int h = (int) (imgBounds.height * scale);
+                    int x = (bounds.width - w) / 2;
+                    int y = (bounds.height - h) / 2;
+                    e.gc.drawImage(previewImage, 0, 0, imgBounds.width, imgBounds.height, x, y, w, h);
+                } catch (Exception ex) {
+                    // Image may have become invalid during drawing
+                    System.err.println("Warning: Failed to draw preview image: " + ex.getMessage());
+                }
             }
         });
     }
@@ -1141,9 +1197,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 if (node instanceof ContainerNode) {
                     ContainerNode nestedContainer = (ContainerNode) node;
                     if (nestedContainer.isOnContainerIcon(click)) {
-                        if (onOpenNestedContainer != null) {
-                            onOpenNestedContainer.accept(nestedContainer);
-                        }
+                        openNestedContainerEditor(nestedContainer);
                         return;
                     }
                 }
@@ -1759,9 +1813,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             if (node.containsPoint(click)) {
                 // ContainerNodes: double-click opens nested container editor
                 if (node instanceof ContainerNode) {
-                    if (onOpenNestedContainer != null) {
-                        onOpenNestedContainer.accept((ContainerNode) node);
-                    }
+                    openNestedContainerEditor((ContainerNode) node);
                 } else if (node instanceof ProcessingNode) {
                     // Other ProcessingNodes: double-click opens properties dialog
                     // Temporarily set node's shell to this container editor shell
@@ -1787,6 +1839,12 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 // Show context menu for the node
                 Menu contextMenu = new Menu(canvas);
 
+                // Node name header (disabled)
+                MenuItem nameItem = new MenuItem(contextMenu, SWT.PUSH);
+                nameItem.setText(node.getDisplayLabel());
+                nameItem.setEnabled(false);
+                new MenuItem(contextMenu, SWT.SEPARATOR);
+
                 // ContainerNode: Edit Container Contents first, then Properties
                 if (node instanceof ContainerNode) {
                     ContainerNode nestedContainer = (ContainerNode) node;
@@ -1794,9 +1852,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     MenuItem editContentsItem = new MenuItem(contextMenu, SWT.PUSH);
                     editContentsItem.setText("Edit Container Contents...");
                     editContentsItem.addListener(SWT.Selection, evt -> {
-                        if (onOpenNestedContainer != null) {
-                            onOpenNestedContainer.accept(nestedContainer);
-                        }
+                        openNestedContainerEditor(nestedContainer);
                     });
 
                     MenuItem propsItem = new MenuItem(contextMenu, SWT.PUSH);

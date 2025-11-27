@@ -39,16 +39,27 @@ public class MeanShiftFilterNode extends ProcessingNode {
     public Mat process(Mat input) {
         if (!enabled || input == null || input.empty()) return input;
 
-        // Ensure input is color
-        Mat colorInput = input;
-        if (input.channels() == 1) {
-            colorInput = new Mat();
-            Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
-        }
+        Mat colorInput = null;
+        boolean colorInputCreated = false;
+        Mat output = null;
 
-        Mat output = new Mat();
-        Imgproc.pyrMeanShiftFiltering(colorInput, output, spatialRadius, colorRadius, maxLevel);
-        return output;
+        try {
+            // Ensure input is color
+            if (input.channels() == 1) {
+                colorInput = new Mat();
+                colorInputCreated = true;
+                Imgproc.cvtColor(input, colorInput, Imgproc.COLOR_GRAY2BGR);
+            } else {
+                colorInput = input;
+            }
+
+            output = new Mat();
+            Imgproc.pyrMeanShiftFiltering(colorInput, output, spatialRadius, colorRadius, maxLevel);
+            return output;
+        } finally {
+            // Release intermediate Mats (but not output which is returned)
+            if (colorInputCreated && colorInput != null) colorInput.release();
+        }
     }
 
     @Override

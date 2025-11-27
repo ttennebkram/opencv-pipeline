@@ -247,11 +247,11 @@ public class FileSourceNode extends SourceNode {
         gc.setLineWidth(2);
         gc.drawRoundRectangle(x, y, width, height, 10, 10);
 
-        // Draw title
+        // Draw title (use custom name if set, otherwise default)
         gc.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
-        gc.drawString("File Source", x + 10, y + 4, true);
+        gc.drawString(getDisplayLabel(), x + 10, y + 4, true);
         boldFont.dispose();
 
         // Draw thread priority, work units, and FPS stats line
@@ -289,7 +289,13 @@ public class FileSourceNode extends SourceNode {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Image Source Properties");
         dialog.setLayout(new GridLayout(2, false));
-        dialog.setSize(500, 200);
+        dialog.setSize(500, 220);
+
+        // Node name field
+        new Label(dialog, SWT.NONE).setText("Name:");
+        Text nameText = new Text(dialog, SWT.BORDER);
+        nameText.setText(getDisplayLabel());
+        nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
@@ -339,6 +345,7 @@ public class FileSourceNode extends SourceNode {
         okButton.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
+                setCustomName(nameText.getText().trim());
                 String newPath = pathText.getText().trim();
                 if (!newPath.isEmpty() && (imagePath == null || !newPath.equals(imagePath))) {
                     imagePath = newPath;

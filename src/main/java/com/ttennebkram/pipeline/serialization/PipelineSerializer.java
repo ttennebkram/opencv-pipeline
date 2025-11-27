@@ -433,6 +433,33 @@ public class PipelineSerializer {
                         node.deserializeProperties(nodeJson);
                         container.addChildNode(node);
                         allNodes.add(node);
+
+                        // Recursively load nested container's internal pipeline
+                        if (node instanceof ContainerNode) {
+                            ContainerNode nestedContainer = (ContainerNode) node;
+                            String nestedFilePath = nestedContainer.getPipelineFilePath();
+                            if (nestedFilePath != null && !nestedFilePath.isEmpty()) {
+                                // Resolve relative path based on current file's directory
+                                java.io.File nestedFile = new java.io.File(nestedFilePath);
+                                if (!nestedFile.isAbsolute()) {
+                                    java.io.File baseFile = new java.io.File(path);
+                                    java.io.File baseDir = baseFile.getParentFile();
+                                    if (baseDir != null) {
+                                        nestedFilePath = new java.io.File(baseDir, nestedFilePath).getAbsolutePath();
+                                    }
+                                }
+                                if (new java.io.File(nestedFilePath).exists()) {
+                                    try {
+                                        loadContainerPipeline(nestedFilePath, nestedContainer, display, shell);
+                                        System.out.println("Loaded nested container pipeline: " + nestedFilePath);
+                                    } catch (Exception e) {
+                                        System.err.println("Failed to load nested container pipeline: " + e.getMessage());
+                                    }
+                                } else {
+                                    System.err.println("Nested container pipeline file not found: " + nestedFilePath);
+                                }
+                            }
+                        }
                     } else {
                         System.err.println("Failed to create node of type: " + type);
                         allNodes.add(null); // Placeholder to keep indices aligned

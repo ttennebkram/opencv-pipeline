@@ -43,53 +43,69 @@ public class ConnectedComponentsNode extends ProcessingNode {
             return input;
         }
 
-        // Convert to grayscale
-        Mat gray = new Mat();
-        if (input.channels() == 3) {
-            Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
-        } else {
-            gray = input.clone();
-        }
+        Mat gray = null;
+        Mat binary = null;
+        Mat labels = null;
+        Mat stats = null;
+        Mat centroids = null;
+        Mat result = null;
 
-        // Apply threshold
-        Mat binary = new Mat();
-        int threshType = invertThreshold ? Imgproc.THRESH_BINARY_INV : Imgproc.THRESH_BINARY;
-        Imgproc.threshold(gray, binary, threshold, 255, threshType);
+        try {
+            // Convert to grayscale
+            gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
+            }
 
-        // Get connected components with stats
-        Mat labels = new Mat();
-        Mat stats = new Mat();
-        Mat centroids = new Mat();
-        int numLabels = Imgproc.connectedComponentsWithStats(binary, labels, stats, centroids, connectivity, CvType.CV_32S);
+            // Apply threshold
+            binary = new Mat();
+            int threshType = invertThreshold ? Imgproc.THRESH_BINARY_INV : Imgproc.THRESH_BINARY;
+            Imgproc.threshold(gray, binary, threshold, 255, threshType);
 
-        // Generate random colors for each label (with consistent seed)
-        Random rand = new Random(42);
-        int[][] colors = new int[numLabels][3];
-        colors[0] = new int[]{0, 0, 0}; // Background is black
-        for (int i = 1; i < numLabels; i++) {
-            colors[i] = new int[]{rand.nextInt(256), rand.nextInt(256), rand.nextInt(256)};
-        }
+            // Get connected components with stats
+            labels = new Mat();
+            stats = new Mat();
+            centroids = new Mat();
+            int numLabels = Imgproc.connectedComponentsWithStats(binary, labels, stats, centroids, connectivity, CvType.CV_32S);
 
-        // Filter by min area - set small components to black
-        if (minArea > 0) {
+            // Generate random colors for each label (with consistent seed)
+            Random rand = new Random(42);
+            int[][] colors = new int[numLabels][3];
+            colors[0] = new int[]{0, 0, 0}; // Background is black
             for (int i = 1; i < numLabels; i++) {
-                int area = (int) stats.get(i, Imgproc.CC_STAT_AREA)[0];
-                if (area < minArea) {
-                    colors[i] = new int[]{0, 0, 0};
+                colors[i] = new int[]{rand.nextInt(256), rand.nextInt(256), rand.nextInt(256)};
+            }
+
+            // Filter by min area - set small components to black
+            if (minArea > 0) {
+                for (int i = 1; i < numLabels; i++) {
+                    int area = (int) stats.get(i, Imgproc.CC_STAT_AREA)[0];
+                    if (area < minArea) {
+                        colors[i] = new int[]{0, 0, 0};
+                    }
                 }
             }
-        }
 
-        // Create colored output
-        Mat result = new Mat(input.rows(), input.cols(), CvType.CV_8UC3);
-        for (int row = 0; row < labels.rows(); row++) {
-            for (int col = 0; col < labels.cols(); col++) {
-                int label = (int) labels.get(row, col)[0];
-                result.put(row, col, colors[label][0], colors[label][1], colors[label][2]);
+            // Create colored output
+            result = new Mat(input.rows(), input.cols(), CvType.CV_8UC3);
+            for (int row = 0; row < labels.rows(); row++) {
+                for (int col = 0; col < labels.cols(); col++) {
+                    int label = (int) labels.get(row, col)[0];
+                    result.put(row, col, colors[label][0], colors[label][1], colors[label][2]);
+                }
             }
-        }
 
-        return result;
+            return result;
+        } finally {
+            // Release intermediate Mats (but not result which is returned)
+            if (gray != null) gray.release();
+            if (binary != null) binary.release();
+            if (labels != null) labels.release();
+            if (stats != null) stats.release();
+            if (centroids != null) centroids.release();
+        }
     }
 
     @Override

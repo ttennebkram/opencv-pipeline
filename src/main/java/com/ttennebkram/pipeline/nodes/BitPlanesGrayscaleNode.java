@@ -59,81 +59,74 @@ public class BitPlanesGrayscaleNode extends ProcessingNode {
             return input;
         }
 
-        // Convert to grayscale if needed
-        Mat gray = new Mat();
-        if (input.channels() == 3) {
-            Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
-        } else {
-            gray = input.clone();
-        }
+        Mat gray = null;
+        Mat result = null;
+        Mat result8u = null;
+        Mat output = null;
 
-        // Initialize result as float for accumulation
-        Mat result = Mat.zeros(gray.rows(), gray.cols(), CvType.CV_32F);
-
-        // Process each bit plane
-        for (int i = 0; i < 8; i++) {
-            if (!bitEnabled[i]) {
-                continue;
+        try {
+            // Convert to grayscale if needed
+            gray = new Mat();
+            if (input.channels() == 3) {
+                Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+            } else {
+                gray = input.clone();
             }
 
-            // Extract bit plane (bit 7-i, since i=0 is MSB)
-            int bitIndex = 7 - i;
+            // Initialize result as float for accumulation
+            result = Mat.zeros(gray.rows(), gray.cols(), CvType.CV_32F);
 
-            // Create mask for this bit
-            Mat bitPlane = new Mat();
-            gray.convertTo(bitPlane, CvType.CV_32F);
-
-            // Extract the bit: (gray >> bitIndex) & 1
-            // In OpenCV Java, we need to do this differently
-            Mat temp = new Mat();
-            gray.convertTo(temp, CvType.CV_32F);
-
-            // Divide by 2^bitIndex to shift right
-            Core.multiply(temp, new org.opencv.core.Scalar(1.0 / (1 << bitIndex)), temp);
-
-            // Floor to integer
-            Mat floored = new Mat();
-            temp.convertTo(floored, CvType.CV_32S);
-            floored.convertTo(temp, CvType.CV_32F);
-
-            // AND with 1 (modulo 2)
-            Mat ones = new Mat(temp.rows(), temp.cols(), CvType.CV_32F, new org.opencv.core.Scalar(2.0));
-            Core.subtract(temp, ones, floored);
-            Core.absdiff(temp, floored, temp);
-
-            // Actually let's do this more directly
-            // Extract bit plane by shifting and masking
+            // Pre-extract gray data once for all bit planes
             byte[] grayData = new byte[gray.rows() * gray.cols()];
             gray.get(0, 0, grayData);
 
-            float[] bitData = new float[gray.rows() * gray.cols()];
-            for (int j = 0; j < grayData.length; j++) {
-                int pixelValue = grayData[j] & 0xFF;
-                int bit = (pixelValue >> bitIndex) & 1;
-                // Scale to original bit weight and apply gain
-                bitData[j] = bit * (1 << bitIndex) * (float) bitGain[i];
+            // Process each bit plane
+            for (int i = 0; i < 8; i++) {
+                if (!bitEnabled[i]) {
+                    continue;
+                }
+
+                // Extract bit plane (bit 7-i, since i=0 is MSB)
+                int bitIndex = 7 - i;
+
+                // Extract bit plane by shifting and masking
+                float[] bitData = new float[gray.rows() * gray.cols()];
+                for (int j = 0; j < grayData.length; j++) {
+                    int pixelValue = grayData[j] & 0xFF;
+                    int bit = (pixelValue >> bitIndex) & 1;
+                    // Scale to original bit weight and apply gain
+                    bitData[j] = bit * (1 << bitIndex) * (float) bitGain[i];
+                }
+
+                Mat bitValue = new Mat(gray.rows(), gray.cols(), CvType.CV_32F);
+                try {
+                    bitValue.put(0, 0, bitData);
+                    // Accumulate
+                    Core.add(result, bitValue, result);
+                } finally {
+                    bitValue.release();
+                }
             }
 
-            Mat bitValue = new Mat(gray.rows(), gray.cols(), CvType.CV_32F);
-            bitValue.put(0, 0, bitData);
+            // Clip to valid range [0, 255]
+            Core.min(result, new org.opencv.core.Scalar(255), result);
+            Core.max(result, new org.opencv.core.Scalar(0), result);
 
-            // Accumulate
-            Core.add(result, bitValue, result);
+            // Convert to 8-bit
+            result8u = new Mat();
+            result.convertTo(result8u, CvType.CV_8U);
+
+            // Convert back to BGR for display
+            output = new Mat();
+            Imgproc.cvtColor(result8u, output, Imgproc.COLOR_GRAY2BGR);
+
+            return output;
+        } finally {
+            // Release intermediate Mats (but not output which is returned)
+            if (gray != null) gray.release();
+            if (result != null) result.release();
+            if (result8u != null) result8u.release();
         }
-
-        // Clip to valid range [0, 255]
-        Core.min(result, new org.opencv.core.Scalar(255), result);
-        Core.max(result, new org.opencv.core.Scalar(0), result);
-
-        // Convert to 8-bit
-        Mat result8u = new Mat();
-        result.convertTo(result8u, CvType.CV_8U);
-
-        // Convert back to BGR for display
-        Mat output = new Mat();
-        Imgproc.cvtColor(result8u, output, Imgproc.COLOR_GRAY2BGR);
-
-        return output;
     }
 
     @Override

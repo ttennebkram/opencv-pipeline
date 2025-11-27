@@ -121,6 +121,14 @@ public class ThresholdNode extends ProcessingNode {
         dialog.setText("Threshold Properties");
         dialog.setLayout(new GridLayout(3, false));
 
+        // Node name field
+        new Label(dialog, SWT.NONE).setText("Name:");
+        Text nameText = new Text(dialog, SWT.BORDER);
+        nameText.setText(getDisplayLabel());
+        GridData nameGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        nameGd.horizontalSpan = 2;
+        nameText.setLayoutData(nameGd);
+
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
@@ -188,6 +196,7 @@ public class ThresholdNode extends ProcessingNode {
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            setCustomName(nameText.getText().trim());
             threshValue = threshScale.getSelection();
             maxValue = maxScale.getSelection();
             typeIndex = typeCombo.getSelectionIndex();

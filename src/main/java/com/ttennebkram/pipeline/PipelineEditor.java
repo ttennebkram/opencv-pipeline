@@ -1431,21 +1431,26 @@ public class PipelineEditor {
 
         previewCanvas.addPaintListener(e -> {
             if (previewImage != null && !previewImage.isDisposed()) {
-                Rectangle bounds = previewImage.getBounds();
-                Rectangle canvasBounds = previewCanvas.getClientArea();
+                try {
+                    Rectangle bounds = previewImage.getBounds();
+                    Rectangle canvasBounds = previewCanvas.getClientArea();
 
-                // Scale to fit while maintaining aspect ratio
-                double scale = Math.min(
-                    (double) canvasBounds.width / bounds.width,
-                    (double) canvasBounds.height / bounds.height
-                );
-                int scaledWidth = (int) (bounds.width * scale);
-                int scaledHeight = (int) (bounds.height * scale);
-                int x = (canvasBounds.width - scaledWidth) / 2;
-                int y = (canvasBounds.height - scaledHeight) / 2;
+                    // Scale to fit while maintaining aspect ratio
+                    double scale = Math.min(
+                        (double) canvasBounds.width / bounds.width,
+                        (double) canvasBounds.height / bounds.height
+                    );
+                    int scaledWidth = (int) (bounds.width * scale);
+                    int scaledHeight = (int) (bounds.height * scale);
+                    int x = (canvasBounds.width - scaledWidth) / 2;
+                    int y = (canvasBounds.height - scaledHeight) / 2;
 
-                e.gc.drawImage(previewImage, 0, 0, bounds.width, bounds.height,
-                    x, y, scaledWidth, scaledHeight);
+                    e.gc.drawImage(previewImage, 0, 0, bounds.width, bounds.height,
+                        x, y, scaledWidth, scaledHeight);
+                } catch (Exception ex) {
+                    // Image may have become invalid during drawing
+                    System.err.println("Warning: Failed to draw preview image: " + ex.getMessage());
+                }
             } else {
                 e.gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
                 if (selectedNodes.size() > 1) {
@@ -1754,23 +1759,38 @@ public class PipelineEditor {
             if (node.hasActiveThread()) {
                 count++;
             }
-            // Also count container child threads
+            // Also count container child threads (recursively)
             if (node instanceof ContainerNode) {
-                ContainerNode container = (ContainerNode) node;
-                for (PipelineNode child : container.getChildNodes()) {
-                    if (child.hasActiveThread()) {
-                        count++;
-                    }
-                }
-                // Count boundary nodes
-                if (container.getBoundaryInput() != null && container.getBoundaryInput().hasActiveThread()) {
-                    count++;
-                }
-                if (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) {
-                    count++;
-                }
+                count += countContainerThreads((ContainerNode) node);
             }
         }
+        return count;
+    }
+
+    /**
+     * Recursively count threads in a container and its nested containers.
+     */
+    private int countContainerThreads(ContainerNode container) {
+        int count = 0;
+
+        // Count boundary nodes
+        if (container.getBoundaryInput() != null && container.getBoundaryInput().hasActiveThread()) {
+            count++;
+        }
+        if (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) {
+            count++;
+        }
+
+        // Count child nodes and recurse into nested containers
+        for (PipelineNode child : container.getChildNodes()) {
+            if (child.hasActiveThread()) {
+                count++;
+            }
+            if (child instanceof ContainerNode) {
+                count += countContainerThreads((ContainerNode) child);
+            }
+        }
+
         return count;
     }
 
@@ -3493,6 +3513,12 @@ public class PipelineEditor {
             if (node.containsPoint(clickPoint)) {
                 // Show context menu for the node
                 Menu contextMenu = new Menu(canvas);
+
+                // Node name header (disabled)
+                MenuItem nameItem = new MenuItem(contextMenu, SWT.PUSH);
+                nameItem.setText(node.getDisplayLabel());
+                nameItem.setEnabled(false);
+                new MenuItem(contextMenu, SWT.SEPARATOR);
 
                 // ContainerNode: Edit Container Contents first, then Properties
                 if (node instanceof ContainerNode) {

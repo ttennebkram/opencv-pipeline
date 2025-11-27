@@ -287,6 +287,12 @@ public class ContainerNode extends ProcessingNode {
     }
 
     @Override
+    public String getDisplayLabel() {
+        // ContainerNode uses containerName as its display label
+        return containerName;
+    }
+
+    @Override
     public String getCategory() {
         return "Utility";
     }
@@ -315,7 +321,7 @@ public class ContainerNode extends ProcessingNode {
         Font boldFont = new Font(display, "Arial", 10, SWT.BOLD);
         gc.setFont(boldFont);
         int nodeCount = childNodes.size() + 2; // +2 for boundary input and output nodes
-        String titleText = containerName + " (" + nodeCount + " node" + (nodeCount == 1 ? "" : "s") + ")";
+        String titleText = getDisplayLabel() + " (" + nodeCount + " node" + (nodeCount == 1 ? "" : "s") + ")";
         gc.drawString(titleText, x + 10, y + 5, true);
         boldFont.dispose();
 
