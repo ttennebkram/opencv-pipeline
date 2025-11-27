@@ -5,49 +5,41 @@ compare all java nodes to python effects
 Optionally have the queues persist to disk
     ? handling of frames, encoded or separate file/dir
 
-.debug log all json files that are read or saved, even for the contents of a container
-
 data structures: work units between nodes has frame section and "user data" section
-
-enabled/disabled checkbox, upper right? upper left?
-
 different input/output types
 
 custom Python node
 
-.get rid of Single Frame button
+Support copy and paste
 
 how many nodes override .paint()?
     can they be refactored?
 
-.c nodes under Basic category in button bar are all sorted alphabetically,
-    but Grayscale needs to be an exception to that, it needs to be at the top b/c it's very common
 
-.Container node display in parent diagram, not resetting Work to 0 when restarting pipeline
+.debug log all json files that are read or saved, even for the contents of a container
 
-.Container Node display doesn't have In: counter , just In:0
+In a top level save in the editor, the save needs to propogate down the contianer hierarchy to prompt them to save as 
+well; save always works from the current window down, same for number of nodes, and soon to be thread counts
 
-.can't click and delete connection in container editor
+enabled/disabled checkbox, upper right? upper left?
 
-.FFT high-pass classic: Properties dialog box too narrow or selector too wide to display double digit slider readout
+thread info
 
+Paramertize ALL numbers damnit!
 
-.Container Editor: Inconsistent highlight color of highlighted link
-    If click on fully connected connection it turns cyan (which is fine)
-    clicking on dangling mode highlights in dark blue (not consistent)
+.Container Editor status bar:
+    Should show number of running threads, implication is that it's for that diagram down
+    Yes, have it shown for that diagram down
+    Does Container have its own thread?
+        I think yes...
+        that would be counted as the parent's total
+            the two input/output nodes count towards child
+            again, what's countable on screen
+    rule: threads are countable number of nodes on that screen, PLUS all nodes downstream in the container hierarchy
 
-/Container Editor: disconnect tail end of arrow that ran between other node output and INput 2 of Addw/Clamp, when you yank the head of the arrow from In1 and try to connect it to In2, it snaps back to in1
-
-Highlight color: selected Node outline vs selected connectors
-
-
-
-
-.Vanishing container node after edit in parent/root Window
-    multiple times, but inconsistent
+gain needs to be 5% to 20x, and slider output needs to now show percent for the ratios < 1
 
 
-Support copy and paste
 
 
 cv2.split()
@@ -155,6 +147,27 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/Have Container window open.  Now switch to main window, Container window doesn't acknowledge now-running pipeline, still 
+shows "Start Pipeline" button (should be "Stop Pipeline", and status bar shows Pipeline Stopped 
+/Container node display in parent diagram, not resetting Work to 0 when restarting pipeline
+    Main PipelineEditor window: display of Container node: when starting pipeline, Container's In: counter doesn't reset to 0
+/Main window status bar: only 2 threads? I have 11 total nodes
+/Container window status bar: doens't show status of pipeline, no "Pipeline Running ..."
+/get rid of Single Frame button
+x c nodes under Basic category in button bar are all sorted alphabetically,
+    but Grayscale needs to be an exception to that, it needs to be at the top b/c it's very common
+/Container Node display doesn't have In: counter , just In:0
+/can't click and delete connection in container editor
+/FFT high-pass classic: Properties dialog box too narrow or selector too wide to display double digit slider readout
+/Vanishing container node after edit in parent/root Window
+    multiple times, but inconsistent
+/Container Editor: Inconsistent highlight color of highlighted link
+    If click on fully connected connection it turns cyan (which is fine)
+    clicking on dangling mode highlights in dark blue (not consistent)
+/Highlight color: selected Node outline vs selected connectors
+    make the highlight color of the connection the same color blue as the highlight around a selected node
+    check for connected nodes vs danglers vs free/orphan connections
+/Container Editor: disconnect tail end of arrow that ran between other node output and INput 2 of Addw/Clamp, when you yank the head of the arrow from In1 and try to connect it to In2, it snaps back to in1
 /since there's no status
   bar (why not?) there's no way to zoom in or out 
 /Container editor, double click on node, sometimes brings main root window into focus above container editor window

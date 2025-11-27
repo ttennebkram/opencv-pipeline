@@ -51,6 +51,9 @@ public class ContainerNode extends ProcessingNode {
     // Callback when properties change (set by PipelineEditor to trigger dirty flag and redraw)
     private Runnable onPropertiesChanged;
 
+    // Callback for stats updates (set by PipelineEditor to trigger redraw without marking dirty)
+    private Runnable onStatsUpdate;
+
     public ContainerNode(Display display, Shell shell, int x, int y) {
         super(display, shell, "Container", x, y);
         this.width = CONTAINER_WIDTH;
@@ -91,6 +94,10 @@ public class ContainerNode extends ProcessingNode {
 
     public void setOnPropertiesChanged(Runnable callback) {
         this.onPropertiesChanged = callback;
+    }
+
+    public void setOnStatsUpdate(Runnable callback) {
+        this.onStatsUpdate = callback;
     }
 
     public List<PipelineNode> getChildNodes() {
@@ -150,12 +157,15 @@ public class ContainerNode extends ProcessingNode {
         running.set(true);
         workUnitsCompleted = 0;
 
-        // Reset work counters on all internal nodes
+        // Reset work counters and input read counters on all internal nodes
         boundaryInput.resetWorkUnitsCompleted();
+        boundaryInput.resetInputReads();
         for (PipelineNode child : childNodes) {
             child.resetWorkUnitsCompleted();
+            child.resetInputReads();
         }
         boundaryOutput.resetWorkUnitsCompleted();
+        boundaryOutput.resetInputReads();
 
         // Wire the container input queue to the boundary input node
         boundaryInput.setContainerInputQueue(inputQueue);
@@ -189,6 +199,35 @@ public class ContainerNode extends ProcessingNode {
 
         // Start boundary output last
         boundaryOutput.startProcessing();
+
+        // Start container monitoring thread (counts as 1 thread from parent's perspective)
+        processingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    // Update thumbnail from boundary output's output
+                    Mat outputMat = boundaryOutput.getOutputMatClone();
+                    if (outputMat != null) {
+                        setOutputMat(outputMat);
+                    }
+
+                    // Trigger stats update on the display thread
+                    if (onStatsUpdate != null) {
+                        display.asyncExec(() -> {
+                            if (onStatsUpdate != null && running.get()) {
+                                onStatsUpdate.run();
+                            }
+                        });
+                    }
+
+                    // Update interval for stats display
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "Container-" + containerName + "-Monitor");
+        processingThread.start();
     }
 
     /**
@@ -201,6 +240,17 @@ public class ContainerNode extends ProcessingNode {
         }
 
         running.set(false);
+
+        // Stop monitoring thread
+        if (processingThread != null) {
+            processingThread.interrupt();
+            try {
+                processingThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            processingThread = null;
+        }
 
         // Stop in reverse order
         boundaryOutput.stopProcessing();
@@ -272,12 +322,24 @@ public class ContainerNode extends ProcessingNode {
         // Draw container icon (nested rectangles) in corner
         drawContainerIcon(gc, x + width - 25, y + 5);
 
-        // Draw thread priority label on second line
-        Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
-        gc.setFont(smallFont);
+        // Draw priority (italic + lighter gray for monitoring thread) and work (normal color for output queue size)
+        Font italicFont = new Font(display, "Arial", 8, SWT.ITALIC);
+        gc.setFont(italicFont);
+        Color lightGray = new Color(180, 180, 180);
+        gc.setForeground(lightGray);
+        String priText = "Pri: " + getThreadPriority();
+        gc.drawString(priText, x + 10, y + 22, true);
+        int priWidth = gc.textExtent(priText).x;
+        lightGray.dispose();
+        italicFont.dispose();
+
+        // Work count in normal font/color - shows output queue size
+        Font normalFont = new Font(display, "Arial", 8, SWT.NORMAL);
+        gc.setFont(normalFont);
         gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
-        gc.drawString(getThreadPriorityLabel(), x + 10, y + 22, true);
-        smallFont.dispose();
+        int queueSize = outputQueue != null ? outputQueue.size() : 0;
+        gc.drawString("   Work: " + formatNumber(queueSize), x + 10 + priWidth, y + 22, true);
+        normalFont.dispose();
 
         // Draw input read count on the left side (use boundary input's count since container delegates to it)
         Font statsFont = new Font(display, "Arial", 7, SWT.NORMAL);

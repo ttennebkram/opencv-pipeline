@@ -182,9 +182,9 @@ public class PipelineEditor {
         int result = mb.open();
 
         if (result == SWT.YES) {
-            // Save the file
+            // Save all pipelines (main + containers)
             if (currentFilePath != null) {
-                saveDiagramToPath(currentFilePath);
+                saveAllPipelines();
             } else {
                 FileDialog dialog = new FileDialog(shell, SWT.SAVE);
                 dialog.setText("Save Pipeline");
@@ -196,6 +196,8 @@ public class PipelineEditor {
                         path += ".json";
                     }
                     saveDiagramToPath(path);
+                    // Also save containers after main file has a path
+                    saveAllPipelines();
                 } else {
                     return false; // User cancelled save dialog
                 }
@@ -334,7 +336,7 @@ public class PipelineEditor {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 if (currentFilePath != null) {
-                    saveDiagramToPath(currentFilePath);
+                    saveAllPipelines();
                 } else {
                     saveDiagramAs();
                 }
@@ -559,6 +561,7 @@ public class PipelineEditor {
                     ContainerNode container = (ContainerNode) node;
                     container.setOnEditSubDiagram(() -> openContainerEditor(container));
                     container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
+                    container.setOnStatsUpdate(() -> canvas.redraw());
 
                     // Load the container's internal pipeline if it has a file path
                     String containerFilePath = container.getPipelineFilePath();
@@ -576,6 +579,7 @@ public class PipelineEditor {
 
             currentFilePath = path;
             addToRecentFiles(path);
+            System.out.println("Loaded pipeline: " + path);
 
             canvas.redraw();
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
@@ -967,6 +971,7 @@ public class PipelineEditor {
             addToRecentFiles(path);
             shell.setText("OpenCV Pipeline Editor - " + new File(path).getName());
             clearDirty();
+            System.out.println("Saved pipeline: " + path);
 
         } catch (Exception e) {
             MessageBox mb = new MessageBox(shell, SWT.ICON_ERROR | SWT.OK);
@@ -1134,7 +1139,7 @@ public class PipelineEditor {
 
         // Pipeline status in the center
         statusBar = new Label(statusComp, SWT.NONE);
-        statusBar.setText("Pipeline Stopped (" + Thread.activeCount() + " threads)");
+        statusBar.setText("Pipeline Stopped");
         statusBar.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
         statusBar.setBackground(new Color(160, 160, 160));
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
@@ -1688,8 +1693,7 @@ public class PipelineEditor {
         }
 
         pipelineRunning.set(true);
-        int threadCount = Thread.activeCount();
-        statusBar.setText("Pipeline Running (" + pipelineCount + " pipeline" + (pipelineCount > 1 ? "s" : "") + ", " + threadCount + " threads)");
+        statusBar.setText("Pipeline Starting...");
         statusBar.setForeground(new Color(0, 128, 0)); // Green text
 
         // Start all nodes
@@ -1703,12 +1707,48 @@ public class PipelineEditor {
 
         // Update all container editor window buttons
         updateContainerWindowPipelineButtons();
+
+        // Update thread count after nodes have started (with small delay to let threads spin up)
+        display.timerExec(100, () -> {
+            if (statusBar != null && !statusBar.isDisposed() && pipelineRunning.get()) {
+                int threadCount = countProcessingThreads();
+                statusBar.setText("Pipeline Running (" + pipelineCount + " pipeline" + (pipelineCount > 1 ? "s" : "") + ", " + threadCount + " threads)");
+            }
+        });
+    }
+
+    /**
+     * Count active processing threads from all nodes, including child nodes in containers.
+     */
+    private int countProcessingThreads() {
+        int count = 0;
+        for (PipelineNode node : nodes) {
+            if (node.hasActiveThread()) {
+                count++;
+            }
+            // Also count container child threads
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                for (PipelineNode child : container.getChildNodes()) {
+                    if (child.hasActiveThread()) {
+                        count++;
+                    }
+                }
+                // Count boundary nodes
+                if (container.getBoundaryInput() != null && container.getBoundaryInput().hasActiveThread()) {
+                    count++;
+                }
+                if (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private void stopPipeline() {
         pipelineRunning.set(false);
-        int threadCount = Thread.activeCount();
-        statusBar.setText("Pipeline Stopped (" + threadCount + " threads)");
+        statusBar.setText("Pipeline Stopped");
         statusBar.setForeground(new Color(180, 0, 0)); // Red for stopped
 
         // Stop all nodes
@@ -1991,7 +2031,9 @@ public class PipelineEditor {
             // Highlight selected connections
             if (selectedConnections.contains(conn)) {
                 gc.setLineWidth(3);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+                Color selColor = new Color(PipelineNode.SELECTION_COLOR_R, PipelineNode.SELECTION_COLOR_G, PipelineNode.SELECTION_COLOR_B);
+                gc.setForeground(selColor);
+                selColor.dispose();
             } else {
                 gc.setLineWidth(2);
                 gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
@@ -2032,13 +2074,14 @@ public class PipelineEditor {
 
         // Draw dangling connections with dashed lines
         gc.setLineStyle(SWT.LINE_DASH);
+        Color selectionColor = new Color(PipelineNode.SELECTION_COLOR_R, PipelineNode.SELECTION_COLOR_G, PipelineNode.SELECTION_COLOR_B);
         for (DanglingConnection dangling : danglingConnections) {
             Point start = dangling.source.getOutputPoint(dangling.outputIndex);
             // Highlight selected dangling connections
             if (selectedDanglingConnections.contains(dangling)) {
                 gc.setLineWidth(3);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
-                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setForeground(selectionColor);
+                gc.setBackground(selectionColor);
             } else {
                 gc.setLineWidth(2);
                 gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
@@ -2056,8 +2099,8 @@ public class PipelineEditor {
             // Highlight selected reverse dangling connections
             if (selectedReverseDanglingConnections.contains(dangling)) {
                 gc.setLineWidth(3);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
-                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setForeground(selectionColor);
+                gc.setBackground(selectionColor);
             } else {
                 gc.setLineWidth(2);
                 gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
@@ -2073,8 +2116,8 @@ public class PipelineEditor {
             // Highlight selected free connections
             if (selectedFreeConnections.contains(free)) {
                 gc.setLineWidth(3);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
-                gc.setBackground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setForeground(selectionColor);
+                gc.setBackground(selectionColor);
             } else {
                 gc.setLineWidth(2);
                 gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
@@ -2086,6 +2129,7 @@ public class PipelineEditor {
             gc.fillOval(free.startEnd.x - 4, free.startEnd.y - 4, 8, 8);
             gc.fillOval(free.arrowEnd.x - 4, free.arrowEnd.y - 4, 8, 8);
         }
+        selectionColor.dispose();
         gc.setLineStyle(SWT.LINE_SOLID);
         gc.setLineWidth(1);
 
@@ -3289,6 +3333,8 @@ public class PipelineEditor {
         window.setIsPipelineRunning(() -> pipelineRunning.get());
         containerWindows.add(window);
         window.open();
+        // Sync initial pipeline state
+        window.updatePipelineButtonState();
     }
 
     /**
@@ -3587,6 +3633,7 @@ public class PipelineEditor {
                 ContainerNode container = (ContainerNode) node;
                 container.setOnEditSubDiagram(() -> openContainerEditor(container));
                 container.setOnPropertiesChanged(() -> { markDirty(); canvas.redraw(); });
+                container.setOnStatsUpdate(() -> canvas.redraw());
             }
             nodes.add(node);
             markDirty();

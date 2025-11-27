@@ -71,6 +71,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     // Start/stop button (needs to update with pipeline state)
     private Button startStopBtn;
 
+    // Pipeline status label
+    private Label pipelineStatusLabel;
+
     public ContainerEditorWindow(Shell parentShell, Display display, ContainerNode container) {
         this.parentShell = parentShell;
         this.display = display;
@@ -155,18 +158,95 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
      * Call this from the main editor when pipeline state changes.
      */
     public void updatePipelineButtonState() {
-        if (startStopBtn == null || startStopBtn.isDisposed()) {
-            return;
+        boolean running = isPipelineRunning != null && isPipelineRunning.get();
+
+        // Update start/stop button
+        if (startStopBtn != null && !startStopBtn.isDisposed()) {
+            if (running) {
+                startStopBtn.setText("Stop Pipeline");
+                startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
+            } else {
+                startStopBtn.setText("Start Pipeline");
+                startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+            }
         }
 
-        boolean running = isPipelineRunning != null && isPipelineRunning.get();
-        if (running) {
-            startStopBtn.setText("Stop Pipeline");
-            startStopBtn.setBackground(new Color(200, 100, 100)); // Red for stop
-        } else {
-            startStopBtn.setText("Start Pipeline");
-            startStopBtn.setBackground(new Color(100, 180, 100)); // Green for start
+        // Update pipeline status label with thread count
+        if (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()) {
+            if (running) {
+                // Schedule thread count update after threads have started
+                display.timerExec(100, () -> {
+                    if (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()) {
+                        int threadCount = countThreadsForContainer();
+                        pipelineStatusLabel.setText("Pipeline Running (" + threadCount + " threads)");
+                        pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
+                    }
+                });
+                pipelineStatusLabel.setText("Pipeline Starting...");
+                pipelineStatusLabel.setForeground(new Color(0, 128, 0)); // Green
+            } else {
+                pipelineStatusLabel.setText("Pipeline Stopped");
+                pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red
+            }
         }
+    }
+
+    /**
+     * Count active threads for this container and all nested containers.
+     * Counts: boundary input, child nodes, boundary output, plus nested container threads.
+     */
+    private int countThreadsForContainer() {
+        int count = 0;
+
+        // Count boundary input
+        if (container.getBoundaryInput() != null && container.getBoundaryInput().hasActiveThread()) {
+            count++;
+        }
+
+        // Count child nodes and recurse into nested containers
+        for (PipelineNode node : nodes) {
+            if (node.hasActiveThread()) {
+                count++;
+            }
+            // Recurse into nested containers
+            if (node instanceof ContainerNode) {
+                count += countThreadsForNestedContainer((ContainerNode) node);
+            }
+        }
+
+        // Count boundary output
+        if (container.getBoundaryOutput() != null && container.getBoundaryOutput().hasActiveThread()) {
+            count++;
+        }
+
+        return count;
+    }
+
+    /**
+     * Recursively count threads in a nested container.
+     */
+    private int countThreadsForNestedContainer(ContainerNode nested) {
+        int count = 0;
+
+        // Count boundary nodes
+        if (nested.getBoundaryInput() != null && nested.getBoundaryInput().hasActiveThread()) {
+            count++;
+        }
+        if (nested.getBoundaryOutput() != null && nested.getBoundaryOutput().hasActiveThread()) {
+            count++;
+        }
+
+        // Count child nodes and recurse
+        for (PipelineNode child : nested.getChildNodes()) {
+            if (child.hasActiveThread()) {
+                count++;
+            }
+            if (child instanceof ContainerNode) {
+                count += countThreadsForNestedContainer((ContainerNode) child);
+            }
+        }
+
+        return count;
     }
 
 
@@ -328,7 +408,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Status bar at bottom of canvas
         Composite statusComp = new Composite(canvasContainer, SWT.NONE);
         statusComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        statusComp.setLayout(new GridLayout(2, false));
+        statusComp.setLayout(new GridLayout(3, false));
         ((GridLayout)statusComp.getLayout()).marginHeight = 2;
         ((GridLayout)statusComp.getLayout()).marginWidth = 5;
         statusComp.setBackground(new Color(160, 160, 160));
@@ -336,9 +416,16 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Node count on the left
         nodeCountLabel = new Label(statusComp, SWT.NONE);
         updateNodeCount();
-        nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+        nodeCountLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
         nodeCountLabel.setBackground(new Color(160, 160, 160));
         nodeCountLabel.setForeground(display.getSystemColor(SWT.COLOR_BLACK));
+
+        // Pipeline status in center
+        pipelineStatusLabel = new Label(statusComp, SWT.NONE);
+        pipelineStatusLabel.setText("Pipeline Stopped");
+        pipelineStatusLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+        pipelineStatusLabel.setBackground(new Color(160, 160, 160));
+        pipelineStatusLabel.setForeground(new Color(180, 0, 0)); // Red for stopped
 
         // Zoom combo on the right
         zoomCombo = new Combo(statusComp, SWT.DROP_DOWN | SWT.READ_ONLY);
@@ -506,6 +593,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         transform.scale((float) zoomLevel, (float) zoomLevel);
         gc.setTransform(transform);
 
+        // Selection highlight color - matches node selection
+        Color selectionColor = new Color(PipelineNode.SELECTION_COLOR_R, PipelineNode.SELECTION_COLOR_G, PipelineNode.SELECTION_COLOR_B);
+
         // Draw connections with bezier curves (same style as main editor)
         for (Connection conn : connections) {
             Point start = conn.source.getOutputPoint(conn.outputIndex);
@@ -513,7 +603,7 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
             if (selectedConnections.contains(conn)) {
                 gc.setLineWidth(3);
-                gc.setForeground(display.getSystemColor(SWT.COLOR_CYAN));
+                gc.setForeground(selectionColor);
             } else {
                 gc.setLineWidth(2);
                 gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
@@ -582,40 +672,43 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         gc.setLineWidth(2);
         for (DanglingConnection dc : danglingConnections) {
             boolean isSelected = selectedDanglingConnections.contains(dc);
-            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setForeground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             Point start = dc.source.getOutputPoint(dc.outputIndex);
             gc.drawLine(start.x, start.y, dc.freeEnd.x, dc.freeEnd.y);
             // Draw small circle at free end
-            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setBackground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(dc.freeEnd.x - 4, dc.freeEnd.y - 4, 8, 8);
         }
 
         // Draw reverse dangling connections (target connected, source free) as dashed lines
         for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
             boolean isSelected = selectedReverseDanglingConnections.contains(rdc);
-            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setForeground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             // Use correct input point based on inputIndex
             Point end = (rdc.inputIndex == 2 && rdc.target.hasDualInput())
                 ? rdc.target.getInputPoint2()
                 : rdc.target.getInputPoint();
             gc.drawLine(rdc.freeEnd.x, rdc.freeEnd.y, end.x, end.y);
             // Draw small circle at free end
-            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setBackground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(rdc.freeEnd.x - 4, rdc.freeEnd.y - 4, 8, 8);
         }
 
         // Draw free connections (both ends free) as dashed lines with circles at both ends
         for (FreeConnection fc : freeConnections) {
             boolean isSelected = selectedFreeConnections.contains(fc);
-            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setForeground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             gc.drawLine(fc.startEnd.x, fc.startEnd.y, fc.arrowEnd.x, fc.arrowEnd.y);
             drawArrow(gc, fc.startEnd, fc.arrowEnd);
             // Draw small circles at both ends
-            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setBackground(isSelected ? selectionColor : display.getSystemColor(SWT.COLOR_GRAY));
             gc.fillOval(fc.startEnd.x - 4, fc.startEnd.y - 4, 8, 8);
             gc.fillOval(fc.arrowEnd.x - 4, fc.arrowEnd.y - 4, 8, 8);
         }
         gc.setLineStyle(SWT.LINE_SOLID);
+
+        // Dispose selection color after use
+        selectionColor.dispose();
 
         // Draw boundary nodes first (they're fixed)
         ContainerInputNode boundaryInput = container.getBoundaryInput();

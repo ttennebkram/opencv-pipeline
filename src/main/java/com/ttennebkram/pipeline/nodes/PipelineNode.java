@@ -24,6 +24,11 @@ public abstract class PipelineNode implements NodeSerializable {
     // Connection point data type suffix for tooltips
     protected static final String CONNECTION_DATA_TYPE = "Images";
 
+    // Selection highlight color (RGB) - used for nodes and connections
+    public static final int SELECTION_COLOR_R = 0;
+    public static final int SELECTION_COLOR_G = 120;
+    public static final int SELECTION_COLOR_B = 215;
+
     // Node dimension constants
     public static final int PROCESSING_NODE_THUMB_WIDTH = 120;
     public static final int PROCESSING_NODE_THUMB_HEIGHT = 80;
@@ -283,7 +288,7 @@ public abstract class PipelineNode implements NodeSerializable {
     // Draw selection highlight around node
     public void drawSelectionHighlight(GC gc, boolean isSelected) {
         if (isSelected) {
-            gc.setForeground(new Color(0, 120, 215));  // Blue selection color
+            gc.setForeground(new Color(SELECTION_COLOR_R, SELECTION_COLOR_G, SELECTION_COLOR_B));
             gc.setLineWidth(3);
             gc.drawRoundRectangle(x - 3, y - 3, width + 6, height + 6, 13, 13);
         }
@@ -631,6 +636,11 @@ public abstract class PipelineNode implements NodeSerializable {
         inputReads2++;
     }
 
+    public void resetInputReads() {
+        this.inputReads1 = 0;
+        this.inputReads2 = 0;
+    }
+
     public void setInputNode(PipelineNode node) {
         this.inputNode = node;
     }
@@ -834,6 +844,14 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public boolean isRunning() {
         return running.get();
+    }
+
+    /**
+     * Check if the processing thread is alive.
+     * Used for counting active threads in the status bar.
+     */
+    public boolean hasActiveThread() {
+        return processingThread != null && processingThread.isAlive();
     }
 
     public void setOnFrameCallback(java.util.function.Consumer<Mat> callback) {
