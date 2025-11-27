@@ -262,12 +262,12 @@ public class WebcamSourceNode extends SourceNode {
         // Draw thread priority, work units, and FPS stats line
         drawFpsStatsLine(gc, x + 10, y + 19);
 
-        // Draw thumbnail if available
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        // Draw thumbnail if available (centered horizontally)
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + (width - bounds.width) / 2;
             int thumbY = y + 34;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             // Draw placeholder
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
@@ -443,10 +443,8 @@ public class WebcamSourceNode extends SourceNode {
                         }
                     }
 
-                    if (thumbnail != null && !thumbnail.isDisposed()) {
-                        thumbnail.dispose();
-                    }
-                    thumbnail = new Image(display, imageData);
+                    // Set pending data - Image will be created on UI thread when drawThumbnail is called
+                    setPendingThumbnailData(imageData);
 
                     loaded.release();
                     rgb.release();

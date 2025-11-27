@@ -252,11 +252,11 @@ public class ContainerInputNode extends SourceNode {
         statsFont.dispose();
 
         // Draw thumbnail if available (positioned to not overlap stats)
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + 55;  // Move right to not overlap stats
             int thumbY = y + 38;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         }
 
         // Draw hollow output connection point

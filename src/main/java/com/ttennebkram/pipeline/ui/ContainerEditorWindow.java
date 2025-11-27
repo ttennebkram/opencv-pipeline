@@ -994,46 +994,51 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
     @Override
     protected void updatePreviewFromNode(PipelineNode node) {
-        Mat outputMat = node.getOutputMat();
-        if (outputMat != null && !outputMat.empty()) {
-            // Convert to SWT Image
-            Mat rgb = new Mat();
-            if (outputMat.channels() == 3) {
-                Imgproc.cvtColor(outputMat, rgb, Imgproc.COLOR_BGR2RGB);
-            } else if (outputMat.channels() == 1) {
-                Imgproc.cvtColor(outputMat, rgb, Imgproc.COLOR_GRAY2RGB);
-            } else {
-                rgb = outputMat.clone();
-            }
-
-            int w = rgb.width();
-            int h = rgb.height();
-            byte[] data = new byte[w * h * 3];
-            rgb.get(0, 0, data);
-
-            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-            ImageData imageData = new ImageData(w, h, 24, palette);
-
-            int bytesPerLine = imageData.bytesPerLine;
-            for (int row = 0; row < h; row++) {
-                int srcOffset = row * w * 3;
-                int dstOffset = row * bytesPerLine;
-                for (int col = 0; col < w; col++) {
-                    int srcIdx = srcOffset + col * 3;
-                    int dstIdx = dstOffset + col * 3;
-                    imageData.data[dstIdx] = data[srcIdx];
-                    imageData.data[dstIdx + 1] = data[srcIdx + 1];
-                    imageData.data[dstIdx + 2] = data[srcIdx + 2];
+        // Get a thread-safe clone of the output mat
+        Mat outputMat = node.getOutputMatClone();
+        if (outputMat != null) {
+            try {
+                // Convert to SWT Image
+                Mat rgb = new Mat();
+                if (outputMat.channels() == 3) {
+                    Imgproc.cvtColor(outputMat, rgb, Imgproc.COLOR_BGR2RGB);
+                } else if (outputMat.channels() == 1) {
+                    Imgproc.cvtColor(outputMat, rgb, Imgproc.COLOR_GRAY2RGB);
+                } else {
+                    rgb = outputMat.clone();
                 }
-            }
 
-            if (previewImage != null && !previewImage.isDisposed()) {
-                previewImage.dispose();
-            }
-            previewImage = new Image(display, imageData);
-            rgb.release();
+                int w = rgb.width();
+                int h = rgb.height();
+                byte[] data = new byte[w * h * 3];
+                rgb.get(0, 0, data);
 
-            previewCanvas.redraw();
+                PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+                ImageData imageData = new ImageData(w, h, 24, palette);
+
+                int bytesPerLine = imageData.bytesPerLine;
+                for (int row = 0; row < h; row++) {
+                    int srcOffset = row * w * 3;
+                    int dstOffset = row * bytesPerLine;
+                    for (int col = 0; col < w; col++) {
+                        int srcIdx = srcOffset + col * 3;
+                        int dstIdx = dstOffset + col * 3;
+                        imageData.data[dstIdx] = data[srcIdx];
+                        imageData.data[dstIdx + 1] = data[srcIdx + 1];
+                        imageData.data[dstIdx + 2] = data[srcIdx + 2];
+                    }
+                }
+
+                if (previewImage != null && !previewImage.isDisposed()) {
+                    previewImage.dispose();
+                }
+                previewImage = new Image(display, imageData);
+                rgb.release();
+
+                previewCanvas.redraw();
+            } finally {
+                outputMat.release();
+            }
         }
     }
 

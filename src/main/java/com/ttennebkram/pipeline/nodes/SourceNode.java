@@ -278,7 +278,9 @@ public abstract class SourceNode extends PipelineNode {
      */
     @Override
     public void saveThumbnailToCache(String cacheDir, int nodeIndex) {
-        if (outputMat != null && !outputMat.empty()) {
+        // Get a thread-safe clone of the output mat
+        Mat matClone = getOutputMatClone();
+        if (matClone != null) {
             try {
                 File cacheFolder = new File(cacheDir);
                 if (!cacheFolder.exists()) {
@@ -287,14 +289,16 @@ public abstract class SourceNode extends PipelineNode {
                 String thumbPath = cacheDir + File.separator + "node_" + nodeIndex + "_thumb.png";
                 // Save the output mat as thumbnail
                 Mat resized = new Mat();
-                double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / outputMat.width(),
-                                        (double) SOURCE_NODE_THUMB_HEIGHT / outputMat.height());
-                Imgproc.resize(outputMat, resized,
-                    new Size(outputMat.width() * scale, outputMat.height() * scale));
+                double scale = Math.min((double) SOURCE_NODE_THUMB_WIDTH / matClone.width(),
+                                        (double) SOURCE_NODE_THUMB_HEIGHT / matClone.height());
+                Imgproc.resize(matClone, resized,
+                    new Size(matClone.width() * scale, matClone.height() * scale));
                 Imgcodecs.imwrite(thumbPath, resized);
                 resized.release();
             } catch (Exception e) {
                 System.err.println("Failed to save source node thumbnail: " + e.getMessage());
+            } finally {
+                matClone.release();
             }
         }
     }
@@ -310,53 +314,11 @@ public abstract class SourceNode extends PipelineNode {
             try {
                 Mat loaded = Imgcodecs.imread(thumbPath);
                 if (!loaded.empty()) {
-                    // Convert to RGB for display
-                    Mat rgb = new Mat();
-                    if (loaded.channels() == 3) {
-                        Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_BGR2RGB);
-                    } else if (loaded.channels() == 1) {
-                        Imgproc.cvtColor(loaded, rgb, Imgproc.COLOR_GRAY2RGB);
-                    } else {
-                        rgb = loaded;
-                    }
-
-                    int w = rgb.width();
-                    int h = rgb.height();
-                    byte[] data = new byte[w * h * 3];
-                    rgb.get(0, 0, data);
-
-                    PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-                    ImageData imageData = new ImageData(w, h, 24, palette);
-
-                    int bytesPerLine = imageData.bytesPerLine;
-                    for (int row = 0; row < h; row++) {
-                        int srcOffset = row * w * 3;
-                        int dstOffset = row * bytesPerLine;
-                        for (int col = 0; col < w; col++) {
-                            int srcIdx = srcOffset + col * 3;
-                            int dstIdx = dstOffset + col * 3;
-                            imageData.data[dstIdx] = data[srcIdx];
-                            imageData.data[dstIdx + 1] = data[srcIdx + 1];
-                            imageData.data[dstIdx + 2] = data[srcIdx + 2];
-                        }
-                    }
-
-                    if (thumbnail != null && !thumbnail.isDisposed()) {
-                        thumbnail.dispose();
-                    }
-                    thumbnail = new Image(display, imageData);
-
-                    // Also set outputMat so preview works before pipeline runs
-                    Mat bgr = loaded.clone();
-
-                    // Release old outputMat if it exists
-                    if (outputMat != null && !outputMat.empty()) {
-                        outputMat.release();
-                    }
-                    outputMat = bgr;
+                    // Use setOutputMat which handles thread-safe assignment and thumbnail creation
+                    // setOutputMat expects the Mat and will create thumbnail from it
+                    setOutputMat(loaded.clone());
 
                     loaded.release();
-                    rgb.release();
                     return true;
                 }
             } catch (Exception e) {

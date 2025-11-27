@@ -289,82 +289,180 @@ public abstract class PipelineNode implements NodeSerializable {
         }
     }
 
+    // Lock object for outputMat access (synchronizing on 'this' could cause deadlocks with other synchronized methods)
+    private final Object outputMatLock = new Object();
+
+    // Lock object for thumbnail access - separate from outputMat to avoid holding Mat lock during UI operations
+    private final Object thumbnailLock = new Object();
+
+    // Pending thumbnail data for UI thread to create Image from
+    private volatile ImageData pendingThumbnailData = null;
+
     public void setOutputMat(Mat mat) {
-        // Release old outputMat if it exists
-        if (this.outputMat != null && !this.outputMat.empty()) {
-            this.outputMat.release();
+        synchronized (outputMatLock) {
+            // Release old outputMat if it exists
+            if (this.outputMat != null && !this.outputMat.empty()) {
+                this.outputMat.release();
+            }
+            this.outputMat = mat;
+            prepareThumbnailData();
         }
-        this.outputMat = mat;
-        updateThumbnail();
     }
 
     public Mat getOutputMat() {
-        return outputMat;
+        synchronized (outputMatLock) {
+            return outputMat;
+        }
+    }
+
+    /**
+     * Get a clone of the output Mat for safe external use.
+     * Returns null if no output or if empty.
+     */
+    public Mat getOutputMatClone() {
+        synchronized (outputMatLock) {
+            if (outputMat != null && !outputMat.empty()) {
+                return outputMat.clone();
+            }
+            return null;
+        }
     }
 
     protected void updateThumbnail() {
+        synchronized (outputMatLock) {
+            prepareThumbnailData();
+        }
+    }
+
+    /**
+     * Prepare thumbnail ImageData from outputMat. This can be called from any thread.
+     * The actual Image creation happens on the UI thread when drawThumbnail is called.
+     * Must be called with outputMatLock held.
+     */
+    private void prepareThumbnailData() {
         if (outputMat == null || outputMat.empty()) {
             return;
         }
 
-        // Dispose old thumbnail
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            thumbnail.dispose();
-        }
+        // Create thumbnail data - clone the Mat first to avoid issues if outputMat changes
+        Mat source = outputMat.clone();
+        try {
+            Mat resized = new Mat();
+            double scale = Math.min((double) PROCESSING_NODE_THUMB_WIDTH / source.width(),
+                                    (double) PROCESSING_NODE_THUMB_HEIGHT / source.height());
+            Imgproc.resize(source, resized,
+                new Size(source.width() * scale, source.height() * scale));
 
-        // Create thumbnail
-        Mat resized = new Mat();
-        double scale = Math.min((double) PROCESSING_NODE_THUMB_WIDTH / outputMat.width(),
-                                (double) PROCESSING_NODE_THUMB_HEIGHT / outputMat.height());
-        Imgproc.resize(outputMat, resized,
-            new Size(outputMat.width() * scale, outputMat.height() * scale));
-
-        // Convert to SWT Image
-        Mat rgb = new Mat();
-        if (resized.channels() == 3) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
-        } else if (resized.channels() == 1) {
-            Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
-        } else {
-            rgb = resized;
-        }
-
-        int w = rgb.width();
-        int h = rgb.height();
-        byte[] data = new byte[w * h * 3];
-        rgb.get(0, 0, data);
-
-        // Create ImageData with direct data copy (much faster than setPixel loop)
-        PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-        ImageData imageData = new ImageData(w, h, 24, palette);
-
-        // Copy data row by row to handle scanline padding
-        int bytesPerLine = imageData.bytesPerLine;
-        for (int row = 0; row < h; row++) {
-            int srcOffset = row * w * 3;
-            int dstOffset = row * bytesPerLine;
-            for (int col = 0; col < w; col++) {
-                int srcIdx = srcOffset + col * 3;
-                int dstIdx = dstOffset + col * 3;
-                // Direct copy - data is already RGB from cvtColor
-                imageData.data[dstIdx] = data[srcIdx];         // R
-                imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
-                imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
+            // Convert to RGB
+            Mat rgb = new Mat();
+            if (resized.channels() == 3) {
+                Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_BGR2RGB);
+            } else if (resized.channels() == 1) {
+                Imgproc.cvtColor(resized, rgb, Imgproc.COLOR_GRAY2RGB);
+            } else {
+                rgb = resized;
             }
-        }
 
-        thumbnail = new Image(display, imageData);
+            int w = rgb.width();
+            int h = rgb.height();
+            byte[] data = new byte[w * h * 3];
+            rgb.get(0, 0, data);
+
+            // Create ImageData (this is just data, not an SWT resource - safe from any thread)
+            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+            ImageData imageData = new ImageData(w, h, 24, palette);
+
+            // Copy data row by row to handle scanline padding
+            int bytesPerLine = imageData.bytesPerLine;
+            for (int row = 0; row < h; row++) {
+                int srcOffset = row * w * 3;
+                int dstOffset = row * bytesPerLine;
+                for (int col = 0; col < w; col++) {
+                    int srcIdx = srcOffset + col * 3;
+                    int dstIdx = dstOffset + col * 3;
+                    imageData.data[dstIdx] = data[srcIdx];         // R
+                    imageData.data[dstIdx + 1] = data[srcIdx + 1]; // G
+                    imageData.data[dstIdx + 2] = data[srcIdx + 2]; // B
+                }
+            }
+
+            // Store pending data - UI thread will create Image from this
+            synchronized (thumbnailLock) {
+                pendingThumbnailData = imageData;
+            }
+
+            // Clean up intermediate Mats
+            resized.release();
+            if (rgb != resized) {
+                rgb.release();
+            }
+        } finally {
+            source.release();
+        }
     }
 
+    /**
+     * Get the thumbnail bounds (width and height) if available.
+     * Returns null if no thumbnail exists. Thread-safe.
+     */
+    protected Rectangle getThumbnailBounds() {
+        synchronized (thumbnailLock) {
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                return thumbnail.getBounds();
+            }
+            // If we have pending data, return bounds based on that
+            if (pendingThumbnailData != null) {
+                return new Rectangle(0, 0, pendingThumbnailData.width, pendingThumbnailData.height);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Draw the thumbnail. This must be called from the UI thread.
+     * If there's pending thumbnail data, creates the Image first.
+     */
     protected void drawThumbnail(GC gc, int thumbX, int thumbY) {
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            gc.drawImage(thumbnail, thumbX, thumbY);
+        synchronized (thumbnailLock) {
+            // Check if we have pending data to create a new thumbnail
+            if (pendingThumbnailData != null) {
+                // Dispose old thumbnail first
+                if (thumbnail != null && !thumbnail.isDisposed()) {
+                    thumbnail.dispose();
+                }
+                // Create new thumbnail on UI thread (this is the safe place to do it)
+                try {
+                    thumbnail = new Image(display, pendingThumbnailData);
+                } catch (Exception e) {
+                    // Display may be disposed during shutdown
+                    thumbnail = null;
+                }
+                pendingThumbnailData = null;
+            }
+
+            // Draw the thumbnail
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                gc.drawImage(thumbnail, thumbX, thumbY);
+            }
         }
     }
 
     public void disposeThumbnail() {
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            thumbnail.dispose();
+        synchronized (thumbnailLock) {
+            if (thumbnail != null && !thumbnail.isDisposed()) {
+                thumbnail.dispose();
+            }
+            pendingThumbnailData = null;
+        }
+    }
+
+    /**
+     * Set pending thumbnail data from subclasses (e.g., when loading from cache).
+     * The actual Image will be created on the UI thread when drawThumbnail is called.
+     */
+    protected void setPendingThumbnailData(ImageData data) {
+        synchronized (thumbnailLock) {
+            pendingThumbnailData = data;
         }
     }
 

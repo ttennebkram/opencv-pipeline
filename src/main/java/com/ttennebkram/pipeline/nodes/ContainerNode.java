@@ -285,12 +285,12 @@ public class ContainerNode extends ProcessingNode {
         }
         statsFont.dispose();
 
-        // Draw thumbnail if available
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        // Draw thumbnail if available (centered horizontally)
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + (width - bounds.width) / 2;
             int thumbY = y + 38;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             // Draw placeholder text
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));

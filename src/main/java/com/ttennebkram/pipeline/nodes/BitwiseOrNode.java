@@ -87,12 +87,12 @@ public class BitwiseOrNode extends DualInputNode {
         gc.drawString(name, x + 10, y + 5, true);
         boldFont.dispose();
 
-        // Draw thumbnail if available
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        // Draw thumbnail if available (centered horizontally)
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + (width - bounds.width) / 2;
             int thumbY = y + 25;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.drawString("(no output)", x + 10, y + 40, true);

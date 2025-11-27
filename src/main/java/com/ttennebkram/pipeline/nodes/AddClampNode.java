@@ -120,11 +120,11 @@ public class AddClampNode extends DualInputNode {
         tinyFont.dispose();
 
         // Draw thumbnail if available (offset to right to not overlap stats)
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + 40;
             int thumbY = y + 35;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.drawString("(no output)", x + 45, y + 50, true);

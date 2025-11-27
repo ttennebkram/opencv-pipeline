@@ -466,9 +466,10 @@ public abstract class PipelineCanvasBase {
             updatePreview(null);
             return;
         }
-        Mat output = node.getOutputMat();
-        if (output != null && !output.empty()) {
-            updatePreview(output.clone());
+        // Use thread-safe clone method - returns null if empty
+        Mat output = node.getOutputMatClone();
+        if (output != null) {
+            updatePreview(output);
         }
     }
 

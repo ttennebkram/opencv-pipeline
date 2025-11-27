@@ -2,106 +2,49 @@
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
 
-.Ability to move Container Nodes Input and Output nodes around, esp when making big diagram
-
 Sub-window container window button bar, no find fuction.
     How can this happen if we're using the same code?
-
-
-Container edit window: Container: Container 1
-
-.The special container input and output nodes are not tall enough to display their thumbnail
-
-the resize of preview window area in the main root editor is no longer resizeable with the vertical line
-    between Output Preview and the main grid area 
-
-..Container in main root window not showing its work output counter incrementing
 
 .In container editor with Clone output,
     .cannot click to yank an existing connection 
     .Instead of disconnecting a connection, now the connection vanishes 
 
-Special Container Input and Output nodes have the type expected on the next line "Image", should be on the same line as "Input" or "Output"
-    and then the priority and work count, doesn't have either
+Optionally have the queues persist to disk
+    ? handling of frames, encoded or separate file/dir
 
-Add w/Clamp no In1: In2: counts, no pri and work counts
+Problems with click to unhook to special output node; see the blue line, but
+    when I let go it jumps back to the connection point.
+On the other end from the output of Grayscale, clicking on that connection point does nothing,
+    as if I never clicked. 
 
-Container Editor: No mouse-over tool tips on connections
+work units between nodes has frame and "user data"
 
-!..double click on node in subwindow, brings main window into focus
+different input/output types
 
-Container editor: special Input node, doesn't have In: counter
-
-Suddenly none of the nodes in the Container editor are showing their thumbnails,
-    this was working, not when loaded, and not when pipeline is running
-    Thumbnails not preserved on save/restart/load
-    Thumbnails not shown immediately when pipeline starts, have to click some nodes to get thumbnails to show
+custom Python node
 
 get rid of Single Frame button
-
-button bar on left, buttons still in wrong order, for example Grayscale/...
 
 how many nodes override .paint()?
     can they be refactored?
 
-Container editor special Input and Output nodes need to be wider due to the 3 holes/dots
-    Input node either not displaying In: or it's overlaid by the 3 dots
-    also not tall enough for thumbnail
-
-.buttons in container editor window not in the correct order
-    buttons in toolbar still in wrong order, ex: Grayscale, in Container editor window
-
-!.Can't select nodes by clicking and dragging in Container Editor window
-
-.click and drag on the selected group cancels the group selection and just highlights that node.
-    Need to see if it's click and DRAG before reselecting a node that was already in the selection grouip.
-.Arrow keys shouuld be able to move a selected set of nodes, 1 pixel at a time regardless of zoom level
-
-click and drag on connection point on node in Container editor moves the node instead of yanking the connection 
-
-/Special Input and Output nodes still not wide enough
-
-.Special Input node in Container editor has bigger thumbnail than all other nodes, including special Output node
-    Input node should probably use same size as everybody else
-    odd that it's just the input node
-    OR MAYBE Inpuut node is correct size, and all other nodes are accidnetly a bit smaller getting resized (look a bit chunky)
-
-.Add w/Clamp not showing In1: In2: counts, and not incrementing its Work counter
-    can we check if it's not inheriting from its base classes and just doing an old outdated .paint()
-
-.When I click the upper left red x in a mac window, the windows all close, but I think if the pipeline is running therre's still threads in the
-  background.  CAn you intercept the window close even, before exitign the app, to cleanly shut down the threads? 
-
-.When a node's output queue is falling behind, and it's already lowered its priority to 1, let's have it send a "slow down" signal to the node behind it 
-
-
-
-What happens when Container diagram is changed, but main diagram is not dirty, does it pause to let you save the Container?
-
-.zoom in needs to stay at the center of what you were looking at
-    same for zoom out
-
-.Container: priority low-priority back pressure not working
-
 .c nodes under Basic category in button bar are all sorted alphabetically,
     but Grayscale needs to be an exception to that, it needs to be at the top b/c it's very common
 
-.Gain Control properties too narrow, readout label moves to the next row/line
+Container node display in parent diagram, not resetting Work to 0 when restarting pipeline
 
 .Container Node display doesn't have In: counter 
 
-Just clicking on the middle of a connection makes it vanish in Container editor
-
-Container editor should also have Run Pipeline / Stop Pipeline button, green and red, etc.  Everybody should be able to stop the pipeline w/o needing to go to the main window, status will need to be reflected in all windows
+.Just clicking on the middle of a connection makes it vanish in Container editor
 
 .can't click and drag from container output node to yank that end of the connection
 
 .can't click and delete connection in container editor
 
-/connector has no arrow head
-
 .preview window not working in container editor, even if pipeline is running
 
+?.buttons in container editor window not in the correct order
+    buttons in toolbar still in wrong order, ex: Grayscale, in Container editor window
 ?Container edit window save dialog, can't select previously used json files like container1.json, grayed out
     file dialog box has dropdwon of *.json
 
@@ -224,6 +167,47 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/Special Container Input and Output nodes have the type expected on the next line "Image", should be on the same line as "Input" or "Output"
+    and then the priority and work count, doesn't have either
+/Container edit window: Container: Container 1
+/Ability to move Container Nodes Input and Output nodes around, esp when making big diagram
+/The special container input and output nodes are not tall enough to display their thumbnail
+/the resize of preview window area in the main root editor is no longer resizeable with the vertical line
+    between Output Preview and the main grid area 
+/..Container in main root window not showing its work output counter incrementing
+/Add w/Clamp no In1: In2: counts, no pri and work counts
+/!..double click on node in subwindow, brings main window into focus
+/Container Editor: No mouse-over tool tips on connections
+/Container editor: special Input node, doesn't have In: counter
+/Suddenly none of the nodes in the Container editor are showing their thumbnails,
+    this was working, not when loaded, and not when pipeline is running
+    Thumbnails not preserved on save/restart/load
+    Thumbnails not shown immediately when pipeline starts, have to click some nodes to get thumbnails to show
+/Container editor should also have Run Pipeline / Stop Pipeline button, green and red, etc.  Everybody should be able to stop the pipeline w/o needing to go to the main window, status will need to be reflected in all windows
+/Gain Control properties too narrow, readout label moves to the next row/line
+/Container: priority low-priority back pressure not working
+/zoom in needs to stay at the center of what you were looking at
+    same for zoom out
+/Container editor special Input and Output nodes need to be wider due to the 3 holes/dots
+    Input node either not displaying In: or it's overlaid by the 3 dots
+    also not tall enough for thumbnail
+/What happens when Container diagram is changed, but main diagram is not dirty, does it pause to let you save the Container?
+/!Can't select nodes by clicking and dragging in Container Editor window
+/connector has no arrow head
+/click and drag on the selected group cancels the group selection and just highlights that node.
+    Need to see if it's click and DRAG before reselecting a node that was already in the selection grouip.
+/Arrow keys shouuld be able to move a selected set of nodes, 1 pixel at a time regardless of zoom level
+/click and drag on connection point on node in Container editor moves the node instead of yanking the connection 
+/Special Input and Output nodes still not wide enough
+/Special Input node in Container editor has bigger thumbnail than all other nodes, including special Output node
+    Input node should probably use same size as everybody else
+    odd that it's just the input node
+    OR MAYBE Inpuut node is correct size, and all other nodes are accidnetly a bit smaller getting resized (look a bit chunky)
+/Add w/Clamp not showing In1: In2: counts, and not incrementing its Work counter
+    can we check if it's not inheriting from its base classes and just doing an old outdated .paint()
+/When I click the upper left red x in a mac window, the windows all close, but I think if the pipeline is running therre's still threads in the
+  background.  CAn you intercept the window close even, before exitign the app, to cleanly shut down the threads? 
+/When a node's output queue is falling behind, and it's already lowered its priority to 1, let's have it send a "slow down" signal to the node behind it 
 /Double click should bring up Container editor; right click to get Properties
 /   /right click should also have Edit Container Contents
 /Cursor keys should move Node just 1 pixel when at 100% mode, and equiv of 1 pixel when zoomed in or out,

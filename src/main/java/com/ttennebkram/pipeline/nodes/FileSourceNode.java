@@ -197,7 +197,7 @@ public class FileSourceNode extends SourceNode {
             if (cached.empty()) return false;
 
             thumbnailMat = cached;
-            // Convert to SWT Image for thumbnail
+            // Convert to ImageData for thumbnail (Image will be created on UI thread)
             Mat rgb = new Mat();
             if (cached.channels() == 3) {
                 Imgproc.cvtColor(cached, rgb, Imgproc.COLOR_BGR2RGB);
@@ -212,20 +212,18 @@ public class FileSourceNode extends SourceNode {
 
             PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
             ImageData imageData = new ImageData(w, h, 24, palette);
-            for (int y = 0; y < h; y++) {
-                for (int xp = 0; xp < w; xp++) {
-                    int srcIdx = (y * w + xp) * 3;
+            for (int row = 0; row < h; row++) {
+                for (int col = 0; col < w; col++) {
+                    int srcIdx = (row * w + col) * 3;
                     int r = data[srcIdx] & 0xFF;
                     int g = data[srcIdx + 1] & 0xFF;
                     int b = data[srcIdx + 2] & 0xFF;
-                    imageData.setPixel(xp, y, (r << 16) | (g << 8) | b);
+                    imageData.setPixel(col, row, (r << 16) | (g << 8) | b);
                 }
             }
 
-            if (thumbnail != null && !thumbnail.isDisposed()) {
-                thumbnail.dispose();
-            }
-            thumbnail = new Image(display, imageData);
+            // Set pending data - Image will be created on UI thread when drawThumbnail is called
+            setPendingThumbnailData(imageData);
             return true;
         } catch (Exception e) {
             return false;
@@ -259,12 +257,12 @@ public class FileSourceNode extends SourceNode {
         // Draw thread priority, work units, and FPS stats line
         drawFpsStatsLine(gc, x + 10, y + 19);
 
-        // Draw thumbnail if available
-        if (thumbnail != null && !thumbnail.isDisposed()) {
-            Rectangle bounds = thumbnail.getBounds();
+        // Draw thumbnail if available (centered horizontally)
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + (width - bounds.width) / 2;
             int thumbY = y + 34;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             // Draw placeholder
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
@@ -379,6 +377,22 @@ public class FileSourceNode extends SourceNode {
             return loadedImage;
         }
         return mat;
+    }
+
+    @Override
+    public Mat getOutputMatClone() {
+        // Thread-safe clone that handles loadedImage fallback
+        Mat mat = super.getOutputMatClone();
+        if (mat != null) {
+            return mat;
+        }
+        // Fallback to loadedImage (for static images before pipeline runs)
+        synchronized (this) {
+            if (loadedImage != null && !loadedImage.empty()) {
+                return loadedImage.clone();
+            }
+        }
+        return null;
     }
 
     @Override

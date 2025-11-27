@@ -1948,9 +1948,11 @@ public class PipelineEditor {
         // If exactly one node is selected, show its output
         if (selectedNodes.size() == 1) {
             PipelineNode selected = selectedNodes.iterator().next();
-            Mat outputMat = selected.getOutputMat();
-            if (outputMat != null && !outputMat.empty()) {
+            // Use thread-safe clone method - returns null if empty
+            Mat outputMat = selected.getOutputMatClone();
+            if (outputMat != null) {
                 updatePreview(outputMat);
+                outputMat.release();
             }
         } else if (selectedNodes.size() > 1) {
             // Multiple nodes selected - clear preview

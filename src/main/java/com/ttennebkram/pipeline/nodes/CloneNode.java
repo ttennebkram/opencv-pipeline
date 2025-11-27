@@ -7,6 +7,7 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
@@ -85,10 +86,11 @@ public class CloneNode extends MultiOutputNode {
         drawInputStats(gc);
 
         // Draw thumbnail if available
-        if (thumbnail != null && !thumbnail.isDisposed()) {
+        Rectangle bounds = getThumbnailBounds();
+        if (bounds != null) {
             int thumbX = x + 40;
             int thumbY = y + 35;
-            gc.drawImage(thumbnail, thumbX, thumbY);
+            drawThumbnail(gc, thumbX, thumbY);
         } else {
             gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
             gc.drawString("(no output)", x + 45, y + 50, true);
