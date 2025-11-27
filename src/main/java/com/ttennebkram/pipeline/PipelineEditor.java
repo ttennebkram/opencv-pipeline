@@ -1367,17 +1367,6 @@ public class PipelineEditor {
             }
         });
 
-        // Single frame button
-        Button runBtn = new Button(topPanel, SWT.PUSH);
-        runBtn.setText("Single Frame");
-        runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        runBtn.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                executePipeline();
-            }
-        });
-
         // Separator
         new Label(topPanel, SWT.SEPARATOR | SWT.HORIZONTAL)
             .setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));

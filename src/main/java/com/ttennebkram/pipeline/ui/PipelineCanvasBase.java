@@ -53,14 +53,24 @@ public abstract class PipelineCanvasBase {
     protected Point dragOffset = null;
     protected boolean isDragging = false;
 
-    // Connection drawing state
+    // Connection drawing state (forward: dragging from output)
     protected PipelineNode connectionSource = null;
     protected int connectionSourceOutputIndex = 0;
     protected Point connectionEndPoint = null;
 
-    // Yanked connection original target (to restore if dropped in empty space)
+    // Connection drawing state (reverse: dragging from input after yanking from output)
+    protected PipelineNode connectionTarget = null;
+    protected int targetInputIndex = 1;
+
+    // Yanked connection original endpoints (to restore if dropped in empty space)
     protected PipelineNode yankedOriginalTarget = null;
     protected int yankedOriginalInputIndex = 0;
+    protected PipelineNode yankedOriginalSource = null;
+    protected int yankedOriginalOutputIndex = 0;
+
+    // Free connection dragging state (both ends unattached, dragging one end)
+    protected Point freeConnectionFixedEnd = null; // The end that stays fixed while dragging the other
+    protected boolean draggingFreeConnectionSource = false; // true if dragging source end, false if dragging target end
 
     // Selection box (marquee selection) state
     protected Point selectionBoxStart = null;

@@ -13,6 +13,7 @@ import org.opencv.core.Mat;
 public class ReverseDanglingConnection {
     public PipelineNode target;
     public Point freeEnd;
+    public int inputIndex = 1; // Which input point this connects to (1 or 2 for dual-input nodes)
     private BlockingQueue<Mat> queue;
     private int queueCapacity = 0; // 0 = unlimited, >0 = fixed capacity
     private int lastQueueSize = 0; // Track queue size for persistence
@@ -20,12 +21,21 @@ public class ReverseDanglingConnection {
     public ReverseDanglingConnection(PipelineNode target, Point freeEnd) {
         this.target = target;
         this.freeEnd = new Point(freeEnd.x, freeEnd.y);
+        this.inputIndex = 1;
         this.queue = null; // Queue is created when pipeline starts
+    }
+
+    public ReverseDanglingConnection(PipelineNode target, int inputIndex, Point freeEnd) {
+        this.target = target;
+        this.freeEnd = new Point(freeEnd.x, freeEnd.y);
+        this.inputIndex = inputIndex;
+        this.queue = null;
     }
 
     public ReverseDanglingConnection(PipelineNode target, int inputIndex, int startX, int startY) {
         this.target = target;
         this.freeEnd = new Point(startX, startY);
+        this.inputIndex = inputIndex;
         this.queue = null;
     }
 

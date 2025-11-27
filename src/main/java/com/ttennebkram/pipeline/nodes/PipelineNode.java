@@ -599,6 +599,10 @@ public abstract class PipelineNode implements NodeSerializable {
         this.workUnitsCompleted = count;
     }
 
+    public void resetWorkUnitsCompleted() {
+        this.workUnitsCompleted = 0;
+    }
+
     protected void incrementWorkUnits() {
         workUnitsCompleted++;
     }

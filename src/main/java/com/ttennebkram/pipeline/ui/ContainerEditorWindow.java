@@ -9,6 +9,9 @@ import org.eclipse.swt.layout.*;
 import org.eclipse.swt.widgets.*;
 
 import com.ttennebkram.pipeline.model.Connection;
+import com.ttennebkram.pipeline.model.DanglingConnection;
+import com.ttennebkram.pipeline.model.FreeConnection;
+import com.ttennebkram.pipeline.model.ReverseDanglingConnection;
 import com.ttennebkram.pipeline.nodes.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
 import com.ttennebkram.pipeline.serialization.PipelineSerializer;
@@ -37,6 +40,16 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     // Node lists reference the container's internal lists
     private List<PipelineNode> nodes;
     private List<Connection> connections;
+
+    // Dangling connections (one end free)
+    private List<DanglingConnection> danglingConnections = new ArrayList<>();
+    private List<ReverseDanglingConnection> reverseDanglingConnections = new ArrayList<>();
+    private List<FreeConnection> freeConnections = new ArrayList<>();
+
+    // Selection sets for dangling connections
+    private Set<DanglingConnection> selectedDanglingConnections = new HashSet<>();
+    private Set<ReverseDanglingConnection> selectedReverseDanglingConnections = new HashSet<>();
+    private Set<FreeConnection> selectedFreeConnections = new HashSet<>();
 
     // Toolbar builder
     private ToolbarBuilder toolbarBuilder;
@@ -523,12 +536,86 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         }
 
         // Draw connection being created
+        // Draw connection being dragged from output (forward)
         if (connectionSource != null && connectionEndPoint != null) {
             Point start = connectionSource.getOutputPoint(connectionSourceOutputIndex);
             gc.setLineWidth(2);
             gc.setForeground(display.getSystemColor(SWT.COLOR_BLUE));
             gc.drawLine(start.x, start.y, connectionEndPoint.x, connectionEndPoint.y);
         }
+
+        // Draw connection being dragged from target (reverse - after yanking from output)
+        if (connectionTarget != null && connectionEndPoint != null) {
+            Point end = targetInputIndex == 2 && connectionTarget.hasDualInput()
+                ? connectionTarget.getInputPoint2()
+                : connectionTarget.getInputPoint();
+            gc.setLineWidth(2);
+            gc.setForeground(display.getSystemColor(SWT.COLOR_BLUE));
+            gc.drawLine(connectionEndPoint.x, connectionEndPoint.y, end.x, end.y);
+        }
+
+        // Draw free connection being dragged (both ends unattached)
+        if (freeConnectionFixedEnd != null && connectionEndPoint != null) {
+            gc.setForeground(display.getSystemColor(SWT.COLOR_GRAY));
+            gc.setLineStyle(SWT.LINE_DASH);
+            gc.setLineWidth(2);
+            if (draggingFreeConnectionSource) {
+                // Dragging source end - connectionEndPoint is source, freeConnectionFixedEnd is target (arrow end)
+                gc.drawLine(connectionEndPoint.x, connectionEndPoint.y, freeConnectionFixedEnd.x, freeConnectionFixedEnd.y);
+                drawArrow(gc, connectionEndPoint, freeConnectionFixedEnd);
+                // Draw circle at fixed arrow end
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.fillOval(freeConnectionFixedEnd.x - 4, freeConnectionFixedEnd.y - 4, 8, 8);
+            } else {
+                // Dragging target end - freeConnectionFixedEnd is source, connectionEndPoint is target (arrow end)
+                gc.drawLine(freeConnectionFixedEnd.x, freeConnectionFixedEnd.y, connectionEndPoint.x, connectionEndPoint.y);
+                drawArrow(gc, freeConnectionFixedEnd, connectionEndPoint);
+                // Draw circle at fixed source end
+                gc.setBackground(display.getSystemColor(SWT.COLOR_GRAY));
+                gc.fillOval(freeConnectionFixedEnd.x - 4, freeConnectionFixedEnd.y - 4, 8, 8);
+            }
+            gc.setLineStyle(SWT.LINE_SOLID);
+        }
+
+        // Draw dangling connections (source connected, target free) as dashed lines
+        gc.setLineStyle(SWT.LINE_DASH);
+        gc.setLineWidth(2);
+        for (DanglingConnection dc : danglingConnections) {
+            boolean isSelected = selectedDanglingConnections.contains(dc);
+            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            Point start = dc.source.getOutputPoint(dc.outputIndex);
+            gc.drawLine(start.x, start.y, dc.freeEnd.x, dc.freeEnd.y);
+            // Draw small circle at free end
+            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(dc.freeEnd.x - 4, dc.freeEnd.y - 4, 8, 8);
+        }
+
+        // Draw reverse dangling connections (target connected, source free) as dashed lines
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            boolean isSelected = selectedReverseDanglingConnections.contains(rdc);
+            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            // Use correct input point based on inputIndex
+            Point end = (rdc.inputIndex == 2 && rdc.target.hasDualInput())
+                ? rdc.target.getInputPoint2()
+                : rdc.target.getInputPoint();
+            gc.drawLine(rdc.freeEnd.x, rdc.freeEnd.y, end.x, end.y);
+            // Draw small circle at free end
+            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(rdc.freeEnd.x - 4, rdc.freeEnd.y - 4, 8, 8);
+        }
+
+        // Draw free connections (both ends free) as dashed lines with circles at both ends
+        for (FreeConnection fc : freeConnections) {
+            boolean isSelected = selectedFreeConnections.contains(fc);
+            gc.setForeground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.drawLine(fc.startEnd.x, fc.startEnd.y, fc.arrowEnd.x, fc.arrowEnd.y);
+            drawArrow(gc, fc.startEnd, fc.arrowEnd);
+            // Draw small circles at both ends
+            gc.setBackground(isSelected ? display.getSystemColor(SWT.COLOR_CYAN) : display.getSystemColor(SWT.COLOR_GRAY));
+            gc.fillOval(fc.startEnd.x - 4, fc.startEnd.y - 4, 8, 8);
+            gc.fillOval(fc.arrowEnd.x - 4, fc.arrowEnd.y - 4, 8, 8);
+        }
+        gc.setLineStyle(SWT.LINE_SOLID);
 
         // Draw boundary nodes first (they're fixed)
         ContainerInputNode boundaryInput = container.getBoundaryInput();
@@ -580,10 +667,133 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         ContainerInputNode boundaryInput = container.getBoundaryInput();
         ContainerOutputNode boundaryOutput = container.getBoundaryOutput();
 
-        // First: Check output points for starting connections (before node body)
+        int radius = 8;
+
+        // Check if clicking on a dangling connection's free end (to pick it up)
+        DanglingConnection danglingToRemove = null;
+        for (DanglingConnection dc : danglingConnections) {
+            double dist = Math.sqrt(Math.pow(click.x - dc.freeEnd.x, 2) + Math.pow(click.y - dc.freeEnd.y, 2));
+            if (dist <= radius) {
+                // Pick up this dangling connection
+                connectionSource = dc.source;
+                connectionSourceOutputIndex = dc.outputIndex;
+                connectionTarget = null;
+                connectionEndPoint = click;
+                danglingToRemove = dc;
+                break;
+            }
+        }
+        if (danglingToRemove != null) {
+            danglingConnections.remove(danglingToRemove);
+            canvas.redraw();
+            return;
+        }
+
+        // Check if clicking on a reverse dangling connection's free end (to pick it up)
+        ReverseDanglingConnection reverseDanglingToRemove = null;
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            double dist = Math.sqrt(Math.pow(click.x - rdc.freeEnd.x, 2) + Math.pow(click.y - rdc.freeEnd.y, 2));
+            if (dist <= radius) {
+                // Pick up this reverse dangling connection - preserve input index
+                connectionTarget = rdc.target;
+                targetInputIndex = rdc.inputIndex; // Preserve original input index
+                connectionSource = null;
+                connectionEndPoint = click;
+                reverseDanglingToRemove = rdc;
+                break;
+            }
+        }
+        if (reverseDanglingToRemove != null) {
+            reverseDanglingConnections.remove(reverseDanglingToRemove);
+            canvas.redraw();
+            return;
+        }
+
+        // Check if clicking on a FreeConnection's start end (non-arrow end)
+        FreeConnection freeStartToRemove = null;
+        Point freeStartOtherEnd = null;
+        for (FreeConnection fc : freeConnections) {
+            double dist = Math.sqrt(Math.pow(click.x - fc.startEnd.x, 2) + Math.pow(click.y - fc.startEnd.y, 2));
+            if (dist <= radius) {
+                freeStartToRemove = fc;
+                freeStartOtherEnd = fc.arrowEnd;
+                break;
+            }
+        }
+        if (freeStartToRemove != null) {
+            freeConnections.remove(freeStartToRemove);
+            // Set up dragging from the start end - arrow end stays fixed
+            freeConnectionFixedEnd = freeStartOtherEnd;
+            draggingFreeConnectionSource = true; // We're dragging the start/source end
+            connectionEndPoint = click;
+            connectionSource = null;
+            connectionTarget = null;
+            canvas.redraw();
+            return;
+        }
+
+        // Check if clicking on a FreeConnection's arrow end
+        FreeConnection freeArrowToRemove = null;
+        Point freeArrowOtherEnd = null;
+        for (FreeConnection fc : freeConnections) {
+            double dist = Math.sqrt(Math.pow(click.x - fc.arrowEnd.x, 2) + Math.pow(click.y - fc.arrowEnd.y, 2));
+            if (dist <= radius) {
+                freeArrowToRemove = fc;
+                freeArrowOtherEnd = fc.startEnd;
+                break;
+            }
+        }
+        if (freeArrowToRemove != null) {
+            freeConnections.remove(freeArrowToRemove);
+            // Set up dragging from the arrow end - start end stays fixed
+            freeConnectionFixedEnd = freeArrowOtherEnd;
+            draggingFreeConnectionSource = false; // We're dragging the arrow/target end
+            connectionEndPoint = click;
+            connectionSource = null;
+            connectionTarget = null;
+            canvas.redraw();
+            return;
+        }
+
+        // First: Check output points - if connected, yank the connection; otherwise start new
         // Check boundary input's output point first
         int outputIdx = boundaryInput.getOutputIndexNear(click.x, click.y);
         if (outputIdx >= 0) {
+            // Check if there's an existing connection from this output to yank
+            Connection toYank = findConnectionFromSource(boundaryInput, outputIdx);
+            if (toYank != null) {
+                // Yank the connection - start dragging from the target end
+                // Clear any forward connection state first
+                connectionSource = null;
+                yankedOriginalTarget = null;
+                // Set reverse connection state
+                connectionTarget = toYank.target;
+                targetInputIndex = toYank.inputIndex;
+                // Save original source to restore if dropped on empty space
+                yankedOriginalSource = toYank.source;
+                yankedOriginalOutputIndex = toYank.outputIndex;
+                connectionEndPoint = click;
+                connections.remove(toYank);
+                notifyModified();
+                canvas.redraw();
+                return;
+            }
+            // Check if there's a dangling connection from this output to yank
+            DanglingConnection danglingToYank = findDanglingFromSource(boundaryInput, outputIdx);
+            if (danglingToYank != null) {
+                // Yank off the source end - use freeConnectionFixedEnd pattern
+                // The arrow end stays fixed, we drag the source end
+                danglingConnections.remove(danglingToYank);
+                freeConnectionFixedEnd = danglingToYank.freeEnd; // The arrow end stays put
+                draggingFreeConnectionSource = true; // We're dragging the source end
+                connectionEndPoint = click;
+                connectionSource = null;
+                connectionTarget = null;
+                canvas.redraw();
+                return;
+            }
+            // No existing connection - start a new connection
+            connectionTarget = null; // Clear reverse state
             connectionSource = boundaryInput;
             connectionSourceOutputIndex = outputIdx;
             connectionEndPoint = click;
@@ -595,6 +805,41 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             PipelineNode node = nodes.get(i);
             outputIdx = node.getOutputIndexNear(click.x, click.y);
             if (outputIdx >= 0) {
+                // Check if there's an existing connection from this output to yank
+                Connection toYank = findConnectionFromSource(node, outputIdx);
+                if (toYank != null) {
+                    // Yank the connection - start dragging from the target end
+                    // Clear any forward connection state first
+                    connectionSource = null;
+                    yankedOriginalTarget = null;
+                    // Set reverse connection state
+                    connectionTarget = toYank.target;
+                    targetInputIndex = toYank.inputIndex;
+                    // Save original source to restore if dropped on empty space
+                    yankedOriginalSource = toYank.source;
+                    yankedOriginalOutputIndex = toYank.outputIndex;
+                    connectionEndPoint = click;
+                    connections.remove(toYank);
+                    notifyModified();
+                    canvas.redraw();
+                    return;
+                }
+                // Check if there's a dangling connection from this output to yank
+                DanglingConnection danglingToYank = findDanglingFromSource(node, outputIdx);
+                if (danglingToYank != null) {
+                    // Yank off the source end - use freeConnectionFixedEnd pattern
+                    // The arrow end stays fixed, we drag the source end
+                    danglingConnections.remove(danglingToYank);
+                    freeConnectionFixedEnd = danglingToYank.freeEnd; // The arrow end stays put
+                    draggingFreeConnectionSource = true; // We're dragging the source end
+                    connectionEndPoint = click;
+                    connectionSource = null;
+                    connectionTarget = null;
+                    canvas.redraw();
+                    return;
+                }
+                // No existing connection - start a new connection
+                connectionTarget = null; // Clear reverse state
                 connectionSource = node;
                 connectionSourceOutputIndex = outputIdx;
                 connectionEndPoint = click;
@@ -607,6 +852,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         if (boundaryOutput.isNearInputPoint(click.x, click.y)) {
             Connection toYank = findConnectionToTarget(boundaryOutput, 1);
             if (toYank != null) {
+                // Clear any reverse connection state first
+                connectionTarget = null;
+                yankedOriginalSource = null;
+                // Set forward connection state
                 connectionSource = toYank.source;
                 connectionSourceOutputIndex = toYank.outputIndex;
                 yankedOriginalTarget = toYank.target;
@@ -617,6 +866,27 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 canvas.redraw();
                 return;
             }
+            // Check if there's a reverse dangling connection to this input to yank
+            ReverseDanglingConnection reverseDanglingToYank = findReverseDanglingToTarget(boundaryOutput, 1);
+            if (reverseDanglingToYank != null) {
+                // Pick up the reverse dangling connection - use freeConnectionFixedEnd pattern
+                // The source end stays fixed, we drag the arrow end
+                reverseDanglingConnections.remove(reverseDanglingToYank);
+                freeConnectionFixedEnd = reverseDanglingToYank.freeEnd; // The source end stays put
+                draggingFreeConnectionSource = false; // We're dragging the arrow/target end
+                connectionEndPoint = click;
+                connectionTarget = null;
+                connectionSource = null;
+                canvas.redraw();
+                return;
+            }
+            // No existing connection - start a new reverse connection (dragging from input to find output)
+            connectionTarget = boundaryOutput;
+            targetInputIndex = 1;
+            connectionSource = null;
+            connectionEndPoint = click;
+            canvas.redraw();
+            return;
         }
 
         // Check child nodes' input points
@@ -624,6 +894,10 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             if (node.isNearInputPoint(click.x, click.y)) {
                 Connection toYank = findConnectionToTarget(node, 1);
                 if (toYank != null) {
+                    // Clear any reverse connection state first
+                    connectionTarget = null;
+                    yankedOriginalSource = null;
+                    // Set forward connection state
                     connectionSource = toYank.source;
                     connectionSourceOutputIndex = toYank.outputIndex;
                     yankedOriginalTarget = toYank.target;
@@ -634,10 +908,35 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     canvas.redraw();
                     return;
                 }
+                // Check if there's a reverse dangling connection to this input (input1) to yank
+                ReverseDanglingConnection reverseDanglingToYank = findReverseDanglingToTarget(node, 1);
+                if (reverseDanglingToYank != null) {
+                    // Pick up the reverse dangling connection - use freeConnectionFixedEnd pattern
+                    // The source end stays fixed, we drag the arrow end
+                    reverseDanglingConnections.remove(reverseDanglingToYank);
+                    freeConnectionFixedEnd = reverseDanglingToYank.freeEnd; // The source end stays put
+                    draggingFreeConnectionSource = false; // We're dragging the arrow/target end
+                    connectionEndPoint = click;
+                    connectionTarget = null;
+                    connectionSource = null;
+                    canvas.redraw();
+                    return;
+                }
+                // No existing connection - start a new reverse connection (dragging from input to find output)
+                connectionTarget = node;
+                targetInputIndex = 1;
+                connectionSource = null;
+                connectionEndPoint = click;
+                canvas.redraw();
+                return;
             }
             if (node.hasDualInput() && node.isNearInputPoint2(click.x, click.y)) {
                 Connection toYank = findConnectionToTarget(node, 2);
                 if (toYank != null) {
+                    // Clear any reverse connection state first
+                    connectionTarget = null;
+                    yankedOriginalSource = null;
+                    // Set forward connection state
                     connectionSource = toYank.source;
                     connectionSourceOutputIndex = toYank.outputIndex;
                     yankedOriginalTarget = toYank.target;
@@ -648,6 +947,27 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     canvas.redraw();
                     return;
                 }
+                // Check if there's a reverse dangling connection to this input (input2) to yank
+                ReverseDanglingConnection reverseDanglingToYank2 = findReverseDanglingToTarget(node, 2);
+                if (reverseDanglingToYank2 != null) {
+                    // Pick up the reverse dangling connection - use freeConnectionFixedEnd pattern
+                    // The source end stays fixed, we drag the arrow end
+                    reverseDanglingConnections.remove(reverseDanglingToYank2);
+                    freeConnectionFixedEnd = reverseDanglingToYank2.freeEnd; // The source end stays put
+                    draggingFreeConnectionSource = false; // We're dragging the arrow/target end
+                    connectionEndPoint = click;
+                    connectionTarget = null;
+                    connectionSource = null;
+                    canvas.redraw();
+                    return;
+                }
+                // No existing connection - start a new reverse connection (dragging from input2 to find output)
+                connectionTarget = node;
+                targetInputIndex = 2;
+                connectionSource = null;
+                connectionEndPoint = click;
+                canvas.redraw();
+                return;
             }
         }
 
@@ -706,7 +1026,55 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
             if (isNearConnectionLine(conn, click)) {
                 selectedNodes.clear();
                 selectedConnections.clear();
+                selectedDanglingConnections.clear();
+                selectedReverseDanglingConnections.clear();
+                selectedFreeConnections.clear();
                 selectedConnections.add(conn);
+                selectedNode = null;
+                canvas.redraw();
+                return;
+            }
+        }
+
+        // Check for dangling connection line selection
+        for (DanglingConnection dc : danglingConnections) {
+            if (isNearDanglingLine(dc, click)) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+                selectedDanglingConnections.clear();
+                selectedReverseDanglingConnections.clear();
+                selectedFreeConnections.clear();
+                selectedDanglingConnections.add(dc);
+                selectedNode = null;
+                canvas.redraw();
+                return;
+            }
+        }
+
+        // Check for reverse dangling connection line selection
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            if (isNearReverseDanglingLine(rdc, click)) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+                selectedDanglingConnections.clear();
+                selectedReverseDanglingConnections.clear();
+                selectedFreeConnections.clear();
+                selectedReverseDanglingConnections.add(rdc);
+                selectedNode = null;
+                canvas.redraw();
+                return;
+            }
+        }
+
+        // Check for free connection line selection
+        for (FreeConnection fc : freeConnections) {
+            if (isNearFreeConnectionLine(fc, click)) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+                selectedDanglingConnections.clear();
+                selectedReverseDanglingConnections.clear();
+                selectedFreeConnections.clear();
+                selectedFreeConnections.add(fc);
                 selectedNode = null;
                 canvas.redraw();
                 return;
@@ -717,6 +1085,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         selectedNode = null;
         selectedNodes.clear();
         selectedConnections.clear();
+        selectedDanglingConnections.clear();
+        selectedReverseDanglingConnections.clear();
+        selectedFreeConnections.clear();
         selectionBoxStart = click;
         selectionBoxEnd = click;
         isSelectionBoxDragging = true;
@@ -735,14 +1106,100 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         return null;
     }
 
+    /**
+     * Find a dangling connection originating from the given source node's output.
+     */
+    private DanglingConnection findDanglingFromSource(PipelineNode source, int outputIndex) {
+        for (DanglingConnection dc : danglingConnections) {
+            if (dc.source == source && dc.outputIndex == outputIndex) {
+                return dc;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a reverse dangling connection targeting the given node and input index.
+     */
+    private ReverseDanglingConnection findReverseDanglingToTarget(PipelineNode target, int inputIndex) {
+        for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+            if (rdc.target == target && rdc.inputIndex == inputIndex) {
+                return rdc;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a point is near a dangling connection line.
+     */
+    private boolean isNearDanglingLine(DanglingConnection dc, Point click) {
+        Point start = dc.source.getOutputPoint(dc.outputIndex);
+        Point end = dc.freeEnd;
+        return pointToLineDistance(click, start, end) < 8;
+    }
+
+    /**
+     * Check if a point is near a reverse dangling connection line.
+     */
+    private boolean isNearReverseDanglingLine(ReverseDanglingConnection rdc, Point click) {
+        Point start = rdc.freeEnd;
+        Point end = (rdc.inputIndex == 2 && rdc.target.hasDualInput())
+            ? rdc.target.getInputPoint2()
+            : rdc.target.getInputPoint();
+        return pointToLineDistance(click, start, end) < 8;
+    }
+
+    /**
+     * Check if a point is near a free connection line.
+     */
+    private boolean isNearFreeConnectionLine(FreeConnection fc, Point click) {
+        return pointToLineDistance(click, fc.startEnd, fc.arrowEnd) < 8;
+    }
+
+    /**
+     * Calculate distance from point to line segment.
+     */
+    private double pointToLineDistance(Point p, Point lineStart, Point lineEnd) {
+        double dx = lineEnd.x - lineStart.x;
+        double dy = lineEnd.y - lineStart.y;
+        double lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared == 0) {
+            return Math.sqrt(Math.pow(p.x - lineStart.x, 2) + Math.pow(p.y - lineStart.y, 2));
+        }
+
+        double t = ((p.x - lineStart.x) * dx + (p.y - lineStart.y) * dy) / lengthSquared;
+        t = Math.max(0, Math.min(1, t));
+
+        double closestX = lineStart.x + t * dx;
+        double closestY = lineStart.y + t * dy;
+
+        return Math.sqrt(Math.pow(p.x - closestX, 2) + Math.pow(p.y - closestY, 2));
+    }
+
     private void handleMouseMove(MouseEvent e) {
         Point click = toCanvasPoint(e.x, e.y);
 
         // Check for tooltip on connection points
         updateConnectionTooltip(click.x, click.y);
 
-        // Update connection endpoint
+        // Update connection endpoint (forward drag from output)
         if (connectionSource != null) {
+            connectionEndPoint = click;
+            canvas.redraw();
+            return;
+        }
+
+        // Update connection endpoint (reverse drag from target after yanking from output)
+        if (connectionTarget != null) {
+            connectionEndPoint = click;
+            canvas.redraw();
+            return;
+        }
+
+        // Update connection endpoint (free connection dragging - both ends unattached)
+        if (freeConnectionFixedEnd != null) {
             connectionEndPoint = click;
             canvas.redraw();
             return;
@@ -861,15 +1318,154 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 }
             }
 
-            // If this was a yanked connection and no new connection was made, restore original
-            if (!connectionMade && yankedOriginalTarget != null) {
-                createConnection(connectionSource, yankedOriginalTarget, yankedOriginalInputIndex, connectionSourceOutputIndex);
+            // If dropped on empty space, create a dangling connection
+            if (!connectionMade && connectionSource != null) {
+                danglingConnections.add(new DanglingConnection(connectionSource, connectionSourceOutputIndex, click));
+                notifyModified();
             }
 
             connectionSource = null;
             connectionEndPoint = null;
             yankedOriginalTarget = null;
             yankedOriginalInputIndex = 0;
+            canvas.redraw();
+        }
+
+        // Handle reverse connection (dragging from target end after yanking from output)
+        if (connectionTarget != null && connectionEndPoint != null) {
+            boolean connectionMade = false;
+            PipelineNode sourceNode = null;
+            int sourceOutputIndex = 0;
+
+            ContainerInputNode boundaryInput = container.getBoundaryInput();
+
+            // Check boundary input's output point
+            int outputIdx = boundaryInput.getOutputIndexNear(click.x, click.y);
+            if (outputIdx >= 0) {
+                sourceNode = boundaryInput;
+                sourceOutputIndex = outputIdx;
+                connectionMade = true;
+            }
+
+            // Check child nodes' output points
+            if (!connectionMade) {
+                for (PipelineNode node : nodes) {
+                    if (node != connectionTarget) {
+                        outputIdx = node.getOutputIndexNear(click.x, click.y);
+                        if (outputIdx >= 0) {
+                            sourceNode = node;
+                            sourceOutputIndex = outputIdx;
+                            connectionMade = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (connectionMade && sourceNode != null) {
+                createConnection(sourceNode, connectionTarget, targetInputIndex, sourceOutputIndex);
+            } else if (connectionTarget != null) {
+                // If dropped on empty space, create a reverse dangling connection (preserving inputIndex)
+                reverseDanglingConnections.add(new ReverseDanglingConnection(connectionTarget, targetInputIndex, click));
+                notifyModified();
+            }
+
+            connectionTarget = null;
+            connectionEndPoint = null;
+            targetInputIndex = 1;
+            yankedOriginalSource = null;
+            yankedOriginalOutputIndex = 0;
+            canvas.redraw();
+        }
+
+        // Handle free connection dragging (both ends unattached)
+        if (freeConnectionFixedEnd != null && connectionEndPoint != null) {
+            ContainerInputNode boundaryInput = container.getBoundaryInput();
+            ContainerOutputNode boundaryOutput = container.getBoundaryOutput();
+
+            if (draggingFreeConnectionSource) {
+                // Dragging the source end - check if dropped on output point
+                PipelineNode sourceNode = null;
+                int sourceOutputIndex = 0;
+                boolean connected = false;
+
+                // Check boundary input's output point
+                int outputIdx = boundaryInput.getOutputIndexNear(click.x, click.y);
+                if (outputIdx >= 0) {
+                    sourceNode = boundaryInput;
+                    sourceOutputIndex = outputIdx;
+                    connected = true;
+                }
+
+                // Check child nodes' output points
+                if (!connected) {
+                    for (PipelineNode node : nodes) {
+                        outputIdx = node.getOutputIndexNear(click.x, click.y);
+                        if (outputIdx >= 0) {
+                            sourceNode = node;
+                            sourceOutputIndex = outputIdx;
+                            connected = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (connected && sourceNode != null) {
+                    // Connected to output point - create DanglingConnection with output index
+                    danglingConnections.add(new DanglingConnection(sourceNode, sourceOutputIndex, freeConnectionFixedEnd));
+                    notifyModified();
+                } else {
+                    // Not connected - create FreeConnection (both ends free)
+                    // connectionEndPoint is the source end, freeConnectionFixedEnd is the arrow end
+                    freeConnections.add(new FreeConnection(click, freeConnectionFixedEnd));
+                    notifyModified();
+                }
+            } else {
+                // Dragging the target end - check if dropped on input point
+                PipelineNode targetNode = null;
+                int inputIdx = 1;
+                boolean connected = false;
+
+                // Check boundary output's input point
+                if (boundaryOutput.isNearInputPoint(click.x, click.y)) {
+                    targetNode = boundaryOutput;
+                    inputIdx = 1;
+                    connected = true;
+                }
+
+                // Check child nodes' input points
+                if (!connected) {
+                    for (PipelineNode node : nodes) {
+                        if (node.isNearInputPoint(click.x, click.y)) {
+                            targetNode = node;
+                            inputIdx = 1;
+                            connected = true;
+                            break;
+                        }
+                        if (node.hasDualInput() && node.isNearInputPoint2(click.x, click.y)) {
+                            targetNode = node;
+                            inputIdx = 2;
+                            connected = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (connected && targetNode != null) {
+                    // Connected to input point - create ReverseDanglingConnection with correct inputIndex
+                    reverseDanglingConnections.add(new ReverseDanglingConnection(targetNode, inputIdx, freeConnectionFixedEnd));
+                    notifyModified();
+                } else {
+                    // Not connected - create FreeConnection (both ends free)
+                    // freeConnectionFixedEnd is the source end, connectionEndPoint is the arrow end
+                    freeConnections.add(new FreeConnection(freeConnectionFixedEnd, click));
+                    notifyModified();
+                }
+            }
+
+            freeConnectionFixedEnd = null;
+            draggingFreeConnectionSource = false;
+            connectionEndPoint = null;
             canvas.redraw();
         }
 
@@ -915,6 +1511,42 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     end.x >= boxX && end.x <= boxX + boxWidth &&
                     end.y >= boxY && end.y <= boxY + boxHeight) {
                     selectedConnections.add(conn);
+                }
+            }
+
+            // Select dangling connections that are completely inside selection box
+            for (DanglingConnection dc : danglingConnections) {
+                Point start = dc.source.getOutputPoint(dc.outputIndex);
+                Point end = dc.freeEnd;
+                if (start.x >= boxX && start.x <= boxX + boxWidth &&
+                    start.y >= boxY && start.y <= boxY + boxHeight &&
+                    end.x >= boxX && end.x <= boxX + boxWidth &&
+                    end.y >= boxY && end.y <= boxY + boxHeight) {
+                    selectedDanglingConnections.add(dc);
+                }
+            }
+
+            // Select reverse dangling connections that are completely inside selection box
+            for (ReverseDanglingConnection rdc : reverseDanglingConnections) {
+                Point start = rdc.freeEnd;
+                Point end = (rdc.inputIndex == 2 && rdc.target.hasDualInput())
+                    ? rdc.target.getInputPoint2()
+                    : rdc.target.getInputPoint();
+                if (start.x >= boxX && start.x <= boxX + boxWidth &&
+                    start.y >= boxY && start.y <= boxY + boxHeight &&
+                    end.x >= boxX && end.x <= boxX + boxWidth &&
+                    end.y >= boxY && end.y <= boxY + boxHeight) {
+                    selectedReverseDanglingConnections.add(rdc);
+                }
+            }
+
+            // Select free connections that are completely inside selection box
+            for (FreeConnection fc : freeConnections) {
+                if (fc.startEnd.x >= boxX && fc.startEnd.x <= boxX + boxWidth &&
+                    fc.startEnd.y >= boxY && fc.startEnd.y <= boxY + boxHeight &&
+                    fc.arrowEnd.x >= boxX && fc.arrowEnd.x <= boxX + boxWidth &&
+                    fc.arrowEnd.y >= boxY && fc.arrowEnd.y <= boxY + boxHeight) {
+                    selectedFreeConnections.add(fc);
                 }
             }
 
@@ -968,6 +1600,8 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     }
 
     private void deleteSelectedImpl() {
+        boolean modified = false;
+
         if (selectedNode != null) {
             // Don't delete boundary nodes
             if (selectedNode instanceof ContainerInputNode || selectedNode instanceof ContainerOutputNode) {
@@ -976,20 +1610,49 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
 
             // Remove connections to/from this node
             connections.removeIf(conn -> conn.source == selectedNode || conn.target == selectedNode);
+            // Remove dangling connections from this node
+            danglingConnections.removeIf(dc -> dc.source == selectedNode);
+            reverseDanglingConnections.removeIf(rdc -> rdc.target == selectedNode);
 
             // Remove node
             nodes.remove(selectedNode);
             selectedNode = null;
             selectedNodes.clear();
-            notifyModified();
-            canvas.redraw();
+            modified = true;
         }
 
         // Remove selected connections
-        connections.removeAll(selectedConnections);
-        selectedConnections.clear();
-        notifyModified();
-        canvas.redraw();
+        if (!selectedConnections.isEmpty()) {
+            connections.removeAll(selectedConnections);
+            selectedConnections.clear();
+            modified = true;
+        }
+
+        // Remove selected dangling connections
+        if (!selectedDanglingConnections.isEmpty()) {
+            danglingConnections.removeAll(selectedDanglingConnections);
+            selectedDanglingConnections.clear();
+            modified = true;
+        }
+
+        // Remove selected reverse dangling connections
+        if (!selectedReverseDanglingConnections.isEmpty()) {
+            reverseDanglingConnections.removeAll(selectedReverseDanglingConnections);
+            selectedReverseDanglingConnections.clear();
+            modified = true;
+        }
+
+        // Remove selected free connections
+        if (!selectedFreeConnections.isEmpty()) {
+            freeConnections.removeAll(selectedFreeConnections);
+            selectedFreeConnections.clear();
+            modified = true;
+        }
+
+        if (modified) {
+            notifyModified();
+            canvas.redraw();
+        }
     }
 
     @Override

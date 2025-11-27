@@ -150,6 +150,13 @@ public class ContainerNode extends ProcessingNode {
         running.set(true);
         workUnitsCompleted = 0;
 
+        // Reset work counters on all internal nodes
+        boundaryInput.resetWorkUnitsCompleted();
+        for (PipelineNode child : childNodes) {
+            child.resetWorkUnitsCompleted();
+        }
+        boundaryOutput.resetWorkUnitsCompleted();
+
         // Wire the container input queue to the boundary input node
         boundaryInput.setContainerInputQueue(inputQueue);
 
@@ -272,16 +279,17 @@ public class ContainerNode extends ProcessingNode {
         gc.drawString(getThreadPriorityLabel(), x + 10, y + 22, true);
         smallFont.dispose();
 
-        // Draw input read count on the left side
+        // Draw input read count on the left side (use boundary input's count since container delegates to it)
         Font statsFont = new Font(display, "Arial", 7, SWT.NORMAL);
         gc.setFont(statsFont);
         gc.setForeground(display.getSystemColor(SWT.COLOR_DARK_GRAY));
         int statsX = x + 5;
-        if (inputReads1 >= 1000) {
+        long inputCount = boundaryInput.getInputReads1();
+        if (inputCount >= 1000) {
             gc.drawString("In:", statsX, y + 38, true);
-            gc.drawString(formatNumber(inputReads1), statsX, y + 48, true);
+            gc.drawString(formatNumber(inputCount), statsX, y + 48, true);
         } else {
-            gc.drawString("In:" + formatNumber(inputReads1), statsX, y + 38, true);
+            gc.drawString("In:" + formatNumber(inputCount), statsX, y + 38, true);
         }
         statsFont.dispose();
 
