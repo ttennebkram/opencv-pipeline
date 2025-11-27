@@ -94,32 +94,37 @@ public class Filter2DNode extends ProcessingNode {
     public void showPropertiesDialog() {
         Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         dialog.setText("Filter2D Properties");
-        dialog.setLayout(new GridLayout(1, false));
+        dialog.setLayout(new GridLayout(2, false));
+
+        // Name field at top
+        Text nameText = addNameField(dialog, 2);
 
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
-        sigLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sigGd.horizontalSpan = 2;
+        sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
-        sep.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        sepGd.horizontalSpan = 2;
+        sep.setLayoutData(sepGd);
 
         // Kernel size selector
-        Composite sizeComp = new Composite(dialog, SWT.NONE);
-        sizeComp.setLayout(new GridLayout(2, false));
-        sizeComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        new Label(sizeComp, SWT.NONE).setText("Kernel Size:");
-        Combo sizeCombo = new Combo(sizeComp, SWT.DROP_DOWN | SWT.READ_ONLY);
+        new Label(dialog, SWT.NONE).setText("Kernel Size:");
+        Combo sizeCombo = new Combo(dialog, SWT.DROP_DOWN | SWT.READ_ONLY);
         sizeCombo.setItems(new String[]{"3x3", "5x5", "7x7", "9x9"});
         int sizeIndex = (kernelSize - 3) / 2;
         sizeCombo.select(sizeIndex >= 0 && sizeIndex < 4 ? sizeIndex : 0);
 
         // Kernel grid container
         Composite gridContainer = new Composite(dialog, SWT.NONE);
-        gridContainer.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, true));
+        GridData gridGd = new GridData(SWT.CENTER, SWT.CENTER, true, true);
+        gridGd.horizontalSpan = 2;
+        gridContainer.setLayoutData(gridGd);
 
         // Array to hold text fields
         Text[][] kernelFields = new Text[9][9]; // Max size
@@ -216,12 +221,16 @@ public class Filter2DNode extends ProcessingNode {
         // Predefined Kernels label
         Label presetLabel = new Label(dialog, SWT.NONE);
         presetLabel.setText("Predefined Kernels:");
-        presetLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+        GridData presetLabelGd = new GridData(SWT.LEFT, SWT.CENTER, true, false);
+        presetLabelGd.horizontalSpan = 2;
+        presetLabel.setLayoutData(presetLabelGd);
 
         // Preset buttons
         Composite presetComp = new Composite(dialog, SWT.NONE);
         presetComp.setLayout(new GridLayout(3, true));
-        presetComp.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, true, false));
+        GridData presetGd = new GridData(SWT.CENTER, SWT.CENTER, true, false);
+        presetGd.horizontalSpan = 2;
+        presetComp.setLayoutData(presetGd);
 
         Button identityBtn = new Button(presetComp, SWT.PUSH);
         identityBtn.setText("Identity");
@@ -271,12 +280,16 @@ public class Filter2DNode extends ProcessingNode {
         // Buttons
         Composite buttonComp = new Composite(dialog, SWT.NONE);
         buttonComp.setLayout(new GridLayout(2, true));
-        buttonComp.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
+        GridData buttonGd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
+        buttonGd.horizontalSpan = 2;
+        buttonComp.setLayoutData(buttonGd);
 
         Button okBtn = new Button(buttonComp, SWT.PUSH);
         okBtn.setText("OK");
         dialog.setDefaultButton(okBtn);
         okBtn.addListener(SWT.Selection, e -> {
+            // Save name field
+            saveNameField(nameText);
             // Save kernel values
             int size = currentSize[0];
             kernelSize = size;

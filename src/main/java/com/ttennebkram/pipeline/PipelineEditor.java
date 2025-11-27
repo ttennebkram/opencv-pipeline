@@ -966,6 +966,18 @@ public class PipelineEditor {
         selectedButtonIndex = -1;
     }
 
+    /**
+     * Save the current diagram. If no file path is set, prompts for a new file.
+     * Also recursively saves all container pipelines.
+     */
+    private void saveDiagram() {
+        if (currentFilePath != null && !currentFilePath.isEmpty()) {
+            saveDiagramToPath(currentFilePath);
+        } else {
+            saveDiagramAs();
+        }
+    }
+
     private void saveDiagramAs() {
         FileDialog dialog = new FileDialog(shell, SWT.SAVE);
         dialog.setText("Save Diagram");
@@ -984,6 +996,9 @@ public class PipelineEditor {
 
     private void saveDiagramToPath(String path) {
         try {
+            // Recursively save all container pipelines first
+            saveContainerPipelinesRecursively(nodes, path);
+
             // Save via PipelineSerializer
             PipelineSerializer.save(path, nodes, connections, danglingConnections,
                                     reverseDanglingConnections, freeConnections);
@@ -1005,6 +1020,51 @@ public class PipelineEditor {
             mb.setText("Save Error");
             mb.setMessage("Failed to save: " + e.getMessage());
             mb.open();
+        }
+    }
+
+    /**
+     * Recursively save all container node pipelines.
+     * @param nodeList List of nodes to check for containers
+     * @param basePath The path of the parent pipeline file (for relative path resolution)
+     */
+    private void saveContainerPipelinesRecursively(List<PipelineNode> nodeList, String basePath) {
+        File baseFile = new File(basePath);
+        File baseDir = baseFile.getParentFile();
+
+        for (PipelineNode node : nodeList) {
+            if (node instanceof ContainerNode) {
+                ContainerNode container = (ContainerNode) node;
+                String containerPath = container.getPipelineFilePath();
+
+                if (containerPath != null && !containerPath.isEmpty()) {
+                    // Resolve relative path to absolute
+                    File containerFile = new File(containerPath);
+                    if (!containerFile.isAbsolute() && baseDir != null) {
+                        containerFile = new File(baseDir, containerPath);
+                    }
+
+                    try {
+                        // Build list of all nodes including boundary nodes
+                        List<PipelineNode> allContainerNodes = new ArrayList<>();
+                        allContainerNodes.add(container.getBoundaryInput());
+                        allContainerNodes.addAll(container.getChildNodes());
+                        allContainerNodes.add(container.getBoundaryOutput());
+
+                        // Recursively save any nested containers first
+                        saveContainerPipelinesRecursively(container.getChildNodes(), containerFile.getAbsolutePath());
+
+                        // Save this container's pipeline
+                        PipelineSerializer.save(containerFile.getAbsolutePath(), allContainerNodes,
+                            container.getChildConnections(),
+                            new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+
+                        System.out.println("[" + PipelineNode.timestamp() + "] Saved container pipeline: " + containerFile.getAbsolutePath());
+                    } catch (Exception e) {
+                        System.err.println("Failed to save container pipeline: " + containerFile.getAbsolutePath() + " - " + e.getMessage());
+                    }
+                }
+            }
         }
     }
 
@@ -1261,6 +1321,14 @@ public class PipelineEditor {
                 canvas.redraw();
                 event.doit = false; // Consume the event
             }
+            // Cmd-S to save
+            else if (event.character == 's' && (event.stateMask & SWT.MOD1) != 0) {
+                Shell activeShell = display.getActiveShell();
+                if (activeShell == shell) {
+                    saveDiagram();
+                    event.doit = false;
+                }
+            }
             // Delete or Backspace to delete selected nodes and connections
             // SWT.DEL = 127 (forward delete), SWT.BS = 8 (backspace)
             // Only process if main shell is active (not when a dialog is open)
@@ -1382,6 +1450,51 @@ public class PipelineEditor {
         topLabel.setText("Controls");
         Font topBoldFont = new Font(display, "Arial", 11, SWT.BOLD);
         topLabel.setFont(topBoldFont);
+
+        // Save and Cancel buttons (matching ContainerEditorWindow layout)
+        Composite buttonPanel = new Composite(topPanel, SWT.NONE);
+        buttonPanel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        buttonPanel.setLayout(new GridLayout(2, true));
+
+        Button saveButton = new Button(buttonPanel, SWT.PUSH);
+        saveButton.setText("Save");
+        saveButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        saveButton.addListener(SWT.Selection, e -> saveDiagram());
+
+        Button cancelButton = new Button(buttonPanel, SWT.PUSH);
+        cancelButton.setText("Cancel");
+        cancelButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        cancelButton.addListener(SWT.Selection, e -> {
+            // Reload from file if saved, otherwise confirm discard
+            if (currentFilePath != null && !currentFilePath.isEmpty()) {
+                if (isDirty) {
+                    MessageBox confirm = new MessageBox(shell, SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+                    confirm.setText("Revert Changes");
+                    confirm.setMessage("Discard all changes and reload from disk?");
+                    if (confirm.open() == SWT.YES) {
+                        loadDiagramFromPath(currentFilePath);
+                    }
+                }
+            } else {
+                // No file to revert to - offer to clear
+                if (isDirty || !nodes.isEmpty()) {
+                    MessageBox confirm = new MessageBox(shell, SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+                    confirm.setText("Discard Changes");
+                    confirm.setMessage("Clear all nodes and start fresh?");
+                    if (confirm.open() == SWT.YES) {
+                        nodes.clear();
+                        connections.clear();
+                        danglingConnections.clear();
+                        reverseDanglingConnections.clear();
+                        freeConnections.clear();
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        clearDirty();
+                        canvas.redraw();
+                    }
+                }
+            }
+        });
 
         // Start/Stop button for continuous threaded execution
         startStopBtn = new Button(topPanel, SWT.PUSH);

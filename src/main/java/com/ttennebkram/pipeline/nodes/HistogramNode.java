@@ -4,16 +4,12 @@ import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Histogram visualization node - replaces image with histogram plot.
@@ -423,23 +419,24 @@ public class HistogramNode extends DualInputNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Histogram Properties");
-        dialog.setLayout(new GridLayout(2, false));
+    protected int getPropertiesDialogColumns() {
+        return 3;
+    }
 
+    @Override
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Mode selection
@@ -448,6 +445,7 @@ public class HistogramNode extends DualInputNode {
         modeCombo.setItems(MODES);
         modeCombo.select(modeIndex);
         GridData modeGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        modeGd.horizontalSpan = columns - 1;
         modeCombo.setLayoutData(modeGd);
 
         // Background selection
@@ -456,71 +454,47 @@ public class HistogramNode extends DualInputNode {
         bgCombo.setItems(BACKGROUND_MODES);
         bgCombo.select(backgroundMode);
         GridData bgGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        bgGd.horizontalSpan = columns - 1;
         bgCombo.setLayoutData(bgGd);
 
         // Fill bars checkbox
         new Label(dialog, SWT.NONE).setText("Fill Bars:");
         Button fillCheck = new Button(dialog, SWT.CHECK);
         fillCheck.setSelection(fillBars);
+        GridData fillGd = new GridData();
+        fillGd.horizontalSpan = columns - 1;
+        fillCheck.setLayoutData(fillGd);
 
         // Queues In Sync checkbox
         new Label(dialog, SWT.NONE).setText("Queues In Sync:");
         Button syncCheckbox = new Button(dialog, SWT.CHECK);
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
+        GridData syncGd = new GridData();
+        syncGd.horizontalSpan = columns - 1;
+        syncCheckbox.setLayoutData(syncGd);
 
         // Line thickness
         new Label(dialog, SWT.NONE).setText("Line Thickness:");
-        Composite thicknessComp = new Composite(dialog, SWT.NONE);
-        thicknessComp.setLayout(new GridLayout(2, false));
-        thicknessComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-        Scale thicknessScale = new Scale(thicknessComp, SWT.HORIZONTAL);
+        Scale thicknessScale = new Scale(dialog, SWT.HORIZONTAL);
         thicknessScale.setMinimum(1);
         thicknessScale.setMaximum(10);
-        // Clamp slider position to valid range, but keep actual value
         int thicknessSliderPos = Math.min(Math.max(lineThickness, 1), 10);
         thicknessScale.setSelection(thicknessSliderPos);
-        GridData scaleGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        scaleGd.widthHint = 120;
-        thicknessScale.setLayoutData(scaleGd);
+        thicknessScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
-        Label thicknessLabel = new Label(thicknessComp, SWT.NONE);
-        thicknessLabel.setText(String.valueOf(lineThickness)); // Show real value
-        GridData thicknessLabelGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-        thicknessLabelGd.widthHint = 30;
-        thicknessLabel.setLayoutData(thicknessLabelGd);
+        Label thicknessLabel = new Label(dialog, SWT.NONE);
+        thicknessLabel.setText(String.valueOf(lineThickness));
         thicknessScale.addListener(SWT.Selection, e ->
             thicknessLabel.setText(String.valueOf(thicknessScale.getSelection())));
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             modeIndex = modeCombo.getSelectionIndex();
             backgroundMode = bgCombo.getSelectionIndex();
             fillBars = fillCheck.getSelection();
             queuesInSync = syncCheckbox.getSelection();
             lineThickness = thicknessScale.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        org.eclipse.swt.graphics.Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

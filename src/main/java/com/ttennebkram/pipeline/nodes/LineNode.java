@@ -84,23 +84,19 @@ public class LineNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Line Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // X1
@@ -167,17 +163,7 @@ public class LineNode extends ProcessingNode {
         thickSpinner.setSelection(thickness);
         thickSpinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             x1 = x1Spinner.getSelection();
             y1 = y1Spinner.getSelection();
             x2 = x2Spinner.getSelection();
@@ -186,18 +172,7 @@ public class LineNode extends ProcessingNode {
             colorG = gSpinner.getSelection();
             colorB = bSpinner.getSelection();
             thickness = thickSpinner.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        org.eclipse.swt.graphics.Point cursorLoc = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursorLoc.x, cursorLoc.y);
-        dialog.open();
+        };
     }
 
     @Override

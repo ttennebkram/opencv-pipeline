@@ -3,9 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Mat;
 
@@ -49,26 +47,18 @@ public class MonitorNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Monitor Properties");
-        dialog.setLayout(new GridLayout(1, false));
+    protected int getPropertiesDialogColumns() {
+        return 1;
+    }
 
+    @Override
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         Label infoLabel = new Label(dialog, SWT.NONE);
         infoLabel.setText("This node passes input through unchanged.\nUseful for previewing outputs.");
         GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         infoLabel.setLayoutData(gd);
 
-        Button okBtn = new Button(dialog, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
-        okBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        return null;
     }
 
     @Override

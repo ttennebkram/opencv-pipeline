@@ -3,7 +3,6 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
@@ -115,23 +114,19 @@ public class MorphologyExNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("MorphologyEx Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Operation selector
@@ -157,13 +152,12 @@ public class MorphologyExNode extends ProcessingNode {
         Scale widthScale = new Scale(widthComp, SWT.HORIZONTAL);
         widthScale.setMinimum(1);
         widthScale.setMaximum(31);
-        // Clamp slider position to valid range, but keep actual value
         int widthSliderPos = Math.min(Math.max(kernelWidth, 1), 31);
         widthScale.setSelection(widthSliderPos);
         widthScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label widthLabel = new Label(widthComp, SWT.NONE);
-        widthLabel.setText(String.valueOf(kernelWidth)); // Show real value
+        widthLabel.setText(String.valueOf(kernelWidth));
         widthScale.addListener(SWT.Selection, e -> widthLabel.setText(String.valueOf(widthScale.getSelection())));
 
         // Kernel height
@@ -175,13 +169,12 @@ public class MorphologyExNode extends ProcessingNode {
         Scale heightScale = new Scale(heightComp, SWT.HORIZONTAL);
         heightScale.setMinimum(1);
         heightScale.setMaximum(31);
-        // Clamp slider position to valid range, but keep actual value
         int heightSliderPos = Math.min(Math.max(kernelHeight, 1), 31);
         heightScale.setSelection(heightSliderPos);
         heightScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label heightLabel = new Label(heightComp, SWT.NONE);
-        heightLabel.setText(String.valueOf(kernelHeight)); // Show real value
+        heightLabel.setText(String.valueOf(kernelHeight));
         heightScale.addListener(SWT.Selection, e -> heightLabel.setText(String.valueOf(heightScale.getSelection())));
 
         // Iterations
@@ -193,13 +186,12 @@ public class MorphologyExNode extends ProcessingNode {
         Scale iterScale = new Scale(iterComp, SWT.HORIZONTAL);
         iterScale.setMinimum(1);
         iterScale.setMaximum(20);
-        // Clamp slider position to valid range, but keep actual value
         int iterSliderPos = Math.min(Math.max(iterations, 1), 20);
         iterScale.setSelection(iterSliderPos);
         iterScale.setLayoutData(new GridData(120, SWT.DEFAULT));
 
         Label iterLabel = new Label(iterComp, SWT.NONE);
-        iterLabel.setText(String.valueOf(iterations)); // Show real value
+        iterLabel.setText(String.valueOf(iterations));
         iterScale.addListener(SWT.Selection, e -> iterLabel.setText(String.valueOf(iterScale.getSelection())));
 
         // Anchor X
@@ -218,17 +210,7 @@ public class MorphologyExNode extends ProcessingNode {
         anchorYSpinner.setSelection(anchorY);
         anchorYSpinner.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             operationIndex = opCombo.getSelectionIndex();
             shapeIndex = shapeCombo.getSelectionIndex();
             kernelWidth = widthScale.getSelection();
@@ -236,19 +218,7 @@ public class MorphologyExNode extends ProcessingNode {
             iterations = iterScale.getSelection();
             anchorX = anchorXSpinner.getSelection();
             anchorY = anchorYSpinner.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        // Position dialog near cursor
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

@@ -3,7 +3,6 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
@@ -102,23 +101,19 @@ public class LaplacianNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Laplacian Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Kernel Size dropdown
@@ -134,12 +129,11 @@ public class LaplacianNode extends ProcessingNode {
         Scale scaleSlider = new Scale(scaleComp, SWT.HORIZONTAL);
         scaleSlider.setMinimum(10);
         scaleSlider.setMaximum(500);
-        // Clamp slider position to valid range, but keep actual value
         int scaleSliderPos = Math.min(Math.max(scalePercent, 10), 500);
         scaleSlider.setSelection(scaleSliderPos);
         scaleSlider.setLayoutData(new GridData(150, SWT.DEFAULT));
         Label scaleLabel = new Label(scaleComp, SWT.NONE);
-        scaleLabel.setText(String.format("%.1f", scalePercent / 100.0)); // Show real value
+        scaleLabel.setText(String.format("%.1f", scalePercent / 100.0));
         scaleSlider.addListener(SWT.Selection, e -> scaleLabel.setText(String.format("%.1f", scaleSlider.getSelection() / 100.0)));
 
         // Delta slider (0-255)
@@ -149,12 +143,11 @@ public class LaplacianNode extends ProcessingNode {
         Scale deltaSlider = new Scale(deltaComp, SWT.HORIZONTAL);
         deltaSlider.setMinimum(0);
         deltaSlider.setMaximum(255);
-        // Clamp slider position to valid range, but keep actual value
         int deltaSliderPos = Math.min(Math.max(delta, 0), 255);
         deltaSlider.setSelection(deltaSliderPos);
         deltaSlider.setLayoutData(new GridData(150, SWT.DEFAULT));
         Label deltaLabel = new Label(deltaComp, SWT.NONE);
-        deltaLabel.setText(String.valueOf(delta)); // Show real value
+        deltaLabel.setText(String.valueOf(delta));
         deltaSlider.addListener(SWT.Selection, e -> deltaLabel.setText(String.valueOf(deltaSlider.getSelection())));
 
         // Use Absolute checkbox
@@ -162,41 +155,15 @@ public class LaplacianNode extends ProcessingNode {
         absCheck.setText("Use Absolute Value");
         absCheck.setSelection(useAbsolute);
         GridData absGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        absGd.horizontalSpan = 2;
+        absGd.horizontalSpan = columns;
         absCheck.setLayoutData(absGd);
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             kernelSizeIndex = ksizeCombo.getSelectionIndex();
             scalePercent = scaleSlider.getSelection();
             delta = deltaSlider.getSelection();
             useAbsolute = absCheck.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        // Ensure minimum width for title
-        Point size = dialog.getSize();
-        if (size.x < 250) {
-            dialog.setSize(250, size.y);
-        }
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

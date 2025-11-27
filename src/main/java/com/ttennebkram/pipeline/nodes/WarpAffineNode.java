@@ -3,9 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
@@ -96,23 +94,24 @@ public class WarpAffineNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Warp Affine Properties");
-        dialog.setLayout(new GridLayout(3, false));
+    protected int getPropertiesDialogColumns() {
+        return 3;
+    }
 
+    @Override
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 3;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 3;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Translate X
@@ -120,13 +119,12 @@ public class WarpAffineNode extends ProcessingNode {
         Scale txScale = new Scale(dialog, SWT.HORIZONTAL);
         txScale.setMinimum(0);
         txScale.setMaximum(1000);
-        // Clamp slider position to valid range, but keep actual value
-        int txSliderPos = Math.min(Math.max(translateX + 500, 0), 1000); // Offset to handle negative values
+        int txSliderPos = Math.min(Math.max(translateX + 500, 0), 1000);
         txScale.setSelection(txSliderPos);
         txScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label txLabel = new Label(dialog, SWT.NONE);
-        txLabel.setText(String.valueOf(translateX)); // Show real value
+        txLabel.setText(String.valueOf(translateX));
         txScale.addListener(SWT.Selection, e -> txLabel.setText(String.valueOf(txScale.getSelection() - 500)));
 
         // Translate Y
@@ -134,13 +132,12 @@ public class WarpAffineNode extends ProcessingNode {
         Scale tyScale = new Scale(dialog, SWT.HORIZONTAL);
         tyScale.setMinimum(0);
         tyScale.setMaximum(1000);
-        // Clamp slider position to valid range, but keep actual value
-        int tySliderPos = Math.min(Math.max(translateY + 500, 0), 1000); // Offset to handle negative values
+        int tySliderPos = Math.min(Math.max(translateY + 500, 0), 1000);
         tyScale.setSelection(tySliderPos);
         tyScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label tyLabel = new Label(dialog, SWT.NONE);
-        tyLabel.setText(String.valueOf(translateY)); // Show real value
+        tyLabel.setText(String.valueOf(translateY));
         tyScale.addListener(SWT.Selection, e -> tyLabel.setText(String.valueOf(tyScale.getSelection() - 500)));
 
         // Rotation (-180 to 180)
@@ -148,13 +145,12 @@ public class WarpAffineNode extends ProcessingNode {
         Scale rotScale = new Scale(dialog, SWT.HORIZONTAL);
         rotScale.setMinimum(0);
         rotScale.setMaximum(360);
-        // Clamp slider position to valid range, but keep actual value
-        int rotSliderPos = Math.min(Math.max((int)rotation + 180, 0), 360); // Offset to handle negative values
+        int rotSliderPos = Math.min(Math.max((int)rotation + 180, 0), 360);
         rotScale.setSelection(rotSliderPos);
         rotScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label rotLabel = new Label(dialog, SWT.NONE);
-        rotLabel.setText(String.format("%.0f°", rotation)); // Show real value
+        rotLabel.setText(String.format("%.0f°", rotation));
         rotScale.addListener(SWT.Selection, e -> rotLabel.setText(String.format("%d°", rotScale.getSelection() - 180)));
 
         // Scale (0.1 to 4.0, scaled by 10)
@@ -162,13 +158,12 @@ public class WarpAffineNode extends ProcessingNode {
         Scale scaleScale = new Scale(dialog, SWT.HORIZONTAL);
         scaleScale.setMinimum(1);
         scaleScale.setMaximum(40);
-        // Clamp slider position to valid range, but keep actual value
         int scaleSliderPos = Math.min(Math.max((int)(scale * 10), 1), 40);
         scaleScale.setSelection(scaleSliderPos);
         scaleScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
         Label scaleLabel = new Label(dialog, SWT.NONE);
-        scaleLabel.setText(String.format("%.1fx", scale)); // Show real value
+        scaleLabel.setText(String.format("%.1fx", scale));
         scaleScale.addListener(SWT.Selection, e -> {
             double val = scaleScale.getSelection() / 10.0;
             scaleLabel.setText(String.format("%.1fx", val));
@@ -183,35 +178,13 @@ public class WarpAffineNode extends ProcessingNode {
         borderGd.horizontalSpan = 2;
         borderCombo.setLayoutData(borderGd);
 
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 3;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             translateX = txScale.getSelection() - 500;
             translateY = tyScale.getSelection() - 500;
             rotation = rotScale.getSelection() - 180;
             scale = scaleScale.getSelection() / 10.0;
             borderModeIndex = borderCombo.getSelectionIndex();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        // Position dialog near cursor
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

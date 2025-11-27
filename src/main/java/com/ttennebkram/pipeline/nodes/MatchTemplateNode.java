@@ -5,7 +5,6 @@ import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
@@ -324,23 +323,19 @@ public class MatchTemplateNode extends DualInputNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Match Template Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Description
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription() + "\n\nInput 1: Source image\nInput 2: Template to find\nOutput: Correlation matrix");
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Separator
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         // Method selection
@@ -373,64 +368,43 @@ public class MatchTemplateNode extends DualInputNode {
         syncCheckbox.setSelection(queuesInSync);
         syncCheckbox.setToolTipText("When checked, only process when both inputs receive new frames");
 
-        // Rectangle Color inputs
-        new Label(dialog, SWT.NONE).setText("Rectangle Color (R G B):");
-        Composite colorComp = new Composite(dialog, SWT.NONE);
-        colorComp.setLayout(new GridLayout(3, false));
-        colorComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        // Rectangle Color R
+        new Label(dialog, SWT.NONE).setText("Rect Color R:");
+        Spinner rSpinner = new Spinner(dialog, SWT.BORDER);
+        rSpinner.setMinimum(0);
+        rSpinner.setMaximum(255);
+        rSpinner.setSelection(rectColorR);
 
-        Text rText = new Text(colorComp, SWT.BORDER);
-        rText.setText(String.valueOf(rectColorR));
-        rText.setLayoutData(new GridData(40, SWT.DEFAULT));
+        // Rectangle Color G
+        new Label(dialog, SWT.NONE).setText("Rect Color G:");
+        Spinner gSpinner = new Spinner(dialog, SWT.BORDER);
+        gSpinner.setMinimum(0);
+        gSpinner.setMaximum(255);
+        gSpinner.setSelection(rectColorG);
 
-        Text gText = new Text(colorComp, SWT.BORDER);
-        gText.setText(String.valueOf(rectColorG));
-        gText.setLayoutData(new GridData(40, SWT.DEFAULT));
+        // Rectangle Color B
+        new Label(dialog, SWT.NONE).setText("Rect Color B:");
+        Spinner bSpinner = new Spinner(dialog, SWT.BORDER);
+        bSpinner.setMinimum(0);
+        bSpinner.setMaximum(255);
+        bSpinner.setSelection(rectColorB);
 
-        Text bText = new Text(colorComp, SWT.BORDER);
-        bText.setText(String.valueOf(rectColorB));
-        bText.setLayoutData(new GridData(40, SWT.DEFAULT));
+        // Rectangle Thickness
+        new Label(dialog, SWT.NONE).setText("Rect Thickness:");
+        Spinner thicknessSpinner = new Spinner(dialog, SWT.BORDER);
+        thicknessSpinner.setMinimum(1);
+        thicknessSpinner.setMaximum(50);
+        thicknessSpinner.setSelection(rectThickness);
 
-        // Rectangle Thickness input
-        new Label(dialog, SWT.NONE).setText("Rectangle Thickness:");
-        Text thicknessText = new Text(dialog, SWT.BORDER);
-        thicknessText.setText(String.valueOf(rectThickness));
-        thicknessText.setLayoutData(new GridData(60, SWT.DEFAULT));
-
-        // Buttons
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             method = METHOD_VALUES[methodCombo.getSelectionIndex()];
             outputMode = outputModeCombo.getSelectionIndex();
             queuesInSync = syncCheckbox.getSelection();
-            try {
-                rectColorR = Math.max(0, Math.min(255, Integer.parseInt(rText.getText())));
-                rectColorG = Math.max(0, Math.min(255, Integer.parseInt(gText.getText())));
-                rectColorB = Math.max(0, Math.min(255, Integer.parseInt(bText.getText())));
-                rectThickness = Math.max(1, Math.min(50, Integer.parseInt(thicknessText.getText())));
-            } catch (NumberFormatException ex) {
-                // Keep existing values if parse fails
-            }
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        org.eclipse.swt.graphics.Point cursorLoc = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursorLoc.x, cursorLoc.y);
-        dialog.open();
+            rectColorR = rSpinner.getSelection();
+            rectColorG = gSpinner.getSelection();
+            rectColorB = bSpinner.getSelection();
+            rectThickness = thicknessSpinner.getSelection();
+        };
     }
 
     @Override

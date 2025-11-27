@@ -3,9 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
@@ -121,17 +119,18 @@ public class HoughLinesNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Hough Lines Properties");
-        dialog.setLayout(new GridLayout(3, false));
+    protected int getPropertiesDialogColumns() {
+        return 3;
+    }
 
+    @Override
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         // Method signature
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 3;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         // Canny Threshold 1
@@ -139,12 +138,11 @@ public class HoughLinesNode extends ProcessingNode {
         Scale c1Scale = new Scale(dialog, SWT.HORIZONTAL);
         c1Scale.setMinimum(0);
         c1Scale.setMaximum(255);
-        // Clamp slider position to valid range, but keep actual value
         int c1SliderPos = Math.min(Math.max(cannyThresh1, 0), 255);
         c1Scale.setSelection(c1SliderPos);
         c1Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label c1Label = new Label(dialog, SWT.NONE);
-        c1Label.setText(String.valueOf(cannyThresh1)); // Show real value
+        c1Label.setText(String.valueOf(cannyThresh1));
         c1Scale.addListener(SWT.Selection, e -> c1Label.setText(String.valueOf(c1Scale.getSelection())));
 
         // Canny Threshold 2
@@ -152,12 +150,11 @@ public class HoughLinesNode extends ProcessingNode {
         Scale c2Scale = new Scale(dialog, SWT.HORIZONTAL);
         c2Scale.setMinimum(0);
         c2Scale.setMaximum(255);
-        // Clamp slider position to valid range, but keep actual value
         int c2SliderPos = Math.min(Math.max(cannyThresh2, 0), 255);
         c2Scale.setSelection(c2SliderPos);
         c2Scale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label c2Label = new Label(dialog, SWT.NONE);
-        c2Label.setText(String.valueOf(cannyThresh2)); // Show real value
+        c2Label.setText(String.valueOf(cannyThresh2));
         c2Scale.addListener(SWT.Selection, e -> c2Label.setText(String.valueOf(c2Scale.getSelection())));
 
         // Threshold
@@ -165,12 +162,11 @@ public class HoughLinesNode extends ProcessingNode {
         Scale threshScale = new Scale(dialog, SWT.HORIZONTAL);
         threshScale.setMinimum(1);
         threshScale.setMaximum(200);
-        // Clamp slider position to valid range, but keep actual value
         int threshSliderPos = Math.min(Math.max(threshold, 1), 200);
         threshScale.setSelection(threshSliderPos);
         threshScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label threshLabel = new Label(dialog, SWT.NONE);
-        threshLabel.setText(String.valueOf(threshold)); // Show real value
+        threshLabel.setText(String.valueOf(threshold));
         threshScale.addListener(SWT.Selection, e -> threshLabel.setText(String.valueOf(threshScale.getSelection())));
 
         // Min Line Length
@@ -178,12 +174,11 @@ public class HoughLinesNode extends ProcessingNode {
         Scale minLenScale = new Scale(dialog, SWT.HORIZONTAL);
         minLenScale.setMinimum(1);
         minLenScale.setMaximum(200);
-        // Clamp slider position to valid range, but keep actual value
         int minLenSliderPos = Math.min(Math.max(minLineLength, 1), 200);
         minLenScale.setSelection(minLenSliderPos);
         minLenScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label minLenLabel = new Label(dialog, SWT.NONE);
-        minLenLabel.setText(String.valueOf(minLineLength)); // Show real value
+        minLenLabel.setText(String.valueOf(minLineLength));
         minLenScale.addListener(SWT.Selection, e -> minLenLabel.setText(String.valueOf(minLenScale.getSelection())));
 
         // Max Line Gap
@@ -191,12 +186,11 @@ public class HoughLinesNode extends ProcessingNode {
         Scale gapScale = new Scale(dialog, SWT.HORIZONTAL);
         gapScale.setMinimum(1);
         gapScale.setMaximum(100);
-        // Clamp slider position to valid range, but keep actual value
         int gapSliderPos = Math.min(Math.max(maxLineGap, 1), 100);
         gapScale.setSelection(gapSliderPos);
         gapScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label gapLabel = new Label(dialog, SWT.NONE);
-        gapLabel.setText(String.valueOf(maxLineGap)); // Show real value
+        gapLabel.setText(String.valueOf(maxLineGap));
         gapScale.addListener(SWT.Selection, e -> gapLabel.setText(String.valueOf(gapScale.getSelection())));
 
         // Thickness
@@ -204,42 +198,21 @@ public class HoughLinesNode extends ProcessingNode {
         Scale thickScale = new Scale(dialog, SWT.HORIZONTAL);
         thickScale.setMinimum(1);
         thickScale.setMaximum(10);
-        // Clamp slider position to valid range, but keep actual value
         int thickSliderPos = Math.min(Math.max(thickness, 1), 10);
         thickScale.setSelection(thickSliderPos);
         thickScale.setLayoutData(new GridData(200, SWT.DEFAULT));
         Label thickLabel = new Label(dialog, SWT.NONE);
-        thickLabel.setText(String.valueOf(thickness)); // Show real value
+        thickLabel.setText(String.valueOf(thickness));
         thickScale.addListener(SWT.Selection, e -> thickLabel.setText(String.valueOf(thickScale.getSelection())));
 
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 3;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             cannyThresh1 = c1Scale.getSelection();
             cannyThresh2 = c2Scale.getSelection();
             threshold = threshScale.getSelection();
             minLineLength = minLenScale.getSelection();
             maxLineGap = gapScale.getSelection();
             thickness = thickScale.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

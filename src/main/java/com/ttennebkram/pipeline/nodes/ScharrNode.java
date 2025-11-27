@@ -3,9 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -116,21 +114,17 @@ public class ScharrNode extends ProcessingNode {
     }
 
     @Override
-    public void showPropertiesDialog() {
-        Shell dialog = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
-        dialog.setText("Scharr Edge Properties");
-        dialog.setLayout(new GridLayout(2, false));
-
+    protected Runnable addPropertiesContent(Shell dialog, int columns) {
         Label sigLabel = new Label(dialog, SWT.NONE);
         sigLabel.setText(getDescription());
         sigLabel.setForeground(dialog.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY));
         GridData sigGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sigGd.horizontalSpan = 2;
+        sigGd.horizontalSpan = columns;
         sigLabel.setLayoutData(sigGd);
 
         Label sep = new Label(dialog, SWT.SEPARATOR | SWT.HORIZONTAL);
         GridData sepGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-        sepGd.horizontalSpan = 2;
+        sepGd.horizontalSpan = columns;
         sep.setLayoutData(sepGd);
 
         new Label(dialog, SWT.NONE).setText("Direction:");
@@ -143,7 +137,6 @@ public class ScharrNode extends ProcessingNode {
         Scale scaleScale = new Scale(dialog, SWT.HORIZONTAL);
         scaleScale.setMinimum(10);
         scaleScale.setMaximum(500);
-        // Clamp slider position to valid range, but keep actual value
         int scaleSliderPos = Math.min(Math.max(scalePercent, 10), 500);
         scaleScale.setSelection(scaleSliderPos);
         scaleScale.setLayoutData(new GridData(200, SWT.DEFAULT));
@@ -153,36 +146,15 @@ public class ScharrNode extends ProcessingNode {
         Scale deltaScale = new Scale(dialog, SWT.HORIZONTAL);
         deltaScale.setMinimum(0);
         deltaScale.setMaximum(255);
-        // Clamp slider position to valid range, but keep actual value
         int deltaSliderPos = Math.min(Math.max(delta, 0), 255);
         deltaScale.setSelection(deltaSliderPos);
         deltaScale.setLayoutData(new GridData(200, SWT.DEFAULT));
 
-        Composite buttonComp = new Composite(dialog, SWT.NONE);
-        buttonComp.setLayout(new GridLayout(2, true));
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, true, false);
-        gd.horizontalSpan = 2;
-        buttonComp.setLayoutData(gd);
-
-        Button okBtn = new Button(buttonComp, SWT.PUSH);
-        okBtn.setText("OK");
-        dialog.setDefaultButton(okBtn);
-        okBtn.addListener(SWT.Selection, e -> {
+        return () -> {
             directionIndex = dirCombo.getSelectionIndex();
             scalePercent = scaleScale.getSelection();
             delta = deltaScale.getSelection();
-            dialog.dispose();
-            notifyChanged();
-        });
-
-        Button cancelBtn = new Button(buttonComp, SWT.PUSH);
-        cancelBtn.setText("Cancel");
-        cancelBtn.addListener(SWT.Selection, e -> dialog.dispose());
-
-        dialog.pack();
-        Point cursor = shell.getDisplay().getCursorLocation();
-        dialog.setLocation(cursor.x, cursor.y);
-        dialog.open();
+        };
     }
 
     @Override

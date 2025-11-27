@@ -21,20 +21,24 @@ Support copy and paste
 how many nodes override .paint()?
     can they be refactored?
 
-.each node can have its own custom name
+.add OK and Cancel buttons to PipelineEditor window
+    inconsistent Cancel behavior
+
 
 Enabled Checkmark for all nodes, upper left next to the name
+    enabled/disabled checkbox, upper right? upper left?
 
 .debug log all json files that are read or saved, even for the contents of a container
 
-In a top level save in the editor, the save needs to propogate down the contianer hierarchy to prompt them to save as 
+.In a top level save in the editor, the save needs to propogate down the contianer hierarchy to prompt them to save as 
 well; save always works from the current window down, same for number of nodes, and soon to be thread counts
 
-enabled/disabled checkbox, upper right? upper left?
 
 thread info
 
-Paramertize ALL numbers damnit!
+.Paramertize MOST hard-coded numbers damnit!
+    /colors
+    other?
 
 .Doc: Yes, you can edit while running, we encourage doing so to see the effects of your changes in real time 
 
@@ -163,6 +167,7 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+/each node can have its own custom name
 /Have Container window open.  Now switch to main window, Container window doesn't acknowledge now-running pipeline, still 
 shows "Start Pipeline" button (should be "Stop Pipeline", and status bar shows Pipeline Stopped 
 /Container node display in parent diagram, not resetting Work to 0 when restarting pipeline
