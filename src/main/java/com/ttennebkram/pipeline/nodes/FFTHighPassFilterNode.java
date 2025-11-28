@@ -10,7 +10,9 @@ import org.eclipse.swt.widgets.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,141 +79,134 @@ public class FFTHighPassFilterNode extends ProcessingNode {
         }
     }
 
+    /**
+     * Get next power of 2 >= n
+     */
+    private int nextPowerOf2(int n) {
+        int power = 1;
+        while (power < n) {
+            power *= 2;
+        }
+        return power;
+    }
+
+    /**
+     * Get optimal FFT size - prefer power of 2 if overhead is small,
+     * otherwise use OpenCV's optimal size (products of 2, 3, 5)
+     */
+    private int getOptimalFFTSize(int n) {
+        int pow2 = nextPowerOf2(n);
+        int optimal = Core.getOptimalDFTSize(n);
+
+        // Use power of 2 if it adds less than 25% overhead
+        if (pow2 <= optimal * 1.25) {
+            return pow2;
+        }
+        // Otherwise use OpenCV's optimal (but ensure even for fftShift)
+        return optimal % 2 == 0 ? optimal : optimal + 1;
+    }
+
     private Mat applyFFTToChannel(Mat channel) {
-        int rows = channel.rows();
-        int cols = channel.cols();
+        int origRows = channel.rows();
+        int origCols = channel.cols();
+
+        // Get optimal size for FFT (prefers power-of-2 when efficient)
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Pad image to power-of-2 size
+        Mat padded = new Mat();
+        Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+            Core.BORDER_CONSTANT, Scalar.all(0));
 
         // Convert to float
         Mat floatChannel = new Mat();
-        channel.convertTo(floatChannel, CvType.CV_32F);
+        padded.convertTo(floatChannel, CvType.CV_32F);
+        padded.release();
 
-        try {
-            // Compute DFT
-            Mat dft = new Mat();
-            Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
+        // Create complex image with zero imaginary part
+        Mat complexI = new Mat();
+        List<Mat> planes = new ArrayList<>();
+        planes.add(floatChannel);
+        planes.add(Mat.zeros(floatChannel.size(), CvType.CV_32F));
+        Core.merge(planes, complexI);
+        planes.get(1).release();
+        floatChannel.release();
 
-            try {
-                // Shift zero frequency to center (modifies dft in place)
-                fftShift(dft);
+        // Compute DFT
+        Core.dft(complexI, complexI);
 
-                // Create mask
-                Mat mask = createMask(rows, cols);
+        // Shift zero frequency to center
+        fftShift(complexI);
 
-                try {
-                    // Apply mask
-                    List<Mat> planes = new ArrayList<>();
-                    Core.split(dft, planes);
+        // Create and apply mask using OpenCV multiply
+        Mat mask = createMask(optRows, optCols);
 
-                    try {
-                        // Extract single channel from mask (it's the same for real and imaginary)
-                        float[] maskData = new float[rows * cols];
-                        mask.get(0, 0, maskData);
+        // Split, multiply each plane by mask, merge back
+        List<Mat> dftPlanes = new ArrayList<>();
+        Core.split(complexI, dftPlanes);
+        complexI.release();
 
-                        // Apply mask to both real and imaginary parts
-                        for (Mat plane : planes) {
-                            float[] planeData = new float[rows * cols];
-                            plane.get(0, 0, planeData);
-                            for (int i = 0; i < planeData.length; i++) {
-                                planeData[i] *= maskData[i];
-                            }
-                            plane.put(0, 0, planeData);
-                        }
+        Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+        Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+        mask.release();
 
-                        Mat maskedDft = new Mat();
-                        Core.merge(planes, maskedDft);
+        Mat maskedDft = new Mat();
+        Core.merge(dftPlanes, maskedDft);
+        for (Mat p : dftPlanes) p.release();
 
-                        try {
-                            // Inverse shift (modifies maskedDft in place)
-                            ifftShift(maskedDft);
+        // Inverse shift
+        fftShift(maskedDft);
 
-                            // Inverse DFT
-                            Mat idft = new Mat();
-                            Core.idft(maskedDft, idft, Core.DFT_SCALE);
+        // Inverse DFT
+        Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
 
-                            try {
-                                // Get magnitude
-                                List<Mat> idftPlanes = new ArrayList<>();
-                                Core.split(idft, idftPlanes);
+        // Get real part
+        List<Mat> idftPlanes = new ArrayList<>();
+        Core.split(maskedDft, idftPlanes);
+        maskedDft.release();
 
-                                try {
-                                    Mat magnitude = new Mat();
-                                    Core.magnitude(idftPlanes.get(0), idftPlanes.get(1), magnitude);
+        Mat magnitude = idftPlanes.get(0);
+        idftPlanes.get(1).release();
 
-                                    try {
-                                        // Clip to 0-255 and convert to 8-bit
-                                        Core.min(magnitude, new Scalar(255), magnitude);
-                                        Core.max(magnitude, new Scalar(0), magnitude);
+        // Crop to original size
+        Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+        Mat result = cropped.clone();
+        magnitude.release();
 
-                                        Mat result = new Mat();
-                                        magnitude.convertTo(result, CvType.CV_8U);
+        // Clip to 0-255 and convert to 8-bit
+        Core.min(result, new Scalar(255), result);
+        Core.max(result, new Scalar(0), result);
 
-                                        return result;
-                                    } finally {
-                                        magnitude.release();
-                                    }
-                                } finally {
-                                    for (Mat m : idftPlanes) {
-                                        m.release();
-                                    }
-                                }
-                            } finally {
-                                idft.release();
-                            }
-                        } finally {
-                            maskedDft.release();
-                        }
-                    } finally {
-                        for (Mat m : planes) {
-                            m.release();
-                        }
-                    }
-                } finally {
-                    mask.release();
-                }
-            } finally {
-                dft.release();
-            }
-        } finally {
-            floatChannel.release();
-        }
+        Mat output = new Mat();
+        result.convertTo(output, CvType.CV_8U);
+        result.release();
+
+        return output;
     }
 
     private void fftShift(Mat input) {
         int cx = input.cols() / 2;
         int cy = input.rows() / 2;
 
-        // Create quadrants
-        Mat q0 = input.submat(0, cy, 0, cx);      // Top-Left
-        Mat q1 = input.submat(0, cy, cx, input.cols());  // Top-Right
-        Mat q2 = input.submat(cy, input.rows(), 0, cx);  // Bottom-Left
-        Mat q3 = input.submat(cy, input.rows(), cx, input.cols()); // Bottom-Right
+        // Create quadrants (power-of-2 ensures even dimensions)
+        Mat q0 = new Mat(input, new Rect(0, 0, cx, cy));      // Top-Left
+        Mat q1 = new Mat(input, new Rect(cx, 0, cx, cy));     // Top-Right
+        Mat q2 = new Mat(input, new Rect(0, cy, cx, cy));     // Bottom-Left
+        Mat q3 = new Mat(input, new Rect(cx, cy, cx, cy));    // Bottom-Right
 
-        try {
-            // Swap quadrants (Top-Left with Bottom-Right)
-            Mat tmp = new Mat();
-            try {
-                q0.copyTo(tmp);
-                q3.copyTo(q0);
-                tmp.copyTo(q3);
+        // Swap quadrants (Top-Left with Bottom-Right)
+        Mat tmp = new Mat();
+        q0.copyTo(tmp);
+        q3.copyTo(q0);
+        tmp.copyTo(q3);
 
-                // Swap quadrants (Top-Right with Bottom-Left)
-                q1.copyTo(tmp);
-                q2.copyTo(q1);
-                tmp.copyTo(q2);
-            } finally {
-                tmp.release();
-            }
-        } finally {
-            q0.release();
-            q1.release();
-            q2.release();
-            q3.release();
-        }
-    }
+        // Swap quadrants (Top-Right with Bottom-Left)
+        q1.copyTo(tmp);
+        q2.copyTo(q1);
+        tmp.copyTo(q2);
 
-    private void ifftShift(Mat input) {
-        // ifftShift is the same as fftShift
-        fftShift(input);
+        tmp.release();
     }
 
     private Mat createMask(int rows, int cols) {
@@ -226,42 +221,41 @@ public class FFTHighPassFilterNode extends ProcessingNode {
         int crow = rows / 2;
         int ccol = cols / 2;
 
-        float[] maskData = new float[rows * cols];
-
-        for (int y = 0; y < rows; y++) {
-            for (int x = 0; x < cols; x++) {
-                double distance = Math.sqrt((x - ccol) * (x - ccol) + (y - crow) * (y - crow));
-
-                float value;
-                if (smoothness == 0) {
-                    // Hard circle mask (high-pass)
-                    value = distance <= radius ? 0.0f : 1.0f;
-                } else {
-                    // Butterworth highpass filter
-                    double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
-                    if (order < BUTTERWORTH_ORDER_MIN) {
-                        order = BUTTERWORTH_ORDER_MIN;
-                    }
-
-                    double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
-                    double effectiveCutoff = radius * shiftFactor;
-
-                    double ratio = effectiveCutoff / (distance + BUTTERWORTH_DIVISION_EPSILON);
-                    value = (float) (1.0 / (1.0 + Math.pow(ratio, 2 * order)));
-                    value = Math.max(0.0f, Math.min(1.0f, value));
-                }
-
-                maskData[y * cols + x] = value;
+        if (smoothness == 0) {
+            // Hard circle mask using OpenCV - much faster
+            mask.setTo(new Scalar(1.0));
+            Imgproc.circle(mask, new org.opencv.core.Point(ccol, crow), radius, new Scalar(0.0), -1);
+        } else {
+            // Butterworth filter - optimized loop
+            float[] maskData = new float[rows * cols];
+            double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
+            if (order < BUTTERWORTH_ORDER_MIN) {
+                order = BUTTERWORTH_ORDER_MIN;
             }
+            double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
+            double effectiveCutoff = radius * shiftFactor;
+            double twoN = 2 * order;
+
+            for (int y = 0; y < rows; y++) {
+                int dy = y - crow;
+                int dy2 = dy * dy;
+                for (int x = 0; x < cols; x++) {
+                    int dx = x - ccol;
+                    double distance = Math.sqrt(dx * dx + dy2);
+                    double ratio = effectiveCutoff / (distance + BUTTERWORTH_DIVISION_EPSILON);
+                    float value = (float) (1.0 / (1.0 + Math.pow(ratio, twoN)));
+                    maskData[y * cols + x] = value;
+                }
+            }
+            mask.put(0, 0, maskData);
         }
 
-        mask.put(0, 0, maskData);
         return mask;
     }
 
     @Override
     public String getDescription() {
-        return "FFT High-Pass Filter\nnp.fft.fft2() / np.fft.ifft2()";
+        return "FFT High-Pass Filter\nCore.dft() / Core.idft() [Power-of-2]";
     }
 
     @Override
