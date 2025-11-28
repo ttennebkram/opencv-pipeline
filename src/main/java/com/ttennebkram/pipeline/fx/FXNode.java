@@ -25,6 +25,7 @@ public class FXNode {
     public boolean hasInput;
     public boolean hasDualInput;
     public boolean isContainer;
+    public boolean isBoundaryNode;  // Container I/O boundary nodes (Input/Output)
     public int outputCount;
 
     // Thumbnail image for displaying node output
@@ -42,10 +43,12 @@ public class FXNode {
 
     // FileSource-specific properties
     public String filePath = "";
+    public double fps = -1.0;  // -1 means "automatic" (1fps for images, normal for video)
 
     // Container-specific properties - internal nodes and connections
     public java.util.List<FXNode> innerNodes = new java.util.ArrayList<>();
     public java.util.List<FXConnection> innerConnections = new java.util.ArrayList<>();
+    public String pipelineFilePath = "";  // Path to external pipeline JSON file for containers
 
     // Unique identifier for serialization
     public int id;
@@ -65,6 +68,7 @@ public class FXNode {
         this.hasInput = true;
         this.hasDualInput = false;
         this.isContainer = false;
+        this.isBoundaryNode = false;
         this.outputCount = 1;
     }
 
@@ -117,6 +121,10 @@ public class FXNode {
      * Check if a point is on the enabled checkbox.
      */
     public boolean isOnCheckbox(double px, double py) {
+        // First check if point is within node bounds
+        if (!contains(px, py)) {
+            return false;
+        }
         double cbX = x + CHECKBOX_MARGIN;
         double cbY = y + CHECKBOX_MARGIN;
         return px >= cbX && px <= cbX + CHECKBOX_SIZE &&
@@ -127,6 +135,10 @@ public class FXNode {
      * Check if a point is on the help icon.
      */
     public boolean isOnHelpIcon(double px, double py) {
+        // First check if point is within node bounds
+        if (!contains(px, py)) {
+            return false;
+        }
         double iconX = x + width - HELP_ICON_SIZE - HELP_ICON_MARGIN;
         double iconY = y + HELP_ICON_MARGIN;
         return px >= iconX && px <= iconX + HELP_ICON_SIZE &&

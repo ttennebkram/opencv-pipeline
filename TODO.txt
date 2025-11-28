@@ -23,150 +23,88 @@ Caused by: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss3
 	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:155)
 	... 2 more
 
+-----------------------------------------------------
+
 New bugs after SWT -> JavaFX conversoion
+----------------------------------------
 
-/Container should be rendered with a double line
-
-.When first hooking a node to a new node, it'd be nice if a frame was sent through. The old system had this feature.
-
-!.Menu: rename Java -> OpenCV
-
-/thumbnails not persisted on save/restart/load
-
---
+.In the container editor window, the button bar doesn't have as much horizontal padding to show the green background 
 
 
+File Source: properties label I think "File:"? is truncated, the dialog is not wide enough
 
-!Webcam source WAY too wide
+File Source (and probably others): the Category from the button bar doesn't need to be displayed in the properties dialog box 
 
-!Grid: sometimes when you try to click and drag a node, it instead moves the entire grid
-    this happens even when clicking on a connection point
+!There's no Open on the file menu 
 
-/No arrow head on connectors
-/No Tool Tips
-/Node: Webcam -> Webcam Source
-/Enabled check boxes don't uncheck when clicked
-/Node: No In: counter
-/Node: Put actual Out: (or Out1: Out2:) type of counters on the right of nodes
-    this replaces the "Work: N" on top
-/Left Button Bar: remove all vertical spacing
-/Button bar: "Source" -> "Sources"
---
+.In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 
+.When selecting a new file in the File Source, you don't see a thumbnail of it once loaded 
+File Source: When selecting a file, the click OK, you get a beep.  It still works, but the beep makes it like something is wrong
 
-!STILL: Node: Webcam -> Webcam Source
+On the container properties, there is no file path to the pipeline file, and no browse button.
+Containers should have separate standalone JSON files
 
-!Webcan Source Node: still way too wide
+? I see no evidence that anything is running when a pipeline is run.
+    None of the nodes update their counts, and neither do the queues/connectors
 
-!Main menu: under Java/OpenCV
-    Quit OpenCV (instead of long class name)
-    Restart, like we had before
+Pipeline Editor: status bar: Pipeline Running, no thread count
 
+Pipeline Editor: Select a container's JSON file, then OK, then open Container editor, no nodes
+    it might be that some JSON files saved those subdiagrams inline in themselves?
 
+Pipeline not stopped when creating a new file
+Still see old Preview image when have created a new file
+Also worried about threads from old diagram staying running when New or Open other diagram
 
---
+File source, needs FPS in properties, default to automatic, which is 1fps for static image, and normal fps for video
 
-Help link looks enabled for things that have no help yet, eg: Webcam Source
+In any of the FFT properties dialog boxes, add a Note: that FFT is the slowest node, can often only handle < 1 fps
 
-.Help link tool tip of Webcam source has too much info
+Container should be called "Container/Sub-diagram"
 
 
-.Still no restart
+.Instructions section: Click AND DRAG circles to connect
+    in both Pipeline Editor and Container Editor
+    make sure the Instructions area is a common bit of code shared by both editors
 
-.Main menu still says Java, not OpenCV
-    in the app bundle's Info.plist
+.Button bar, swap Content and Blur
 
-.Tool tip on help icon still too verbose, what is it doing?
-    or getting tooltip for entire node?  Still too much info
+.Container editor: can't click on connection to delete it
+    also can drag to highlight it either
 
-.When new node is selected, it sometimes gets placed off screen, you have to know to scroll to it
 
-.Find box doesn't have an X on the right to clear the search
+.Boundary nodes: don't have the corresponding Out: 0, In: 0.
 
-.Webcam: still says just "Webcam", not "Webcam Soure"
+.Boundary nodes: the dot on the top could be just a little lower,
+  and the bottom dot could be just a bit higher 
 
-.File Source: no field for file path
-.File Source: no browse button for file path
-.File Source: Enabled should not be in the properties
+Boundary node: Input node is shorter than all the other nodes
+.Boundary nodes: Output is taller than input?  Very odd
+    Input node is shorter than all the other nodes
 
---
 
-.Move Start/Stop pipeline to upper right, above Preview pane
-    please look at old code
+.In Container window, connections do not show queue stats
 
-.help system: please bring that over from the old code
+.Whem moving parent window, child window is also moved, should stay where it is
 
-.Top right: missing "Instructions:"
+.Don't persist the width nor height of a node in JSON file
+    ignore any widths/heights read back in
 
-.Status bar: Pipeline status should be in the middle of the status bar, more visible
+.Need mouse over tool tip for help link on all nodes.
+    If node has no help, then "Help (not available for this node type)".
 
-.Zoom placement is odd, looks like it wo8uld appy to the preview window.
-    Can't it go on the status bar?
+Boundary nodes: change titles: Input -> Container Input, Output -> Container Output
 
-.Enabled checkmark should have a white background, more visibility
+.Also need tool tip Enabled/Disabled button, tool tip "Enable / Disable this Node" 
 
-.the "x" button for search box should be inside the the text box to the right,
-    and if it can't, then at least touching the search box and be the same size
+Arrow tip on the end of connectors: they still aren't aligned rotationally with that end of the connector line
 
-File / Restart doesn't bring the application back up
 
-.I'd like to see some progress on the Container editing window
 
---
 
-/No queue stats on the connectors, please see old code
 
-In main pipeline editor and container editor:
-Status bar: swap the position of the Node count and the zoom magnification
 
-Container editor: menu buttons look "flat", not like they do in main PipelineEditor window
-Container editor: no "x" in the searh box
-Container editor: no Start Pipeline / Stop Pipeline above the Preview window
-Container editor: no Instructions above the preview area
-
-Enabled check boxes: Background should be white (currently dark green)
-    and make checkmarks black, not white
-
---
-
-/The status bar needs to be at the bottom of the canvas and take up just that horizontal space
-    current layout puts zoom under preview, which gives false impression
-
-.Container editor: search box doesn't have the "x"
-
-.Both main Pipeline Editor and Container Editor: alphabetize within each category
-
-.Connectors: Queue stats not horizontally centered
-
-.Contaier editor: No special Bounday Input and Output nodes
-
-.Restart doesn't bring application back up
-
---
-
-.Mouse over is incorrectly over the entire node
-    Only the enabled checkbox and the help link should have it
-
-.Help links don't look disabled (grayed out) for items we have no help for
-
-.Button bar: CLAHE needs to say "CLAHE Contrast"
-.Node display: CLAHE needs to say "CLAHE Contrast"
-
-.Just like you have it in Container Editor, the status bar
-    in the main Pipeline Editoir also needs to move to the bottom of the canvas
-
-.Container Editor status bar: Center should have the status of the pipeline and number of threads
-
-.Restart: NO Use mvn exec:exec for reliable JavaFX restart
-    that won't work for java -jar ...
-    how did the old code do it?
-
---
-PipelineEditor: replace the x with unicode multiplication sign
-Container Editor: remove the circle around the X (multiplication sign)
-? Container Editor: "x" (unicode multiply) should always be in the search box, like it is in the main pipeline editor
-    OR
-? PipelineEditor: make the "x" (unicode multiply) go away when text box is empty
 
 
 -------------------------------------------------------------------------------------
@@ -349,6 +287,103 @@ check all Java Nodes against all Python Effects
 Done:
 -----
 
+/make the container node color the same as the boundary nodes.  Put a constant somewhere where all 3 can see it 
+/File Source: no field for file path
+/File Source: no browse button for file path
+/File Source: Enabled should not be in the properties
+/Both main Pipeline Editor and Container Editor: alphabetize within each category
+/In main pipeline editor and container editor:
+/Status bar: swap the position of the Node count and the zoom magnification
+/help system: please bring that over from the old code
+/Tool tip on help icon still too verbose, what is it doing?
+    or getting tooltip for entire node?  Still too much info
+/Help link tool tip of Webcam source has too much info
+/Boundary Nodes have lots their 3 vertical dots just now
+/Help link looks enabled for things that have no help yet, eg: Webcam Source
+/Container Editor status bar: Center should have the status of the pipeline and number of threads
+/ selected nodes look a bit too similar to unselected blue nodes 
+/For both the PipelineEditor UI and the Container UI, put Save and Cancel buttons above the Start Pipeline button
+    please see the old code for how we did this, bindings, etc
+/Just like you have it in Container Editor, the status bar
+    in the main Pipeline Editoir also needs to move to the bottom of the canvas
+/Button bar: CLAHE needs to say "CLAHE Contrast"
+/Node display: CLAHE needs to say "CLAHE Contrast"
+/Help links don't look disabled (grayed out) for items we have no help for
+/Mouse over is incorrectly over the entire node
+    Only the enabled checkbox and the help link should have it
+/Help system, viewing doc page, argument types rendered as hyperlinks, but don't do anything when you click them
+/For highlighting, use the brightest blue 0,255,0, and when highlighting a node, make its box line a little more wide
+  (this is already done, it just needs to be even wider)  And for the links, when they're highlighted, draw the line a
+  little heavier 
+/when displaying one of the edge nodes as a node, the title across the top should intially say Canny Edges,
+    not just Canny.  Same for the other 3 edges 
+/connections hard to hit exactly, need "close enough" logic
+/boudnary node placement and color
+/When launching a Container window, give it the same size as the parent window, with just a x=40 y=40 offset
+/Contaier editor: No special Bounday Input and Output nodes
+/I'm getting a weird little vertical rounded square show up under my mouse.  I don't knkow what it is.  Maybe the ends of
+  a scroll bar with no space in between?  Not sure.  Shows up sporadically under my mouse 
+/Connectors: Queue stats not horizontally centered
+/Restart doesn't bring application back up
+/Container editor: search box doesn't have the "x"
+/The status bar needs to be at the bottom of the canvas and take up just that horizontal space
+    current layout puts zoom under preview, which gives false impression
+/Enabled check boxes: Background should be white (currently dark green)
+    and make checkmarks black, not white
+/Container editor: menu buttons look "flat", not like they do in main PipelineEditor window
+/Container editor: no "x" in the searh box
+/Container editor: no Start Pipeline / Stop Pipeline above the Preview window
+/Container editor: no Instructions above the preview area
+/No queue stats on the connectors, please see old code
+/Zoom placement is odd, looks like it wo8uld appy to the preview window.
+    Can't it go on the status bar?
+/Enabled checkmark should have a white background, more visibility
+/Status bar: Pipeline status should be in the middle of the status bar, more visible
+/Top right: missing "Instructions:"
+/Move Start/Stop pipeline to upper right, above Preview pane
+    please look at old code
+/Webcam: still says just "Webcam", not "Webcam Soure"
+/Find box doesn't have an X on the right to clear the search
+/When new node is selected, it sometimes gets placed off screen, you have to know to scroll to it
+/the "x" button for search box should be inside the the text box to the right,
+    and if it can't, then at least touching the search box and be the same size
+/File / Restart doesn't bring the application back up
+/I'd like to see some progress on the Container editing window
+/mouse click and drag in canvas of Container Editor still drags canvas instead of starting a select 
+/Restart: NO Use mvn exec:exec for reliable JavaFX restart
+    that won't work for java -jar ...
+    how did the old code do it?
+/PipelineEditor: replace the x with unicode multiplication sign
+/Container Editor: remove the circle around the X (multiplication sign)
+/PipelineEditor: make the "x" (unicode multiply) go away when text box is empty
+x.Main menu still says Java, not OpenCV
+    in the app bundle's Info.plist
+/! File / Restart still doesn't bring application back up
+    how did we do it in the main branch version? that worked perfectly
+x.Main menu still says Java, not OpenCV
+    in the app bundle's Info.plist
+/Still no restart
+/STILL: Node: Webcam -> Webcam Source
+/Webcan Source Node: still way too wide
+/Main menu: under Java/OpenCV
+    x Quit OpenCV (instead of long class name)
+    /Restart, like we had before
+/Webcam source WAY too wide
+/Grid: sometimes when you try to click and drag a node, it instead moves the entire grid
+    this happens even when clicking on a connection point
+/No arrow head on connectors
+/No Tool Tips
+/Node: Webcam -> Webcam Source
+/Enabled check boxes don't uncheck when clicked
+/Node: No In: counter
+/Node: Put actual Out: (or Out1: Out2:) type of counters on the right of nodes
+    this replaces the "Work: N" on top
+/Left Button Bar: remove all vertical spacing
+/Button bar: "Source" -> "Sources"
+x!.Menu: rename Java -> OpenCV
+/When first hooking a node to a new node, it'd be nice if a frame was sent through. The old system had this feature.
+/Container should be rendered with a double line
+/thumbnails not persisted on save/restart/load
 x Quit in menu still has full class name
 /On Container: Right click only offers Delete
     guessing other nodes are missing right click options too

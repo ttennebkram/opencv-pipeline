@@ -54,11 +54,9 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("type", node.nodeType);
             nodeJson.addProperty("label", node.label);
 
-            // Position and size
+            // Position only (width/height derived from node type)
             nodeJson.addProperty("x", node.x);
             nodeJson.addProperty("y", node.y);
-            nodeJson.addProperty("width", node.width);
-            nodeJson.addProperty("height", node.height);
 
             // State
             nodeJson.addProperty("enabled", node.enabled);
@@ -67,6 +65,7 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
             nodeJson.addProperty("outputCount", node.outputCount);
+            nodeJson.addProperty("isBoundaryNode", node.isBoundaryNode);
 
             // Background color
             if (node.backgroundColor != null) {
@@ -80,16 +79,24 @@ public class FXPipelineSerializer {
                 nodeJson.addProperty("cameraIndex", node.cameraIndex);
             } else if ("FileSource".equals(node.nodeType)) {
                 nodeJson.addProperty("filePath", node.filePath);
+                nodeJson.addProperty("fps", node.fps);
             }
 
             // Container-specific properties - internal nodes and connections
             nodeJson.addProperty("isContainer", node.isContainer);
-            if (node.isContainer && !node.innerNodes.isEmpty()) {
-                JsonArray innerNodesArray = serializeNodes(node.innerNodes);
-                nodeJson.add("innerNodes", innerNodesArray);
+            if (node.isContainer) {
+                // Save pipeline file path if set (external sub-diagram file)
+                if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                    nodeJson.addProperty("pipelineFile", node.pipelineFilePath);
+                }
+                // Also save inline inner nodes if present
+                if (!node.innerNodes.isEmpty()) {
+                    JsonArray innerNodesArray = serializeNodes(node.innerNodes);
+                    nodeJson.add("innerNodes", innerNodesArray);
 
-                JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
-                nodeJson.add("innerConnections", innerConnectionsArray);
+                    JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
+                    nodeJson.add("innerConnections", innerConnectionsArray);
+                }
             }
 
             // Save thumbnail as Base64-encoded PNG
@@ -151,7 +158,18 @@ public class FXPipelineSerializer {
     public static PipelineDocument load(String path) throws IOException {
         JsonObject root;
         try (FileReader reader = new FileReader(path)) {
-            root = JsonParser.parseReader(reader).getAsJsonObject();
+            JsonElement parsed = JsonParser.parseReader(reader);
+            if (parsed == null || !parsed.isJsonObject()) {
+                throw new IOException("Invalid pipeline file: not a valid JSON object");
+            }
+            root = parsed.getAsJsonObject();
+        } catch (JsonSyntaxException e) {
+            throw new IOException("Invalid pipeline file: " + e.getMessage());
+        }
+
+        // Validate this looks like a pipeline file
+        if (!root.has("nodes")) {
+            throw new IOException("Invalid pipeline file: missing 'nodes' array. This doesn't appear to be a pipeline file.");
         }
 
         List<FXNode> nodes = new ArrayList<>();
@@ -162,6 +180,9 @@ public class FXPipelineSerializer {
             for (JsonElement elem : root.getAsJsonArray("nodes")) {
                 JsonObject nodeJson = elem.getAsJsonObject();
 
+                if (!nodeJson.has("type")) {
+                    throw new IOException("Invalid pipeline file: node missing 'type' field");
+                }
                 String type = nodeJson.get("type").getAsString();
                 String savedLabel = nodeJson.has("label") ? nodeJson.get("label").getAsString() : null;
                 double x = nodeJson.has("x") ? nodeJson.get("x").getAsDouble() : 0;
@@ -205,6 +226,9 @@ public class FXPipelineSerializer {
                 if (nodeJson.has("outputCount")) {
                     node.outputCount = nodeJson.get("outputCount").getAsInt();
                 }
+                if (nodeJson.has("isBoundaryNode")) {
+                    node.isBoundaryNode = nodeJson.get("isBoundaryNode").getAsBoolean();
+                }
 
                 // Restore background color
                 if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {
@@ -218,8 +242,13 @@ public class FXPipelineSerializer {
                 // Restore node-type specific properties
                 if ("WebcamSource".equals(type) && nodeJson.has("cameraIndex")) {
                     node.cameraIndex = nodeJson.get("cameraIndex").getAsInt();
-                } else if ("FileSource".equals(type) && nodeJson.has("filePath")) {
-                    node.filePath = nodeJson.get("filePath").getAsString();
+                } else if ("FileSource".equals(type)) {
+                    if (nodeJson.has("filePath")) {
+                        node.filePath = nodeJson.get("filePath").getAsString();
+                    }
+                    if (nodeJson.has("fps")) {
+                        node.fps = nodeJson.get("fps").getAsDouble();
+                    }
                 }
 
                 // Restore thumbnail from Base64-encoded PNG
@@ -231,6 +260,14 @@ public class FXPipelineSerializer {
                 // Restore container-specific properties
                 if (nodeJson.has("isContainer")) {
                     node.isContainer = nodeJson.get("isContainer").getAsBoolean();
+                }
+                // Ensure container nodes use the standard container color
+                if (node.isContainer) {
+                    node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                    // Load pipeline file path if present
+                    if (nodeJson.has("pipelineFile")) {
+                        node.pipelineFilePath = nodeJson.get("pipelineFile").getAsString();
+                    }
                 }
                 if (node.isContainer && nodeJson.has("innerNodes")) {
                     node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
@@ -247,6 +284,12 @@ public class FXPipelineSerializer {
         if (root.has("connections")) {
             for (JsonElement elem : root.getAsJsonArray("connections")) {
                 JsonObject connJson = elem.getAsJsonObject();
+
+                // Validate required connection fields
+                if (!connJson.has("sourceIndex") || !connJson.has("targetIndex")) {
+                    System.err.println("Warning: skipping connection with missing sourceIndex or targetIndex");
+                    continue;
+                }
 
                 int sourceIndex = connJson.get("sourceIndex").getAsInt();
                 int targetIndex = connJson.get("targetIndex").getAsInt();
@@ -352,12 +395,12 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("label", node.label);
             nodeJson.addProperty("x", node.x);
             nodeJson.addProperty("y", node.y);
-            nodeJson.addProperty("width", node.width);
-            nodeJson.addProperty("height", node.height);
+            // Don't save width/height - derived from node type
             nodeJson.addProperty("enabled", node.enabled);
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
             nodeJson.addProperty("outputCount", node.outputCount);
+            nodeJson.addProperty("isBoundaryNode", node.isBoundaryNode);
 
             if (node.backgroundColor != null) {
                 nodeJson.addProperty("bgColorR", node.backgroundColor.getRed());
@@ -434,6 +477,9 @@ public class FXPipelineSerializer {
             if (nodeJson.has("outputCount")) {
                 node.outputCount = nodeJson.get("outputCount").getAsInt();
             }
+            if (nodeJson.has("isBoundaryNode")) {
+                node.isBoundaryNode = nodeJson.get("isBoundaryNode").getAsBoolean();
+            }
 
             if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {
                 node.backgroundColor = Color.color(
@@ -441,6 +487,11 @@ public class FXPipelineSerializer {
                     nodeJson.get("bgColorG").getAsDouble(),
                     nodeJson.get("bgColorB").getAsDouble()
                 );
+            }
+
+            // Ensure boundary nodes use the standard container/boundary color
+            if (node.isBoundaryNode) {
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
             }
 
             nodes.add(node);

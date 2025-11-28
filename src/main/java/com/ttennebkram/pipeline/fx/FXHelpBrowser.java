@@ -11,6 +11,8 @@ import javafx.scene.web.WebEngine;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import netscape.javascript.JSObject;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -38,15 +40,59 @@ public class FXHelpBrowser {
     private static final int DEFAULT_WIDTH = 700;
     private static final int DEFAULT_HEIGHT = 500;
 
+    // JavaScript bridge for handling link clicks
+    private LinkClickBridge linkClickBridge;
+
+    /**
+     * Bridge class to receive link click events from JavaScript.
+     * Must be public for JavaScript to access it.
+     */
+    public class LinkClickBridge {
+        public void handleLink(String href) {
+            if (href == null || href.isEmpty()) return;
+
+            // Handle external URLs
+            if (href.startsWith("http://") || href.startsWith("https://")) {
+                openInSystemBrowser(href);
+                return;
+            }
+
+            // Handle internal doc links
+            String docPath = href;
+            // Remove leading slash if present
+            if (docPath.startsWith("/")) {
+                docPath = docPath.substring(1);
+            }
+            // If path doesn't start with doc/, might need to resolve relative to current doc
+            if (!docPath.startsWith("doc/") && historyIndex >= 0) {
+                // Get the current doc directory
+                String currentDoc = history.get(historyIndex);
+                int lastSlash = currentDoc.lastIndexOf('/');
+                if (lastSlash > 0) {
+                    String baseDir = currentDoc.substring(0, lastSlash + 1);
+                    docPath = baseDir + docPath;
+                }
+            }
+            navigate(docPath);
+        }
+    }
+
     /**
      * Open a help browser window showing the specified doc path.
      * @param parent Parent stage (for positioning)
      * @param docPath Path relative to resources, e.g., "doc/opencv/GaussianBlur.html"
      */
     public static void open(Stage parent, String docPath) {
-        FXHelpBrowser helpBrowser = new FXHelpBrowser(parent);
-        helpBrowser.navigate(docPath);
-        helpBrowser.show();
+        System.out.println("DEBUG: FXHelpBrowser.open called with docPath: " + docPath);
+        try {
+            FXHelpBrowser helpBrowser = new FXHelpBrowser(parent);
+            helpBrowser.navigate(docPath);
+            helpBrowser.show();
+            System.out.println("DEBUG: Help window should now be visible");
+        } catch (Exception e) {
+            System.err.println("DEBUG: Exception in FXHelpBrowser.open: " + e);
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -55,10 +101,13 @@ public class FXHelpBrowser {
      * @param nodeType The node type name to show help for
      */
     public static void openForNodeType(Stage parent, String nodeType) {
+        System.out.println("DEBUG: openForNodeType called with nodeType: " + nodeType);
         String docPath = getDocPathForNodeType(nodeType);
+        System.out.println("DEBUG: docPath resolved to: " + docPath);
         if (docPath != null) {
             open(parent, docPath);
         } else {
+            System.out.println("DEBUG: No docPath found, opening no-help.html");
             open(parent, "doc/no-help.html");
         }
     }
@@ -232,6 +281,9 @@ public class FXHelpBrowser {
         stage.initOwner(parent);
         stage.initModality(Modality.NONE);
 
+        // Initialize the JavaScript bridge
+        linkClickBridge = new LinkClickBridge();
+
         BorderPane root = new BorderPane();
 
         // Toolbar with back button
@@ -249,7 +301,14 @@ public class FXHelpBrowser {
         webView = new WebView();
         webEngine = webView.getEngine();
 
-        // Handle link clicks
+        // Setup JavaScript bridge when document loads
+        webEngine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
+                setupJavaScriptBridge();
+            }
+        });
+
+        // Handle link clicks (fallback for location changes)
         webEngine.locationProperty().addListener((obs, oldLoc, newLoc) -> {
             if (newLoc != null && !newLoc.isEmpty() && !newLoc.equals("about:blank")) {
                 handleLocationChange(newLoc);
@@ -268,6 +327,35 @@ public class FXHelpBrowser {
         }
     }
 
+    /**
+     * Set up the JavaScript bridge to intercept link clicks.
+     */
+    private void setupJavaScriptBridge() {
+        try {
+            JSObject window = (JSObject) webEngine.executeScript("window");
+            window.setMember("javaLinkHandler", linkClickBridge);
+
+            // Inject JavaScript to intercept all link clicks
+            webEngine.executeScript(
+                "document.addEventListener('click', function(e) {" +
+                "  var target = e.target;" +
+                "  while (target && target.tagName !== 'A') {" +
+                "    target = target.parentElement;" +
+                "  }" +
+                "  if (target && target.href) {" +
+                "    var href = target.getAttribute('href');" +
+                "    if (href && !href.startsWith('#')) {" +
+                "      e.preventDefault();" +
+                "      javaLinkHandler.handleLink(href);" +
+                "    }" +
+                "  }" +
+                "}, true);"
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to setup JavaScript bridge: " + e.getMessage());
+        }
+    }
+
     private void handleLocationChange(String location) {
         // Handle external URLs
         if (location.startsWith("http://") || location.startsWith("https://")) {
@@ -280,16 +368,27 @@ public class FXHelpBrowser {
         }
 
         // Handle internal doc links
-        if (location.contains("/doc/") || location.startsWith("doc/")) {
-            String docPath = location;
+        // When content is loaded via loadContent(), relative links may appear in various formats:
+        // - "doc/types/Mat.html" (original href)
+        // - "about:blank" with the href not captured
+        // - URL-encoded or with file:// prefix
+        String docPath = null;
+
+        if (location.contains("doc/")) {
             int docIndex = location.indexOf("doc/");
-            if (docIndex >= 0) {
-                docPath = location.substring(docIndex);
-            }
-            // Remove any file:// prefix or query params
+            docPath = location.substring(docIndex);
+            // Remove any query params or hash
             if (docPath.contains("?")) {
                 docPath = docPath.substring(0, docPath.indexOf("?"));
             }
+            if (docPath.contains("#")) {
+                docPath = docPath.substring(0, docPath.indexOf("#"));
+            }
+        } else if (location.startsWith("doc/")) {
+            docPath = location;
+        }
+
+        if (docPath != null) {
             navigate(docPath);
         }
     }

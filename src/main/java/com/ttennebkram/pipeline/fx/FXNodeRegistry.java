@@ -11,16 +11,18 @@ public class FXNodeRegistry {
     public static class NodeType {
         public final String name;
         public final String displayName;
+        public final String buttonName;  // Shorter name for toolbar buttons (null = use displayName)
         public final String category;
         public final boolean isSource;
         public final boolean isDualInput;
         public final boolean isContainer;
         public final int outputCount;
 
-        public NodeType(String name, String displayName, String category,
+        public NodeType(String name, String displayName, String buttonName, String category,
                         boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
             this.name = name;
             this.displayName = displayName;
+            this.buttonName = buttonName;
             this.category = category;
             this.isSource = isSource;
             this.isDualInput = isDualInput;
@@ -28,8 +30,20 @@ public class FXNodeRegistry {
             this.outputCount = outputCount;
         }
 
+        public NodeType(String name, String displayName, String category,
+                        boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
+            this(name, displayName, null, category, isSource, isDualInput, isContainer, outputCount);
+        }
+
         public NodeType(String name, String displayName, String category) {
-            this(name, displayName, category, false, false, false, 1);
+            this(name, displayName, null, category, false, false, false, 1);
+        }
+
+        /**
+         * Get the name to display on toolbar buttons.
+         */
+        public String getButtonName() {
+            return buttonName != null ? buttonName : displayName;
         }
     }
 
@@ -43,7 +57,7 @@ public class FXNodeRegistry {
         register("BlankSource", "Blank Source", "Sources", true, false, 1);
 
         // Basic processing
-        register("Grayscale", "Grayscale", "Basic");
+        register("Grayscale", "Grayscale/Color Convert", "Basic");
         register("Invert", "Invert", "Basic");
         register("Threshold", "Threshold", "Basic");
         register("AdaptiveThreshold", "Adaptive Threshold", "Basic");
@@ -51,6 +65,13 @@ public class FXNodeRegistry {
         register("CLAHE", "CLAHE Contrast", "Basic");
         register("BitPlanesGrayscale", "Bit Planes Gray", "Basic");
         register("BitPlanesColor", "Bit Planes Color", "Basic");
+
+        // Blur
+        register("GaussianBlur", "Gaussian Blur", "Blur");
+        register("MedianBlur", "Median Blur", "Blur");
+        register("BilateralFilter", "Bilateral", "Blur");
+        register("BoxBlur", "Box Blur", "Blur");
+        register("MeanShift", "Mean Shift", "Blur");
 
         // Content/Drawing
         register("Rectangle", "Rectangle", "Content");
@@ -60,18 +81,11 @@ public class FXNodeRegistry {
         register("Arrow", "Arrow", "Content");
         register("Text", "Text", "Content");
 
-        // Blur
-        register("GaussianBlur", "Gaussian Blur", "Blur");
-        register("MedianBlur", "Median Blur", "Blur");
-        register("BilateralFilter", "Bilateral", "Blur");
-        register("BoxBlur", "Box Blur", "Blur");
-        register("MeanShift", "Mean Shift", "Blur");
-
-        // Edge detection
-        register("CannyEdge", "Canny", "Edges");
-        register("Sobel", "Sobel", "Edges");
-        register("Laplacian", "Laplacian", "Edges");
-        register("Scharr", "Scharr", "Edges");
+        // Edge detection (button shows short name, node title shows full name)
+        register("CannyEdge", "Canny Edges", "Canny", "Edges");
+        register("Sobel", "Sobel Edges", "Sobel", "Edges");
+        register("Laplacian", "Laplacian Edges", "Laplacian", "Edges");
+        register("Scharr", "Scharr Edges", "Scharr", "Edges");
 
         // Filter
         register("ColorInRange", "Color In Range", "Filter");
@@ -118,8 +132,8 @@ public class FXNodeRegistry {
 
         // Utility
         register("Clone", "Clone", "Utility", false, false, 2);
-        register("Monitor", "Monitor", "Utility");
-        register("Container", "Container", "Utility", false, false, true, 1);
+        register("Monitor", "Monitor/Passthrough", "Utility");
+        register("Container", "Container/Sub-diagram", "Utility", false, false, true, 1);
 
         // Container I/O nodes (only shown in container editor)
         register("ContainerInput", "Input", "Container I/O", true, false, 1);
@@ -132,17 +146,26 @@ public class FXNodeRegistry {
     }
 
     private static void register(String name, String displayName, String category) {
-        register(name, displayName, category, false, false, false, 1);
+        register(name, displayName, null, category, false, false, false, 1);
+    }
+
+    private static void register(String name, String displayName, String buttonName, String category) {
+        register(name, displayName, buttonName, category, false, false, false, 1);
     }
 
     private static void register(String name, String displayName, String category,
                                   boolean isSource, boolean isDualInput, int outputCount) {
-        register(name, displayName, category, isSource, isDualInput, false, outputCount);
+        register(name, displayName, null, category, isSource, isDualInput, false, outputCount);
     }
 
     private static void register(String name, String displayName, String category,
                                   boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
-        NodeType type = new NodeType(name, displayName, category, isSource, isDualInput, isContainer, outputCount);
+        register(name, displayName, null, category, isSource, isDualInput, isContainer, outputCount);
+    }
+
+    private static void register(String name, String displayName, String buttonName, String category,
+                                  boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
+        NodeType type = new NodeType(name, displayName, buttonName, category, isSource, isDualInput, isContainer, outputCount);
         nodeTypes.add(type);
         byCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(type);
     }

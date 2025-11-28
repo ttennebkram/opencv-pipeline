@@ -34,11 +34,27 @@ public class NodeRenderer {
     // Connection point constants
     public static final int CONNECTION_RADIUS = 6;
 
+    // Line width constants
+    private static final int LINE_WIDTH_NORMAL = 2;
+    private static final int LINE_WIDTH_SELECTED = 3;
+
     // Colors
     private static final Color COLOR_NODE_BG = Color.rgb(200, 220, 255);
     private static final Color COLOR_NODE_BORDER = Color.rgb(100, 100, 150);
-    private static final Color COLOR_NODE_SELECTED = Color.rgb(0, 120, 215);
+    private static final Color COLOR_NODE_SELECTED = Color.rgb(0, 0, 255);  // Bright blue for maximum visibility
     private static final Color COLOR_NODE_DISABLED_BG = Color.rgb(220, 220, 220);
+
+    // Public color for container and boundary nodes (shared across classes)
+    public static final Color COLOR_CONTAINER_NODE = Color.rgb(255, 200, 200);  // Light red
+
+    // Shared instructions text for both Pipeline Editor and Container Editor
+    public static final String INSTRUCTIONS_TEXT =
+        "- Click node name to create\n" +
+        "- Drag nodes to move\n" +
+        "- Click and drag circles to connect\n" +
+        "- Double-click for properties\n" +
+        "- Click node to see preview\n" +
+        "- Edit while running for live updates";
     private static final Color COLOR_INPUT_POINT = Color.rgb(100, 150, 100);
     private static final Color COLOR_OUTPUT_POINT = Color.rgb(150, 100, 100);
     private static final Color COLOR_HELP_ICON = Color.rgb(50, 100, 180);
@@ -108,6 +124,20 @@ public class NodeRenderer {
                                    Color bgColor, boolean hasInput,
                                    boolean hasDualInput, int outputCount,
                                    Image thumbnail, boolean isContainer, String nodeType) {
+        renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
+                   hasInput, hasDualInput, outputCount, thumbnail, isContainer, nodeType, false);
+    }
+
+    /**
+     * Render a processing node with all options including boundary node indicator.
+     */
+    public static void renderNode(GraphicsContext gc, double x, double y,
+                                   double width, double height, String label,
+                                   boolean selected, boolean enabled,
+                                   Color bgColor, boolean hasInput,
+                                   boolean hasDualInput, int outputCount,
+                                   Image thumbnail, boolean isContainer, String nodeType,
+                                   boolean isBoundaryNode) {
 
         // Draw background
         Color bg = enabled ? (bgColor != null ? bgColor : COLOR_NODE_BG) : COLOR_NODE_DISABLED_BG;
@@ -116,7 +146,7 @@ public class NodeRenderer {
 
         // Draw border (thicker if selected, double-line for containers)
         gc.setStroke(selected ? COLOR_NODE_SELECTED : COLOR_NODE_BORDER);
-        gc.setLineWidth(selected ? 3 : 2);
+        gc.setLineWidth(selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
         gc.strokeRoundRect(x, y, width, height, 10, 10);
 
         // Draw inner border for container nodes (double-line effect)
@@ -124,13 +154,38 @@ public class NodeRenderer {
             gc.strokeRoundRect(x + 4, y + 4, width - 8, height - 8, 6, 6);
         }
 
-        // Draw enabled checkbox
-        drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
+        // Draw 3 vertical "bolt" dots for boundary nodes (indicates "fixed" node)
+        // Input node: dots on left (where it attaches to container edge)
+        // Output node: dots on right (where it attaches to container edge)
+        if (isBoundaryNode) {
+            gc.setFill(Color.rgb(80, 90, 100));
+            double dotRadius = 4;
+            double dotX;
+            if ("ContainerInput".equals(nodeType)) {
+                // Input node: bolts on left side
+                dotX = x + 8;
+            } else {
+                // Output node: bolts on right side
+                dotX = x + width - 8;
+            }
+            double dotY1 = y + 30;
+            double dotY2 = y + height / 2;
+            double dotY3 = y + height - 30;
+            gc.fillOval(dotX - dotRadius, dotY1 - dotRadius, dotRadius * 2, dotRadius * 2);
+            gc.fillOval(dotX - dotRadius, dotY2 - dotRadius, dotRadius * 2, dotRadius * 2);
+            gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
+        }
 
-        // Draw title
+        // Draw enabled checkbox (not for boundary nodes - they can't be disabled)
+        if (!isBoundaryNode) {
+            drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
+        }
+
+        // Draw title (shift left if no checkbox for boundary nodes)
         gc.setFill(Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 10));
-        gc.fillText(label, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 15);
+        double titleX = isBoundaryNode ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
+        gc.fillText(label, titleX, y + 15);
 
         // Draw help icon (grayed out if no help available)
         boolean hasHelp = nodeType != null && FXHelpBrowser.hasHelp(nodeType);
@@ -208,6 +263,23 @@ public class NodeRenderer {
                                    boolean hasDualInput, int outputCount,
                                    Image thumbnail, boolean isContainer,
                                    int inputCounter, int[] outputCounters, String nodeType) {
+        renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
+                   hasInput, hasDualInput, outputCount, thumbnail, isContainer,
+                   inputCounter, outputCounters, nodeType, false);
+    }
+
+    /**
+     * Render a processing node with counters, node type, and boundary node indicator.
+     * This is the full version with all parameters.
+     */
+    public static void renderNode(GraphicsContext gc, double x, double y,
+                                   double width, double height, String label,
+                                   boolean selected, boolean enabled,
+                                   Color bgColor, boolean hasInput,
+                                   boolean hasDualInput, int outputCount,
+                                   Image thumbnail, boolean isContainer,
+                                   int inputCounter, int[] outputCounters, String nodeType,
+                                   boolean isBoundaryNode) {
 
         // Draw background
         Color bg = enabled ? (bgColor != null ? bgColor : COLOR_NODE_BG) : COLOR_NODE_DISABLED_BG;
@@ -216,7 +288,7 @@ public class NodeRenderer {
 
         // Draw border (thicker if selected, double-line for containers)
         gc.setStroke(selected ? COLOR_NODE_SELECTED : COLOR_NODE_BORDER);
-        gc.setLineWidth(selected ? 3 : 2);
+        gc.setLineWidth(selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
         gc.strokeRoundRect(x, y, width, height, 10, 10);
 
         // Draw inner border for container nodes (double-line effect)
@@ -224,13 +296,38 @@ public class NodeRenderer {
             gc.strokeRoundRect(x + 4, y + 4, width - 8, height - 8, 6, 6);
         }
 
-        // Draw enabled checkbox
-        drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
+        // Draw 3 vertical "bolt" dots for boundary nodes (indicates "fixed" node)
+        // Input node: dots on left (where it attaches to container edge)
+        // Output node: dots on right (where it attaches to container edge)
+        if (isBoundaryNode) {
+            gc.setFill(Color.rgb(80, 90, 100));
+            double dotRadius = 4;
+            double dotX;
+            if ("ContainerInput".equals(nodeType)) {
+                // Input node: bolts on left side
+                dotX = x + 8;
+            } else {
+                // Output node: bolts on right side
+                dotX = x + width - 8;
+            }
+            double dotY1 = y + 30;
+            double dotY2 = y + height / 2;
+            double dotY3 = y + height - 30;
+            gc.fillOval(dotX - dotRadius, dotY1 - dotRadius, dotRadius * 2, dotRadius * 2);
+            gc.fillOval(dotX - dotRadius, dotY2 - dotRadius, dotRadius * 2, dotRadius * 2);
+            gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
+        }
 
-        // Draw title
+        // Draw enabled checkbox (not for boundary nodes - they can't be disabled)
+        if (!isBoundaryNode) {
+            drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
+        }
+
+        // Draw title (shift left if no checkbox for boundary nodes)
         gc.setFill(Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 10));
-        gc.fillText(label, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 15);
+        double titleX = isBoundaryNode ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
+        gc.fillText(label, titleX, y + 15);
 
         // Draw help icon (grayed out if no help available)
         boolean hasHelp = nodeType != null && FXHelpBrowser.hasHelp(nodeType);
@@ -361,7 +458,7 @@ public class NodeRenderer {
                                          boolean selected) {
         Color lineColor = selected ? COLOR_NODE_SELECTED : Color.rgb(80, 80, 80);
         gc.setStroke(lineColor);
-        gc.setLineWidth(selected ? 3 : 2);
+        gc.setLineWidth(selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
 
         // Draw bezier curve with control points that create a natural S-curve
         double ctrlOffset = Math.abs(endX - startX) / 2;

@@ -163,8 +163,11 @@ public class FXNodeFactory {
             } else {
                 node = new FXNode(typeInfo.displayName, typeInfo.name, x, y);
             }
-            // Set container flag
+            // Set container flag and color
             node.isContainer = typeInfo.isContainer;
+            if (typeInfo.isContainer) {
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            }
         } else {
             node = new FXNode(nodeType, nodeType, x, y);
         }

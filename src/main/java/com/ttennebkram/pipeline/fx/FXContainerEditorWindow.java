@@ -26,7 +26,8 @@ public class FXContainerEditorWindow {
     // Color constants
     private static final Color COLOR_TOOLBAR_BG = Color.rgb(160, 200, 160);
     private static final Color COLOR_GRID_LINES = Color.rgb(230, 230, 230);
-    private static final Color COLOR_SELECTION_BOX = Color.rgb(0, 120, 215);
+    private static final Color COLOR_SELECTION_BOX = Color.rgb(0, 0, 255);  // Bright blue - matches NodeRenderer selection
+    private static final Color COLOR_SELECTION_BOX_FILL = Color.rgb(0, 0, 255, 0.1);  // Bright blue with alpha
     private static final Color COLOR_START_BUTTON = Color.rgb(100, 180, 100);
     private static final Color COLOR_STOP_BUTTON = Color.rgb(200, 100, 100);
 
@@ -45,6 +46,9 @@ public class FXContainerEditorWindow {
     private Runnable onStopPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
 
+    // Callback to trigger global save (parent pipeline)
+    private Runnable onRequestGlobalSave;
+
     private FXNode containerNode;
     private Stage parentStage;
     private Runnable onModified;
@@ -62,11 +66,21 @@ public class FXContainerEditorWindow {
     private double dragOffsetX, dragOffsetY;
     private boolean isDragging = false;
 
-    // Connection drawing state
+    // Connection drawing state (forward: drag from output to input)
     private FXNode connectionSource = null;
     private int connectionOutputIndex = 0;
     private double connectionEndX, connectionEndY;
     private boolean isDrawingConnection = false;
+
+    // Reverse connection drawing state (drag from input to output)
+    private FXNode connectionTarget = null;
+    private int connectionInputIndex = 0;
+    private boolean isDrawingReverseConnection = false;
+
+    // Selection box state
+    private double selectionBoxStartX, selectionBoxStartY;
+    private double selectionBoxEndX, selectionBoxEndY;
+    private boolean isSelectionBoxDragging = false;
 
     // Zoom
     private double zoomLevel = 1.0;
@@ -79,13 +93,66 @@ public class FXContainerEditorWindow {
         this.nodes = containerNode.innerNodes;
         this.connections = containerNode.innerConnections;
 
+        // Ensure boundary nodes exist
+        ensureBoundaryNodes();
+
         createWindow();
+    }
+
+    /**
+     * Ensure the container has Input and Output boundary nodes.
+     * These are automatically added if not already present.
+     * Also ensures existing boundary nodes have correct flags set (for backwards compatibility).
+     */
+    private void ensureBoundaryNodes() {
+        FXNode inputNode = null;
+        FXNode outputNode = null;
+
+        for (FXNode node : nodes) {
+            if ("ContainerInput".equals(node.nodeType)) {
+                inputNode = node;
+                // Ensure boundary node properties are set (backwards compatibility)
+                node.isBoundaryNode = true;
+                node.hasInput = false;
+                node.outputCount = 1;
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                // Fix height if it was wrong
+                node.height = NodeRenderer.NODE_HEIGHT;
+            } else if ("ContainerOutput".equals(node.nodeType)) {
+                outputNode = node;
+                // Ensure boundary node properties are set (backwards compatibility)
+                node.isBoundaryNode = true;
+                node.outputCount = 0;
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                // Fix height if it was wrong
+                node.height = NodeRenderer.NODE_HEIGHT;
+            }
+        }
+
+        if (inputNode == null) {
+            // ContainerInput is a source node (no input, has output)
+            inputNode = new FXNode("Input", "ContainerInput", 50, 50);
+            inputNode.hasInput = false;  // Source node - no input
+            inputNode.outputCount = 1;
+            inputNode.isBoundaryNode = true;
+            inputNode.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            nodes.add(inputNode);
+        }
+
+        if (outputNode == null) {
+            // ContainerOutput has an input but no output
+            outputNode = new FXNode("Output", "ContainerOutput", 400, 50);
+            outputNode.outputCount = 0;  // No outputs - this is a sink node
+            outputNode.isBoundaryNode = true;
+            outputNode.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            nodes.add(outputNode);
+        }
     }
 
     private void createWindow() {
         stage = new Stage();
         stage.setTitle("Container: " + containerNode.label);
-        stage.initOwner(parentStage);
+        // Don't set owner - allows windows to move independently
         // Non-modal so users can switch between windows
         stage.initModality(Modality.NONE);
 
@@ -106,7 +173,10 @@ public class FXContainerEditorWindow {
         splitPane.setDividerPositions(0.75);
         root.setCenter(splitPane);
 
-        Scene scene = new Scene(root, 1000, 600);
+        // Use parent window size with offset
+        double windowWidth = parentStage.getWidth();
+        double windowHeight = parentStage.getHeight();
+        Scene scene = new Scene(root, windowWidth, windowHeight);
 
         // Keyboard handler
         scene.setOnKeyPressed(e -> {
@@ -119,9 +189,9 @@ public class FXContainerEditorWindow {
 
         stage.setScene(scene);
 
-        // Position near parent
-        stage.setX(parentStage.getX() + 50);
-        stage.setY(parentStage.getY() + 50);
+        // Position with 40,40 offset from parent
+        stage.setX(parentStage.getX() + 40);
+        stage.setY(parentStage.getY() + 40);
 
         paintCanvas();
     }
@@ -135,7 +205,7 @@ public class FXContainerEditorWindow {
         VBox toolbar = new VBox(8);
         toolbar.setPadding(new Insets(8));
         toolbar.setStyle("-fx-background-color: rgb(160, 200, 160);");
-        toolbar.setPrefWidth(180);
+        toolbar.setPrefWidth(200);
 
         // Search box with clear button inside using StackPane
         searchBox = new TextField();
@@ -144,8 +214,8 @@ public class FXContainerEditorWindow {
         // Add padding on right for clear button
         searchBox.setStyle("-fx-padding: 2 22 2 5;");
 
-        Button clearSearchBtn = new Button("\u00D7"); // Unicode multiplication sign (looks like x)
-        clearSearchBtn.setStyle("-fx-font-size: 12px; -fx-padding: 0 5 0 5; -fx-background-color: #cccccc; -fx-background-radius: 8; -fx-cursor: hand; -fx-min-width: 16; -fx-min-height: 16;");
+        Button clearSearchBtn = new Button("\u00D7"); // Unicode multiplication sign
+        clearSearchBtn.setStyle("-fx-font-size: 12px; -fx-padding: 0 5 0 5; -fx-background-color: transparent; -fx-cursor: hand;");
         clearSearchBtn.setOnAction(e -> searchBox.clear());
         // Only show when search box has text
         clearSearchBtn.visibleProperty().bind(searchBox.textProperty().isNotEmpty());
@@ -167,8 +237,9 @@ public class FXContainerEditorWindow {
         toolbarContent.setStyle("-fx-background-color: rgb(160, 200, 160);");
         scrollPane.setContent(toolbarContent);
 
-        // Populate with all node types (including sources for use cases like loading reference images)
-        for (String category : FXNodeRegistry.getCategories()) {
+        // Populate with all node types
+        // Container I/O nodes are NOT shown in toolbar - they are auto-created via ensureBoundaryNodes()
+        for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
             boolean hasNodes = false;
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 if (!hasNodes) {
@@ -176,7 +247,7 @@ public class FXContainerEditorWindow {
                     hasNodes = true;
                 }
                 final String typeName = nodeType.name;
-                addToolbarButton(nodeType.displayName, () -> addNode(typeName));
+                addToolbarButton(nodeType.getButtonName(), () -> addNode(typeName));
             }
         }
 
@@ -206,7 +277,7 @@ public class FXContainerEditorWindow {
         canvasContainer.setStyle("-fx-background-color: white;");
 
         canvasScrollPane = new ScrollPane(canvasContainer);
-        canvasScrollPane.setPannable(true);
+        canvasScrollPane.setPannable(false);  // Disable panning - we handle canvas interactions ourselves
 
         return canvasScrollPane;
     }
@@ -215,6 +286,26 @@ public class FXContainerEditorWindow {
         VBox previewPane = new VBox(5);
         previewPane.setPadding(new Insets(10));
         previewPane.setStyle("-fx-background-color: #f0f0f0;");
+
+        // Save and Cancel buttons at top
+        HBox buttonPanel = new HBox(5);
+        buttonPanel.setMaxWidth(Double.MAX_VALUE);
+
+        Button saveButton = new Button("Save");
+        saveButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(saveButton, Priority.ALWAYS);
+        saveButton.setOnAction(e -> {
+            if (onRequestGlobalSave != null) {
+                onRequestGlobalSave.run();
+            }
+        });
+
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cancelButton, Priority.ALWAYS);
+        cancelButton.setOnAction(e -> stage.close());
+
+        buttonPanel.getChildren().addAll(saveButton, cancelButton);
 
         // Start/Stop pipeline button at top
         startStopBtn = new Button("Start Pipeline");
@@ -226,14 +317,7 @@ public class FXContainerEditorWindow {
         Label instructionsLabel = new Label("Instructions:");
         instructionsLabel.setStyle("-fx-font-weight: bold; -fx-padding: 5 0 0 0;");
 
-        Label instructions = new Label(
-            "- Click node name to create\n" +
-            "- Drag nodes to move\n" +
-            "- Click circles to connect\n" +
-            "- Double-click for properties\n" +
-            "- Click node to see preview\n" +
-            "- Edit while running for live updates"
-        );
+        Label instructions = new Label(NodeRenderer.INSTRUCTIONS_TEXT);
         instructions.setStyle("-fx-font-size: 11px;");
         instructions.setWrapText(true);
 
@@ -249,7 +333,7 @@ public class FXContainerEditorWindow {
         imageContainer.setStyle("-fx-background-color: #cccccc; -fx-min-height: 150;");
         VBox.setVgrow(imageContainer, Priority.ALWAYS);
 
-        previewPane.getChildren().addAll(startStopBtn, instructionsLabel, instructions, previewLabel, imageContainer);
+        previewPane.getChildren().addAll(buttonPanel, startStopBtn, instructionsLabel, instructions, previewLabel, imageContainer);
 
         return previewPane;
     }
@@ -298,6 +382,10 @@ public class FXContainerEditorWindow {
 
     public void setIsPipelineRunning(java.util.function.Supplier<Boolean> supplier) {
         this.isPipelineRunning = supplier;
+    }
+
+    public void setOnRequestGlobalSave(Runnable callback) {
+        this.onRequestGlobalSave = callback;
     }
 
     private HBox createStatusBar() {
@@ -355,13 +443,13 @@ public class FXContainerEditorWindow {
         double canvasX = e.getX() / zoomLevel;
         double canvasY = e.getY() / zoomLevel;
 
-        FXNode clickedNode = getNodeAt(canvasX, canvasY);
-
-        if (clickedNode != null) {
-            // Check if clicking on output point
-            int outputIdx = clickedNode.getOutputPointAt(canvasX, canvasY, 10);
+        // First, check ALL nodes for connection point clicks (connection points are on edges,
+        // so the click might not be "inside" the node bounds)
+        double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+        for (FXNode node : nodes) {
+            int outputIdx = node.getOutputPointAt(canvasX, canvasY, tolerance);
             if (outputIdx >= 0) {
-                connectionSource = clickedNode;
+                connectionSource = node;
                 connectionOutputIndex = outputIdx;
                 connectionEndX = canvasX;
                 connectionEndY = canvasY;
@@ -369,8 +457,23 @@ public class FXContainerEditorWindow {
                 return;
             }
 
-            // Check if clicking on checkbox
-            if (clickedNode.isOnCheckbox(canvasX, canvasY)) {
+            int inputIdx = node.getInputPointAt(canvasX, canvasY, tolerance);
+            if (inputIdx >= 0) {
+                // For input clicks, we start a "reverse" connection - user will drag to an output
+                connectionTarget = node;
+                connectionInputIndex = inputIdx;
+                connectionEndX = canvasX;
+                connectionEndY = canvasY;
+                isDrawingReverseConnection = true;
+                return;
+            }
+        }
+
+        FXNode clickedNode = getNodeAt(canvasX, canvasY);
+
+        if (clickedNode != null) {
+            // Check if clicking on checkbox (not for boundary nodes - they can't be disabled)
+            if (!clickedNode.isBoundaryNode && clickedNode.isOnCheckbox(canvasX, canvasY)) {
                 clickedNode.enabled = !clickedNode.enabled;
                 paintCanvas();
                 notifyModified();
@@ -389,8 +492,32 @@ public class FXContainerEditorWindow {
             isDragging = false;
             paintCanvas();
         } else {
-            selectedNodes.clear();
-            selectedConnections.clear();
+            // Check if clicking on a connection
+            FXConnection clickedConn = getConnectionAt(canvasX, canvasY, 8);
+            if (clickedConn != null) {
+                if (!e.isShiftDown()) {
+                    selectedNodes.clear();
+                    selectedConnections.clear();
+                }
+                if (selectedConnections.contains(clickedConn)) {
+                    selectedConnections.remove(clickedConn);
+                } else {
+                    selectedConnections.add(clickedConn);
+                }
+                paintCanvas();
+                return;
+            }
+
+            // Clicked on empty space - start selection box
+            if (!e.isShiftDown()) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+            }
+            selectionBoxStartX = canvasX;
+            selectionBoxStartY = canvasY;
+            selectionBoxEndX = canvasX;
+            selectionBoxEndY = canvasY;
+            isSelectionBoxDragging = true;
             paintCanvas();
         }
     }
@@ -399,7 +526,7 @@ public class FXContainerEditorWindow {
         double canvasX = e.getX() / zoomLevel;
         double canvasY = e.getY() / zoomLevel;
 
-        if (isDrawingConnection) {
+        if (isDrawingConnection || isDrawingReverseConnection) {
             connectionEndX = canvasX;
             connectionEndY = canvasY;
             paintCanvas();
@@ -412,6 +539,10 @@ public class FXContainerEditorWindow {
                 }
             }
             paintCanvas();
+        } else if (isSelectionBoxDragging) {
+            selectionBoxEndX = canvasX;
+            selectionBoxEndY = canvasY;
+            paintCanvas();
         }
     }
 
@@ -420,15 +551,20 @@ public class FXContainerEditorWindow {
         double canvasY = e.getY() / zoomLevel;
 
         if (isDrawingConnection && connectionSource != null) {
-            // Check if released over an input point
-            FXNode targetNode = getNodeAt(canvasX, canvasY);
-            if (targetNode != null && targetNode != connectionSource) {
-                int inputIdx = targetNode.getInputPointAt(canvasX, canvasY, 10);
-                if (inputIdx >= 0) {
-                    // Create connection
-                    FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, targetNode, inputIdx);
-                    connections.add(conn);
-                    notifyModified();
+            // Check ALL nodes for input point hit (connection points are on edges)
+            double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+            boolean connected = false;
+            for (FXNode targetNode : nodes) {
+                if (targetNode != connectionSource) {
+                    int inputIdx = targetNode.getInputPointAt(canvasX, canvasY, tolerance);
+                    if (inputIdx >= 0) {
+                        // Create connection
+                        FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, targetNode, inputIdx);
+                        connections.add(conn);
+                        notifyModified();
+                        connected = true;
+                        break;
+                    }
                 }
             }
             isDrawingConnection = false;
@@ -436,11 +572,57 @@ public class FXContainerEditorWindow {
             paintCanvas();
         }
 
+        if (isDrawingReverseConnection && connectionTarget != null) {
+            // Check ALL nodes for output point hit (connection points are on edges)
+            double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+            boolean connected = false;
+            for (FXNode sourceNode : nodes) {
+                if (sourceNode != connectionTarget) {
+                    int outputIdx = sourceNode.getOutputPointAt(canvasX, canvasY, tolerance);
+                    if (outputIdx >= 0) {
+                        // Create connection (note: reversed from target to source)
+                        FXConnection conn = new FXConnection(sourceNode, outputIdx, connectionTarget, connectionInputIndex);
+                        connections.add(conn);
+                        notifyModified();
+                        connected = true;
+                        break;
+                    }
+                }
+            }
+            isDrawingReverseConnection = false;
+            connectionTarget = null;
+            paintCanvas();
+        }
+
+        if (isSelectionBoxDragging) {
+            // Select all nodes and connections within the selection box
+            double x1 = Math.min(selectionBoxStartX, selectionBoxEndX);
+            double y1 = Math.min(selectionBoxStartY, selectionBoxEndY);
+            double x2 = Math.max(selectionBoxStartX, selectionBoxEndX);
+            double y2 = Math.max(selectionBoxStartY, selectionBoxEndY);
+
+            for (FXNode node : nodes) {
+                if (node.x >= x1 && node.x + node.width <= x2 &&
+                    node.y >= y1 && node.y + node.height <= y2) {
+                    selectedNodes.add(node);
+                }
+            }
+
+            // Also select connections that pass through the selection box
+            for (FXConnection conn : connections) {
+                if (connectionIntersectsRect(conn, x1, y1, x2, y2)) {
+                    selectedConnections.add(conn);
+                }
+            }
+            isSelectionBoxDragging = false;
+        }
+
         if (isDragging) {
             notifyModified();
         }
         dragNode = null;
         isDragging = false;
+        paintCanvas();
     }
 
     private void handleDoubleClick(javafx.scene.input.MouseEvent e) {
@@ -474,6 +656,101 @@ public class FXContainerEditorWindow {
             }
         }
         return null;
+    }
+
+    /**
+     * Find a connection near the given point.
+     * Uses distance-to-bezier-curve calculation.
+     */
+    private FXConnection getConnectionAt(double px, double py, double tolerance) {
+        for (FXConnection conn : connections) {
+            double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
+            double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
+            if (startPt != null && endPt != null) {
+                if (isPointNearBezier(px, py, startPt[0], startPt[1], endPt[0], endPt[1], tolerance)) {
+                    return conn;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a point is near a bezier curve (same curve shape as rendered connections).
+     */
+    private boolean isPointNearBezier(double px, double py,
+                                       double startX, double startY,
+                                       double endX, double endY,
+                                       double tolerance) {
+        // Use the same control point calculation as NodeRenderer.renderConnection
+        double ctrlOffset = Math.abs(endX - startX) / 2;
+        if (ctrlOffset < 30) ctrlOffset = 30;
+        double ctrl1X = startX + ctrlOffset;
+        double ctrl1Y = startY;
+        double ctrl2X = endX - ctrlOffset;
+        double ctrl2Y = endY;
+
+        // Sample the bezier curve at multiple points and check distance
+        int samples = 20;
+        for (int i = 0; i <= samples; i++) {
+            double t = (double) i / samples;
+            // Cubic bezier formula
+            double oneMinusT = 1 - t;
+            double bx = oneMinusT * oneMinusT * oneMinusT * startX
+                      + 3 * oneMinusT * oneMinusT * t * ctrl1X
+                      + 3 * oneMinusT * t * t * ctrl2X
+                      + t * t * t * endX;
+            double by = oneMinusT * oneMinusT * oneMinusT * startY
+                      + 3 * oneMinusT * oneMinusT * t * ctrl1Y
+                      + 3 * oneMinusT * t * t * ctrl2Y
+                      + t * t * t * endY;
+
+            double dist = Math.sqrt((px - bx) * (px - bx) + (py - by) * (py - by));
+            if (dist <= tolerance) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if a connection's bezier curve intersects a rectangle.
+     */
+    private boolean connectionIntersectsRect(FXConnection conn, double x1, double y1, double x2, double y2) {
+        double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
+        double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
+        if (startPt == null || endPt == null) return false;
+
+        double startX = startPt[0], startY = startPt[1];
+        double endX = endPt[0], endY = endPt[1];
+
+        // Use same bezier control points as rendering
+        double ctrlOffset = Math.abs(endX - startX) / 2;
+        if (ctrlOffset < 30) ctrlOffset = 30;
+        double ctrl1X = startX + ctrlOffset;
+        double ctrl1Y = startY;
+        double ctrl2X = endX - ctrlOffset;
+        double ctrl2Y = endY;
+
+        // Sample the bezier and check if any point is inside the rect
+        int samples = 20;
+        for (int i = 0; i <= samples; i++) {
+            double t = (double) i / samples;
+            double oneMinusT = 1 - t;
+            double bx = oneMinusT * oneMinusT * oneMinusT * startX
+                      + 3 * oneMinusT * oneMinusT * t * ctrl1X
+                      + 3 * oneMinusT * t * t * ctrl2X
+                      + t * t * t * endX;
+            double by = oneMinusT * oneMinusT * oneMinusT * startY
+                      + 3 * oneMinusT * oneMinusT * t * ctrl1Y
+                      + 3 * oneMinusT * t * t * ctrl2Y
+                      + t * t * t * endY;
+
+            if (bx >= x1 && bx <= x2 && by >= y1 && by <= y2) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void addNode(String nodeType) {
@@ -514,16 +791,19 @@ public class FXContainerEditorWindow {
 
         toolbarContent.getChildren().clear();
 
-        for (String category : FXNodeRegistry.getCategories()) {
+        // Container I/O nodes are NOT shown in toolbar - they are auto-created via ensureBoundaryNodes()
+        // Only show other categories
+        for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
             boolean categoryAdded = false;
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
-                if (filter.isEmpty() || nodeType.displayName.toLowerCase().contains(filter)) {
+                if (filter.isEmpty() || nodeType.displayName.toLowerCase().contains(filter)
+                        || nodeType.getButtonName().toLowerCase().contains(filter)) {
                     if (!categoryAdded) {
                         addToolbarCategory(category);
                         categoryAdded = true;
                     }
                     final String typeName = nodeType.name;
-                    addToolbarButton(nodeType.displayName, () -> addNode(typeName));
+                    addToolbarButton(nodeType.getButtonName(), () -> addNode(typeName));
                 }
             }
         }
@@ -566,11 +846,12 @@ public class FXContainerEditorWindow {
             double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
             double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
             if (startPt != null && endPt != null) {
-                NodeRenderer.renderConnection(gc, startPt[0], startPt[1], endPt[0], endPt[1], isSelected);
+                NodeRenderer.renderConnection(gc, startPt[0], startPt[1], endPt[0], endPt[1], isSelected,
+                    conn.queueSize, conn.totalFrames);
             }
         }
 
-        // Draw in-progress connection
+        // Draw in-progress connection (forward: from output)
         if (isDrawingConnection && connectionSource != null) {
             double[] startPt = connectionSource.getOutputPoint(connectionOutputIndex);
             if (startPt != null) {
@@ -580,13 +861,41 @@ public class FXContainerEditorWindow {
             }
         }
 
+        // Draw in-progress reverse connection (from input)
+        if (isDrawingReverseConnection && connectionTarget != null) {
+            double[] endPt = connectionTarget.getInputPoint(connectionInputIndex);
+            if (endPt != null) {
+                gc.setStroke(Color.BLUE);
+                gc.setLineWidth(2);
+                gc.strokeLine(connectionEndX, connectionEndY, endPt[0], endPt[1]);
+            }
+        }
+
         // Draw nodes
         for (FXNode node : nodes) {
             boolean isSelected = selectedNodes.contains(node);
+            // Build output counters array from node fields
+            int[] outputCounters = new int[] { node.outputCount1, node.outputCount2, node.outputCount3, node.outputCount4 };
             NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount,
-                node.thumbnail, node.isContainer, node.nodeType);
+                node.thumbnail, node.isContainer,
+                node.inputCount, outputCounters, node.nodeType, node.isBoundaryNode);
+        }
+
+        // Draw selection box
+        if (isSelectionBoxDragging) {
+            gc.setStroke(COLOR_SELECTION_BOX);
+            gc.setLineWidth(1);
+            gc.setLineDashes(5);
+            double x = Math.min(selectionBoxStartX, selectionBoxEndX);
+            double y = Math.min(selectionBoxStartY, selectionBoxEndY);
+            double w = Math.abs(selectionBoxEndX - selectionBoxStartX);
+            double h = Math.abs(selectionBoxEndY - selectionBoxStartY);
+            gc.strokeRect(x, y, w, h);
+            gc.setFill(COLOR_SELECTION_BOX_FILL);
+            gc.fillRect(x, y, w, h);
+            gc.setLineDashes(null);
         }
 
         gc.restore();

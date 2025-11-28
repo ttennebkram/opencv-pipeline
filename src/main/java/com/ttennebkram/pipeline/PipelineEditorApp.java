@@ -58,7 +58,8 @@ public class PipelineEditorApp extends Application {
     private static final Color COLOR_START_BUTTON = Color.rgb(100, 180, 100);
     private static final Color COLOR_STOP_BUTTON = Color.rgb(200, 100, 100);
     private static final Color COLOR_GRID_LINES = Color.rgb(230, 230, 230);
-    private static final Color COLOR_SELECTION_BOX = Color.rgb(0, 120, 215);
+    private static final Color COLOR_SELECTION_BOX = Color.rgb(0, 0, 255);  // Bright blue - matches NodeRenderer selection
+    private static final Color COLOR_SELECTION_BOX_FILL = Color.rgb(0, 0, 255, 0.1);  // Bright blue with alpha
     // ========================================================================
 
     private Stage primaryStage;
@@ -173,6 +174,7 @@ public class PipelineEditorApp extends Application {
                 event.consume(); // Cancel close
             } else {
                 stopPipeline();
+                Platform.exit();
             }
         });
 
@@ -278,9 +280,11 @@ public class PipelineEditorApp extends Application {
         // Add padding on right for clear button
         searchBox.setStyle("-fx-padding: 2 20 2 5;");
 
-        Button clearSearchBtn = new Button("x");
-        clearSearchBtn.setStyle("-fx-font-size: 9px; -fx-padding: 0 4 0 4; -fx-background-color: transparent; -fx-cursor: hand;");
+        Button clearSearchBtn = new Button("\u00D7"); // Unicode multiplication sign
+        clearSearchBtn.setStyle("-fx-font-size: 12px; -fx-padding: 0 5 0 5; -fx-background-color: transparent; -fx-cursor: hand;");
         clearSearchBtn.setOnAction(e -> searchBox.clear());
+        // Only show when search box has text
+        clearSearchBtn.visibleProperty().bind(searchBox.textProperty().isNotEmpty());
 
         StackPane searchStack = new StackPane();
         searchStack.getChildren().addAll(searchBox, clearSearchBtn);
@@ -307,7 +311,7 @@ public class PipelineEditorApp extends Application {
             addToolbarCategory(category);
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 final String typeName = nodeType.name;
-                addToolbarButton(nodeType.displayName, () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
+                addToolbarButton(nodeType.getButtonName(), () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
             }
         }
 
@@ -354,10 +358,9 @@ public class PipelineEditorApp extends Application {
             }
         });
 
-        // Initialize tooltip for nodes
+        // Initialize tooltip for nodes (installed/uninstalled dynamically based on hover)
         canvasTooltip = new Tooltip();
         canvasTooltip.setShowDelay(javafx.util.Duration.millis(500));
-        Tooltip.install(pipelineCanvas, canvasTooltip);
 
         // Context menu - built dynamically based on clicked node
         pipelineCanvas.setOnContextMenuRequested(e -> {
@@ -420,6 +423,22 @@ public class PipelineEditorApp extends Application {
         previewPane.setPadding(new Insets(10));
         previewPane.setStyle("-fx-background-color: #f0f0f0;");
 
+        // Save and Cancel buttons (matching ContainerEditorWindow layout)
+        HBox buttonPanel = new HBox(5);
+        buttonPanel.setMaxWidth(Double.MAX_VALUE);
+
+        Button saveButton = new Button("Save");
+        saveButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(saveButton, Priority.ALWAYS);
+        saveButton.setOnAction(e -> saveDiagram());
+
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cancelButton, Priority.ALWAYS);
+        cancelButton.setOnAction(e -> handleCancel());
+
+        buttonPanel.getChildren().addAll(saveButton, cancelButton);
+
         // Start/Stop pipeline button at top
         startStopBtn = new Button("Start Pipeline");
         startStopBtn.setStyle("-fx-background-color: rgb(100, 180, 100); -fx-font-weight: bold;");
@@ -430,14 +449,7 @@ public class PipelineEditorApp extends Application {
         Label instructionsLabel = new Label("Instructions:");
         instructionsLabel.setStyle("-fx-font-weight: bold; -fx-padding: 5 0 0 0;");
 
-        Label instructions = new Label(
-            "- Click node name to create\n" +
-            "- Drag nodes to move\n" +
-            "- Click circles to connect\n" +
-            "- Double-click for properties\n" +
-            "- Click node to see preview\n" +
-            "- Edit while running for live updates"
-        );
+        Label instructions = new Label(NodeRenderer.INSTRUCTIONS_TEXT);
         instructions.setStyle("-fx-font-size: 11px;");
         instructions.setWrapText(true);
 
@@ -456,7 +468,7 @@ public class PipelineEditorApp extends Application {
 
         // Zoom controls moved to status bar
 
-        previewPane.getChildren().addAll(startStopBtn, instructionsLabel, instructions, previewLabel, imageContainer);
+        previewPane.getChildren().addAll(buttonPanel, startStopBtn, instructionsLabel, instructions, previewLabel, imageContainer);
 
         return previewPane;
     }
@@ -566,7 +578,7 @@ public class PipelineEditorApp extends Application {
             double w = Math.abs(selectionBoxEndX - selectionBoxStartX);
             double h = Math.abs(selectionBoxEndY - selectionBoxStartY);
             gc.strokeRect(x, y, w, h);
-            gc.setFill(Color.rgb(0, 120, 215, 0.1));
+            gc.setFill(COLOR_SELECTION_BOX_FILL);
             gc.fillRect(x, y, w, h);
             gc.setLineDashes(null);
         }
@@ -594,6 +606,7 @@ public class PipelineEditorApp extends Application {
             }
             // Check if clicking on help icon
             if (node.isOnHelpIcon(canvasX, canvasY)) {
+                System.out.println("DEBUG: Help icon clicked for node: " + node.nodeType);
                 FXHelpBrowser.openForNodeType(primaryStage, node.nodeType);
                 return;
             }
@@ -767,6 +780,7 @@ public class PipelineEditorApp extends Application {
         editorWindow.setOnStartPipeline(this::startPipeline);
         editorWindow.setOnStopPipeline(this::stopPipeline);
         editorWindow.setIsPipelineRunning(() -> pipelineRunning);
+        editorWindow.setOnRequestGlobalSave(this::saveDiagram);
 
         editorWindow.show();
         editorWindow.updatePipelineButtonState();
@@ -778,39 +792,37 @@ public class PipelineEditorApp extends Application {
 
         FXNode hoveredNode = getNodeAt(canvasX, canvasY);
 
-        // Update cursor - only show hand for checkbox and help icon
-        if (hoveredNode != null) {
-            boolean onCheckbox = hoveredNode.isOnCheckbox(canvasX, canvasY);
-            boolean onHelpIcon = hoveredNode.isOnHelpIcon(canvasX, canvasY) &&
-                                 FXHelpBrowser.hasHelp(hoveredNode.nodeType);
-            if (onCheckbox || onHelpIcon) {
-                pipelineCanvas.setCursor(javafx.scene.Cursor.HAND);
-            } else {
-                pipelineCanvas.setCursor(javafx.scene.Cursor.DEFAULT);
-            }
+        // Determine what element we're hovering over
+        boolean onCheckbox = hoveredNode != null && hoveredNode.isOnCheckbox(canvasX, canvasY);
+        boolean onHelpIcon = hoveredNode != null && hoveredNode.isOnHelpIcon(canvasX, canvasY);
+
+        // Update cursor - show hand for checkbox and help icon (help icon always clickable)
+        if (onCheckbox || onHelpIcon) {
+            pipelineCanvas.setCursor(javafx.scene.Cursor.HAND);
         } else {
             pipelineCanvas.setCursor(javafx.scene.Cursor.DEFAULT);
         }
 
-        // Update tooltip - only show for checkbox and help
-        if (hoveredNode != tooltipNode) {
-            tooltipNode = hoveredNode;
-            if (hoveredNode != null) {
-                if (hoveredNode.isOnCheckbox(canvasX, canvasY)) {
-                    canvasTooltip.setText("Toggle enabled");
-                } else if (hoveredNode.isOnHelpIcon(canvasX, canvasY)) {
-                    if (FXHelpBrowser.hasHelp(hoveredNode.nodeType)) {
-                        canvasTooltip.setText("Show help");
-                    } else {
-                        canvasTooltip.setText("No help available");
-                    }
-                } else {
-                    canvasTooltip.setText("");
-                }
+        // Update tooltip based on what we're hovering over
+        String tooltipText = null;
+        if (onCheckbox) {
+            tooltipText = "Enable / Disable this Node";
+        } else if (onHelpIcon) {
+            if (FXHelpBrowser.hasHelp(hoveredNode.nodeType)) {
+                tooltipText = "Help";
             } else {
-                canvasTooltip.setText("");
+                tooltipText = "Help (not available for this node type)";
             }
         }
+
+        // Install or uninstall tooltip based on hover state
+        if (tooltipText != null) {
+            canvasTooltip.setText(tooltipText);
+            Tooltip.install(pipelineCanvas, canvasTooltip);
+        } else {
+            Tooltip.uninstall(pipelineCanvas, canvasTooltip);
+        }
+        tooltipNode = hoveredNode;
     }
 
     private FXNode getNodeAt(double x, double y) {
@@ -841,15 +853,11 @@ public class PipelineEditorApp extends Application {
             node.label
         );
 
-        // Add description based on node type
-        FXNodeRegistry.NodeType typeInfo = FXNodeRegistry.getNodeType(node.nodeType);
-        if (typeInfo != null) {
-            dialog.addDescription("Category: " + typeInfo.category);
-        }
-
         // Add node-type-specific properties
         Spinner<Integer> cameraSpinner = null;
         TextField filePathField = null;
+        TextField pipelineFileField = null;
+        ComboBox<String> fpsCombo = null;
 
         if ("WebcamSource".equals(node.nodeType)) {
             cameraSpinner = dialog.addSpinner("Camera Index:", 0, 5, node.cameraIndex);
@@ -862,6 +870,7 @@ public class PipelineEditorApp extends Application {
             Button browseBtn = new Button("Browse...");
             final TextField finalFilePathField = filePathField;
             browseBtn.setOnAction(e -> {
+                e.consume();  // Prevent event from propagating
                 FileChooser fileChooser = new FileChooser();
                 fileChooser.setTitle("Select Image or Video File");
                 fileChooser.getExtensionFilters().addAll(
@@ -876,20 +885,84 @@ public class PipelineEditorApp extends Application {
                         fileChooser.setInitialDirectory(currentFile.getParentFile());
                     }
                 }
-                java.io.File file = fileChooser.showOpenDialog(primaryStage);
+                // Use null owner to avoid modal dialog beep issue on macOS
+                java.io.File file = fileChooser.showOpenDialog(null);
                 if (file != null) {
                     finalFilePathField.setText(file.getAbsolutePath());
                 }
             });
 
             HBox fileRow = new HBox(5);
-            fileRow.getChildren().addAll(new Label("File:"), filePathField, browseBtn);
+            Label fileLabel = new Label("File:");
+            fileLabel.setMinWidth(40);
+            fileRow.getChildren().addAll(fileLabel, filePathField, browseBtn);
             dialog.addCustomContent(fileRow);
+
+            // FPS combo box
+            fpsCombo = new ComboBox<>();
+            fpsCombo.getItems().addAll("Automatic", "1", "5", "10", "15", "30");
+            // Select current value
+            if (node.fps < 0) {
+                fpsCombo.setValue("Automatic");
+            } else {
+                fpsCombo.setValue(String.valueOf((int) node.fps));
+            }
+            fpsCombo.setEditable(true);  // Allow custom fps values
+
+            HBox fpsRow = new HBox(5);
+            Label fpsLabel = new Label("FPS:");
+            fpsLabel.setMinWidth(40);
+            fpsRow.getChildren().addAll(fpsLabel, fpsCombo);
+            dialog.addCustomContent(fpsRow);
+            dialog.addDescription("Automatic: 1 FPS for images, video native rate for videos.");
+        } else if ("Container".equals(node.nodeType)) {
+            // Pipeline file path with browse button
+            pipelineFileField = new TextField(node.pipelineFilePath != null ? node.pipelineFilePath : "");
+            pipelineFileField.setPrefWidth(250);
+
+            Button browseBtn = new Button("Browse...");
+            final TextField finalPipelineField = pipelineFileField;
+            browseBtn.setOnAction(e -> {
+                e.consume();  // Prevent event from propagating
+                FileChooser fileChooser = new FileChooser();
+                fileChooser.setTitle("Select Pipeline File");
+                fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Pipeline Files", "*.json")
+                );
+                // Start in file's directory if path exists
+                if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                    java.io.File currentFile = new java.io.File(node.pipelineFilePath);
+                    if (currentFile.getParentFile() != null && currentFile.getParentFile().exists()) {
+                        fileChooser.setInitialDirectory(currentFile.getParentFile());
+                    }
+                } else if (currentFilePath != null) {
+                    // Start in current document's directory
+                    java.io.File currentDoc = new java.io.File(currentFilePath);
+                    if (currentDoc.getParentFile() != null && currentDoc.getParentFile().exists()) {
+                        fileChooser.setInitialDirectory(currentDoc.getParentFile());
+                    }
+                }
+                // Use null owner to avoid modal dialog beep issue on macOS
+                java.io.File file = fileChooser.showOpenDialog(null);
+                if (file != null) {
+                    finalPipelineField.setText(file.getAbsolutePath());
+                }
+            });
+
+            HBox pipelineRow = new HBox(5);
+            Label pipelineLabel = new Label("Pipeline File:");
+            pipelineLabel.setMinWidth(80);
+            pipelineRow.getChildren().addAll(pipelineLabel, pipelineFileField, browseBtn);
+            dialog.addCustomContent(pipelineRow);
+
+            dialog.addDescription("Select an external pipeline file for this sub-diagram.\nLeave empty to edit the sub-diagram inline.");
         }
 
         // Set OK handler to save values
         final Spinner<Integer> finalCameraSpinner = cameraSpinner;
         final TextField finalFileField = filePathField;
+        final TextField finalPipelineField = pipelineFileField;
+        final ComboBox<String> finalFpsCombo = fpsCombo;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
 
@@ -906,7 +979,30 @@ public class PipelineEditorApp extends Application {
 
             // Handle file source properties
             if ("FileSource".equals(node.nodeType) && finalFileField != null) {
-                node.filePath = finalFileField.getText().trim();
+                String newPath = finalFileField.getText().trim();
+                if (!newPath.equals(node.filePath)) {
+                    node.filePath = newPath;
+                    loadFileImageForNode(node);
+                }
+                // Handle FPS setting
+                if (finalFpsCombo != null) {
+                    String fpsValue = finalFpsCombo.getValue();
+                    if ("Automatic".equals(fpsValue) || fpsValue == null || fpsValue.isEmpty()) {
+                        node.fps = -1.0;
+                    } else {
+                        try {
+                            node.fps = Double.parseDouble(fpsValue);
+                        } catch (NumberFormatException e) {
+                            node.fps = -1.0;  // Default to automatic on parse error
+                        }
+                    }
+                }
+            }
+
+            // Handle container properties
+            if ("Container".equals(node.nodeType) && finalPipelineField != null) {
+                String newPath = finalPipelineField.getText().trim();
+                node.pipelineFilePath = newPath;
             }
 
             markDirty();
@@ -920,6 +1016,14 @@ public class PipelineEditorApp extends Application {
 
     private void newDiagram() {
         if (checkUnsavedChanges()) {
+            // Stop pipeline if running
+            if (pipelineRunning) {
+                stopPipeline();
+            }
+
+            // Stop all webcams
+            stopAllWebcams();
+
             // Clear nodes and connections
             nodes.clear();
             connections.clear();
@@ -927,12 +1031,19 @@ public class PipelineEditorApp extends Application {
             selectedConnections.clear();
             currentFilePath = null;
             isDirty = false;
+
+            // Clear preview image
+            previewImageView.setImage(null);
+
             updateTitle();
             paintCanvas();
         }
     }
 
     private void loadDiagram() {
+        if (!checkUnsavedChanges()) {
+            return;  // User cancelled
+        }
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Pipeline");
         fileChooser.getExtensionFilters().add(
@@ -945,8 +1056,16 @@ public class PipelineEditorApp extends Application {
 
     private void loadDiagramFromPath(String path) {
         try {
+            // Stop pipeline if running
+            if (pipelineRunning) {
+                stopPipeline();
+            }
+
             // Stop any running webcams before loading
             stopAllWebcams();
+
+            // Clear preview image
+            previewImageView.setImage(null);
 
             // Load the pipeline
             FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(path);
@@ -1020,6 +1139,42 @@ public class PipelineEditorApp extends Application {
         }
     }
 
+    private void handleCancel() {
+        // Reload from file if saved, otherwise confirm discard
+        if (currentFilePath != null && !currentFilePath.isEmpty()) {
+            if (isDirty) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle("Revert Changes");
+                confirm.setHeaderText(null);
+                confirm.setContentText("Discard all changes and reload from disk?");
+                confirm.showAndWait().ifPresent(response -> {
+                    if (response == ButtonType.OK) {
+                        loadDiagramFromPath(currentFilePath);
+                    }
+                });
+            }
+        } else {
+            // No file to revert to - offer to clear
+            if (isDirty || !nodes.isEmpty()) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle("Discard Changes");
+                confirm.setHeaderText(null);
+                confirm.setContentText("Clear all nodes and start fresh?");
+                confirm.showAndWait().ifPresent(response -> {
+                    if (response == ButtonType.OK) {
+                        nodes.clear();
+                        connections.clear();
+                        selectedNodes.clear();
+                        selectedConnections.clear();
+                        isDirty = false;
+                        updateTitle();
+                        paintCanvas();
+                    }
+                });
+            }
+        }
+    }
+
     private void deleteSelected() {
         // Remove selected connections
         connections.removeAll(selectedConnections);
@@ -1066,8 +1221,7 @@ public class PipelineEditorApp extends Application {
         pipelineRunning = true;
         startStopBtn.setText("Stop Pipeline");
         startStopBtn.setStyle("-fx-background-color: rgb(200, 100, 100);");
-        statusBar.setText("Pipeline running");
-        statusBar.setTextFill(COLOR_STATUS_RUNNING);
+        updatePipelineStatus();
 
         // Create and start the pipeline executor
         pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
@@ -1089,6 +1243,13 @@ public class PipelineEditorApp extends Application {
             paintCanvas();
         });
         pipelineExecutor.start();
+    }
+
+    private void updatePipelineStatus() {
+        // Count threads: 1 for executor + 1 for each active webcam
+        int threadCount = 1 + webcamSources.size();
+        statusBar.setText("Pipeline running (" + threadCount + " thread" + (threadCount != 1 ? "s" : "") + ")");
+        statusBar.setTextFill(COLOR_STATUS_RUNNING);
     }
 
     private void stopPipeline() {
@@ -1114,31 +1275,10 @@ public class PipelineEditorApp extends Application {
             String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
             String classpath = System.getProperty("java.class.path");
 
-            // Build command with same JVM arguments for module/add-opens that JavaFX needs
-            List<String> command = new ArrayList<>();
-            command.add(javaBin);
-
-            // Get the module path if we're running with modules
-            String modulePath = System.getProperty("jdk.module.path");
-            if (modulePath != null && !modulePath.isEmpty()) {
-                command.add("--module-path");
-                command.add(modulePath);
-            }
-
-            // Copy any VM arguments (like --add-opens for JavaFX)
-            java.lang.management.RuntimeMXBean runtimeMxBean = java.lang.management.ManagementFactory.getRuntimeMXBean();
-            for (String arg : runtimeMxBean.getInputArguments()) {
-                // Skip arguments that we handle separately
-                if (!arg.startsWith("-Xdock:") && !arg.startsWith("-Xms") && !arg.startsWith("-Xmx")) {
-                    command.add(arg);
-                }
-            }
-
-            command.add("-cp");
-            command.add(classpath);
-            command.add(PipelineEditorApp.class.getName());
-
-            ProcessBuilder builder = new ProcessBuilder(command);
+            // Simple restart like the SWT version - just java -cp classpath MainClass
+            ProcessBuilder builder = new ProcessBuilder(
+                javaBin, "-cp", classpath, PipelineEditorLauncher.class.getName()
+            );
             builder.inheritIO();
             builder.start();
 
@@ -1247,6 +1387,52 @@ public class PipelineEditorApp extends Application {
     }
 
     /**
+     * Load an image file for a FileSource node and set it as the thumbnail.
+     * Uses background loading to avoid blocking the UI thread.
+     */
+    private void loadFileImageForNode(FXNode node) {
+        if (node.filePath == null || node.filePath.isEmpty()) {
+            node.thumbnail = null;
+            return;
+        }
+
+        java.io.File file = new java.io.File(node.filePath);
+        if (!file.exists()) {
+            node.thumbnail = null;
+            return;
+        }
+
+        // Load image in background to avoid blocking UI
+        javafx.scene.image.Image image = new javafx.scene.image.Image(
+            file.toURI().toString(),
+            true  // backgroundLoading = true
+        );
+
+        // Set up progress listener to handle when loading completes
+        image.progressProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.doubleValue() >= 1.0) {
+                if (image.isError()) {
+                    node.thumbnail = null;
+                } else {
+                    node.thumbnail = image;
+                    // Update preview if this node is selected
+                    if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                        previewImageView.setImage(image);
+                    }
+                    paintCanvas();
+                }
+            }
+        });
+
+        // Also handle errors
+        image.errorProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                node.thumbnail = null;
+            }
+        });
+    }
+
+    /**
      * Show an error dialog.
      */
     private void showError(String title, String message) {
@@ -1324,7 +1510,7 @@ public class PipelineEditorApp extends Application {
                 addToolbarCategory(category);
                 for (FXNodeRegistry.NodeType nodeType : matchingNodes) {
                     final String typeName = nodeType.name;
-                    addToolbarButton(nodeType.displayName, () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
+                    addToolbarButton(nodeType.getButtonName(), () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
                 }
             }
         }

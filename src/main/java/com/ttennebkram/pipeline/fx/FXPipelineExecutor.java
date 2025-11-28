@@ -222,7 +222,23 @@ public class FXPipelineExecutor {
         if ("WebcamSource".equals(type)) {
             FXWebcamSource webcam = webcamSources.get(node.id);
             if (webcam != null) {
-                return webcam.getLastFrameClone();
+                Mat frame = webcam.getLastFrameClone();
+                if (frame != null) {
+                    node.outputCount1++;
+                }
+                return frame;
+            }
+            return null;
+        }
+
+        if ("FileSource".equals(type)) {
+            // Load image from file path
+            if (node.filePath != null && !node.filePath.isEmpty()) {
+                Mat img = org.opencv.imgcodecs.Imgcodecs.imread(node.filePath);
+                if (!img.empty()) {
+                    node.outputCount1++;
+                    return img;
+                }
             }
             return null;
         }
@@ -230,12 +246,16 @@ public class FXPipelineExecutor {
         if ("BlankSource".equals(type)) {
             // Create a blank 640x480 white image
             Mat blank = new Mat(480, 640, org.opencv.core.CvType.CV_8UC3, new Scalar(255, 255, 255));
+            node.outputCount1++;
             return blank;
         }
 
         // Get input for processing nodes
         Mat input = getInputForNode(node, nodeOutputs);
         if (input == null) return null;
+
+        // Increment input counter
+        node.inputCount++;
 
         // Process based on node type
         Mat output = new Mat();
@@ -322,6 +342,9 @@ public class FXPipelineExecutor {
             System.err.println("Error processing " + type + ": " + e.getMessage());
             input.copyTo(output);
         }
+
+        // Increment output counter
+        node.outputCount1++;
 
         input.release();
         return output;
