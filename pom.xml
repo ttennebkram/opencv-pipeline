@@ -48,6 +48,11 @@
             <artifactId>javafx-web</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
 
         <!-- JavaFX platform-specific natives for cross-platform uber-jar -->
         <!-- macOS Apple Silicon -->
@@ -72,6 +77,12 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
             <classifier>mac-aarch64</classifier>
         </dependency>
@@ -101,6 +112,12 @@
             <version>${javafx.version}</version>
             <classifier>mac</classifier>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac</classifier>
+        </dependency>
 
         <!-- Linux x86_64 -->
         <dependency>
@@ -124,6 +141,12 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
             <classifier>linux</classifier>
         </dependency>
@@ -153,6 +176,12 @@
             <version>${javafx.version}</version>
             <classifier>linux-aarch64</classifier>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux-aarch64</classifier>
+        </dependency>
 
         <!-- Windows x86_64 -->
         <dependency>
@@ -176,6 +205,12 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
             <classifier>win</classifier>
         </dependency>

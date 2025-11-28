@@ -29,7 +29,7 @@ public class FXWebcamSource {
     public static final double[] FPS_VALUES = {1.0, 5.0, 10.0, 15.0, 30.0};
 
     private VideoCapture videoCapture;
-    private int cameraIndex = 0;
+    private int cameraIndex = 1; // Default to 1 (0 is often a virtual camera like iPhone)
     private int resolutionIndex = 1; // Default 640x480
     private int fpsIndex = 2; // Default 10 fps
     private boolean mirrorHorizontal = true;
@@ -40,8 +40,8 @@ public class FXWebcamSource {
     private Consumer<Image> onFrame;
     private Consumer<Mat> onMatFrame;
 
-    private Mat lastFrame;
-    private Image lastImage;
+    private volatile Mat lastFrame;
+    private volatile Image lastImage;
 
     public FXWebcamSource() {
         this(0);
@@ -144,11 +144,13 @@ public class FXWebcamSource {
 
                 Mat frame = captureFrame();
                 if (frame != null) {
-                    // Store last frame
-                    if (lastFrame != null) {
-                        lastFrame.release();
+                    // Store last frame (synchronized for thread-safe access)
+                    synchronized (this) {
+                        if (lastFrame != null) {
+                            lastFrame.release();
+                        }
+                        lastFrame = frame.clone();
                     }
-                    lastFrame = frame.clone();
 
                     // Convert to Image
                     Image image = FXImageUtils.matToImage(frame);
@@ -156,7 +158,8 @@ public class FXWebcamSource {
 
                     // Deliver on JavaFX thread
                     if (onFrame != null && image != null) {
-                        Platform.runLater(() -> onFrame.accept(image));
+                        final Image finalImage = image;
+                        Platform.runLater(() -> onFrame.accept(finalImage));
                     }
                     if (onMatFrame != null) {
                         Mat frameCopy = frame.clone();
@@ -237,7 +240,7 @@ public class FXWebcamSource {
      * Get the last captured frame as a Mat.
      * Note: Returns a clone, caller must release.
      */
-    public Mat getLastFrameClone() {
+    public synchronized Mat getLastFrameClone() {
         if (lastFrame != null && !lastFrame.empty()) {
             return lastFrame.clone();
         }
@@ -284,7 +287,7 @@ public class FXWebcamSource {
      */
     public static int detectCameras() {
         int count = 0;
-        for (int i = 0; i <= 2; i++) {
+        for (int i = 0; i <= 5; i++) {
             VideoCapture test = new VideoCapture(i);
             if (test.isOpened()) {
                 count++;
@@ -293,5 +296,24 @@ public class FXWebcamSource {
             test.release();
         }
         return count;
+    }
+
+    /**
+     * Find the highest numbered available camera.
+     * This is useful because virtual cameras (like iPhone) often take lower indices,
+     * so the real webcam tends to be at the highest index.
+     * @return The index of the highest available camera, or 0 if none found
+     */
+    public static int findHighestCamera() {
+        int highest = -1;
+        for (int i = 0; i <= 5; i++) {
+            VideoCapture test = new VideoCapture(i);
+            if (test.isOpened()) {
+                highest = i;
+                System.out.println("Found camera at index " + i);
+            }
+            test.release();
+        }
+        return highest >= 0 ? highest : 0;
     }
 }

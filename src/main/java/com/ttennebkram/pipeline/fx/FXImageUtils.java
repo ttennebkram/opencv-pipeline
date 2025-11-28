@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.fx;
 
+import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.image.Image;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.PixelWriter;
@@ -7,6 +8,8 @@ import javafx.scene.image.WritableImage;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.nio.ByteBuffer;
 
 /**
@@ -14,9 +17,12 @@ import java.nio.ByteBuffer;
  */
 public class FXImageUtils {
 
+    // Set to true to use pure JavaFX approach (no AWT/Swing dependency)
+    // Set to false to use BufferedImage + SwingFXUtils (more reliable but requires javafx-swing)
+    private static final boolean USE_PURE_JAVAFX = true;
+
     /**
      * Convert an OpenCV Mat to a JavaFX Image.
-     * Handles BGR, BGRA, and grayscale formats.
      *
      * @param mat The OpenCV Mat to convert
      * @return A JavaFX Image, or null if conversion fails
@@ -26,52 +32,120 @@ public class FXImageUtils {
             return null;
         }
 
-        int width = mat.width();
-        int height = mat.height();
-        int channels = mat.channels();
+        return USE_PURE_JAVAFX ? matToImagePureJavaFX(mat) : matToImageViaBufferedImage(mat);
+    }
 
-        // Convert to RGB/RGBA format for JavaFX
-        Mat converted = new Mat();
+    /**
+     * Pure JavaFX implementation - no AWT/Swing dependency.
+     * Uses WritableImage and PixelWriter directly.
+     */
+    private static Image matToImagePureJavaFX(Mat mat) {
         try {
+            int width = mat.width();
+            int height = mat.height();
+            int channels = mat.channels();
+
+            // Convert BGR to RGB for 3-channel images
+            Mat rgbMat;
+            if (channels == 3) {
+                rgbMat = new Mat();
+                Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_BGR2RGB);
+            } else if (channels == 4) {
+                rgbMat = new Mat();
+                Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_BGRA2RGBA);
+            } else if (channels == 1) {
+                // Convert grayscale to RGB
+                rgbMat = new Mat();
+                Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_GRAY2RGB);
+            } else {
+                return null;
+            }
+
+            // Get pixel data
+            int bufferSize = rgbMat.channels() * width * height;
+            byte[] buffer = new byte[bufferSize];
+            rgbMat.get(0, 0, buffer);
+
+            // Create WritableImage
+            WritableImage image = new WritableImage(width, height);
+            PixelWriter pw = image.getPixelWriter();
+
+            // Use appropriate pixel format based on channels
+            if (rgbMat.channels() == 3) {
+                pw.setPixels(0, 0, width, height,
+                    PixelFormat.getByteRgbInstance(),
+                    buffer, 0, width * 3);
+            } else if (rgbMat.channels() == 4) {
+                pw.setPixels(0, 0, width, height,
+                    PixelFormat.getByteBgraInstance(),
+                    buffer, 0, width * 4);
+            }
+
+            // Release temp mat if we created one
+            if (rgbMat != mat) {
+                rgbMat.release();
+            }
+
+            return image;
+
+        } catch (Exception e) {
+            System.err.println("matToImagePureJavaFX error: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * BufferedImage + SwingFXUtils implementation.
+     * More reliable but requires javafx-swing dependency.
+     */
+    private static Image matToImageViaBufferedImage(Mat mat) {
+        try {
+            int width = mat.width();
+            int height = mat.height();
+            int channels = mat.channels();
+
+            // Determine BufferedImage type
+            int bufferedImageType;
+            Mat converted;
+
             if (channels == 1) {
-                // Grayscale to RGB
-                Imgproc.cvtColor(mat, converted, Imgproc.COLOR_GRAY2RGB);
-                channels = 3;
+                // Grayscale
+                bufferedImageType = BufferedImage.TYPE_BYTE_GRAY;
+                converted = mat;
             } else if (channels == 3) {
                 // BGR to RGB
-                Imgproc.cvtColor(mat, converted, Imgproc.COLOR_BGR2RGB);
+                bufferedImageType = BufferedImage.TYPE_3BYTE_BGR;
+                converted = mat; // Keep as BGR for BufferedImage
             } else if (channels == 4) {
-                // BGRA to RGBA
+                // BGRA
+                bufferedImageType = BufferedImage.TYPE_4BYTE_ABGR;
+                converted = new Mat();
                 Imgproc.cvtColor(mat, converted, Imgproc.COLOR_BGRA2RGBA);
             } else {
                 System.err.println("Unsupported channel count: " + channels);
                 return null;
             }
 
-            // Create byte array from Mat
-            int bufferSize = width * height * channels;
-            byte[] buffer = new byte[bufferSize];
-            converted.get(0, 0, buffer);
+            // Create BufferedImage
+            BufferedImage bufferedImage = new BufferedImage(width, height, bufferedImageType);
+            byte[] targetPixels = ((DataBufferByte) bufferedImage.getRaster().getDataBuffer()).getData();
 
-            // Create WritableImage
-            WritableImage image = new WritableImage(width, height);
-            PixelWriter writer = image.getPixelWriter();
+            // Copy Mat data to BufferedImage
+            converted.get(0, 0, targetPixels);
 
-            if (channels == 3) {
-                // RGB format
-                writer.setPixels(0, 0, width, height,
-                    PixelFormat.getByteRgbInstance(),
-                    buffer, 0, width * 3);
-            } else if (channels == 4) {
-                // RGBA format
-                writer.setPixels(0, 0, width, height,
-                    PixelFormat.getByteBgraInstance(),
-                    buffer, 0, width * 4);
+            // Release converted mat if we created one
+            if (converted != mat) {
+                converted.release();
             }
 
-            return image;
-        } finally {
-            converted.release();
+            // Convert BufferedImage to JavaFX Image
+            return SwingFXUtils.toFXImage(bufferedImage, null);
+
+        } catch (Exception e) {
+            System.err.println("matToImageViaBufferedImage error: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
     }
 

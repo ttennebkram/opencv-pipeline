@@ -23,17 +23,21 @@ import com.ttennebkram.pipeline.fx.FXImageUtils;
 import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.FXNodeFactory;
 import com.ttennebkram.pipeline.fx.FXNodeRegistry;
+import com.ttennebkram.pipeline.fx.FXPipelineExecutor;
+import com.ttennebkram.pipeline.fx.FXPipelineSerializer;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
 import com.ttennebkram.pipeline.fx.FXWebcamSource;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
 
+import org.opencv.core.Mat;
+
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.prefs.Preferences;
 
 /**
@@ -104,8 +108,11 @@ public class PipelineEditorApp extends Application {
     private List<String> recentFiles = new ArrayList<>();
     private Menu openRecentMenu;
 
-    // Webcam sources for live preview
-    private Map<Integer, FXWebcamSource> webcamSources = new HashMap<>();
+    // Webcam sources for live preview (ConcurrentHashMap for thread-safe access from executor thread)
+    private Map<Integer, FXWebcamSource> webcamSources = new ConcurrentHashMap<>();
+
+    // Pipeline executor
+    private FXPipelineExecutor pipelineExecutor;
 
     @Override
     public void start(Stage primaryStage) {
@@ -636,13 +643,30 @@ public class PipelineEditorApp extends Application {
         // Add position info (read-only display)
         dialog.addDescription("Position: (" + (int)node.x + ", " + (int)node.y + ")");
 
-        // TODO: Add node-type-specific properties here
-        // This will be expanded when integrating with actual PipelineNode classes
+        // Add node-type-specific properties
+        Spinner<Integer> cameraSpinner = null;
+        if ("WebcamSource".equals(node.nodeType)) {
+            cameraSpinner = dialog.addSpinner("Camera Index:", 0, 5, node.cameraIndex);
+            dialog.addDescription("Camera 0 is often a virtual camera (e.g., iPhone).\nTry camera 1 for your built-in webcam.");
+        }
 
         // Set OK handler to save values
+        final Spinner<Integer> finalCameraSpinner = cameraSpinner;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
             node.enabled = enabledCheckbox.isSelected();
+
+            // Handle webcam-specific properties
+            if ("WebcamSource".equals(node.nodeType) && finalCameraSpinner != null) {
+                int newCameraIndex = finalCameraSpinner.getValue();
+                if (newCameraIndex != node.cameraIndex) {
+                    node.cameraIndex = newCameraIndex;
+                    // Restart webcam with new camera index
+                    stopWebcamForNode(node);
+                    startWebcamForNode(node);
+                }
+            }
+
             markDirty();
             paintCanvas();
         });
@@ -678,12 +702,42 @@ public class PipelineEditorApp extends Application {
     }
 
     private void loadDiagramFromPath(String path) {
-        // TODO: Implement pipeline loading using PipelineSerializer
-        currentFilePath = path;
-        isDirty = false;
-        addToRecentFiles(path);
-        updateTitle();
-        paintCanvas();
+        try {
+            // Stop any running webcams before loading
+            stopAllWebcams();
+
+            // Load the pipeline
+            FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(path);
+
+            // Clear current state
+            nodes.clear();
+            connections.clear();
+            selectedNodes.clear();
+            selectedConnections.clear();
+
+            // Add loaded nodes and connections
+            nodes.addAll(doc.nodes);
+            connections.addAll(doc.connections);
+
+            // Start webcams for WebcamSource nodes
+            for (FXNode node : nodes) {
+                if ("WebcamSource".equals(node.nodeType)) {
+                    startWebcamForNode(node);
+                }
+            }
+
+            currentFilePath = path;
+            isDirty = false;
+            addToRecentFiles(path);
+            updateTitle();
+            paintCanvas();
+
+            System.out.println("Loaded pipeline: " + path + " (" + nodes.size() + " nodes, " + connections.size() + " connections)");
+        } catch (Exception e) {
+            System.err.println("Failed to load pipeline: " + e.getMessage());
+            e.printStackTrace();
+            showError("Load Failed", "Failed to load pipeline: " + e.getMessage());
+        }
     }
 
     private void saveDiagram() {
@@ -710,11 +764,18 @@ public class PipelineEditorApp extends Application {
     }
 
     private void saveDiagramToPath(String path) {
-        // TODO: Implement pipeline saving using PipelineSerializer
-        currentFilePath = path;
-        isDirty = false;
-        addToRecentFiles(path);
-        updateTitle();
+        try {
+            FXPipelineSerializer.save(path, nodes, connections);
+            currentFilePath = path;
+            isDirty = false;
+            addToRecentFiles(path);
+            updateTitle();
+            System.out.println("Saved pipeline: " + path + " (" + nodes.size() + " nodes, " + connections.size() + " connections)");
+        } catch (Exception e) {
+            System.err.println("Failed to save pipeline: " + e.getMessage());
+            e.printStackTrace();
+            showError("Save Failed", "Failed to save pipeline: " + e.getMessage());
+        }
     }
 
     private void deleteSelected() {
@@ -765,7 +826,27 @@ public class PipelineEditorApp extends Application {
         startStopBtn.setStyle("-fx-background-color: rgb(200, 100, 100);");
         statusBar.setText("Pipeline running");
         statusBar.setTextFill(COLOR_STATUS_RUNNING);
-        // TODO: Actually start the pipeline threads
+
+        // Create and start the pipeline executor
+        pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
+        pipelineExecutor.setOnNodeOutput((node, mat) -> {
+            // Update node thumbnail
+            node.thumbnail = FXImageUtils.matToImage(mat,
+                NodeRenderer.PROCESSING_NODE_THUMB_WIDTH,
+                NodeRenderer.PROCESSING_NODE_THUMB_HEIGHT);
+
+            // Update preview if this node is selected
+            if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                previewImageView.setImage(FXImageUtils.matToImage(mat));
+            }
+
+            // Release the mat
+            mat.release();
+
+            // Repaint canvas
+            paintCanvas();
+        });
+        pipelineExecutor.start();
     }
 
     private void stopPipeline() {
@@ -774,7 +855,12 @@ public class PipelineEditorApp extends Application {
         startStopBtn.setStyle("-fx-background-color: rgb(100, 180, 100);");
         statusBar.setText("Pipeline stopped");
         statusBar.setTextFill(COLOR_STATUS_STOPPED);
-        // TODO: Actually stop the pipeline threads
+
+        // Stop the pipeline executor
+        if (pipelineExecutor != null) {
+            pipelineExecutor.stop();
+            pipelineExecutor = null;
+        }
     }
 
     private void addNodeAt(String nodeTypeName, int x, int y) {
@@ -796,35 +882,46 @@ public class PipelineEditorApp extends Application {
 
     /**
      * Start webcam capture for a webcam source node.
+     * Runs camera detection and initialization on a background thread to avoid blocking UI.
      */
     private void startWebcamForNode(FXNode node) {
-        FXWebcamSource webcam = new FXWebcamSource();
-        webcam.setOnFrame(image -> {
-            // Update the node's thumbnail
-            node.thumbnail = FXImageUtils.createThumbnail(
-                webcam.getLastFrameClone(),
-                NodeRenderer.SOURCE_NODE_THUMB_WIDTH,
-                NodeRenderer.SOURCE_NODE_THUMB_HEIGHT
-            );
-            if (node.thumbnail == null) {
-                node.thumbnail = image; // Use the image directly if Mat not available
+        // Run camera detection and initialization in background thread
+        Thread initThread = new Thread(() -> {
+            // Auto-detect highest camera if not set
+            int cameraIdx = node.cameraIndex;
+            if (cameraIdx < 0) {
+                cameraIdx = FXWebcamSource.findHighestCamera();
+                final int detectedIdx = cameraIdx;
+                Platform.runLater(() -> {
+                    node.cameraIndex = detectedIdx;
+                    System.out.println("Auto-detected highest camera: " + detectedIdx);
+                });
             }
 
-            // Update preview if this node is selected
-            if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
-                previewImageView.setImage(image);
+            FXWebcamSource webcam = new FXWebcamSource(cameraIdx);
+            webcam.setOnFrame(image -> {
+                // Use the image directly as the thumbnail
+                node.thumbnail = image;
+
+                // Update preview if this node is selected
+                if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                    previewImageView.setImage(image);
+                }
+
+                // Repaint canvas to show updated thumbnail
+                paintCanvas();
+            });
+
+            if (webcam.open()) {
+                // Add to map immediately (ConcurrentHashMap is thread-safe)
+                webcamSources.put(node.id, webcam);
+                webcam.start();
+            } else {
+                System.err.println("Failed to open webcam for node " + node.id);
             }
-
-            // Repaint canvas to show updated thumbnail
-            paintCanvas();
-        });
-
-        if (webcam.open()) {
-            webcamSources.put(node.id, webcam);
-            webcam.start();
-        } else {
-            System.err.println("Failed to open webcam for node " + node.id);
-        }
+        }, "WebcamInit-" + node.id);
+        initThread.setDaemon(true);
+        initThread.start();
     }
 
     /**
@@ -835,6 +932,27 @@ public class PipelineEditorApp extends Application {
         if (webcam != null) {
             webcam.close();
         }
+    }
+
+    /**
+     * Stop all webcam captures.
+     */
+    private void stopAllWebcams() {
+        for (FXWebcamSource webcam : webcamSources.values()) {
+            webcam.close();
+        }
+        webcamSources.clear();
+    }
+
+    /**
+     * Show an error dialog.
+     */
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private int getNextNodeX() {

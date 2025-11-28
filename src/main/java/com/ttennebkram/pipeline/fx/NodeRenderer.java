@@ -102,25 +102,34 @@ public class NodeRenderer {
                      y + HELP_ICON_MARGIN);
 
         // Draw thumbnail or placeholder
-        double thumbX = x + 40;
-        double thumbY = y + 35;
+        // Determine if this is a source node (no input) and use appropriate thumbnail size
+        int thumbMaxW = hasInput ? PROCESSING_NODE_THUMB_WIDTH : SOURCE_NODE_THUMB_WIDTH;
+        int thumbMaxH = hasInput ? PROCESSING_NODE_THUMB_HEIGHT : SOURCE_NODE_THUMB_HEIGHT;
+        double thumbX = hasInput ? x + 40 : x + (width - thumbMaxW) / 2;
+        double thumbY = y + 32;
 
         if (thumbnail != null) {
-            // Draw the actual thumbnail image
-            double thumbW = Math.min(thumbnail.getWidth(), PROCESSING_NODE_THUMB_WIDTH);
-            double thumbH = Math.min(thumbnail.getHeight(), PROCESSING_NODE_THUMB_HEIGHT);
-            // Center the thumbnail if smaller than max size
-            double drawX = thumbX + (PROCESSING_NODE_THUMB_WIDTH - thumbW) / 2;
-            double drawY = thumbY + (PROCESSING_NODE_THUMB_HEIGHT - thumbH) / 2;
+            // Draw the actual thumbnail image, scaling to fit
+            double scale = Math.min(
+                (double) thumbMaxW / thumbnail.getWidth(),
+                (double) thumbMaxH / thumbnail.getHeight()
+            );
+            double thumbW = thumbnail.getWidth() * scale;
+            double thumbH = thumbnail.getHeight() * scale;
+            // Center the thumbnail
+            double drawX = thumbX + (thumbMaxW - thumbW) / 2;
+            double drawY = thumbY + (thumbMaxH - thumbH) / 2;
+
+            // Draw scaled thumbnail
             gc.drawImage(thumbnail, drawX, drawY, thumbW, thumbH);
         } else {
             // Draw placeholder
             gc.setStroke(Color.LIGHTGRAY);
             gc.setLineWidth(1);
-            gc.strokeRect(thumbX, thumbY, PROCESSING_NODE_THUMB_WIDTH, PROCESSING_NODE_THUMB_HEIGHT);
+            gc.strokeRect(thumbX, thumbY, thumbMaxW, thumbMaxH);
             gc.setFill(Color.GRAY);
             gc.setFont(Font.font("Arial", 9));
-            gc.fillText("(no output)", thumbX + 30, thumbY + 45);
+            gc.fillText("(no output)", thumbX + thumbMaxW / 2 - 25, thumbY + thumbMaxH / 2 + 5);
         }
 
         // Draw input connection point(s)

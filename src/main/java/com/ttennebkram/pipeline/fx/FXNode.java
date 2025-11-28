@@ -29,6 +29,9 @@ public class FXNode {
     // Thumbnail image for displaying node output
     public Image thumbnail;
 
+    // Webcam-specific properties - default set dynamically when creating WebcamSource nodes
+    public int cameraIndex = -1; // -1 means "auto-detect highest camera"
+
     // Unique identifier for serialization
     public int id;
     private static int nextId = 1;
