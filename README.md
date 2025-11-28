@@ -35,6 +35,8 @@ Pre-built JARs are available for:
 - **Linux** (x86_64 and ARM64/Raspberry Pi)
 - **Windows** (x86_64)
 
+**Why separate JARs per platform?** The GUI uses SWT (Standard Widget Toolkit), which provides native OS widgets but requires platform-specific native libraries. Each JAR bundles the correct SWT natives for that platform. OpenCV also uses JNI for high-performance image processing, but its natives are bundled in a way that works across platforms.
+
 ## Requirements
 
 - Java 17 or higher
