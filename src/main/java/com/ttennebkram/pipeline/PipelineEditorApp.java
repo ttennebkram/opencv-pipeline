@@ -18,11 +18,15 @@ import javafx.stage.FileChooser;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 
+import com.ttennebkram.pipeline.fx.FXConnection;
+import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
@@ -58,10 +62,29 @@ public class PipelineEditorApp extends Application {
     private double zoomLevel = 1.0;
     private static final int[] ZOOM_LEVELS = {25, 50, 75, 100, 125, 150, 200, 300, 400};
 
-    // Pipeline state
-    // TODO: These will be moved to a separate PipelineModel class
-    // private List<PipelineNode> nodes = new ArrayList<>();
-    // private List<Connection> connections = new ArrayList<>();
+    // Pipeline data model
+    private List<FXNode> nodes = new ArrayList<>();
+    private List<FXConnection> connections = new ArrayList<>();
+    private Set<FXNode> selectedNodes = new HashSet<>();
+    private Set<FXConnection> selectedConnections = new HashSet<>();
+
+    // Drag state
+    private FXNode dragNode = null;
+    private double dragOffsetX, dragOffsetY;
+    private boolean isDragging = false;
+
+    // Connection drawing state
+    private FXNode connectionSource = null;
+    private int connectionOutputIndex = 0;
+    private double connectionEndX, connectionEndY;
+    private boolean isDrawingConnection = false;
+
+    // Selection box state
+    private double selectionBoxStartX, selectionBoxStartY;
+    private double selectionBoxEndX, selectionBoxEndY;
+    private boolean isSelectionBoxDragging = false;
+
+    // Pipeline execution state
     private boolean pipelineRunning = false;
     private boolean isDirty = false;
     private String currentFilePath = null;
@@ -211,22 +234,38 @@ public class PipelineEditorApp extends Application {
         // Add node category buttons
         // TODO: Use NodeRegistry to populate these dynamically
         addToolbarCategory("Source");
-        addToolbarButton("Webcam", () -> addNodeAt("WebcamSourceNode", 100, 100));
-        addToolbarButton("File", () -> addNodeAt("FileSourceNode", 100, 100));
-        addToolbarButton("Blank", () -> addNodeAt("BlankSourceNode", 100, 100));
+        addToolbarButton("Webcam", () -> addNodeAt("Webcam", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("File", () -> addNodeAt("File Source", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Blank", () -> addNodeAt("Blank Source", getNextNodeX(), getNextNodeY()));
 
         addToolbarCategory("Basic");
-        addToolbarButton("Grayscale", () -> addNodeAt("GrayscaleNode", 100, 100));
-        addToolbarButton("Invert", () -> addNodeAt("InvertNode", 100, 100));
-        addToolbarButton("Threshold", () -> addNodeAt("ThresholdNode", 100, 100));
+        addToolbarButton("Grayscale", () -> addNodeAt("Grayscale", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Invert", () -> addNodeAt("Invert", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Threshold", () -> addNodeAt("Threshold", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Gain", () -> addNodeAt("Gain", getNextNodeX(), getNextNodeY()));
 
         addToolbarCategory("Blur");
-        addToolbarButton("Gaussian", () -> addNodeAt("GaussianBlurNode", 100, 100));
-        addToolbarButton("Median", () -> addNodeAt("MedianBlurNode", 100, 100));
+        addToolbarButton("Gaussian", () -> addNodeAt("Gaussian Blur", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Median", () -> addNodeAt("Median Blur", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Bilateral", () -> addNodeAt("Bilateral Blur", getNextNodeX(), getNextNodeY()));
 
         addToolbarCategory("Edge Detection");
-        addToolbarButton("Canny", () -> addNodeAt("CannyEdgeNode", 100, 100));
-        addToolbarButton("Sobel", () -> addNodeAt("SobelNode", 100, 100));
+        addToolbarButton("Canny", () -> addNodeAt("Canny Edge", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Sobel", () -> addNodeAt("Sobel", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Laplacian", () -> addNodeAt("Laplacian", getNextNodeX(), getNextNodeY()));
+
+        addToolbarCategory("Morphology");
+        addToolbarButton("Erode", () -> addNodeAt("Erode", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Dilate", () -> addNodeAt("Dilate", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Open", () -> addNodeAt("Morph Open", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Close", () -> addNodeAt("Morph Close", getNextNodeX(), getNextNodeY()));
+
+        addToolbarCategory("Combine");
+        addToolbarButton("Add", () -> addNodeAt("Add", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Subtract", () -> addNodeAt("Subtract", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Blend", () -> addNodeAt("Blend", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Bitwise AND", () -> addNodeAt("Bitwise AND", getNextNodeX(), getNextNodeY()));
+        addToolbarButton("Bitwise OR", () -> addNodeAt("Bitwise OR", getNextNodeX(), getNextNodeY()));
 
         toolbar.getChildren().add(scrollPane);
 
@@ -377,68 +416,232 @@ public class PipelineEditorApp extends Application {
             gc.strokeLine(0, y, pipelineCanvas.getWidth() / zoomLevel, y);
         }
 
-        // TODO: Draw actual pipeline nodes from data model
-        // For now, render sample nodes to demonstrate the rendering
+        // Draw connections first (behind nodes)
+        for (FXConnection conn : connections) {
+            double[] start = conn.getStartPoint();
+            double[] end = conn.getEndPoint();
+            if (start != null && end != null) {
+                NodeRenderer.renderConnection(gc, start[0], start[1], end[0], end[1],
+                    conn.selected || selectedConnections.contains(conn));
+            }
+        }
 
-        // Sample source node (Webcam)
-        NodeRenderer.renderSourceNode(gc, 50, 100,
-            NodeRenderer.SOURCE_NODE_THUMB_WIDTH + 60, NodeRenderer.SOURCE_NODE_HEIGHT,
-            "Webcam", false, true, Color.rgb(200, 255, 200));
+        // Draw connection being drawn
+        if (isDrawingConnection && connectionSource != null) {
+            double[] start = connectionSource.getOutputPoint(connectionOutputIndex);
+            if (start != null) {
+                NodeRenderer.renderConnection(gc, start[0], start[1], connectionEndX, connectionEndY, true);
+            }
+        }
 
-        // Sample processing node (Grayscale)
-        NodeRenderer.renderNode(gc, 400, 80,
-            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
-            "Grayscale", false, true, Color.rgb(200, 220, 255),
-            true, false, 1);
+        // Draw nodes
+        for (FXNode node : nodes) {
+            boolean isSelected = selectedNodes.contains(node);
+            NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
+                node.label, isSelected, node.enabled, node.backgroundColor,
+                node.hasInput, node.hasDualInput, node.outputCount);
+        }
 
-        // Sample processing node (Gaussian Blur) - selected
-        NodeRenderer.renderNode(gc, 400, 220,
-            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
-            "Gaussian Blur", true, true, Color.rgb(200, 220, 255),
-            true, false, 1);
-
-        // Sample processing node (Canny Edge) - disabled
-        NodeRenderer.renderNode(gc, 650, 150,
-            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
-            "Canny Edge", false, false, Color.rgb(200, 220, 255),
-            true, false, 1);
-
-        // Draw sample connections
-        // Webcam -> Grayscale
-        double[] srcOut = NodeRenderer.getOutputPoint(50, 100,
-            NodeRenderer.SOURCE_NODE_THUMB_WIDTH + 60, NodeRenderer.SOURCE_NODE_HEIGHT, 0, 1);
-        double[] dstIn = NodeRenderer.getInputPoint(400, 80, NodeRenderer.NODE_HEIGHT, 0);
-        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], false);
-
-        // Webcam -> Gaussian Blur
-        dstIn = NodeRenderer.getInputPoint(400, 220, NodeRenderer.NODE_HEIGHT, 0);
-        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], true);
-
-        // Grayscale -> Canny
-        srcOut = NodeRenderer.getOutputPoint(400, 80,
-            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT, 0, 1);
-        dstIn = NodeRenderer.getInputPoint(650, 150, NodeRenderer.NODE_HEIGHT, 0);
-        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], false);
+        // Draw selection box
+        if (isSelectionBoxDragging) {
+            gc.setStroke(COLOR_SELECTION_BOX);
+            gc.setLineWidth(1);
+            gc.setLineDashes(5);
+            double x = Math.min(selectionBoxStartX, selectionBoxEndX);
+            double y = Math.min(selectionBoxStartY, selectionBoxEndY);
+            double w = Math.abs(selectionBoxEndX - selectionBoxStartX);
+            double h = Math.abs(selectionBoxEndY - selectionBoxStartY);
+            gc.strokeRect(x, y, w, h);
+            gc.setFill(Color.rgb(0, 120, 215, 0.1));
+            gc.fillRect(x, y, w, h);
+            gc.setLineDashes(null);
+        }
 
         gc.restore();
+
+        // Update node count
+        updateNodeCount();
     }
 
     // ========================= Mouse Handlers =========================
 
     private void handleMousePressed(javafx.scene.input.MouseEvent e) {
-        // TODO: Implement node selection and dragging
+        double canvasX = e.getX() / zoomLevel;
+        double canvasY = e.getY() / zoomLevel;
+
+        // Check if clicking on a node's output point (to start connection)
+        for (FXNode node : nodes) {
+            int outputIdx = node.getOutputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 3);
+            if (outputIdx >= 0) {
+                // Start drawing a connection
+                connectionSource = node;
+                connectionOutputIndex = outputIdx;
+                connectionEndX = canvasX;
+                connectionEndY = canvasY;
+                isDrawingConnection = true;
+                paintCanvas();
+                return;
+            }
+        }
+
+        // Check if clicking on a node
+        FXNode clickedNode = getNodeAt(canvasX, canvasY);
+        if (clickedNode != null) {
+            // Check if shift is held for multi-select
+            if (!e.isShiftDown() && !selectedNodes.contains(clickedNode)) {
+                // Clear selection and select this node
+                selectedNodes.clear();
+                selectedConnections.clear();
+            }
+            selectedNodes.add(clickedNode);
+
+            // Start dragging
+            dragNode = clickedNode;
+            dragOffsetX = canvasX - clickedNode.x;
+            dragOffsetY = canvasY - clickedNode.y;
+            isDragging = true;
+            paintCanvas();
+            return;
+        }
+
+        // Check if clicking on a connection
+        FXConnection clickedConn = getConnectionAt(canvasX, canvasY);
+        if (clickedConn != null) {
+            if (!e.isShiftDown()) {
+                selectedNodes.clear();
+                selectedConnections.clear();
+            }
+            selectedConnections.add(clickedConn);
+            paintCanvas();
+            return;
+        }
+
+        // Clicked on empty space - start selection box or clear selection
+        if (!e.isShiftDown()) {
+            selectedNodes.clear();
+            selectedConnections.clear();
+        }
+        selectionBoxStartX = canvasX;
+        selectionBoxStartY = canvasY;
+        selectionBoxEndX = canvasX;
+        selectionBoxEndY = canvasY;
+        isSelectionBoxDragging = true;
+        paintCanvas();
     }
 
     private void handleMouseDragged(javafx.scene.input.MouseEvent e) {
-        // TODO: Implement node dragging and connection drawing
+        double canvasX = e.getX() / zoomLevel;
+        double canvasY = e.getY() / zoomLevel;
+
+        if (isDrawingConnection) {
+            connectionEndX = canvasX;
+            connectionEndY = canvasY;
+            paintCanvas();
+        } else if (isDragging && dragNode != null) {
+            // Move the dragged node
+            double dx = canvasX - dragOffsetX - dragNode.x;
+            double dy = canvasY - dragOffsetY - dragNode.y;
+
+            // Move all selected nodes
+            for (FXNode node : selectedNodes) {
+                node.x += dx;
+                node.y += dy;
+            }
+
+            dragNode.x = canvasX - dragOffsetX;
+            dragNode.y = canvasY - dragOffsetY;
+            markDirty();
+            paintCanvas();
+        } else if (isSelectionBoxDragging) {
+            selectionBoxEndX = canvasX;
+            selectionBoxEndY = canvasY;
+            paintCanvas();
+        }
     }
 
     private void handleMouseReleased(javafx.scene.input.MouseEvent e) {
-        // TODO: Implement connection completion
+        double canvasX = e.getX() / zoomLevel;
+        double canvasY = e.getY() / zoomLevel;
+
+        if (isDrawingConnection) {
+            // Check if we're over a node's input point
+            for (FXNode node : nodes) {
+                if (node != connectionSource) {
+                    int inputIdx = node.getInputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 5);
+                    if (inputIdx >= 0) {
+                        // Create connection
+                        FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, node, inputIdx);
+                        connections.add(conn);
+                        markDirty();
+                        break;
+                    }
+                }
+            }
+            isDrawingConnection = false;
+            connectionSource = null;
+        }
+
+        if (isSelectionBoxDragging) {
+            // Select all nodes within the selection box
+            double x1 = Math.min(selectionBoxStartX, selectionBoxEndX);
+            double y1 = Math.min(selectionBoxStartY, selectionBoxEndY);
+            double x2 = Math.max(selectionBoxStartX, selectionBoxEndX);
+            double y2 = Math.max(selectionBoxStartY, selectionBoxEndY);
+
+            for (FXNode node : nodes) {
+                if (node.x >= x1 && node.x + node.width <= x2 &&
+                    node.y >= y1 && node.y + node.height <= y2) {
+                    selectedNodes.add(node);
+                }
+            }
+            isSelectionBoxDragging = false;
+        }
+
+        isDragging = false;
+        dragNode = null;
+        paintCanvas();
     }
 
     private void handleDoubleClick(javafx.scene.input.MouseEvent e) {
-        // TODO: Open properties dialog for double-clicked node
+        double canvasX = e.getX() / zoomLevel;
+        double canvasY = e.getY() / zoomLevel;
+
+        FXNode node = getNodeAt(canvasX, canvasY);
+        if (node != null) {
+            // TODO: Open properties dialog for this node
+            showNodeProperties(node);
+        }
+    }
+
+    private FXNode getNodeAt(double x, double y) {
+        // Search in reverse order (top-most first)
+        for (int i = nodes.size() - 1; i >= 0; i--) {
+            FXNode node = nodes.get(i);
+            if (node.contains(x, y)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private FXConnection getConnectionAt(double x, double y) {
+        for (FXConnection conn : connections) {
+            if (conn.isNear(x, y, 8)) {
+                return conn;
+            }
+        }
+        return null;
+    }
+
+    private void showNodeProperties(FXNode node) {
+        // Simple properties dialog for now
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Node Properties");
+        alert.setHeaderText(node.label);
+        alert.setContentText("Type: " + node.nodeType + "\n" +
+            "Position: (" + (int)node.x + ", " + (int)node.y + ")\n" +
+            "Enabled: " + node.enabled);
+        alert.showAndWait();
     }
 
     // ========================= Actions =========================
@@ -446,8 +649,10 @@ public class PipelineEditorApp extends Application {
     private void newDiagram() {
         if (checkUnsavedChanges()) {
             // Clear nodes and connections
-            // nodes.clear();
-            // connections.clear();
+            nodes.clear();
+            connections.clear();
+            selectedNodes.clear();
+            selectedConnections.clear();
             currentFilePath = null;
             isDirty = false;
             updateTitle();
@@ -507,13 +712,26 @@ public class PipelineEditorApp extends Application {
     }
 
     private void deleteSelected() {
-        // TODO: Delete selected nodes and connections
+        // Remove selected connections
+        connections.removeAll(selectedConnections);
+
+        // Remove connections to/from selected nodes
+        for (FXNode node : selectedNodes) {
+            connections.removeIf(conn -> conn.source == node || conn.target == node);
+        }
+
+        // Remove selected nodes
+        nodes.removeAll(selectedNodes);
+
+        selectedNodes.clear();
+        selectedConnections.clear();
         markDirty();
         paintCanvas();
     }
 
     private void selectAll() {
-        // TODO: Select all nodes
+        selectedNodes.clear();
+        selectedNodes.addAll(nodes);
         paintCanvas();
     }
 
@@ -554,13 +772,47 @@ public class PipelineEditorApp extends Application {
     }
 
     private void addNodeAt(String nodeType, int x, int y) {
-        // TODO: Create node instance and add to canvas
+        FXNode node;
+
+        // Determine node type and create appropriate node
+        if (nodeType.contains("Source") || nodeType.equals("Webcam") || nodeType.equals("File") || nodeType.equals("Blank")) {
+            node = FXNode.createSourceNode(nodeType, nodeType, x, y);
+        } else if (nodeType.contains("Add") || nodeType.contains("Subtract") ||
+                   nodeType.contains("Bitwise") || nodeType.contains("Blend")) {
+            node = FXNode.createDualInputNode(nodeType, nodeType, x, y);
+        } else {
+            node = new FXNode(nodeType, nodeType, x, y);
+        }
+
+        nodes.add(node);
+        selectedNodes.clear();
+        selectedNodes.add(node);
         markDirty();
         paintCanvas();
     }
 
+    private int getNextNodeX() {
+        // Find a good position for the next node
+        int maxX = 50;
+        for (FXNode node : nodes) {
+            maxX = Math.max(maxX, (int)(node.x + node.width + 50));
+        }
+        return Math.min(maxX, 800);
+    }
+
+    private int getNextNodeY() {
+        // Find a good position for the next node
+        if (nodes.isEmpty()) return 100;
+        FXNode last = nodes.get(nodes.size() - 1);
+        return (int)(last.y + last.height + 30);
+    }
+
     private void filterToolbarButtons() {
         // TODO: Filter toolbar buttons based on search text
+    }
+
+    private void updateNodeCount() {
+        nodeCountLabel.setText("Nodes: " + nodes.size() + " | Connections: " + connections.size());
     }
 
     // ========================= Helper Methods =========================
