@@ -265,6 +265,9 @@
                         <classpath/>
                         <argument>-Xms512m</argument>
                         <argument>-Xmx4g</argument>
+                        <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
+                        <argument>-Dapple.awt.application.name=OpenCV</argument>
+                        <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
                         <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                     </arguments>
                 </configuration>

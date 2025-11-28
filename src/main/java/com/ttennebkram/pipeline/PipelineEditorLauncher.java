@@ -11,7 +11,17 @@ package com.ttennebkram.pipeline;
  * in its preferred module configuration.
  */
 public class PipelineEditorLauncher {
+
+    private static final String APP_NAME = "OpenCV Pipeline";
+
     public static void main(String[] args) {
+        // Set macOS application name (must be done before any AWT/JavaFX initialization)
+        // Multiple properties are needed for different Java/macOS versions
+        System.setProperty("apple.awt.application.name", APP_NAME);
+        System.setProperty("com.apple.mrj.application.apple.menu.about.name", APP_NAME);
+        // For Java 9+ and JavaFX
+        System.setProperty("jdk.gtk.version", "2"); // Helps with some display issues
+
         // Load OpenCV native library
         nu.pattern.OpenCV.loadLocally();
 

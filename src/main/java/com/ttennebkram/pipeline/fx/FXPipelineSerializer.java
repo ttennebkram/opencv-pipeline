@@ -1,10 +1,16 @@
 package com.ttennebkram.pipeline.fx;
 
 import com.google.gson.*;
+import javafx.embed.swing.SwingFXUtils;
+import javafx.scene.image.Image;
+import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +78,26 @@ public class FXPipelineSerializer {
             // Node-type specific properties
             if ("WebcamSource".equals(node.nodeType)) {
                 nodeJson.addProperty("cameraIndex", node.cameraIndex);
+            } else if ("FileSource".equals(node.nodeType)) {
+                nodeJson.addProperty("filePath", node.filePath);
+            }
+
+            // Container-specific properties - internal nodes and connections
+            nodeJson.addProperty("isContainer", node.isContainer);
+            if (node.isContainer && !node.innerNodes.isEmpty()) {
+                JsonArray innerNodesArray = serializeNodes(node.innerNodes);
+                nodeJson.add("innerNodes", innerNodesArray);
+
+                JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
+                nodeJson.add("innerConnections", innerConnectionsArray);
+            }
+
+            // Save thumbnail as Base64-encoded PNG
+            if (node.thumbnail != null) {
+                String thumbnailBase64 = imageToBase64(node.thumbnail);
+                if (thumbnailBase64 != null) {
+                    nodeJson.addProperty("thumbnail", thumbnailBase64);
+                }
             }
 
             nodesArray.add(nodeJson);
@@ -137,25 +163,32 @@ public class FXPipelineSerializer {
                 JsonObject nodeJson = elem.getAsJsonObject();
 
                 String type = nodeJson.get("type").getAsString();
-                String label = nodeJson.has("label") ? nodeJson.get("label").getAsString() : type;
+                String savedLabel = nodeJson.has("label") ? nodeJson.get("label").getAsString() : null;
                 double x = nodeJson.has("x") ? nodeJson.get("x").getAsDouble() : 0;
                 double y = nodeJson.has("y") ? nodeJson.get("y").getAsDouble() : 0;
 
-                // Create node using factory
+                // Create node using factory - this sets the correct default label from registry
                 FXNode node = FXNodeFactory.createFXNode(type, (int) x, (int) y);
 
-                // Override label if different from default
-                node.label = label;
+                // Only override label if user had customized it
+                // Keep factory-assigned label (from registry displayName) if:
+                // - savedLabel equals the type name (e.g., "WebcamSource")
+                // - savedLabel equals the current displayName (e.g., "Webcam Source")
+                // - savedLabel is an old-style short name we want to update (e.g., "Webcam" -> "Webcam Source")
+                if (savedLabel != null && !savedLabel.equals(type) && !savedLabel.equals(node.label)) {
+                    // Check if this is an old-style label that should be updated
+                    // Old files might have "Webcam" instead of "Webcam Source"
+                    boolean isOldStyleDefault = isOldStyleDefaultLabel(savedLabel, type);
+                    if (!isOldStyleDefault) {
+                        node.label = savedLabel;
+                    }
+                }
 
-                // Restore position and size
+                // Restore position (but not size - use current constants for consistent sizing)
                 node.x = x;
                 node.y = y;
-                if (nodeJson.has("width")) {
-                    node.width = nodeJson.get("width").getAsDouble();
-                }
-                if (nodeJson.has("height")) {
-                    node.height = nodeJson.get("height").getAsDouble();
-                }
+                // Don't restore width/height - let nodes use current constants
+                // This ensures nodes adapt to updated sizing constants
 
                 // Restore state
                 if (nodeJson.has("enabled")) {
@@ -185,6 +218,25 @@ public class FXPipelineSerializer {
                 // Restore node-type specific properties
                 if ("WebcamSource".equals(type) && nodeJson.has("cameraIndex")) {
                     node.cameraIndex = nodeJson.get("cameraIndex").getAsInt();
+                } else if ("FileSource".equals(type) && nodeJson.has("filePath")) {
+                    node.filePath = nodeJson.get("filePath").getAsString();
+                }
+
+                // Restore thumbnail from Base64-encoded PNG
+                if (nodeJson.has("thumbnail")) {
+                    String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
+                    node.thumbnail = base64ToImage(thumbnailBase64);
+                }
+
+                // Restore container-specific properties
+                if (nodeJson.has("isContainer")) {
+                    node.isContainer = nodeJson.get("isContainer").getAsBoolean();
+                }
+                if (node.isContainer && nodeJson.has("innerNodes")) {
+                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
+                    if (nodeJson.has("innerConnections")) {
+                        node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
+                    }
                 }
 
                 nodes.add(node);
@@ -228,5 +280,195 @@ public class FXPipelineSerializer {
         }
 
         return new PipelineDocument(nodes, connections);
+    }
+
+    /**
+     * Convert a JavaFX Image to Base64-encoded PNG string.
+     */
+    private static String imageToBase64(Image image) {
+        if (image == null) return null;
+        try {
+            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(image, null);
+            if (bufferedImage == null) return null;
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(bufferedImage, "png", baos);
+            return Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (Exception e) {
+            System.err.println("Failed to encode thumbnail: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Check if a saved label is an old-style default that should be updated.
+     * Old files might have short labels like "Webcam" instead of "Webcam Source".
+     */
+    private static boolean isOldStyleDefaultLabel(String savedLabel, String type) {
+        // Map of old-style labels to their node types
+        // These are labels that were used as defaults but have since been renamed
+        if (savedLabel == null) return false;
+
+        switch (type) {
+            case "WebcamSource":
+                return "Webcam".equals(savedLabel);
+            case "FileSource":
+                return "File".equals(savedLabel) || "File Source".equals(savedLabel);
+            // Add more mappings here as needed when node labels are updated
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Convert a Base64-encoded PNG string to JavaFX Image.
+     */
+    private static Image base64ToImage(String base64) {
+        if (base64 == null || base64.isEmpty()) return null;
+        try {
+            byte[] imageBytes = Base64.getDecoder().decode(base64);
+            ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes);
+            BufferedImage bufferedImage = ImageIO.read(bais);
+            if (bufferedImage == null) return null;
+            return SwingFXUtils.toFXImage(bufferedImage, null);
+        } catch (Exception e) {
+            System.err.println("Failed to decode thumbnail: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Serialize a list of nodes to a JsonArray.
+     */
+    private static JsonArray serializeNodes(List<FXNode> nodes) {
+        JsonArray nodesArray = new JsonArray();
+        for (int i = 0; i < nodes.size(); i++) {
+            FXNode node = nodes.get(i);
+            JsonObject nodeJson = new JsonObject();
+
+            nodeJson.addProperty("id", node.id);
+            nodeJson.addProperty("index", i);
+            nodeJson.addProperty("type", node.nodeType);
+            nodeJson.addProperty("label", node.label);
+            nodeJson.addProperty("x", node.x);
+            nodeJson.addProperty("y", node.y);
+            nodeJson.addProperty("width", node.width);
+            nodeJson.addProperty("height", node.height);
+            nodeJson.addProperty("enabled", node.enabled);
+            nodeJson.addProperty("hasInput", node.hasInput);
+            nodeJson.addProperty("hasDualInput", node.hasDualInput);
+            nodeJson.addProperty("outputCount", node.outputCount);
+
+            if (node.backgroundColor != null) {
+                nodeJson.addProperty("bgColorR", node.backgroundColor.getRed());
+                nodeJson.addProperty("bgColorG", node.backgroundColor.getGreen());
+                nodeJson.addProperty("bgColorB", node.backgroundColor.getBlue());
+            }
+
+            nodesArray.add(nodeJson);
+        }
+        return nodesArray;
+    }
+
+    /**
+     * Serialize a list of connections to a JsonArray.
+     */
+    private static JsonArray serializeConnections(List<FXConnection> connections, List<FXNode> nodes) {
+        Map<Integer, Integer> nodeIdToIndex = new HashMap<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            nodeIdToIndex.put(nodes.get(i).id, i);
+        }
+
+        JsonArray connectionsArray = new JsonArray();
+        for (FXConnection conn : connections) {
+            JsonObject connJson = new JsonObject();
+
+            int sourceIndex = conn.source != null ? nodeIdToIndex.getOrDefault(conn.source.id, -1) : -1;
+            connJson.addProperty("sourceIndex", sourceIndex);
+            connJson.addProperty("sourceOutputIndex", conn.sourceOutputIndex);
+
+            int targetIndex = conn.target != null ? nodeIdToIndex.getOrDefault(conn.target.id, -1) : -1;
+            connJson.addProperty("targetIndex", targetIndex);
+            connJson.addProperty("targetInputIndex", conn.targetInputIndex);
+
+            connectionsArray.add(connJson);
+        }
+        return connectionsArray;
+    }
+
+    /**
+     * Deserialize a JsonArray into a list of nodes.
+     */
+    private static List<FXNode> deserializeNodes(JsonArray nodesArray) {
+        List<FXNode> nodes = new ArrayList<>();
+        for (JsonElement elem : nodesArray) {
+            JsonObject nodeJson = elem.getAsJsonObject();
+
+            String type = nodeJson.get("type").getAsString();
+            double x = nodeJson.has("x") ? nodeJson.get("x").getAsDouble() : 0;
+            double y = nodeJson.has("y") ? nodeJson.get("y").getAsDouble() : 0;
+
+            FXNode node = FXNodeFactory.createFXNode(type, (int) x, (int) y);
+
+            if (nodeJson.has("label")) {
+                String savedLabel = nodeJson.get("label").getAsString();
+                if (!savedLabel.equals(type) && !savedLabel.equals(node.label)) {
+                    if (!isOldStyleDefaultLabel(savedLabel, type)) {
+                        node.label = savedLabel;
+                    }
+                }
+            }
+
+            node.x = x;
+            node.y = y;
+
+            if (nodeJson.has("enabled")) {
+                node.enabled = nodeJson.get("enabled").getAsBoolean();
+            }
+            if (nodeJson.has("hasInput")) {
+                node.hasInput = nodeJson.get("hasInput").getAsBoolean();
+            }
+            if (nodeJson.has("hasDualInput")) {
+                node.hasDualInput = nodeJson.get("hasDualInput").getAsBoolean();
+            }
+            if (nodeJson.has("outputCount")) {
+                node.outputCount = nodeJson.get("outputCount").getAsInt();
+            }
+
+            if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {
+                node.backgroundColor = Color.color(
+                    nodeJson.get("bgColorR").getAsDouble(),
+                    nodeJson.get("bgColorG").getAsDouble(),
+                    nodeJson.get("bgColorB").getAsDouble()
+                );
+            }
+
+            nodes.add(node);
+        }
+        return nodes;
+    }
+
+    /**
+     * Deserialize a JsonArray into a list of connections.
+     */
+    private static List<FXConnection> deserializeConnections(JsonArray connectionsArray, List<FXNode> nodes) {
+        List<FXConnection> connections = new ArrayList<>();
+        for (JsonElement elem : connectionsArray) {
+            JsonObject connJson = elem.getAsJsonObject();
+
+            int sourceIndex = connJson.get("sourceIndex").getAsInt();
+            int targetIndex = connJson.get("targetIndex").getAsInt();
+            int sourceOutputIndex = connJson.has("sourceOutputIndex") ? connJson.get("sourceOutputIndex").getAsInt() : 0;
+            int targetInputIndex = connJson.has("targetInputIndex") ? connJson.get("targetInputIndex").getAsInt() : 0;
+
+            FXNode sourceNode = (sourceIndex >= 0 && sourceIndex < nodes.size()) ? nodes.get(sourceIndex) : null;
+            FXNode targetNode = (targetIndex >= 0 && targetIndex < nodes.size()) ? nodes.get(targetIndex) : null;
+
+            if (sourceNode != null && targetNode != null) {
+                FXConnection conn = new FXConnection(sourceNode, sourceOutputIndex, targetNode, targetInputIndex);
+                connections.add(conn);
+            }
+        }
+        return connections;
     }
 }

@@ -23,6 +23,154 @@ Caused by: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss3
 	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:155)
 	... 2 more
 
+New bugs after SWT -> JavaFX conversoion
+
+/Container should be rendered with a double line
+
+.When first hooking a node to a new node, it'd be nice if a frame was sent through. The old system had this feature.
+
+!.Menu: rename Java -> OpenCV
+
+/thumbnails not persisted on save/restart/load
+
+--
+
+
+
+!Webcam source WAY too wide
+
+!Grid: sometimes when you try to click and drag a node, it instead moves the entire grid
+    this happens even when clicking on a connection point
+
+/No arrow head on connectors
+/No Tool Tips
+/Node: Webcam -> Webcam Source
+/Enabled check boxes don't uncheck when clicked
+/Node: No In: counter
+/Node: Put actual Out: (or Out1: Out2:) type of counters on the right of nodes
+    this replaces the "Work: N" on top
+/Left Button Bar: remove all vertical spacing
+/Button bar: "Source" -> "Sources"
+--
+
+
+!STILL: Node: Webcam -> Webcam Source
+
+!Webcan Source Node: still way too wide
+
+!Main menu: under Java/OpenCV
+    Quit OpenCV (instead of long class name)
+    Restart, like we had before
+
+
+
+--
+
+Help link looks enabled for things that have no help yet, eg: Webcam Source
+
+.Help link tool tip of Webcam source has too much info
+
+
+.Still no restart
+
+.Main menu still says Java, not OpenCV
+    in the app bundle's Info.plist
+
+.Tool tip on help icon still too verbose, what is it doing?
+    or getting tooltip for entire node?  Still too much info
+
+.When new node is selected, it sometimes gets placed off screen, you have to know to scroll to it
+
+.Find box doesn't have an X on the right to clear the search
+
+.Webcam: still says just "Webcam", not "Webcam Soure"
+
+.File Source: no field for file path
+.File Source: no browse button for file path
+.File Source: Enabled should not be in the properties
+
+--
+
+.Move Start/Stop pipeline to upper right, above Preview pane
+    please look at old code
+
+.help system: please bring that over from the old code
+
+.Top right: missing "Instructions:"
+
+.Status bar: Pipeline status should be in the middle of the status bar, more visible
+
+.Zoom placement is odd, looks like it wo8uld appy to the preview window.
+    Can't it go on the status bar?
+
+.Enabled checkmark should have a white background, more visibility
+
+.the "x" button for search box should be inside the the text box to the right,
+    and if it can't, then at least touching the search box and be the same size
+
+File / Restart doesn't bring the application back up
+
+.I'd like to see some progress on the Container editing window
+
+--
+
+/No queue stats on the connectors, please see old code
+
+In main pipeline editor and container editor:
+Status bar: swap the position of the Node count and the zoom magnification
+
+Container editor: menu buttons look "flat", not like they do in main PipelineEditor window
+Container editor: no "x" in the searh box
+Container editor: no Start Pipeline / Stop Pipeline above the Preview window
+Container editor: no Instructions above the preview area
+
+Enabled check boxes: Background should be white (currently dark green)
+    and make checkmarks black, not white
+
+--
+
+/The status bar needs to be at the bottom of the canvas and take up just that horizontal space
+    current layout puts zoom under preview, which gives false impression
+
+.Container editor: search box doesn't have the "x"
+
+.Both main Pipeline Editor and Container Editor: alphabetize within each category
+
+.Connectors: Queue stats not horizontally centered
+
+.Contaier editor: No special Bounday Input and Output nodes
+
+.Restart doesn't bring application back up
+
+--
+
+.Mouse over is incorrectly over the entire node
+    Only the enabled checkbox and the help link should have it
+
+.Help links don't look disabled (grayed out) for items we have no help for
+
+.Button bar: CLAHE needs to say "CLAHE Contrast"
+.Node display: CLAHE needs to say "CLAHE Contrast"
+
+.Just like you have it in Container Editor, the status bar
+    in the main Pipeline Editoir also needs to move to the bottom of the canvas
+
+.Container Editor status bar: Center should have the status of the pipeline and number of threads
+
+.Restart: NO Use mvn exec:exec for reliable JavaFX restart
+    that won't work for java -jar ...
+    how did the old code do it?
+
+--
+PipelineEditor: replace the x with unicode multiplication sign
+Container Editor: remove the circle around the X (multiplication sign)
+? Container Editor: "x" (unicode multiply) should always be in the search box, like it is in the main pipeline editor
+    OR
+? PipelineEditor: make the "x" (unicode multiply) go away when text box is empty
+
+
+-------------------------------------------------------------------------------------
+
 
 /add to .gitignore files like .TODO.txt.swp
 
@@ -200,6 +348,25 @@ check all Java Nodes against all Python Effects
 
 Done:
 -----
+
+x Quit in menu still has full class name
+/On Container: Right click only offers Delete
+    guessing other nodes are missing right click options too
+/On Container: double click brings up Properties dialog, not the subdiagram
+/Button bar: background outside of buttons should be green, not white
+x Java menu, remove 2 Hide... options and show all
+x Java menu, still showing full com.ttennebkram...
+/Remove VERTICAL padding between buttons in the button bar
+/Click and drag on empty part of the grid tries to drag the grid
+/Connecting line arrow head: wrong angle in relation to that end of the line
+    line is at 45 degrees, but arrowhead is horizontal, looks broken
+/webcam source STILL way too wide
+/buttons in left tray still need horizontal spacing, actually a fair amount so the green background is visible
+/Connector: Select to Highlight, press backspace, nothing happens
+/Gray for In:/Out: is too light
+/On most nodes: thumbnail overwrites Out: label
+/arrow head too small, and at odd angle compared to the line its connecting
+    doesn't look like the same arrow
 /each node can have its own custom name
 /Have Container window open.  Now switch to main window, Container window doesn't acknowledge now-running pipeline, still 
 shows "Start Pipeline" button (should be "Stop Pipeline", and status bar shows Pipeline Stopped 

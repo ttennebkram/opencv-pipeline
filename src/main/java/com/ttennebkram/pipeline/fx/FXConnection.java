@@ -20,6 +20,10 @@ public class FXConnection {
     // Selection state
     public boolean selected;
 
+    // Queue statistics for display on connection
+    public int queueSize = 0;
+    public long totalFrames = 0;
+
     /**
      * Create a complete connection between two nodes.
      */

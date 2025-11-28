@@ -14,20 +14,22 @@ public class FXNodeRegistry {
         public final String category;
         public final boolean isSource;
         public final boolean isDualInput;
+        public final boolean isContainer;
         public final int outputCount;
 
         public NodeType(String name, String displayName, String category,
-                        boolean isSource, boolean isDualInput, int outputCount) {
+                        boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
             this.name = name;
             this.displayName = displayName;
             this.category = category;
             this.isSource = isSource;
             this.isDualInput = isDualInput;
+            this.isContainer = isContainer;
             this.outputCount = outputCount;
         }
 
         public NodeType(String name, String displayName, String category) {
-            this(name, displayName, category, false, false, 1);
+            this(name, displayName, category, false, false, false, 1);
         }
     }
 
@@ -36,9 +38,9 @@ public class FXNodeRegistry {
 
     static {
         // Source nodes
-        register("WebcamSource", "Webcam", "Source", true, false, 1);
-        register("FileSource", "File", "Source", true, false, 1);
-        register("BlankSource", "Blank", "Source", true, false, 1);
+        register("WebcamSource", "Webcam Source", "Sources", true, false, 1);
+        register("FileSource", "File Source", "Sources", true, false, 1);
+        register("BlankSource", "Blank Source", "Sources", true, false, 1);
 
         // Basic processing
         register("Grayscale", "Grayscale", "Basic");
@@ -46,7 +48,7 @@ public class FXNodeRegistry {
         register("Threshold", "Threshold", "Basic");
         register("AdaptiveThreshold", "Adaptive Threshold", "Basic");
         register("Gain", "Gain", "Basic");
-        register("CLAHE", "CLAHE", "Basic");
+        register("CLAHE", "CLAHE Contrast", "Basic");
         register("BitPlanesGrayscale", "Bit Planes Gray", "Basic");
         register("BitPlanesColor", "Bit Planes Color", "Basic");
 
@@ -117,16 +119,30 @@ public class FXNodeRegistry {
         // Utility
         register("Clone", "Clone", "Utility", false, false, 2);
         register("Monitor", "Monitor", "Utility");
-        register("Container", "Container", "Utility");
+        register("Container", "Container", "Utility", false, false, true, 1);
+
+        // Container I/O nodes (only shown in container editor)
+        register("ContainerInput", "Input", "Container I/O", true, false, 1);
+        register("ContainerOutput", "Output", "Container I/O");
+
+        // Sort nodes within each category alphabetically by display name
+        for (List<NodeType> nodes : byCategory.values()) {
+            nodes.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
+        }
     }
 
     private static void register(String name, String displayName, String category) {
-        register(name, displayName, category, false, false, 1);
+        register(name, displayName, category, false, false, false, 1);
     }
 
     private static void register(String name, String displayName, String category,
                                   boolean isSource, boolean isDualInput, int outputCount) {
-        NodeType type = new NodeType(name, displayName, category, isSource, isDualInput, outputCount);
+        register(name, displayName, category, isSource, isDualInput, false, outputCount);
+    }
+
+    private static void register(String name, String displayName, String category,
+                                  boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
+        NodeType type = new NodeType(name, displayName, category, isSource, isDualInput, isContainer, outputCount);
         nodeTypes.add(type);
         byCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(type);
     }
@@ -136,6 +152,20 @@ public class FXNodeRegistry {
      */
     public static List<String> getCategories() {
         return new ArrayList<>(byCategory.keySet());
+    }
+
+    /**
+     * Get categories excluding certain ones (e.g., exclude "Container I/O" from main editor).
+     */
+    public static List<String> getCategoriesExcluding(String... excludeCategories) {
+        List<String> result = new ArrayList<>();
+        java.util.Set<String> excluded = new java.util.HashSet<>(java.util.Arrays.asList(excludeCategories));
+        for (String cat : byCategory.keySet()) {
+            if (!excluded.contains(cat)) {
+                result.add(cat);
+            }
+        }
+        return result;
     }
 
     /**

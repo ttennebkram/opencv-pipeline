@@ -24,13 +24,28 @@ public class FXNode {
     // Connection configuration
     public boolean hasInput;
     public boolean hasDualInput;
+    public boolean isContainer;
     public int outputCount;
 
     // Thumbnail image for displaying node output
     public Image thumbnail;
 
+    // Counter for input/output frames processed
+    public int inputCount = 0;
+    public int outputCount1 = 0;  // Output 1 counter
+    public int outputCount2 = 0;  // Output 2 counter (for multi-output nodes)
+    public int outputCount3 = 0;  // Output 3 counter
+    public int outputCount4 = 0;  // Output 4 counter
+
     // Webcam-specific properties - default set dynamically when creating WebcamSource nodes
     public int cameraIndex = -1; // -1 means "auto-detect highest camera"
+
+    // FileSource-specific properties
+    public String filePath = "";
+
+    // Container-specific properties - internal nodes and connections
+    public java.util.List<FXNode> innerNodes = new java.util.ArrayList<>();
+    public java.util.List<FXConnection> innerConnections = new java.util.ArrayList<>();
 
     // Unique identifier for serialization
     public int id;
@@ -49,6 +64,7 @@ public class FXNode {
         this.enabled = true;
         this.hasInput = true;
         this.hasDualInput = false;
+        this.isContainer = false;
         this.outputCount = 1;
     }
 
@@ -57,7 +73,7 @@ public class FXNode {
      */
     public static FXNode createSourceNode(String label, String nodeType, double x, double y) {
         FXNode node = new FXNode(label, nodeType, x, y);
-        node.width = NodeRenderer.SOURCE_NODE_THUMB_WIDTH + 60;
+        node.width = NodeRenderer.NODE_WIDTH;  // Same width as processing nodes
         node.height = NodeRenderer.SOURCE_NODE_HEIGHT;
         node.hasInput = false;
         node.backgroundColor = Color.rgb(200, 255, 200); // Green tint for sources
@@ -84,11 +100,37 @@ public class FXNode {
         return node;
     }
 
+    // Checkbox constants (must match NodeRenderer)
+    private static final int CHECKBOX_SIZE = 12;
+    private static final int CHECKBOX_MARGIN = 5;
+    private static final int HELP_ICON_SIZE = 14;
+    private static final int HELP_ICON_MARGIN = 5;
+
     /**
      * Check if a point is inside this node.
      */
     public boolean contains(double px, double py) {
         return px >= x && px <= x + width && py >= y && py <= y + height;
+    }
+
+    /**
+     * Check if a point is on the enabled checkbox.
+     */
+    public boolean isOnCheckbox(double px, double py) {
+        double cbX = x + CHECKBOX_MARGIN;
+        double cbY = y + CHECKBOX_MARGIN;
+        return px >= cbX && px <= cbX + CHECKBOX_SIZE &&
+               py >= cbY && py <= cbY + CHECKBOX_SIZE;
+    }
+
+    /**
+     * Check if a point is on the help icon.
+     */
+    public boolean isOnHelpIcon(double px, double py) {
+        double iconX = x + width - HELP_ICON_SIZE - HELP_ICON_MARGIN;
+        double iconY = y + HELP_ICON_MARGIN;
+        return px >= iconX && px <= iconX + HELP_ICON_SIZE &&
+               py >= iconY && py <= iconY + HELP_ICON_SIZE;
     }
 
     /**
