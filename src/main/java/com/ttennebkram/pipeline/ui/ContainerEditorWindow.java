@@ -84,9 +84,6 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     private Runnable onStopPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
 
-    // Callback to open nested container editor (from parent - used for window tracking)
-    private java.util.function.Consumer<ContainerNode> onOpenNestedContainer;
-
     // List of nested container editor windows opened from this window
     private List<ContainerEditorWindow> nestedContainerWindows = new java.util.ArrayList<>();
 
@@ -183,10 +180,6 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         this.isPipelineRunning = supplier;
     }
 
-    public void setOnOpenNestedContainer(java.util.function.Consumer<ContainerNode> callback) {
-        this.onOpenNestedContainer = callback;
-    }
-
     /**
      * Open a nested container editor from within this container.
      * Sets up the proper base path (this container's file) and save callbacks.
@@ -222,17 +215,9 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         window.setOnStopPipeline(onStopPipeline);
         window.setIsPipelineRunning(isPipelineRunning);
 
-        // Recursively wire up for further nesting
-        window.setOnOpenNestedContainer(deeplyNested -> window.openNestedContainerEditor(deeplyNested));
-
         nestedContainerWindows.add(window);
         window.open();
         window.updatePipelineButtonState();
-
-        // Also notify the parent editor's callback for window tracking
-        if (onOpenNestedContainer != null) {
-            onOpenNestedContainer.accept(nestedContainer);
-        }
     }
 
     /**
@@ -1900,8 +1885,12 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 dragOffset = null;
 
                 // ContainerNodes: double-click opens nested container editor
+                // But skip if click was on container icon (mouseDown already handled it)
                 if (node instanceof ContainerNode) {
-                    openNestedContainerEditor((ContainerNode) node);
+                    ContainerNode containerNode = (ContainerNode) node;
+                    if (!containerNode.isOnContainerIcon(click)) {
+                        openNestedContainerEditor(containerNode);
+                    }
                 } else if (node instanceof ProcessingNode) {
                     // Other ProcessingNodes: double-click opens properties dialog
                     // Temporarily set node's shell to this container editor shell

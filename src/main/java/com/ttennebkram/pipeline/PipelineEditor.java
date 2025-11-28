@@ -3526,8 +3526,12 @@ public class PipelineEditor {
         for (PipelineNode node : nodes) {
             if (node.containsPoint(clickPoint)) {
                 // ContainerNodes: double-click opens container editor
+                // But skip if click was on container icon (mouseDown already handled it)
                 if (node instanceof ContainerNode) {
-                    openContainerEditor((ContainerNode) node);
+                    ContainerNode containerNode = (ContainerNode) node;
+                    if (!containerNode.isOnContainerIcon(clickPoint)) {
+                        openContainerEditor(containerNode);
+                    }
                 } else if (node instanceof ProcessingNode) {
                     // Other ProcessingNodes: double-click opens properties
                     ((ProcessingNode) node).showPropertiesDialog();
@@ -3572,8 +3576,6 @@ public class PipelineEditor {
         window.setOnStartPipeline(() -> startPipeline());
         window.setOnStopPipeline(() -> stopPipeline());
         window.setIsPipelineRunning(() -> pipelineRunning.get());
-        // Wire up nested container opening
-        window.setOnOpenNestedContainer(nestedContainer -> openContainerEditor(nestedContainer));
         containerWindows.add(window);
         window.open();
         // Sync initial pipeline state
