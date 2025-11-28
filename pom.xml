@@ -202,6 +202,7 @@
                     <includes>
                         <include>**/PipelineEditorApp.java</include>
                         <include>**/PipelineEditorLauncher.java</include>
+                        <include>**/fx/*.java</include>
                     </includes>
                 </configuration>
             </plugin>

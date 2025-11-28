@@ -18,6 +18,8 @@ import javafx.stage.FileChooser;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 
+import com.ttennebkram.pipeline.fx.NodeRenderer;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -356,28 +358,69 @@ public class PipelineEditorApp extends Application {
     private void paintCanvas() {
         GraphicsContext gc = pipelineCanvas.getGraphicsContext2D();
 
+        // Apply zoom transform
+        gc.save();
+        gc.scale(zoomLevel, zoomLevel);
+
         // Clear background
         gc.setFill(Color.WHITE);
-        gc.fillRect(0, 0, pipelineCanvas.getWidth(), pipelineCanvas.getHeight());
+        gc.fillRect(0, 0, pipelineCanvas.getWidth() / zoomLevel, pipelineCanvas.getHeight() / zoomLevel);
 
         // Draw grid
         gc.setStroke(COLOR_GRID_LINES);
         gc.setLineWidth(1);
-        double gridSize = 20 * zoomLevel;
-        for (double x = 0; x < pipelineCanvas.getWidth(); x += gridSize) {
-            gc.strokeLine(x, 0, x, pipelineCanvas.getHeight());
+        double gridSize = 20;
+        for (double x = 0; x < pipelineCanvas.getWidth() / zoomLevel; x += gridSize) {
+            gc.strokeLine(x, 0, x, pipelineCanvas.getHeight() / zoomLevel);
         }
-        for (double y = 0; y < pipelineCanvas.getHeight(); y += gridSize) {
-            gc.strokeLine(0, y, pipelineCanvas.getWidth(), y);
+        for (double y = 0; y < pipelineCanvas.getHeight() / zoomLevel; y += gridSize) {
+            gc.strokeLine(0, y, pipelineCanvas.getWidth() / zoomLevel, y);
         }
 
-        // TODO: Draw nodes and connections
-        // This will be implemented as we migrate the node rendering
+        // TODO: Draw actual pipeline nodes from data model
+        // For now, render sample nodes to demonstrate the rendering
 
-        // Placeholder text
-        gc.setFill(Color.BLACK);
-        gc.fillText("Pipeline Canvas - JavaFX Migration in Progress", 50, 50);
-        gc.fillText("Nodes and connections will render here", 50, 70);
+        // Sample source node (Webcam)
+        NodeRenderer.renderSourceNode(gc, 50, 100,
+            NodeRenderer.SOURCE_NODE_THUMB_WIDTH + 60, NodeRenderer.SOURCE_NODE_HEIGHT,
+            "Webcam", false, true, Color.rgb(200, 255, 200));
+
+        // Sample processing node (Grayscale)
+        NodeRenderer.renderNode(gc, 400, 80,
+            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
+            "Grayscale", false, true, Color.rgb(200, 220, 255),
+            true, false, 1);
+
+        // Sample processing node (Gaussian Blur) - selected
+        NodeRenderer.renderNode(gc, 400, 220,
+            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
+            "Gaussian Blur", true, true, Color.rgb(200, 220, 255),
+            true, false, 1);
+
+        // Sample processing node (Canny Edge) - disabled
+        NodeRenderer.renderNode(gc, 650, 150,
+            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT,
+            "Canny Edge", false, false, Color.rgb(200, 220, 255),
+            true, false, 1);
+
+        // Draw sample connections
+        // Webcam -> Grayscale
+        double[] srcOut = NodeRenderer.getOutputPoint(50, 100,
+            NodeRenderer.SOURCE_NODE_THUMB_WIDTH + 60, NodeRenderer.SOURCE_NODE_HEIGHT, 0, 1);
+        double[] dstIn = NodeRenderer.getInputPoint(400, 80, NodeRenderer.NODE_HEIGHT, 0);
+        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], false);
+
+        // Webcam -> Gaussian Blur
+        dstIn = NodeRenderer.getInputPoint(400, 220, NodeRenderer.NODE_HEIGHT, 0);
+        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], true);
+
+        // Grayscale -> Canny
+        srcOut = NodeRenderer.getOutputPoint(400, 80,
+            NodeRenderer.NODE_WIDTH, NodeRenderer.NODE_HEIGHT, 0, 1);
+        dstIn = NodeRenderer.getInputPoint(650, 150, NodeRenderer.NODE_HEIGHT, 0);
+        NodeRenderer.renderConnection(gc, srcOut[0], srcOut[1], dstIn[0], dstIn[1], false);
+
+        gc.restore();
     }
 
     // ========================= Mouse Handlers =========================
