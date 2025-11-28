@@ -4,17 +4,20 @@ A visual node-based editor for creating OpenCV image processing pipelines. Built
 
 ## Quick Start
 
-Download the latest release and run:
+Download the JAR for your platform from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases) and run:
 
 ```bash
-# Download from releases
-curl -LO https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline.jar
+# macOS (Apple Silicon)
+java -XstartOnFirstThread -jar opencv-pipeline-macos-aarch64.jar
 
-# Run (macOS)
-java -XstartOnFirstThread -jar opencv-pipeline.jar
+# Linux
+java -jar opencv-pipeline-linux-x86_64.jar
+
+# Windows
+java -jar opencv-pipeline-windows-x86_64.jar
 ```
 
-Requires Java 17+ (ARM64 on macOS).
+Requires Java 17+.
 
 ## Features
 
@@ -27,37 +30,75 @@ Requires Java 17+ (ARM64 on macOS).
 
 ## Platform Support
 
-**Currently macOS only (Apple Silicon).** Cross-platform builds for Linux and Windows are planned.
-
-The application uses SWT for the GUI, which requires platform-specific native libraries. The current build is configured for macOS ARM64 (Apple Silicon Macs).
+Pre-built JARs are available for:
+- **macOS** (Apple Silicon and Intel)
+- **Linux** (x86_64 and ARM64/Raspberry Pi)
+- **Windows** (x86_64)
 
 ## Requirements
 
-- Java 17 or higher (tested with Temurin 21 ARM64)
-- macOS on Apple Silicon (M1/M2/M3)
+- Java 17 or higher
 - Maven (for building from source)
 
 ## Building
 
-Build the executable jar:
+Build for your current platform (defaults to macOS ARM64):
 
 ```bash
 mvn clean package
 ```
 
-This creates `target/opencv-pipeline.jar` with all dependencies bundled.
+Build for a specific platform:
+
+```bash
+mvn clean package -P linux-aarch64   # Raspberry Pi 64-bit
+mvn clean package -P linux-x86_64    # Linux desktop
+mvn clean package -P macos-aarch64   # Apple Silicon (default)
+mvn clean package -P macos-x86_64    # Intel Mac
+mvn clean package -P windows-x86_64  # Windows
+```
+
+Build all platforms at once:
+
+```bash
+./build-all-platforms.sh
+```
+
+Output JARs are created in `target/` with platform-specific names.
 
 ## Running
 
-### From the jar file
+### macOS
 
 ```bash
-java -XstartOnFirstThread -jar target/opencv-pipeline.jar
+# Apple Silicon
+java -XstartOnFirstThread -jar opencv-pipeline-macos-aarch64.jar
+
+# Intel Mac
+java -XstartOnFirstThread -jar opencv-pipeline-macos-x86_64.jar
 ```
 
 Note: The `-XstartOnFirstThread` flag is required on macOS for SWT applications.
 
-### For development
+### Linux
+
+```bash
+# x86_64
+java -jar opencv-pipeline-linux-x86_64.jar
+
+# ARM64 (Raspberry Pi 64-bit)
+java -jar opencv-pipeline-linux-aarch64.jar
+```
+
+If you encounter display issues on Wayland, try: `GDK_BACKEND=x11 java -jar ...`
+
+### Windows
+
+```bash
+java -jar opencv-pipeline-windows-x86_64.jar
+```
+
+### For development (macOS)
 
 ```bash
 mvn exec:exec
