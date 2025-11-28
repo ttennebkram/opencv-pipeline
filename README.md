@@ -25,11 +25,17 @@ Requires Java 17+ (ARM64 on macOS).
 - **Threaded Execution**: Each node runs in its own thread with queue-based communication
 - **Save/Load Pipelines**: Save your pipelines to JSON files and reload them later
 
+## Platform Support
+
+**Currently macOS only (Apple Silicon).** Cross-platform builds for Linux and Windows are planned.
+
+The application uses SWT for the GUI, which requires platform-specific native libraries. The current build is configured for macOS ARM64 (Apple Silicon Macs).
+
 ## Requirements
 
 - Java 17 or higher (tested with Temurin 21 ARM64)
-- Maven
-- OpenCV 4.x (native library must be available)
+- macOS on Apple Silicon (M1/M2/M3)
+- Maven (for building from source)
 
 ## Building
 
