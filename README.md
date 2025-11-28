@@ -35,7 +35,24 @@ Pre-built JARs are available for:
 - **Linux** (x86_64 and ARM64/Raspberry Pi)
 - **Windows** (x86_64)
 
-**Why separate JARs per platform?** The GUI uses SWT (Standard Widget Toolkit), which provides native OS widgets but requires platform-specific native libraries. Each JAR bundles the correct SWT natives for that platform. OpenCV also uses JNI for high-performance image processing, but its natives are bundled in a way that works across platforms.
+**Why separate JARs per platform?** The GUI uses SWT (Standard Widget Toolkit), which provides native OS widgets but requires platform-specific native libraries. Each JAR bundles the correct SWT natives for that platform.
+
+### Native Library Support
+
+This application uses OpenCV via JNI for high-performance image processing. The [org.openpnp:opencv](https://github.com/openpnp/opencv) library bundles native libraries for:
+
+| Platform | Architecture | Supported |
+|----------|-------------|-----------|
+| macOS | Apple Silicon (ARM64) | ✅ |
+| macOS | Intel (x86_64) | ✅ |
+| Linux | x86_64 | ✅ |
+| Linux | ARM64 (Raspberry Pi 64-bit) | ✅ |
+| Linux | ARMv7 (Raspberry Pi 32-bit) | ✅ |
+| Windows | x86_64 | ✅ |
+| Windows | x86 (32-bit) | ✅ |
+| Windows | ARM64 | ❌ Not available |
+
+**Note:** Windows on ARM (e.g., Surface Pro X, Snapdragon laptops) is not currently supported due to missing OpenCV native binaries.
 
 ## Requirements
 
