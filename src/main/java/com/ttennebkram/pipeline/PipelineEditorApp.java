@@ -20,6 +20,8 @@ import javafx.stage.Stage;
 
 import com.ttennebkram.pipeline.fx.FXConnection;
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.fx.FXNodeRegistry;
+import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
 
 import java.io.File;
@@ -231,41 +233,14 @@ public class PipelineEditorApp extends Application {
         toolbarContent.setPadding(new Insets(5));
         scrollPane.setContent(toolbarContent);
 
-        // Add node category buttons
-        // TODO: Use NodeRegistry to populate these dynamically
-        addToolbarCategory("Source");
-        addToolbarButton("Webcam", () -> addNodeAt("Webcam", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("File", () -> addNodeAt("File Source", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Blank", () -> addNodeAt("Blank Source", getNextNodeX(), getNextNodeY()));
-
-        addToolbarCategory("Basic");
-        addToolbarButton("Grayscale", () -> addNodeAt("Grayscale", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Invert", () -> addNodeAt("Invert", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Threshold", () -> addNodeAt("Threshold", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Gain", () -> addNodeAt("Gain", getNextNodeX(), getNextNodeY()));
-
-        addToolbarCategory("Blur");
-        addToolbarButton("Gaussian", () -> addNodeAt("Gaussian Blur", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Median", () -> addNodeAt("Median Blur", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Bilateral", () -> addNodeAt("Bilateral Blur", getNextNodeX(), getNextNodeY()));
-
-        addToolbarCategory("Edge Detection");
-        addToolbarButton("Canny", () -> addNodeAt("Canny Edge", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Sobel", () -> addNodeAt("Sobel", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Laplacian", () -> addNodeAt("Laplacian", getNextNodeX(), getNextNodeY()));
-
-        addToolbarCategory("Morphology");
-        addToolbarButton("Erode", () -> addNodeAt("Erode", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Dilate", () -> addNodeAt("Dilate", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Open", () -> addNodeAt("Morph Open", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Close", () -> addNodeAt("Morph Close", getNextNodeX(), getNextNodeY()));
-
-        addToolbarCategory("Combine");
-        addToolbarButton("Add", () -> addNodeAt("Add", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Subtract", () -> addNodeAt("Subtract", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Blend", () -> addNodeAt("Blend", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Bitwise AND", () -> addNodeAt("Bitwise AND", getNextNodeX(), getNextNodeY()));
-        addToolbarButton("Bitwise OR", () -> addNodeAt("Bitwise OR", getNextNodeX(), getNextNodeY()));
+        // Populate node buttons from registry
+        for (String category : FXNodeRegistry.getCategories()) {
+            addToolbarCategory(category);
+            for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
+                final String typeName = nodeType.name;
+                addToolbarButton(nodeType.displayName, () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
+            }
+        }
 
         toolbar.getChildren().add(scrollPane);
 
@@ -634,14 +609,37 @@ public class PipelineEditorApp extends Application {
     }
 
     private void showNodeProperties(FXNode node) {
-        // Simple properties dialog for now
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Node Properties");
-        alert.setHeaderText(node.label);
-        alert.setContentText("Type: " + node.nodeType + "\n" +
-            "Position: (" + (int)node.x + ", " + (int)node.y + ")\n" +
-            "Enabled: " + node.enabled);
-        alert.showAndWait();
+        FXPropertiesDialog dialog = new FXPropertiesDialog(
+            primaryStage,
+            node.label + " Properties",
+            node.nodeType,
+            node.label
+        );
+
+        // Add description based on node type
+        FXNodeRegistry.NodeType typeInfo = FXNodeRegistry.getNodeType(node.nodeType);
+        if (typeInfo != null) {
+            dialog.addDescription("Category: " + typeInfo.category);
+        }
+
+        // Add enabled checkbox
+        CheckBox enabledCheckbox = dialog.addCheckbox("Enabled", node.enabled);
+
+        // Add position info (read-only display)
+        dialog.addDescription("Position: (" + (int)node.x + ", " + (int)node.y + ")");
+
+        // TODO: Add node-type-specific properties here
+        // This will be expanded when integrating with actual PipelineNode classes
+
+        // Set OK handler to save values
+        dialog.setOnOk(() -> {
+            node.label = dialog.getNameValue();
+            node.enabled = enabledCheckbox.isSelected();
+            markDirty();
+            paintCanvas();
+        });
+
+        dialog.showAndWaitForResult();
     }
 
     // ========================= Actions =========================
@@ -771,17 +769,24 @@ public class PipelineEditorApp extends Application {
         // TODO: Actually stop the pipeline threads
     }
 
-    private void addNodeAt(String nodeType, int x, int y) {
+    private void addNodeAt(String nodeTypeName, int x, int y) {
+        FXNodeRegistry.NodeType typeInfo = FXNodeRegistry.getNodeType(nodeTypeName);
         FXNode node;
 
-        // Determine node type and create appropriate node
-        if (nodeType.contains("Source") || nodeType.equals("Webcam") || nodeType.equals("File") || nodeType.equals("Blank")) {
-            node = FXNode.createSourceNode(nodeType, nodeType, x, y);
-        } else if (nodeType.contains("Add") || nodeType.contains("Subtract") ||
-                   nodeType.contains("Bitwise") || nodeType.contains("Blend")) {
-            node = FXNode.createDualInputNode(nodeType, nodeType, x, y);
+        if (typeInfo != null) {
+            // Use registry information to create the appropriate node type
+            if (typeInfo.isSource) {
+                node = FXNode.createSourceNode(typeInfo.displayName, typeInfo.name, x, y);
+            } else if (typeInfo.isDualInput) {
+                node = FXNode.createDualInputNode(typeInfo.displayName, typeInfo.name, x, y);
+            } else if (typeInfo.outputCount > 1) {
+                node = FXNode.createMultiOutputNode(typeInfo.displayName, typeInfo.name, x, y, typeInfo.outputCount);
+            } else {
+                node = new FXNode(typeInfo.displayName, typeInfo.name, x, y);
+            }
         } else {
-            node = new FXNode(nodeType, nodeType, x, y);
+            // Fallback for unknown types
+            node = new FXNode(nodeTypeName, nodeTypeName, x, y);
         }
 
         nodes.add(node);
@@ -808,7 +813,28 @@ public class PipelineEditorApp extends Application {
     }
 
     private void filterToolbarButtons() {
-        // TODO: Filter toolbar buttons based on search text
+        String filter = searchBox.getText().toLowerCase().trim();
+        toolbarContent.getChildren().clear();
+
+        for (String category : FXNodeRegistry.getCategories()) {
+            List<FXNodeRegistry.NodeType> matchingNodes = new ArrayList<>();
+            for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
+                if (filter.isEmpty() ||
+                    nodeType.displayName.toLowerCase().contains(filter) ||
+                    nodeType.name.toLowerCase().contains(filter) ||
+                    category.toLowerCase().contains(filter)) {
+                    matchingNodes.add(nodeType);
+                }
+            }
+
+            if (!matchingNodes.isEmpty()) {
+                addToolbarCategory(category);
+                for (FXNodeRegistry.NodeType nodeType : matchingNodes) {
+                    final String typeName = nodeType.name;
+                    addToolbarButton(nodeType.displayName, () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
+                }
+            }
+        }
     }
 
     private void updateNodeCount() {
