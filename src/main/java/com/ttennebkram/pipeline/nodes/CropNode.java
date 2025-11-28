@@ -62,7 +62,12 @@ public class CropNode extends ProcessingNode {
 
         // Create ROI and return cropped image
         Rect roi = new Rect(absX, absY, actualWidth, actualHeight);
-        return new Mat(input, roi).clone();
+        Mat submat = new Mat(input, roi);
+        try {
+            return submat.clone();
+        } finally {
+            submat.release();
+        }
     }
 
     @Override

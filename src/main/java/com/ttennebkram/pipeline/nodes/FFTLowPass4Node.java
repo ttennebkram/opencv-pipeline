@@ -189,7 +189,8 @@ public class FFTLowPass4Node extends MultiOutputNode {
                 Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
 
                 // Shift zero frequency to center
-                Mat dftShift = fftShift(dft.clone());
+                Mat dftShift = dft.clone();
+                fftShift(dftShift);
 
                 // For spectrum visualization, use the first channel (or accumulate)
                 if (c == 0) {
@@ -199,8 +200,9 @@ public class FFTLowPass4Node extends MultiOutputNode {
                 // Apply mask to DFT
                 Mat maskedDft = applyMask(dftShift, mask);
 
-                // Inverse shift
-                Mat dftIshift = ifftShift(maskedDft);
+                // Inverse shift (modifies maskedDft in place, so dftIshift is same reference)
+                ifftShift(maskedDft);
+                Mat dftIshift = maskedDft;
 
                 // Inverse DFT
                 Mat idft = new Mat();
@@ -225,7 +227,7 @@ public class FFTLowPass4Node extends MultiOutputNode {
                 dft.release();
                 dftShift.release();
                 maskedDft.release();
-                dftIshift.release();
+                // Note: dftIshift is same as maskedDft, so don't release twice
                 idft.release();
                 magnitude.release();
                 for (Mat plane : idftPlanes) plane.release();
@@ -248,12 +250,15 @@ public class FFTLowPass4Node extends MultiOutputNode {
             Mat dft = new Mat();
             Core.dft(floatInput, dft, Core.DFT_COMPLEX_OUTPUT);
 
-            Mat dftShift = fftShift(dft.clone());
+            Mat dftShift = dft.clone();
+            fftShift(dftShift);
 
             spectrum = createSpectrumVisualization(dftShift, rows, cols);
 
             Mat maskedDft = applyMask(dftShift, mask);
-            Mat dftIshift = ifftShift(maskedDft);
+            // Inverse shift (modifies maskedDft in place, so dftIshift is same reference)
+            ifftShift(maskedDft);
+            Mat dftIshift = maskedDft;
 
             Mat idft = new Mat();
             Core.idft(dftIshift, idft, Core.DFT_SCALE);
@@ -273,7 +278,7 @@ public class FFTLowPass4Node extends MultiOutputNode {
             dft.release();
             dftShift.release();
             maskedDft.release();
-            dftIshift.release();
+            // Note: dftIshift is same as maskedDft, so don't release twice
             idft.release();
             magnitude.release();
             for (Mat plane : idftPlanes) plane.release();
@@ -463,26 +468,32 @@ public class FFTLowPass4Node extends MultiOutputNode {
         List<Mat> planes = new ArrayList<>();
         Core.split(dftShift, planes);
 
-        int rows = mask.rows();
-        int cols = mask.cols();
-        float[] maskData = new float[rows * cols];
-        mask.get(0, 0, maskData);
+        try {
+            int rows = mask.rows();
+            int cols = mask.cols();
+            float[] maskData = new float[rows * cols];
+            mask.get(0, 0, maskData);
 
-        for (Mat plane : planes) {
-            float[] planeData = new float[rows * cols];
-            plane.get(0, 0, planeData);
-            for (int i = 0; i < planeData.length; i++) {
-                planeData[i] *= maskData[i];
+            for (Mat plane : planes) {
+                float[] planeData = new float[rows * cols];
+                plane.get(0, 0, planeData);
+                for (int i = 0; i < planeData.length; i++) {
+                    planeData[i] *= maskData[i];
+                }
+                plane.put(0, 0, planeData);
             }
-            plane.put(0, 0, planeData);
-        }
 
-        Mat result = new Mat();
-        Core.merge(planes, result);
-        return result;
+            Mat result = new Mat();
+            Core.merge(planes, result);
+            return result;
+        } finally {
+            for (Mat plane : planes) {
+                plane.release();
+            }
+        }
     }
 
-    private Mat fftShift(Mat input) {
+    private void fftShift(Mat input) {
         int cx = input.cols() / 2;
         int cy = input.rows() / 2;
 
@@ -491,21 +502,29 @@ public class FFTLowPass4Node extends MultiOutputNode {
         Mat q2 = input.submat(cy, input.rows(), 0, cx);
         Mat q3 = input.submat(cy, input.rows(), cx, input.cols());
 
-        Mat tmp = new Mat();
-        q0.copyTo(tmp);
-        q3.copyTo(q0);
-        tmp.copyTo(q3);
+        try {
+            Mat tmp = new Mat();
+            try {
+                q0.copyTo(tmp);
+                q3.copyTo(q0);
+                tmp.copyTo(q3);
 
-        q1.copyTo(tmp);
-        q2.copyTo(q1);
-        tmp.copyTo(q2);
-
-        tmp.release();
-        return input;
+                q1.copyTo(tmp);
+                q2.copyTo(q1);
+                tmp.copyTo(q2);
+            } finally {
+                tmp.release();
+            }
+        } finally {
+            q0.release();
+            q1.release();
+            q2.release();
+            q3.release();
+        }
     }
 
-    private Mat ifftShift(Mat input) {
-        return fftShift(input);
+    private void ifftShift(Mat input) {
+        fftShift(input);
     }
 
     private Mat createMask(int rows, int cols) {

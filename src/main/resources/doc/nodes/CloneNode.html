@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Clone Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Clone Node</h1>
+
+    <p>Duplicates the input frame to multiple outputs, allowing parallel processing branches in your pipeline.</p>
+
+    <h2>Outputs</h2>
+    <p>The Clone node has <strong>two output connections</strong>:</p>
+    <ul>
+        <li><strong>Output 1</strong> (top) - First copy of the input frame</li>
+        <li><strong>Output 2</strong> (bottom) - Second copy of the input frame</li>
+    </ul>
+
+    <h2>Use Cases</h2>
+    <ul>
+        <li>Apply different filters to the same image for comparison</li>
+        <li>Create parallel processing branches that merge later</li>
+        <li>Send one copy to display while processing another</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> Each output receives an independent clone of the input Mat, so downstream nodes can modify them without affecting each other.
+    </div>
+
+    <div class="note">
+        <strong>Note:</strong> When disabled, the Clone node passes input to Output 1 only. Output 2 receives nothing.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/nodes/ContainerNode.html">Container Node</a> - Group nodes into a sub-pipeline</li>
+        <li><a href="doc/opencv/addWeighted.html">addWeighted()</a> - Blend two images together</li>
+    </ul>
+</body>
+</html>

@@ -92,6 +92,11 @@ public class BitwiseXorNode extends DualInputNode {
         gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? new Color(200, 230, 255) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
+
         // Draw thumbnail if available (centered horizontally)
         Rectangle bounds = getThumbnailBounds();
         if (bounds != null) {

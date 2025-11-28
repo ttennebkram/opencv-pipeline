@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>HoughCircles</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>HoughCircles</h1>
+
+    <p>Finds circles in a grayscale image using the Hough Gradient method.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.HoughCircles(Mat image, Mat circles, int method, double dp, double minDist, double param1, double param2, int minRadius, int maxRadius)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - 8-bit, single-channel grayscale input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> circles - Output vector of circles. Each circle is (x, y, radius).</li>
+        <li>int method - Detection method. Use HOUGH_GRADIENT.</li>
+        <li>double dp - Inverse ratio of accumulator resolution (1 = same as image, 2 = half resolution).</li>
+        <li>double minDist - Minimum distance between circle centers.</li>
+        <li>double param1 - Upper Canny edge threshold (lower is param1/2).</li>
+        <li>double param2 - Accumulator threshold for circle centers. Smaller = more circles detected.</li>
+        <li>int minRadius - Minimum circle radius (0 for no minimum).</li>
+        <li>int maxRadius - Maximum circle radius (0 for no maximum).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Uses the Hough Gradient method, which internally applies Canny edge detection and then finds circle centers using gradient information.</p>
+
+    <div class="note">
+        <strong>Tip:</strong> Apply GaussianBlur before HoughCircles to reduce noise and improve detection accuracy.
+    </div>
+
+    <p><strong>Typical parameter values:</strong></p>
+    <ul>
+        <li>dp = 1: Full resolution accumulator</li>
+        <li>minDist = image height / 8: Prevent overlapping circles</li>
+        <li>param1 = 100: Canny high threshold</li>
+        <li>param2 = 30-50: Lower = more circles (may include false positives)</li>
+    </ul>
+
+    <p><strong>Drawing detected circles:</strong></p>
+    <pre>for (int i = 0; i < circles.cols(); i++) {
+    double[] c = circles.get(0, i);
+    Point center = new Point(c[0], c[1]);
+    int radius = (int) Math.round(c[2]);
+    // Draw center
+    Imgproc.circle(dst, center, 3, new Scalar(0, 255, 0), -1);
+    // Draw outline
+    Imgproc.circle(dst, center, radius, new Scalar(0, 0, 255), 2);
+}</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/HoughLines.html">HoughLines()</a> - Detect lines</li>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Preprocessing</li>
+        <li><a href="doc/opencv/circle.html">circle()</a> - Draw circles</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/dd/d1a/group__imgproc__feature.html#ga47849c3be0d0406ad3ca45db65a25d2d" target="_blank">OpenCV HoughCircles Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

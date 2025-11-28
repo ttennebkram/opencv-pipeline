@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>arrowedLine</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>arrowedLine</h1>
+
+    <p>Draws a line segment with an arrow tip pointing from the first point to the second point.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.arrowedLine(Mat img, Point pt1, Point pt2, Scalar color, int thickness, int lineType, int shift, double tipLength)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the arrow is drawn.</li>
+        <li><a href="doc/types/Point.html">Point</a> pt1 - Starting point of the arrow (tail).</li>
+        <li><a href="doc/types/Point.html">Point</a> pt2 - Ending point of the arrow (tip).</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Arrow color in BGR format.</li>
+        <li>int thickness - Line thickness in pixels.</li>
+        <li>int lineType - Type of line (LINE_4, LINE_8, LINE_AA).</li>
+        <li>int shift - Number of fractional bits in point coordinates (usually 0).</li>
+        <li>double tipLength - Length of the arrow tip relative to the arrow length (default 0.1 = 10%).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Draws an arrow from pt1 to pt2. The arrow head is drawn at pt2.</p>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Simple arrow
+Imgproc.arrowedLine(img, new Point(50, 50), new Point(200, 100),
+                    new Scalar(0, 0, 255), 2);
+
+// Arrow with larger tip (20% of line length)
+Imgproc.arrowedLine(img, new Point(50, 100), new Point(200, 150),
+                    new Scalar(0, 255, 0), 2, Imgproc.LINE_AA, 0, 0.2);
+
+// Thick arrow with anti-aliasing
+Imgproc.arrowedLine(img, new Point(50, 150), new Point(200, 200),
+                    new Scalar(255, 0, 0), 3, Imgproc.LINE_AA, 0, 0.15);</pre>
+
+    <p><strong>Use cases:</strong></p>
+    <ul>
+        <li>Visualizing optical flow vectors</li>
+        <li>Showing motion direction</li>
+        <li>Annotating images with directional indicators</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/line.html">line()</a> - Simple line without arrow</li>
+        <li><a href="doc/opencv/circle.html">circle()</a> - Draw circles</li>
+        <li><a href="doc/opencv/putText.html">putText()</a> - Add text labels</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga0a165a3ca093fd488ac709fdf10c05b2" target="_blank">OpenCV arrowedLine Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

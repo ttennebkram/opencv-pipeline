@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>pyrMeanShiftFiltering</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>pyrMeanShiftFiltering</h1>
+
+    <p>Performs mean-shift filtering using a color/spatial pyramid. Creates a smoothed, posterized look while preserving edges.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.pyrMeanShiftFiltering(Mat src, Mat dst, double sp, double sr)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input 8-bit 3-channel image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and type as src.</li>
+        <li>double sp - Spatial window radius (affects smoothness).</li>
+        <li>double sr - Color window radius (affects color flattening).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Mean-shift filtering groups pixels with similar colors that are spatially close, creating regions of uniform color while preserving edges.</p>
+
+    <div class="note">
+        <strong>Performance:</strong> This operation is relatively slow. For large images, consider resizing first or using a smaller sp value.
+    </div>
+
+    <p><strong>Parameter effects:</strong></p>
+    <ul>
+        <li><strong>sp (spatial):</strong> Larger values = more blurring, smoother boundaries</li>
+        <li><strong>sr (color):</strong> Larger values = more color flattening, fewer distinct colors</li>
+    </ul>
+
+    <p><strong>Example:</strong></p>
+    <pre>// Basic mean-shift filtering
+Mat result = new Mat();
+Imgproc.pyrMeanShiftFiltering(src, result, 20, 40);
+
+// Create cartoon effect
+Mat filtered = new Mat();
+Imgproc.pyrMeanShiftFiltering(src, filtered, 15, 50);
+
+// Add edges for cartoon look
+Mat gray = new Mat();
+Imgproc.cvtColor(src, gray, Imgproc.COLOR_BGR2GRAY);
+Mat edges = new Mat();
+Imgproc.adaptiveThreshold(gray, edges, 255,
+    Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 9, 2);
+Imgproc.cvtColor(edges, edges, Imgproc.COLOR_GRAY2BGR);
+Core.bitwise_and(filtered, edges, cartoon);</pre>
+
+    <p><strong>Use cases:</strong></p>
+    <ul>
+        <li>Image segmentation preprocessing</li>
+        <li>Creating artistic/painted effects</li>
+        <li>Noise reduction with edge preservation</li>
+        <li>Cartoon/posterization effects</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/bilateralFilter.html">bilateralFilter()</a> - Another edge-preserving filter</li>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Simple smoothing</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#ga9fabdce9543bd602445f5db3827e4f00" target="_blank">OpenCV pyrMeanShiftFiltering Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Laplacian Operator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Laplacian Operator</h1>
+
+    <p>Calculates the Laplacian of an image. The Laplacian is a second-order derivative that highlights regions of rapid intensity change.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.Laplacian(Mat src, Mat dst, int ddepth, int ksize)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Source image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Destination image of the same size and same number of channels as src.</li>
+        <li>int ddepth - Desired depth of the destination image. Use CV_16S or CV_64F to avoid overflow.</li>
+        <li>int ksize - Aperture size used to compute the second-derivative filters. Must be positive and odd. Default is 1.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Laplacian operator calculates the sum of second-order x and y derivatives:</p>
+
+    <pre>Laplacian(f) = ∂²f/∂x² + ∂²f/∂y²</pre>
+
+    <p>This is approximated by convolving the image with a kernel. For ksize=1, a 3x3 kernel is used:</p>
+
+    <pre>[ 0  1  0]
+[ 1 -4  1]
+[ 0  1  0]</pre>
+
+    <p><strong>Characteristics:</strong></p>
+    <ul>
+        <li>Detects edges in all directions simultaneously</li>
+        <li>Very sensitive to noise (usually requires pre-blurring)</li>
+        <li>Zero-crossings indicate edge locations</li>
+        <li>Produces double edges (one positive, one negative)</li>
+    </ul>
+
+    <p><strong>Typical workflow:</strong></p>
+    <ol>
+        <li>Convert to grayscale</li>
+        <li>Apply Gaussian blur to reduce noise</li>
+        <li>Apply Laplacian</li>
+        <li>Convert to absolute values for display</li>
+    </ol>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/Sobel.html">Sobel()</a> - First-order derivative</li>
+        <li><a href="doc/opencv/Scharr.html">Scharr()</a> - More accurate first derivative</li>
+        <li><a href="doc/opencv/Canny.html">Canny()</a> - Multi-stage edge detector</li>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Pre-processing for noise reduction</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gad78703e4c8fe703d479c1860d76f7d2b" target="_blank">OpenCV Laplacian Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

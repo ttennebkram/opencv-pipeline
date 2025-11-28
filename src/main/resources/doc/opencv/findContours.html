@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>findContours</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>findContours</h1>
+
+    <p>Finds contours in a binary image. Contours are curves joining continuous points with the same intensity, useful for shape analysis and object detection.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.findContours(Mat image, List&lt;MatOfPoint&gt; contours, Mat hierarchy, int mode, int method)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - 8-bit single-channel binary image. Non-zero pixels are treated as 1's, zero as 0's.</li>
+        <li>List&lt;MatOfPoint&gt; contours - Detected contours. Each contour is a vector of points.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> hierarchy - Optional output containing topology information.</li>
+        <li>int mode - Contour retrieval mode (see table below).</li>
+        <li>int method - Contour approximation method.</li>
+    </ul>
+
+    <h2>Retrieval Modes</h2>
+
+    <table>
+        <tr><th>Mode</th><th>Description</th></tr>
+        <tr><td>RETR_EXTERNAL</td><td>Only outermost contours</td></tr>
+        <tr><td>RETR_LIST</td><td>All contours without hierarchy</td></tr>
+        <tr><td>RETR_TREE</td><td>Full hierarchy of nested contours</td></tr>
+        <tr><td>RETR_CCOMP</td><td>Two-level hierarchy (external and holes)</td></tr>
+    </table>
+
+    <h2>Approximation Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>CHAIN_APPROX_NONE</td><td>Store all contour points</td></tr>
+        <tr><td>CHAIN_APPROX_SIMPLE</td><td>Compress horizontal, vertical, diagonal segments</td></tr>
+        <tr><td>CHAIN_APPROX_TC89_L1</td><td>Teh-Chin chain approximation</td></tr>
+    </table>
+
+    <h2>Common Operations</h2>
+
+    <pre>// Find and draw contours
+List&lt;MatOfPoint&gt; contours = new ArrayList<>();
+Mat hierarchy = new Mat();
+Imgproc.findContours(binary, contours, hierarchy,
+                     Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+// Draw all contours
+Imgproc.drawContours(dst, contours, -1, new Scalar(0, 255, 0), 2);
+
+// Contour properties
+double area = Imgproc.contourArea(contours.get(0));
+double perimeter = Imgproc.arcLength(new MatOfPoint2f(contours.get(0).toArray()), true);
+Rect bbox = Imgproc.boundingRect(contours.get(0));</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Create binary images</li>
+        <li><a href="doc/opencv/Canny.html">Canny()</a> - Edge detection</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw bounding boxes</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html#gadf1ad6a0b82947fa1fe3c3d497f260e0" target="_blank">OpenCV findContours Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>rectangle</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>rectangle</h1>
+
+    <p>Draws a rectangle outline or filled rectangle.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.rectangle(Mat img, Point pt1, Point pt2, Scalar color, int thickness)</code></p>
+    <p><code>Imgproc / cv2.rectangle(Mat img, Rect rec, Scalar color, int thickness)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the rectangle is drawn.</li>
+        <li><a href="doc/types/Point.html">Point</a> pt1 - Top-left corner of the rectangle.</li>
+        <li><a href="doc/types/Point.html">Point</a> pt2 - Bottom-right corner of the rectangle.</li>
+        <li><a href="doc/types/Rect.html">Rect</a> rec - Rectangle to draw (alternative to two points).</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Rectangle color in BGR format.</li>
+        <li>int thickness - Line thickness. Use -1 (FILLED) for filled rectangle.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Draw rectangle using corner points
+Imgproc.rectangle(img,
+    new Point(50, 50),    // top-left
+    new Point(200, 150),  // bottom-right
+    new Scalar(0, 255, 0), 2);
+
+// Draw rectangle using Rect
+Rect roi = new Rect(250, 50, 100, 80);  // x, y, width, height
+Imgproc.rectangle(img, roi, new Scalar(255, 0, 0), 2);
+
+// Draw filled rectangle
+Imgproc.rectangle(img,
+    new Point(50, 200), new Point(150, 280),
+    new Scalar(0, 0, 255), -1);  // -1 = filled
+
+// Draw bounding box around detected object
+Rect bbox = Imgproc.boundingRect(contour);
+Imgproc.rectangle(img, bbox, new Scalar(0, 255, 255), 2);</pre>
+
+    <p><strong>Common use cases:</strong></p>
+    <ul>
+        <li>Drawing bounding boxes around detected objects</li>
+        <li>Marking regions of interest (ROI)</li>
+        <li>Visualizing face/object detection results</li>
+        <li>Creating simple UI elements</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Rect.html">Rect</a> - Rectangle class</li>
+        <li><a href="doc/opencv/circle.html">circle()</a> - Draw circles</li>
+        <li><a href="doc/opencv/line.html">line()</a> - Draw lines</li>
+        <li><a href="doc/opencv/putText.html">putText()</a> - Add text labels</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga07d2f74cadcf8e305e810ce8eed13bc9" target="_blank">OpenCV rectangle Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

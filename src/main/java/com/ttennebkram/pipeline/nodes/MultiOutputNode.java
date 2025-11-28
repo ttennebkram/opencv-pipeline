@@ -222,6 +222,11 @@ public abstract class MultiOutputNode extends ProcessingNode {
         gc.drawString(name, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? getBackgroundColor() : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
+
         // Draw thread priority label
         Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);
         gc.setFont(smallFont);

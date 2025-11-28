@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>cornerHarris</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>cornerHarris</h1>
+
+    <p>Harris corner detector. Finds corners based on the local gradient structure of the image.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.cornerHarris(Mat src, Mat dst, int blockSize, int ksize, double k)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input single-channel 8-bit or floating-point image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Image to store the Harris detector responses. Type CV_32FC1, same size as src.</li>
+        <li>int blockSize - Neighborhood size for corner detection (typically 2-5).</li>
+        <li>int ksize - Aperture parameter for Sobel operator (typically 3).</li>
+        <li>double k - Harris detector free parameter (typically 0.04-0.06).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Harris corner detector uses the gradient covariance matrix to detect corners. It computes a response R for each pixel:</p>
+    <pre>R = det(M) - k * trace(M)²</pre>
+    <p>Where M is the structure tensor (sum of gradient products over the neighborhood).</p>
+
+    <p><strong>Interpreting the output:</strong></p>
+    <ul>
+        <li>Large positive R: Corner</li>
+        <li>Negative R: Edge</li>
+        <li>Small |R|: Flat region</li>
+    </ul>
+
+    <p><strong>Typical workflow:</strong></p>
+    <pre>// Detect corners
+Mat harris = new Mat();
+Imgproc.cornerHarris(gray, harris, 2, 3, 0.04);
+
+// Normalize for visualization
+Core.normalize(harris, harris, 0, 255, Core.NORM_MINMAX);
+
+// Threshold to find strong corners
+Mat corners = new Mat();
+Core.compare(harris, new Scalar(threshold), corners, Core.CMP_GT);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/goodFeaturesToTrack.html">goodFeaturesToTrack()</a> - Shi-Tomasi corners (often better)</li>
+        <li><a href="doc/opencv/Sobel.html">Sobel()</a> - Gradient calculation</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/dd/d1a/group__imgproc__feature.html#gac1fc3598018010880e370e2f709b4345" target="_blank">OpenCV cornerHarris Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

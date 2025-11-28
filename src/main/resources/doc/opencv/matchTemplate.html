@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>matchTemplate</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>matchTemplate</h1>
+
+    <p>Compares a template against overlapped image regions. Used to find a small image (template) within a larger image.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.matchTemplate(Mat image, Mat templ, Mat result, int method)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - Image where the search is performed. Must be 8-bit or 32-bit floating-point.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> templ - Template to search for. Must be same type as image and smaller or equal size.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> result - Map of comparison results. Size: (W-w+1) × (H-h+1) where W,H is image size and w,h is template size.</li>
+        <li>int method - Comparison method (see table below).</li>
+    </ul>
+
+    <h2>Matching Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Best Match</th><th>Notes</th></tr>
+        <tr><td>TM_SQDIFF</td><td>Minimum</td><td>Sum of squared differences</td></tr>
+        <tr><td>TM_SQDIFF_NORMED</td><td>Minimum</td><td>Normalized (0-1 range)</td></tr>
+        <tr><td>TM_CCORR</td><td>Maximum</td><td>Cross-correlation</td></tr>
+        <tr><td>TM_CCORR_NORMED</td><td>Maximum</td><td>Normalized cross-correlation</td></tr>
+        <tr><td>TM_CCOEFF</td><td>Maximum</td><td>Correlation coefficient</td></tr>
+        <tr><td>TM_CCOEFF_NORMED</td><td>Maximum</td><td>Normalized (-1 to 1). Best for most cases.</td></tr>
+    </table>
+
+    <h2>Description</h2>
+
+    <p><strong>Example - Find single best match:</strong></p>
+    <pre>Mat result = new Mat();
+Imgproc.matchTemplate(image, template, result, Imgproc.TM_CCOEFF_NORMED);
+
+// Find location of best match
+Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+Point matchLoc = mmr.maxLoc;  // Use minLoc for SQDIFF methods
+
+// Draw rectangle around match
+Imgproc.rectangle(image, matchLoc,
+    new Point(matchLoc.x + template.cols(), matchLoc.y + template.rows()),
+    new Scalar(0, 255, 0), 2);</pre>
+
+    <p><strong>Example - Find multiple matches:</strong></p>
+    <pre>double threshold = 0.8;
+Mat result = new Mat();
+Imgproc.matchTemplate(image, template, result, Imgproc.TM_CCOEFF_NORMED);
+
+// Find all locations above threshold
+for (int y = 0; y < result.rows(); y++) {
+    for (int x = 0; x < result.cols(); x++) {
+        if (result.get(y, x)[0] >= threshold) {
+            Imgproc.rectangle(image, new Point(x, y),
+                new Point(x + template.cols(), y + template.rows()),
+                new Scalar(0, 255, 0), 2);
+        }
+    }
+}</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/ORB.html">ORB()</a> - Feature-based matching (handles rotation/scale)</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw match location</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/df/dfb/group__imgproc__object.html#ga586ebfb0a7fb604b35a23d85391329be" target="_blank">OpenCV matchTemplate Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

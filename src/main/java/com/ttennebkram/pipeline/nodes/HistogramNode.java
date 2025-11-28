@@ -138,18 +138,22 @@ public class HistogramNode extends DualInputNode {
             // Draw each channel in its own section
             for (int i = 0; i < 3; i++) {
                 Mat roi = output.submat(0, height, i * channelWidth, (i + 1) * channelWidth);
-                Mat roiCopy = roi.clone();
+                try {
+                    Mat roiCopy = roi.clone();
 
-                Scalar color;
-                switch (i) {
-                    case 0: color = new Scalar(255, 0, 0); break;   // Blue
-                    case 1: color = new Scalar(0, 255, 0); break;   // Green
-                    default: color = new Scalar(0, 0, 255); break;  // Red
+                    Scalar color;
+                    switch (i) {
+                        case 0: color = new Scalar(255, 0, 0); break;   // Blue
+                        case 1: color = new Scalar(0, 255, 0); break;   // Green
+                        default: color = new Scalar(0, 0, 255); break;  // Red
+                    }
+
+                    drawHistogramInRegion(channels.get(i), roiCopy, color, backgroundMode, processedMask);
+                    roiCopy.copyTo(roi);
+                    roiCopy.release();
+                } finally {
+                    roi.release();
                 }
-
-                drawHistogramInRegion(channels.get(i), roiCopy, color, backgroundMode, processedMask);
-                roiCopy.copyTo(roi);
-                roiCopy.release();
             }
 
             for (Mat ch : channels) ch.release();

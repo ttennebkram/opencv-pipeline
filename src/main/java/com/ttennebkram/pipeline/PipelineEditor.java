@@ -36,6 +36,7 @@ import com.ttennebkram.pipeline.model.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
 import com.ttennebkram.pipeline.serialization.PipelineSerializer;
 import com.ttennebkram.pipeline.ui.ContainerEditorWindow;
+import com.ttennebkram.pipeline.ui.HelpBrowser;
 
 public class PipelineEditor {
 
@@ -2983,6 +2984,13 @@ public class PipelineEditor {
                             return;
                         }
                     }
+                    // Check if clicking on help icon - open help browser
+                    if (node.isOnHelpIcon(clickPoint)) {
+                        if (HelpBrowser.hasHelp(node.getClass())) {
+                            HelpBrowser.openForNode(shell, node.getClass());
+                            return;
+                        }
+                    }
                     // Check if clicking on container icon - open container editor
                     if (node instanceof ContainerNode) {
                         ContainerNode container = (ContainerNode) node;
@@ -3418,19 +3426,51 @@ public class PipelineEditor {
     }
 
     /**
-     * Update canvas tooltip based on mouse position over connection points.
+     * Update canvas tooltip and cursor based on mouse position over connection points and icons.
      */
     private void updateConnectionTooltip(int canvasX, int canvasY) {
         String tooltip = null;
         Point p = new Point(canvasX, canvasY);
+        boolean showHandCursor = false;
 
         // Check all nodes for connection point hover
         for (PipelineNode node : nodes) {
+            // Check enabled checkbox (ProcessingNode or SourceNode)
+            if (node.containsPoint(p)) {
+                if (node instanceof ProcessingNode) {
+                    ProcessingNode pNode = (ProcessingNode) node;
+                    if (pNode.isOnEnabledCheckbox(p)) {
+                        tooltip = pNode.isEnabled() ? "Click to disable node" : "Click to enable node";
+                        showHandCursor = true;
+                        break;
+                    }
+                } else if (node instanceof SourceNode) {
+                    SourceNode sNode = (SourceNode) node;
+                    if (sNode.isOnEnabledCheckbox(p)) {
+                        tooltip = sNode.isEnabled() ? "Click to disable node" : "Click to enable node";
+                        showHandCursor = true;
+                        break;
+                    }
+                }
+            }
+
+            // Check help icon first (only if mouse is within node bounds for efficiency)
+            if (node.containsPoint(p) && node.isOnHelpIcon(p)) {
+                if (HelpBrowser.hasHelp(node.getClass())) {
+                    tooltip = "Help";
+                    showHandCursor = true;
+                } else {
+                    tooltip = "Help (not yet available)";
+                }
+                break;
+            }
+
             // Check container icon for ContainerNodes
             if (node instanceof ContainerNode) {
                 ContainerNode container = (ContainerNode) node;
                 if (container.isOnContainerIcon(p)) {
                     tooltip = "Edit Container's Sub-diagram (can edit while running)";
+                    showHandCursor = true;
                     break;
                 }
             }
@@ -3464,6 +3504,18 @@ public class PipelineEditor {
         } else {
             if (!tooltip.equals(currentTooltip)) {
                 canvas.setToolTipText(tooltip);
+            }
+        }
+
+        // Update cursor
+        Cursor currentCursor = canvas.getCursor();
+        if (showHandCursor) {
+            if (currentCursor == null || currentCursor.equals(display.getSystemCursor(SWT.CURSOR_ARROW))) {
+                canvas.setCursor(display.getSystemCursor(SWT.CURSOR_HAND));
+            }
+        } else {
+            if (currentCursor != null && currentCursor.equals(display.getSystemCursor(SWT.CURSOR_HAND))) {
+                canvas.setCursor(null);
             }
         }
     }

@@ -3,6 +3,7 @@ package com.ttennebkram.pipeline.nodes;
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.registry.NodeInfo;
 import com.ttennebkram.pipeline.serialization.NodeSerializable;
+import com.ttennebkram.pipeline.ui.HelpBrowser;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.widgets.Display;
@@ -33,6 +34,32 @@ public abstract class PipelineNode implements NodeSerializable {
     public static final int DISABLED_BG_R = 220;
     public static final int DISABLED_BG_G = 220;
     public static final int DISABLED_BG_B = 220;
+
+    // Help icon constants
+    protected static final int HELP_ICON_SIZE = 14;
+    protected static final int HELP_ICON_MARGIN = 5;
+
+    // Help icon colors (RGB) - darker blue fill with white text
+    protected static final int HELP_ICON_FILL_R = 50;
+    protected static final int HELP_ICON_FILL_G = 100;
+    protected static final int HELP_ICON_FILL_B = 180;
+    protected static final int HELP_ICON_BORDER_R = 30;
+    protected static final int HELP_ICON_BORDER_G = 70;
+    protected static final int HELP_ICON_BORDER_B = 140;
+    protected static final int HELP_ICON_TEXT_R = 255;
+    protected static final int HELP_ICON_TEXT_G = 255;
+    protected static final int HELP_ICON_TEXT_B = 255;
+
+    // Help icon grayed-out colors (RGB) - for nodes without help docs
+    protected static final int HELP_ICON_GRAY_FILL_R = 180;
+    protected static final int HELP_ICON_GRAY_FILL_G = 180;
+    protected static final int HELP_ICON_GRAY_FILL_B = 180;
+    protected static final int HELP_ICON_GRAY_BORDER_R = 150;
+    protected static final int HELP_ICON_GRAY_BORDER_G = 150;
+    protected static final int HELP_ICON_GRAY_BORDER_B = 150;
+    protected static final int HELP_ICON_GRAY_TEXT_R = 255;
+    protected static final int HELP_ICON_GRAY_TEXT_G = 255;
+    protected static final int HELP_ICON_GRAY_TEXT_B = 255;
 
     // Node dimension constants
     public static final int PROCESSING_NODE_THUMB_WIDTH = 120;
@@ -137,6 +164,76 @@ public abstract class PipelineNode implements NodeSerializable {
 
     public boolean containsPoint(Point p) {
         return p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
+    }
+
+    /**
+     * Get the bounds of the help icon in the top-right corner.
+     * @return Rectangle with the help icon bounds in canvas coordinates
+     */
+    public Rectangle getHelpIconBounds() {
+        return new Rectangle(
+            x + width - HELP_ICON_SIZE - HELP_ICON_MARGIN,
+            y + HELP_ICON_MARGIN,
+            HELP_ICON_SIZE,
+            HELP_ICON_SIZE
+        );
+    }
+
+    /**
+     * Check if a point is within the help icon.
+     * @param p Point to test in canvas coordinates
+     * @return true if point is within help icon bounds
+     */
+    public boolean isOnHelpIcon(Point p) {
+        Rectangle bounds = getHelpIconBounds();
+        return p.x >= bounds.x && p.x <= bounds.x + bounds.width &&
+               p.y >= bounds.y && p.y <= bounds.y + bounds.height;
+    }
+
+    /**
+     * Draw the help icon (question mark) in the top-right corner of the node.
+     * Called by paint() - subclasses that override paint() should call this.
+     * @param gc Graphics context
+     * @param bgColor Background color to use for opaque fill (prevents text bleed-through)
+     */
+    protected void drawHelpIcon(GC gc, Color bgColor) {
+        Rectangle bounds = getHelpIconBounds();
+        boolean hasHelp = HelpBrowser.hasHelp(getClass());
+
+        // Draw opaque background to prevent text bleed-through
+        gc.setBackground(bgColor);
+        gc.fillRoundRectangle(bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2, 4, 4);
+
+        // Fill circle - blue if help available, gray if not
+        Color fillColor = hasHelp
+            ? new Color(HELP_ICON_FILL_R, HELP_ICON_FILL_G, HELP_ICON_FILL_B)
+            : new Color(HELP_ICON_GRAY_FILL_R, HELP_ICON_GRAY_FILL_G, HELP_ICON_GRAY_FILL_B);
+        gc.setBackground(fillColor);
+        gc.fillOval(bounds.x, bounds.y, bounds.width, bounds.height);
+        fillColor.dispose();
+
+        // Draw circle border
+        Color borderColor = hasHelp
+            ? new Color(HELP_ICON_BORDER_R, HELP_ICON_BORDER_G, HELP_ICON_BORDER_B)
+            : new Color(HELP_ICON_GRAY_BORDER_R, HELP_ICON_GRAY_BORDER_G, HELP_ICON_GRAY_BORDER_B);
+        gc.setForeground(borderColor);
+        gc.setLineWidth(1);
+        gc.drawOval(bounds.x, bounds.y, bounds.width, bounds.height);
+        borderColor.dispose();
+
+        // Draw question mark - nudge slightly for better visual centering
+        Color textColor = hasHelp
+            ? new Color(HELP_ICON_TEXT_R, HELP_ICON_TEXT_G, HELP_ICON_TEXT_B)
+            : new Color(HELP_ICON_GRAY_TEXT_R, HELP_ICON_GRAY_TEXT_G, HELP_ICON_GRAY_TEXT_B);
+        gc.setForeground(textColor);
+        Font helpFont = new Font(display, "Arial", 9, SWT.BOLD);
+        gc.setFont(helpFont);
+        Point textExtent = gc.textExtent("?");
+        int textX = bounds.x + (bounds.width - textExtent.x) / 2 + 1; // +1 to nudge right for visual centering
+        int textY = bounds.y + (bounds.height - textExtent.y) / 2 + 1; // +1 to nudge down for visual centering
+        gc.drawString("?", textX, textY, true);
+        helpFont.dispose();
+        textColor.dispose();
     }
 
     /**

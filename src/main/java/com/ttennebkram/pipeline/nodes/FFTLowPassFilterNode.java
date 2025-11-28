@@ -51,18 +51,30 @@ public class FFTLowPassFilterNode extends ProcessingNode {
         List<Mat> channels = new ArrayList<>();
         Core.split(input, channels);
 
-        // Apply FFT filter to each channel
-        List<Mat> filteredChannels = new ArrayList<>();
-        for (Mat channel : channels) {
-            Mat filtered = applyFFTToChannel(channel);
-            filteredChannels.add(filtered);
+        try {
+            // Apply FFT filter to each channel
+            List<Mat> filteredChannels = new ArrayList<>();
+            try {
+                for (Mat channel : channels) {
+                    Mat filtered = applyFFTToChannel(channel);
+                    filteredChannels.add(filtered);
+                }
+
+                // Merge filtered channels
+                Mat output = new Mat();
+                Core.merge(filteredChannels, output);
+
+                return output;
+            } finally {
+                for (Mat m : filteredChannels) {
+                    m.release();
+                }
+            }
+        } finally {
+            for (Mat m : channels) {
+                m.release();
+            }
         }
-
-        // Merge filtered channels
-        Mat output = new Mat();
-        Core.merge(filteredChannels, output);
-
-        return output;
     }
 
     private Mat applyFFTToChannel(Mat channel) {
@@ -73,61 +85,98 @@ public class FFTLowPassFilterNode extends ProcessingNode {
         Mat floatChannel = new Mat();
         channel.convertTo(floatChannel, CvType.CV_32F);
 
-        // Compute DFT
-        Mat dft = new Mat();
-        Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
+        try {
+            // Compute DFT
+            Mat dft = new Mat();
+            Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
 
-        // Shift zero frequency to center
-        Mat dftShift = fftShift(dft);
+            try {
+                // Shift zero frequency to center (modifies dft in place)
+                fftShift(dft);
 
-        // Create mask
-        Mat mask = createMask(rows, cols);
+                // Create mask
+                Mat mask = createMask(rows, cols);
 
-        // Apply mask
-        List<Mat> planes = new ArrayList<>();
-        Core.split(dftShift, planes);
+                try {
+                    // Apply mask
+                    List<Mat> planes = new ArrayList<>();
+                    Core.split(dft, planes);
 
-        // Extract single channel from mask (it's the same for real and imaginary)
-        float[] maskData = new float[rows * cols];
-        mask.get(0, 0, maskData);
+                    try {
+                        // Extract single channel from mask (it's the same for real and imaginary)
+                        float[] maskData = new float[rows * cols];
+                        mask.get(0, 0, maskData);
 
-        // Apply mask to both real and imaginary parts
-        for (Mat plane : planes) {
-            float[] planeData = new float[rows * cols];
-            plane.get(0, 0, planeData);
-            for (int i = 0; i < planeData.length; i++) {
-                planeData[i] *= maskData[i];
+                        // Apply mask to both real and imaginary parts
+                        for (Mat plane : planes) {
+                            float[] planeData = new float[rows * cols];
+                            plane.get(0, 0, planeData);
+                            for (int i = 0; i < planeData.length; i++) {
+                                planeData[i] *= maskData[i];
+                            }
+                            plane.put(0, 0, planeData);
+                        }
+
+                        Mat maskedDft = new Mat();
+                        Core.merge(planes, maskedDft);
+
+                        try {
+                            // Inverse shift (modifies maskedDft in place)
+                            ifftShift(maskedDft);
+
+                            // Inverse DFT
+                            Mat idft = new Mat();
+                            Core.idft(maskedDft, idft, Core.DFT_SCALE);
+
+                            try {
+                                // Get magnitude
+                                List<Mat> idftPlanes = new ArrayList<>();
+                                Core.split(idft, idftPlanes);
+
+                                try {
+                                    Mat magnitude = new Mat();
+                                    Core.magnitude(idftPlanes.get(0), idftPlanes.get(1), magnitude);
+
+                                    try {
+                                        // Clip to 0-255 and convert to 8-bit
+                                        Core.min(magnitude, new Scalar(255), magnitude);
+                                        Core.max(magnitude, new Scalar(0), magnitude);
+
+                                        Mat result = new Mat();
+                                        magnitude.convertTo(result, CvType.CV_8U);
+
+                                        return result;
+                                    } finally {
+                                        magnitude.release();
+                                    }
+                                } finally {
+                                    for (Mat m : idftPlanes) {
+                                        m.release();
+                                    }
+                                }
+                            } finally {
+                                idft.release();
+                            }
+                        } finally {
+                            maskedDft.release();
+                        }
+                    } finally {
+                        for (Mat m : planes) {
+                            m.release();
+                        }
+                    }
+                } finally {
+                    mask.release();
+                }
+            } finally {
+                dft.release();
             }
-            plane.put(0, 0, planeData);
+        } finally {
+            floatChannel.release();
         }
-
-        Mat maskedDft = new Mat();
-        Core.merge(planes, maskedDft);
-
-        // Inverse shift
-        Mat dftIshift = ifftShift(maskedDft);
-
-        // Inverse DFT
-        Mat idft = new Mat();
-        Core.idft(dftIshift, idft, Core.DFT_SCALE);
-
-        // Get magnitude
-        List<Mat> idftPlanes = new ArrayList<>();
-        Core.split(idft, idftPlanes);
-        Mat magnitude = new Mat();
-        Core.magnitude(idftPlanes.get(0), idftPlanes.get(1), magnitude);
-
-        // Clip to 0-255 and convert to 8-bit
-        Core.min(magnitude, new Scalar(255), magnitude);
-        Core.max(magnitude, new Scalar(0), magnitude);
-
-        Mat result = new Mat();
-        magnitude.convertTo(result, CvType.CV_8U);
-
-        return result;
     }
 
-    private Mat fftShift(Mat input) {
+    private void fftShift(Mat input) {
         int cx = input.cols() / 2;
         int cy = input.rows() / 2;
 
@@ -137,23 +186,32 @@ public class FFTLowPassFilterNode extends ProcessingNode {
         Mat q2 = input.submat(cy, input.rows(), 0, cx);  // Bottom-Left
         Mat q3 = input.submat(cy, input.rows(), cx, input.cols()); // Bottom-Right
 
-        // Swap quadrants (Top-Left with Bottom-Right)
-        Mat tmp = new Mat();
-        q0.copyTo(tmp);
-        q3.copyTo(q0);
-        tmp.copyTo(q3);
+        try {
+            // Swap quadrants (Top-Left with Bottom-Right)
+            Mat tmp = new Mat();
+            try {
+                q0.copyTo(tmp);
+                q3.copyTo(q0);
+                tmp.copyTo(q3);
 
-        // Swap quadrants (Top-Right with Bottom-Left)
-        q1.copyTo(tmp);
-        q2.copyTo(q1);
-        tmp.copyTo(q2);
-
-        return input;
+                // Swap quadrants (Top-Right with Bottom-Left)
+                q1.copyTo(tmp);
+                q2.copyTo(q1);
+                tmp.copyTo(q2);
+            } finally {
+                tmp.release();
+            }
+        } finally {
+            q0.release();
+            q1.release();
+            q2.release();
+            q3.release();
+        }
     }
 
-    private Mat ifftShift(Mat input) {
+    private void ifftShift(Mat input) {
         // ifftShift is the same as fftShift
-        return fftShift(input);
+        fftShift(input);
     }
 
     private Mat createMask(int rows, int cols) {

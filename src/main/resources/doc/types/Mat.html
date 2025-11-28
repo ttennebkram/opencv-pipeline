@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Mat - OpenCV Matrix</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .signature { background: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin: 15px 0; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Mat</h1>
+
+    <p>The <code>Mat</code> class represents an n-dimensional dense numerical array. It is the primary data structure used by OpenCV to store and manipulate images.</p>
+
+    <h2>Overview</h2>
+
+    <p>A Mat object consists of:</p>
+    <ul>
+        <li><strong>Header</strong> - Contains metadata like size, type, and reference count</li>
+        <li><strong>Data pointer</strong> - Points to the actual pixel data in memory</li>
+    </ul>
+
+    <p>Multiple Mat objects can share the same data (shallow copy). Use <code>clone()</code> to create a deep copy with its own data.</p>
+
+    <h2>Common Properties</h2>
+
+    <table>
+        <tr><th>Property</th><th>Description</th></tr>
+        <tr><td><code>rows()</code></td><td>Number of rows (height)</td></tr>
+        <tr><td><code>cols()</code></td><td>Number of columns (width)</td></tr>
+        <tr><td><code>width()</code></td><td>Same as cols()</td></tr>
+        <tr><td><code>height()</code></td><td>Same as rows()</td></tr>
+        <tr><td><code>channels()</code></td><td>Number of channels (1 for grayscale, 3 for BGR, 4 for BGRA)</td></tr>
+        <tr><td><code>type()</code></td><td>Type identifier (e.g., CV_8UC3)</td></tr>
+        <tr><td><code>depth()</code></td><td>Bit depth (e.g., CV_8U, CV_32F)</td></tr>
+        <tr><td><code>empty()</code></td><td>Returns true if Mat has no data</td></tr>
+    </table>
+
+    <h2>Common Types</h2>
+
+    <table>
+        <tr><th>Type</th><th>Description</th></tr>
+        <tr><td><code>CV_8UC1</code></td><td>8-bit unsigned, 1 channel (grayscale)</td></tr>
+        <tr><td><code>CV_8UC3</code></td><td>8-bit unsigned, 3 channels (BGR color)</td></tr>
+        <tr><td><code>CV_8UC4</code></td><td>8-bit unsigned, 4 channels (BGRA with alpha)</td></tr>
+        <tr><td><code>CV_32FC1</code></td><td>32-bit float, 1 channel</td></tr>
+        <tr><td><code>CV_32FC3</code></td><td>32-bit float, 3 channels</td></tr>
+    </table>
+
+    <h2>Common Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>clone()</code></td><td>Creates a deep copy of the Mat</td></tr>
+        <tr><td><code>copyTo(dst)</code></td><td>Copies data to another Mat</td></tr>
+        <tr><td><code>convertTo(dst, type)</code></td><td>Converts to different type/depth</td></tr>
+        <tr><td><code>submat(roi)</code></td><td>Extracts a region of interest</td></tr>
+        <tr><td><code>reshape(cn, rows)</code></td><td>Changes shape without copying data</td></tr>
+        <tr><td><code>release()</code></td><td>Releases the data (important for memory management)</td></tr>
+    </table>
+
+    <h2>Memory Management</h2>
+
+    <p>In Java/OpenCV, you should call <code>release()</code> on Mat objects when done to free native memory. Unlike regular Java objects, Mat data is allocated in native memory and won't be freed by garbage collection alone.</p>
+
+    <pre>Mat img = Imgcodecs.imread("image.jpg");
+// ... use the image ...
+img.release();  // Free native memory</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Size.html">Size</a> - For specifying dimensions</li>
+        <li><a href="doc/types/Point.html">Point</a> - For specifying coordinates</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> - For specifying pixel values</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d3/d63/classcv_1_1Mat.html" target="_blank">OpenCV Mat Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DFT - Discrete Fourier Transform</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>DFT - Discrete Fourier Transform</h1>
+
+    <p>Performs a forward or inverse Discrete Fourier Transform on a 1D or 2D array. Used for frequency domain analysis and filtering.</p>
+
+    <h2>Signature</h2>
+    <p><code>Core / cv2.dft(Mat src, Mat dst, int flags)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input array (real or complex).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output array with complex values or real if DFT_REAL_OUTPUT.</li>
+        <li>int flags - DFT_INVERSE for inverse transform, DFT_SCALE to scale, etc.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Fourier Transform converts images from spatial domain to frequency domain, where:</p>
+    <ul>
+        <li><strong>Low frequencies:</strong> Slow changes, smooth regions</li>
+        <li><strong>High frequencies:</strong> Rapid changes, edges, noise</li>
+    </ul>
+
+    <p><strong>Complete FFT workflow:</strong></p>
+    <pre>// Prepare image (optimal size for FFT)
+int m = Core.getOptimalDFTSize(gray.rows());
+int n = Core.getOptimalDFTSize(gray.cols());
+Mat padded = new Mat();
+Core.copyMakeBorder(gray, padded, 0, m - gray.rows(), 0, n - gray.cols(),
+    Core.BORDER_CONSTANT, Scalar.all(0));
+
+// Create complex image (real + imaginary)
+padded.convertTo(padded, CvType.CV_32F);
+List&lt;Mat&gt; planes = new ArrayList<>();
+planes.add(padded);
+planes.add(Mat.zeros(padded.size(), CvType.CV_32F));
+Mat complexI = new Mat();
+Core.merge(planes, complexI);
+
+// Perform DFT
+Core.dft(complexI, complexI);
+
+// Shift zero-frequency to center
+// (swap quadrants)
+int cx = complexI.cols() / 2;
+int cy = complexI.rows() / 2;
+Mat q0 = complexI.submat(new Rect(0, 0, cx, cy));
+Mat q1 = complexI.submat(new Rect(cx, 0, cx, cy));
+Mat q2 = complexI.submat(new Rect(0, cy, cx, cy));
+Mat q3 = complexI.submat(new Rect(cx, cy, cx, cy));
+Mat tmp = new Mat();
+q0.copyTo(tmp); q3.copyTo(q0); tmp.copyTo(q3);
+q1.copyTo(tmp); q2.copyTo(q1); tmp.copyTo(q2);</pre>
+
+    <p><strong>Frequency filtering:</strong></p>
+    <pre>// Low-pass filter: keep center, remove edges
+// High-pass filter: remove center, keep edges
+// Create circular mask and apply to frequency domain</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Spatial low-pass filter</li>
+        <li><a href="doc/opencv/Laplacian.html">Laplacian()</a> - Spatial high-pass filter</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d2/de8/group__core__array.html#gadd6cf9baf2b8b704a11b5f04aaf4f39d" target="_blank">OpenCV dft Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

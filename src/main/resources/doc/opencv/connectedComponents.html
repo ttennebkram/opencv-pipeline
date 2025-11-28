@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>connectedComponents</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>connectedComponents</h1>
+
+    <p>Labels connected regions in a binary image. Each connected region gets a unique integer label.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.connectedComponents(Mat image, Mat labels)</code></p>
+    <p><code>Imgproc / cv2.connectedComponentsWithStats(Mat image, Mat labels, Mat stats, Mat centroids)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - 8-bit single-channel binary image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> labels - Output image with labels (same size as input, type CV_32S).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> stats - Statistics for each component (area, bounding box).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> centroids - Centroid points for each component.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The function assigns unique integer labels (starting from 0 for background) to each connected component in the binary image.</p>
+
+    <p><strong>Basic usage:</strong></p>
+    <pre>Mat labels = new Mat();
+int numLabels = Imgproc.connectedComponents(binary, labels);
+System.out.println("Found " + (numLabels - 1) + " components");  // -1 for background</pre>
+
+    <p><strong>With statistics:</strong></p>
+    <pre>Mat labels = new Mat();
+Mat stats = new Mat();
+Mat centroids = new Mat();
+int numLabels = Imgproc.connectedComponentsWithStats(binary, labels, stats, centroids);
+
+// Stats columns: CC_STAT_LEFT, CC_STAT_TOP, CC_STAT_WIDTH, CC_STAT_HEIGHT, CC_STAT_AREA
+for (int i = 1; i < numLabels; i++) {  // Skip background (0)
+    int x = (int) stats.get(i, Imgproc.CC_STAT_LEFT)[0];
+    int y = (int) stats.get(i, Imgproc.CC_STAT_TOP)[0];
+    int w = (int) stats.get(i, Imgproc.CC_STAT_WIDTH)[0];
+    int h = (int) stats.get(i, Imgproc.CC_STAT_HEIGHT)[0];
+    int area = (int) stats.get(i, Imgproc.CC_STAT_AREA)[0];
+
+    double cx = centroids.get(i, 0)[0];
+    double cy = centroids.get(i, 1)[0];
+}</pre>
+
+    <p><strong>Colorize labels for visualization:</strong></p>
+    <pre>// Convert labels to color image
+Mat colored = new Mat();
+labels.convertTo(colored, CvType.CV_8U, 255.0 / numLabels);
+Imgproc.applyColorMap(colored, colored, Imgproc.COLORMAP_JET);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/findContours.html">findContours()</a> - Find contour outlines</li>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Create binary images</li>
+        <li><a href="doc/opencv/SimpleBlobDetector.html">SimpleBlobDetector()</a> - Alternative blob detection</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html#gaedef8c7340499ca391d459122e51bef5" target="_blank">OpenCV connectedComponents Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

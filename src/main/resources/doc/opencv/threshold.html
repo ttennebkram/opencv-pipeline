@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Threshold</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Threshold</h1>
+
+    <p>Applies a fixed-level threshold to each pixel. Used to create binary images or segment objects based on intensity.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.threshold(Mat src, Mat dst, double thresh, double maxval, int type)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input array (multiple-channel, 8-bit or 32-bit floating point).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output array of the same size and type as src.</li>
+        <li>double thresh - Threshold value.</li>
+        <li>double maxval - Maximum value to use with THRESH_BINARY and THRESH_BINARY_INV types.</li>
+        <li>int type - Thresholding type (see table below).</li>
+    </ul>
+
+    <h2>Threshold Types</h2>
+
+    <table>
+        <tr><th>Type</th><th>Value</th><th>Operation</th></tr>
+        <tr><td>THRESH_BINARY</td><td>0</td><td>dst = (src > thresh) ? maxval : 0</td></tr>
+        <tr><td>THRESH_BINARY_INV</td><td>1</td><td>dst = (src > thresh) ? 0 : maxval</td></tr>
+        <tr><td>THRESH_TRUNC</td><td>2</td><td>dst = (src > thresh) ? thresh : src</td></tr>
+        <tr><td>THRESH_TOZERO</td><td>3</td><td>dst = (src > thresh) ? src : 0</td></tr>
+        <tr><td>THRESH_TOZERO_INV</td><td>4</td><td>dst = (src > thresh) ? 0 : src</td></tr>
+    </table>
+
+    <h2>Special Flags</h2>
+
+    <p>These can be combined with a threshold type using the OR operator:</p>
+    <ul>
+        <li><code>THRESH_OTSU</code> - Automatically determine optimal threshold using Otsu's method (8-bit images only)</li>
+        <li><code>THRESH_TRIANGLE</code> - Automatically determine threshold using the triangle algorithm</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The threshold function is fundamental for creating binary images. It's commonly used for:</p>
+    <ul>
+        <li>Separating foreground from background</li>
+        <li>Creating masks for further processing</li>
+        <li>Object detection preprocessing</li>
+        <li>Document binarization</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/adaptiveThreshold.html">adaptiveThreshold()</a> - Local threshold calculation</li>
+        <li><a href="doc/opencv/inRange.html">inRange()</a> - Color range thresholding</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d7/d1b/group__imgproc__misc.html#gae8a4a146d1ca78c626a53577199e9c57" target="_blank">OpenCV threshold Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

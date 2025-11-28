@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>circle</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>circle</h1>
+
+    <p>Draws a circle on an image.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.circle(Mat img, Point center, int radius, Scalar color, int thickness)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the circle is drawn (modified in place).</li>
+        <li><a href="doc/types/Point.html">Point</a> center - Center of the circle.</li>
+        <li>int radius - Radius of the circle in pixels.</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Circle color in BGR format.</li>
+        <li>int thickness - Thickness of the circle outline. Use -1 (FILLED) for a filled circle.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Draw circle outline (red, 2 pixels thick)
+Imgproc.circle(img, new Point(100, 100), 50,
+               new Scalar(0, 0, 255), 2);
+
+// Draw filled circle (green)
+Imgproc.circle(img, new Point(200, 100), 30,
+               new Scalar(0, 255, 0), -1);
+
+// Draw with anti-aliasing
+Imgproc.circle(img, new Point(300, 100), 40,
+               new Scalar(255, 0, 0), 2, Imgproc.LINE_AA);</pre>
+
+    <p><strong>Line types:</strong></p>
+    <ul>
+        <li><code>LINE_4</code> (4): 4-connected line</li>
+        <li><code>LINE_8</code> (8): 8-connected line (default)</li>
+        <li><code>LINE_AA</code> (16): Anti-aliased line (smoother)</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/ellipse.html">ellipse()</a> - Draw ellipses and arcs</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw rectangles</li>
+        <li><a href="doc/opencv/line.html">line()</a> - Draw lines</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> - Color specification (BGR)</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#gaf10604b069374903dbd0f0488cb43670" target="_blank">OpenCV circle Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

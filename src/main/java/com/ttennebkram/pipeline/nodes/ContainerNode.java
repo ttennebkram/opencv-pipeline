@@ -375,8 +375,13 @@ public class ContainerNode extends ProcessingNode {
         gc.drawString(titleText, x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
 
-        // Draw container icon (nested rectangles) in corner
-        drawContainerIcon(gc, x + width - 25, y + 5);
+        // Draw container icon (nested rectangles) - positioned just left of help icon
+        drawContainerIcon(gc, x + width - 38, y + 5);
+
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? new Color(230, 230, 250) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
 
         // Draw priority (italic + lighter gray for monitoring thread) and work (normal color for output queue size)
         Font italicFont = new Font(display, "Arial", 8, SWT.ITALIC);
@@ -456,7 +461,7 @@ public class ContainerNode extends ProcessingNode {
      * Check if a point is within the container icon area.
      */
     public boolean isOnContainerIcon(Point p) {
-        int iconX = x + width - 25;
+        int iconX = x + width - 45;
         int iconY = y + 5;
         // Add a few pixels padding for easier clicking
         return p.x >= iconX - 2 && p.x <= iconX + 18 &&

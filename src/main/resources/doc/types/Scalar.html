@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Scalar - OpenCV Scalar Class</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .signature { background: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin: 15px 0; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Scalar</h1>
+
+    <p>The <code>Scalar</code> class represents a 4-element vector, commonly used for pixel values and colors.</p>
+
+    <h2>Constructors</h2>
+
+    <div class="signature">
+        <pre>new Scalar(double v0)                           // Single value (grayscale)
+new Scalar(double v0, double v1, double v2)     // BGR color
+new Scalar(double v0, double v1, double v2, double v3)  // BGRA with alpha
+new Scalar(double[] vals)                       // From array</pre>
+    </div>
+
+    <h2>Properties</h2>
+
+    <table>
+        <tr><th>Property</th><th>Description</th></tr>
+        <tr><td><code>val</code></td><td>Array of 4 double values [v0, v1, v2, v3]</td></tr>
+    </table>
+
+    <div class="note">
+        <strong>Important:</strong> OpenCV uses <strong>BGR</strong> order, not RGB!
+        <br>Scalar(Blue, Green, Red) - e.g., Scalar(255, 0, 0) is <span style="color:blue">blue</span>, not red.
+    </div>
+
+    <h2>Common Colors (BGR Order)</h2>
+
+    <table>
+        <tr><th>Color</th><th>Scalar Value</th></tr>
+        <tr><td style="background:black;color:white">Black</td><td><code>new Scalar(0, 0, 0)</code></td></tr>
+        <tr><td style="background:white">White</td><td><code>new Scalar(255, 255, 255)</code></td></tr>
+        <tr><td style="background:red;color:white">Red</td><td><code>new Scalar(0, 0, 255)</code></td></tr>
+        <tr><td style="background:green;color:white">Green</td><td><code>new Scalar(0, 255, 0)</code></td></tr>
+        <tr><td style="background:blue;color:white">Blue</td><td><code>new Scalar(255, 0, 0)</code></td></tr>
+        <tr><td style="background:yellow">Yellow</td><td><code>new Scalar(0, 255, 255)</code></td></tr>
+        <tr><td style="background:cyan">Cyan</td><td><code>new Scalar(255, 255, 0)</code></td></tr>
+        <tr><td style="background:magenta;color:white">Magenta</td><td><code>new Scalar(255, 0, 255)</code></td></tr>
+    </table>
+
+    <h2>Common Usage</h2>
+
+    <h3>Drawing with Colors</h3>
+    <pre>// Draw a red circle (BGR: Blue=0, Green=0, Red=255)
+Imgproc.circle(img, center, radius, new Scalar(0, 0, 255), 2);
+
+// Draw a filled green rectangle
+Imgproc.rectangle(img, pt1, pt2, new Scalar(0, 255, 0), -1);</pre>
+
+    <h3>Creating Solid Color Images</h3>
+    <pre>// Create a 640x480 blue image
+Mat blueImg = new Mat(480, 640, CvType.CV_8UC3, new Scalar(255, 0, 0));</pre>
+
+    <h3>Color Range for inRange()</h3>
+    <pre>// Detect blue objects in HSV color space
+Scalar lowerBlue = new Scalar(100, 50, 50);
+Scalar upperBlue = new Scalar(130, 255, 255);
+Core.inRange(hsv, lowerBlue, upperBlue, mask);</pre>
+
+    <h2>Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>mul(Scalar s)</code></td><td>Element-wise multiplication</td></tr>
+        <tr><td><code>mul(Scalar s, double scale)</code></td><td>Multiplication with scale</td></tr>
+        <tr><td><code>conj()</code></td><td>Conjugate (for complex values)</td></tr>
+        <tr><td><code>isReal()</code></td><td>True if v1, v2, v3 are zero</td></tr>
+        <tr><td><code>clone()</code></td><td>Creates a copy</td></tr>
+    </table>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> - Image container</li>
+        <li><a href="doc/types/Point.html">Point</a> - For specifying coordinates</li>
+        <li><a href="doc/opencv/inRange.html">inRange()</a> - Color range detection</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d1/da0/classcv_1_1Scalar__.html" target="_blank">OpenCV Scalar Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

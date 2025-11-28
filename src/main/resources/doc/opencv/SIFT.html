@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SIFT Feature Detector</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>SIFT Feature Detector</h1>
+
+    <p>Scale-Invariant Feature Transform. Detects and describes local features that are invariant to scale, rotation, and partially invariant to illumination changes.</p>
+
+    <h2>Signature</h2>
+    <p><code>Features2d / cv2.SIFT_create(int nfeatures)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li>int nfeatures - Number of best features to retain (default 0 = all features).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>SIFT is one of the most robust feature detection algorithms. It works by:</p>
+    <ol>
+        <li>Building a scale-space pyramid using Difference of Gaussians (DoG)</li>
+        <li>Finding local extrema in scale-space</li>
+        <li>Assigning orientation based on local gradients</li>
+        <li>Computing a 128-dimensional descriptor</li>
+    </ol>
+
+    <div class="note">
+        <strong>Note:</strong> SIFT was patented until 2020. It's now freely available in OpenCV 4.4+.
+    </div>
+
+    <p><strong>Key properties:</strong></p>
+    <ul>
+        <li>Scale invariant</li>
+        <li>Rotation invariant</li>
+        <li>Robust to illumination changes</li>
+        <li>128-dimensional float descriptor</li>
+        <li>Slower than ORB but more robust</li>
+    </ul>
+
+    <p><strong>Usage:</strong></p>
+    <pre>// Create detector
+SIFT sift = SIFT.create();
+
+// Detect and compute
+MatOfKeyPoint keypoints = new MatOfKeyPoint();
+Mat descriptors = new Mat();
+sift.detectAndCompute(gray, new Mat(), keypoints, descriptors);
+
+// Draw keypoints with size and orientation
+Mat output = new Mat();
+Features2d.drawKeypoints(image, keypoints, output,
+    new Scalar(-1), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);</pre>
+
+    <p><strong>Feature matching:</strong></p>
+    <pre>// Use FLANN matcher for SIFT (float descriptors)
+FlannBasedMatcher matcher = FlannBasedMatcher.create();
+List&lt;MatOfDMatch&gt; knnMatches = new ArrayList<>();
+matcher.knnMatch(desc1, desc2, knnMatches, 2);
+
+// Apply ratio test
+for (MatOfDMatch m : knnMatches) {
+    DMatch[] dm = m.toArray();
+    if (dm[0].distance < 0.7 * dm[1].distance) {
+        goodMatches.add(dm[0]);
+    }
+}</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/ORB.html">ORB()</a> - Faster binary features</li>
+        <li><a href="doc/opencv/goodFeaturesToTrack.html">goodFeaturesToTrack()</a> - Simple corner detection</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d7/d60/classcv_1_1SIFT.html" target="_blank">OpenCV SIFT Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

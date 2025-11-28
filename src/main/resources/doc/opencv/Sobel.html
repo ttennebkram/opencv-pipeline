@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sobel Operator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Sobel Operator</h1>
+
+    <p>Calculates the first, second, third, or mixed image derivatives using an extended Sobel operator.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.Sobel(Mat src, Mat dst, int ddepth, int dx, int dy, int ksize)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and same number of channels as src.</li>
+        <li>int ddepth - Output image depth. Use -1 for same as source, or CV_16S, CV_32F, CV_64F to avoid overflow.</li>
+        <li>int dx - Order of the derivative in x direction (0, 1, 2, or 3).</li>
+        <li>int dy - Order of the derivative in y direction (0, 1, 2, or 3).</li>
+        <li>int ksize - Size of the extended Sobel kernel; must be 1, 3, 5, or 7. Default is 3.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Sobel operator computes the gradient of the image intensity. It combines Gaussian smoothing and differentiation, making it more resistant to noise than simple gradient operators.</p>
+
+    <p><strong>Common usage patterns:</strong></p>
+    <ul>
+        <li><code>dx=1, dy=0</code>: Horizontal edges (gradient in X direction)</li>
+        <li><code>dx=0, dy=1</code>: Vertical edges (gradient in Y direction)</li>
+        <li><code>dx=1, dy=1</code>: Diagonal edges</li>
+        <li><code>dx=2, dy=0</code>: Second derivative in X (edge curvature)</li>
+    </ul>
+
+    <p><strong>3x3 Sobel kernels:</strong></p>
+    <pre>Horizontal (dx=1):    Vertical (dy=1):
+[-1  0  1]            [-1 -2 -1]
+[-2  0  2]            [ 0  0  0]
+[-1  0  1]            [ 1  2  1]</pre>
+
+    <p><strong>Depth recommendation:</strong> Use CV_16S or CV_32F for ddepth to capture negative values and avoid overflow. Convert to CV_8U for display using convertScaleAbs().</p>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/Scharr.html">Scharr()</a> - More accurate 3x3 derivative</li>
+        <li><a href="doc/opencv/Laplacian.html">Laplacian()</a> - Second-order derivative</li>
+        <li><a href="doc/opencv/Canny.html">Canny()</a> - Multi-stage edge detector</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#gacea54f142e81b6758cb6f375ce782c8d" target="_blank">OpenCV Sobel Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

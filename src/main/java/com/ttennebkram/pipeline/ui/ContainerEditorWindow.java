@@ -15,6 +15,7 @@ import com.ttennebkram.pipeline.model.ReverseDanglingConnection;
 import com.ttennebkram.pipeline.nodes.*;
 import com.ttennebkram.pipeline.registry.NodeRegistry;
 import com.ttennebkram.pipeline.serialization.PipelineSerializer;
+import com.ttennebkram.pipeline.ui.HelpBrowser;
 
 import org.opencv.core.Mat;
 
@@ -1229,6 +1230,13 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                         return;
                     }
                 }
+                // Check if clicking on help icon - open help browser
+                if (node.isOnHelpIcon(click)) {
+                    if (HelpBrowser.hasHelp(node.getClass())) {
+                        HelpBrowser.openForNode(shell, node.getClass());
+                        return;
+                    }
+                }
                 // Check if clicking on container icon - open nested container editor
                 if (node instanceof ContainerNode) {
                     ContainerNode nestedContainer = (ContainerNode) node;
@@ -1496,10 +1504,12 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
     }
 
     /**
-     * Update canvas tooltip based on mouse position over connection points.
+     * Update canvas tooltip and cursor based on mouse position over connection points and icons.
      */
     private void updateConnectionTooltip(int canvasX, int canvasY) {
         String tooltip = null;
+        boolean showHandCursor = false;
+        Point p = new Point(canvasX, canvasY);
 
         ContainerInputNode boundaryInput = container.getBoundaryInput();
         ContainerOutputNode boundaryOutput = container.getBoundaryOutput();
@@ -1518,6 +1528,37 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         // Check all child nodes for connection point hover
         if (tooltip == null) {
             for (PipelineNode node : nodes) {
+                // Check enabled checkbox (ProcessingNode only in containers)
+                if (node.containsPoint(p) && node instanceof ProcessingNode) {
+                    ProcessingNode pNode = (ProcessingNode) node;
+                    if (pNode.isOnEnabledCheckbox(p)) {
+                        tooltip = pNode.isEnabled() ? "Click to disable node" : "Click to enable node";
+                        showHandCursor = true;
+                        break;
+                    }
+                }
+
+                // Check help icon first (only if mouse is within node bounds for efficiency)
+                if (node.containsPoint(p) && node.isOnHelpIcon(p)) {
+                    if (HelpBrowser.hasHelp(node.getClass())) {
+                        tooltip = "Help";
+                        showHandCursor = true;
+                    } else {
+                        tooltip = "Help (not yet available)";
+                    }
+                    break;
+                }
+
+                // Check container icon for nested ContainerNodes
+                if (node instanceof ContainerNode) {
+                    ContainerNode nestedContainer = (ContainerNode) node;
+                    if (nestedContainer.isOnContainerIcon(p)) {
+                        tooltip = "Edit Container's Sub-diagram";
+                        showHandCursor = true;
+                        break;
+                    }
+                }
+
                 // Check output points
                 outputIndex = node.getOutputIndexNear(canvasX, canvasY);
                 if (outputIndex >= 0) {
@@ -1548,6 +1589,18 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
         } else {
             if (!tooltip.equals(currentTooltip)) {
                 canvas.setToolTipText(tooltip);
+            }
+        }
+
+        // Update cursor
+        Cursor currentCursor = canvas.getCursor();
+        if (showHandCursor) {
+            if (currentCursor == null || currentCursor.equals(display.getSystemCursor(SWT.CURSOR_ARROW))) {
+                canvas.setCursor(display.getSystemCursor(SWT.CURSOR_HAND));
+            }
+        } else {
+            if (currentCursor != null && currentCursor.equals(display.getSystemCursor(SWT.CURSOR_HAND))) {
+                canvas.setCursor(null);
             }
         }
     }

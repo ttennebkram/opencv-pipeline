@@ -188,8 +188,9 @@ public class FFTHighPass4Node extends MultiOutputNode {
                 Mat dft = new Mat();
                 Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
 
-                // Shift zero frequency to center
-                Mat dftShift = fftShift(dft.clone());
+                // Shift zero frequency to center (clone first since fftShift modifies in place)
+                Mat dftShift = dft.clone();
+                fftShift(dftShift);
 
                 // For spectrum visualization, use the first channel (or accumulate)
                 if (c == 0) {
@@ -199,8 +200,9 @@ public class FFTHighPass4Node extends MultiOutputNode {
                 // Apply mask to DFT
                 Mat maskedDft = applyMask(dftShift, mask);
 
-                // Inverse shift
-                Mat dftIshift = ifftShift(maskedDft);
+                // Inverse shift (modifies maskedDft in place)
+                ifftShift(maskedDft);
+                Mat dftIshift = maskedDft;
 
                 // Inverse DFT
                 Mat idft = new Mat();
@@ -224,8 +226,7 @@ public class FFTHighPass4Node extends MultiOutputNode {
                 floatChannel.release();
                 dft.release();
                 dftShift.release();
-                maskedDft.release();
-                dftIshift.release();
+                maskedDft.release();  // dftIshift is same as maskedDft, don't double-release
                 idft.release();
                 magnitude.release();
                 for (Mat plane : idftPlanes) plane.release();
@@ -248,12 +249,16 @@ public class FFTHighPass4Node extends MultiOutputNode {
             Mat dft = new Mat();
             Core.dft(floatInput, dft, Core.DFT_COMPLEX_OUTPUT);
 
-            Mat dftShift = fftShift(dft.clone());
+            // Clone first since fftShift modifies in place
+            Mat dftShift = dft.clone();
+            fftShift(dftShift);
 
             spectrum = createSpectrumVisualization(dftShift, rows, cols);
 
             Mat maskedDft = applyMask(dftShift, mask);
-            Mat dftIshift = ifftShift(maskedDft);
+            // ifftShift modifies in place
+            ifftShift(maskedDft);
+            Mat dftIshift = maskedDft;
 
             Mat idft = new Mat();
             Core.idft(dftIshift, idft, Core.DFT_SCALE);
@@ -272,8 +277,7 @@ public class FFTHighPass4Node extends MultiOutputNode {
             floatInput.release();
             dft.release();
             dftShift.release();
-            maskedDft.release();
-            dftIshift.release();
+            maskedDft.release();  // dftIshift is same as maskedDft, don't double-release
             idft.release();
             magnitude.release();
             for (Mat plane : idftPlanes) plane.release();
@@ -483,7 +487,7 @@ public class FFTHighPass4Node extends MultiOutputNode {
         return result;
     }
 
-    private Mat fftShift(Mat input) {
+    private void fftShift(Mat input) {
         int cx = input.cols() / 2;
         int cy = input.rows() / 2;
 
@@ -492,21 +496,29 @@ public class FFTHighPass4Node extends MultiOutputNode {
         Mat q2 = input.submat(cy, input.rows(), 0, cx);
         Mat q3 = input.submat(cy, input.rows(), cx, input.cols());
 
-        Mat tmp = new Mat();
-        q0.copyTo(tmp);
-        q3.copyTo(q0);
-        tmp.copyTo(q3);
+        try {
+            Mat tmp = new Mat();
+            try {
+                q0.copyTo(tmp);
+                q3.copyTo(q0);
+                tmp.copyTo(q3);
 
-        q1.copyTo(tmp);
-        q2.copyTo(q1);
-        tmp.copyTo(q2);
-
-        tmp.release();
-        return input;
+                q1.copyTo(tmp);
+                q2.copyTo(q1);
+                tmp.copyTo(q2);
+            } finally {
+                tmp.release();
+            }
+        } finally {
+            q0.release();
+            q1.release();
+            q2.release();
+            q3.release();
+        }
     }
 
-    private Mat ifftShift(Mat input) {
-        return fftShift(input);
+    private void ifftShift(Mat input) {
+        fftShift(input);
     }
 
     /**

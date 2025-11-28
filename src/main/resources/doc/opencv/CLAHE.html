@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CLAHE - Adaptive Histogram Equalization</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>CLAHE - Adaptive Histogram Equalization</h1>
+
+    <p>Contrast Limited Adaptive Histogram Equalization. Improves contrast locally while preventing over-amplification of noise.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.createCLAHE(double clipLimit, Size tileGridSize)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li>double clipLimit - Threshold for contrast limiting. Higher values give more contrast. Default 40.0.</li>
+        <li><a href="doc/types/Size.html">Size</a> tileGridSize - Size of grid for histogram equalization. Default (8, 8).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>CLAHE divides the image into small tiles and applies histogram equalization to each tile. Unlike global histogram equalization, this:</p>
+    <ul>
+        <li>Works well with varying lighting conditions</li>
+        <li>Prevents noise amplification through clip limiting</li>
+        <li>Produces more natural-looking results</li>
+    </ul>
+
+    <p><strong>How it works:</strong></p>
+    <ol>
+        <li>Divide image into tiles (e.g., 8x8 grid)</li>
+        <li>Compute histogram for each tile</li>
+        <li>Clip histogram at clipLimit (redistribute excess)</li>
+        <li>Apply histogram equalization to each tile</li>
+        <li>Interpolate boundaries to remove tile artifacts</li>
+    </ol>
+
+    <p><strong>Example:</strong></p>
+    <pre>// Create CLAHE object
+CLAHE clahe = Imgproc.createCLAHE(2.0, new Size(8, 8));
+
+// Apply to grayscale image
+Mat enhanced = new Mat();
+clahe.apply(gray, enhanced);
+
+// For color images, apply to L channel in LAB space
+Mat lab = new Mat();
+Imgproc.cvtColor(color, lab, Imgproc.COLOR_BGR2Lab);
+List&lt;Mat&gt; channels = new ArrayList<>();
+Core.split(lab, channels);
+clahe.apply(channels.get(0), channels.get(0));
+Core.merge(channels, lab);
+Imgproc.cvtColor(lab, result, Imgproc.COLOR_Lab2BGR);</pre>
+
+    <p><strong>Typical parameter values:</strong></p>
+    <ul>
+        <li>clipLimit: 2.0-4.0 (lower = less contrast, higher = more)</li>
+        <li>tileGridSize: (8,8) to (16,16)</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/calcHist.html">calcHist()</a> - Calculate histogram</li>
+        <li><a href="doc/opencv/cvtColor.html">cvtColor()</a> - Color space conversion</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/dc7/group__imgproc__hist.html#gad689d2607b7b3889f84f5c4f8b962f77" target="_blank">OpenCV CLAHE Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

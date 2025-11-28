@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Mat.submat - Crop / Region of Interest</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Mat.submat - Crop / Region of Interest</h1>
+
+    <p>Extracts a rectangular sub-region (Region of Interest) from a Mat. The result shares data with the original image.</p>
+
+    <h2>Signature</h2>
+    <p><code>Mat submat = mat.submat(Rect roi)</code></p>
+    <p><code>Mat submat = mat.submat(int rowStart, int rowEnd, int colStart, int colEnd)</code></p>
+    <p><code>Mat submat = new Mat(mat, Rect roi)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Rect.html">Rect</a> roi - Rectangle defining the region to extract.</li>
+        <li>int rowStart, rowEnd - Row range (exclusive end).</li>
+        <li>int colStart, colEnd - Column range (exclusive end).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <div class="note">
+        <strong>Important:</strong> submat() creates a <em>view</em> into the original data. Changes to the submat affect the original image, and vice versa. Use .clone() if you need an independent copy.
+    </div>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Extract region using Rect
+Rect roi = new Rect(100, 50, 200, 150);  // x, y, width, height
+Mat cropped = img.submat(roi);
+
+// Extract using row/column ranges
+Mat cropped = img.submat(50, 200, 100, 300);  // rows 50-199, cols 100-299
+
+// Using Mat constructor
+Mat cropped = new Mat(img, new Rect(0, 0, 100, 100));
+
+// Get independent copy (doesn't share data)
+Mat croppedCopy = img.submat(roi).clone();
+
+// Modify a region of the original
+Mat region = img.submat(new Rect(10, 10, 50, 50));
+region.setTo(new Scalar(0, 0, 255));  // Fill region with red</pre>
+
+    <p><strong>Common use cases:</strong></p>
+    <ul>
+        <li>Cropping images to focus on regions of interest</li>
+        <li>Processing only a portion of a large image</li>
+        <li>Extracting detected objects for further analysis</li>
+        <li>Efficiently modifying image regions without copying</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Rect.html">Rect</a> - Rectangle for defining ROI</li>
+        <li><a href="doc/types/Mat.html">Mat</a> - Mat class reference</li>
+        <li><a href="doc/opencv/warpAffine.html">warpAffine()</a> - For more complex transformations</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d3/d63/classcv_1_1Mat.html#a3fa1df8a32a84afab24b7deecd4f7b52" target="_blank">OpenCV Mat.submat Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

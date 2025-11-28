@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ellipse</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>ellipse</h1>
+
+    <p>Draws an ellipse outline, filled ellipse, or elliptic arc.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.ellipse(Mat img, Point center, Size axes, double angle, double startAngle, double endAngle, Scalar color, int thickness)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the ellipse is drawn.</li>
+        <li><a href="doc/types/Point.html">Point</a> center - Center of the ellipse.</li>
+        <li><a href="doc/types/Size.html">Size</a> axes - Half of the size of the ellipse main axes (width/2, height/2).</li>
+        <li>double angle - Ellipse rotation angle in degrees.</li>
+        <li>double startAngle - Starting angle of the elliptic arc in degrees.</li>
+        <li>double endAngle - Ending angle of the elliptic arc in degrees.</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Ellipse color in BGR.</li>
+        <li>int thickness - Line thickness. -1 for filled.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Draw full ellipse (100x50 pixels, no rotation)
+Imgproc.ellipse(img, new Point(200, 150),
+    new Size(100, 50),  // axes (half-width, half-height)
+    0,                   // no rotation
+    0, 360,              // full ellipse
+    new Scalar(0, 255, 0), 2);
+
+// Draw rotated ellipse (45 degrees)
+Imgproc.ellipse(img, new Point(400, 150),
+    new Size(80, 40), 45, 0, 360,
+    new Scalar(255, 0, 0), 2);
+
+// Draw arc (quarter ellipse)
+Imgproc.ellipse(img, new Point(200, 300),
+    new Size(60, 60), 0, 0, 90,  // 0 to 90 degrees
+    new Scalar(0, 0, 255), 3);
+
+// Draw filled ellipse
+Imgproc.ellipse(img, new Point(400, 300),
+    new Size(50, 30), 0, 0, 360,
+    new Scalar(255, 255, 0), -1);</pre>
+
+    <p><strong>Angle conventions:</strong></p>
+    <ul>
+        <li>0° is at 3 o'clock position</li>
+        <li>Angles increase counter-clockwise</li>
+        <li>Use 0-360 for full ellipse</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/circle.html">circle()</a> - Draw circles</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw rectangles</li>
+        <li><a href="doc/opencv/line.html">line()</a> - Draw lines</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga28b2267d35786f5f890ca167236cbc69" target="_blank">OpenCV ellipse Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

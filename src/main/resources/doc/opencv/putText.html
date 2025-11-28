@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>putText</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>putText</h1>
+
+    <p>Draws a text string on an image.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.putText(Mat img, String text, Point org, int fontFace, double fontScale, Scalar color, int thickness)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the text is drawn.</li>
+        <li>String text - Text string to be drawn.</li>
+        <li><a href="doc/types/Point.html">Point</a> org - Bottom-left corner of the text string in the image.</li>
+        <li>int fontFace - Font type (see table below).</li>
+        <li>double fontScale - Font scale factor (multiplies the font-specific base size).</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Text color in BGR format.</li>
+        <li>int thickness - Thickness of the lines used to draw text.</li>
+    </ul>
+
+    <h2>Font Faces</h2>
+
+    <table>
+        <tr><th>Constant</th><th>Description</th></tr>
+        <tr><td>FONT_HERSHEY_SIMPLEX</td><td>Normal size sans-serif</td></tr>
+        <tr><td>FONT_HERSHEY_PLAIN</td><td>Small size sans-serif</td></tr>
+        <tr><td>FONT_HERSHEY_DUPLEX</td><td>Normal size sans-serif, more complex</td></tr>
+        <tr><td>FONT_HERSHEY_COMPLEX</td><td>Normal size serif</td></tr>
+        <tr><td>FONT_HERSHEY_TRIPLEX</td><td>Normal size serif, more complex</td></tr>
+        <tr><td>FONT_HERSHEY_SCRIPT_SIMPLEX</td><td>Hand-writing style</td></tr>
+        <tr><td>FONT_HERSHEY_SCRIPT_COMPLEX</td><td>Hand-writing style, more complex</td></tr>
+    </table>
+
+    <p>Add <code>FONT_ITALIC</code> to any font for italic text.</p>
+
+    <h2>Description</h2>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Simple text
+Imgproc.putText(img, "Hello OpenCV",
+    new Point(50, 50),
+    Imgproc.FONT_HERSHEY_SIMPLEX, 1.0,
+    new Scalar(0, 255, 0), 2);
+
+// Italic text
+Imgproc.putText(img, "Italic Text",
+    new Point(50, 100),
+    Imgproc.FONT_HERSHEY_SIMPLEX | Imgproc.FONT_ITALIC, 1.0,
+    new Scalar(255, 0, 0), 2);
+
+// Get text size for centering
+Size textSize = Imgproc.getTextSize("Centered",
+    Imgproc.FONT_HERSHEY_SIMPLEX, 1.0, 2, null);
+int x = (img.cols() - (int)textSize.width) / 2;
+Imgproc.putText(img, "Centered", new Point(x, 200),
+    Imgproc.FONT_HERSHEY_SIMPLEX, 1.0, new Scalar(0, 0, 255), 2);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw boxes around text</li>
+        <li><a href="doc/opencv/line.html">line()</a> - Draw lines</li>
+        <li><a href="doc/types/Point.html">Point</a> - Text position</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga5126f47f883d730f633d74f07456c576" target="_blank">OpenCV putText Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

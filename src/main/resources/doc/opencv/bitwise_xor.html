@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>bitwise_xor</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>bitwise_xor</h1>
+
+    <p>Calculates the per-element bit-wise exclusive OR (XOR) of two arrays or an array and a scalar.</p>
+
+    <h2>Signature</h2>
+    <p><code>Core / cv2.bitwise_xor(Mat src1, Mat src2, Mat dst, Mat mask)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src1 - First input array or scalar.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> src2 - Second input array or scalar.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output array with the same size and type as the inputs.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> mask - Optional operation mask, 8-bit single channel (optional, can be empty Mat).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Computes bitwise XOR for each element:</p>
+    <pre>dst(x,y) = src1(x,y) XOR src2(x,y)    if mask(x,y) != 0</pre>
+
+    <p>XOR returns 1 when inputs differ, 0 when they're the same.</p>
+
+    <p><strong>Common use cases:</strong></p>
+    <ul>
+        <li><strong>Difference detection:</strong> Highlight differences between two images</li>
+        <li><strong>Toggle/flip pixels:</strong> XOR with white inverts, XOR with black preserves</li>
+        <li><strong>Symmetric difference:</strong> Find regions in one mask but not both</li>
+    </ul>
+
+    <p><strong>Example - finding differences:</strong></p>
+    <pre>// Highlight differences between two frames
+Mat diff = new Mat();
+Core.bitwise_xor(frame1, frame2, diff);
+
+// Or toggle specific pixels using a pattern
+Mat pattern = new Mat(img.size(), CvType.CV_8UC1, new Scalar(255));
+Core.bitwise_xor(img, pattern, inverted);  // Same as bitwise_not</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/bitwise_and.html">bitwise_and()</a> - Bitwise AND operation</li>
+        <li><a href="doc/opencv/bitwise_or.html">bitwise_or()</a> - Bitwise OR operation</li>
+        <li><a href="doc/opencv/bitwise_not.html">bitwise_not()</a> - Bitwise NOT operation</li>
+        <li><a href="doc/opencv/subtract.html">subtract()</a> - Arithmetic difference</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d2/de8/group__core__array.html#ga84b2d8188ce506593dcc3f8cd00e8e2c" target="_blank">OpenCV bitwise_xor Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

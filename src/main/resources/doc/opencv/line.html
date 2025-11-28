@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>line</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>line</h1>
+
+    <p>Draws a line segment connecting two points.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.line(Mat img, Point pt1, Point pt2, Scalar color, int thickness)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> img - Image where the line is drawn.</li>
+        <li><a href="doc/types/Point.html">Point</a> pt1 - First point of the line segment.</li>
+        <li><a href="doc/types/Point.html">Point</a> pt2 - Second point of the line segment.</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> color - Line color in BGR format.</li>
+        <li>int thickness - Line thickness in pixels.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Draw a simple red line
+Imgproc.line(img, new Point(10, 10), new Point(200, 100),
+             new Scalar(0, 0, 255), 2);
+
+// Draw with anti-aliasing (smoother)
+Imgproc.line(img, new Point(10, 50), new Point(200, 150),
+             new Scalar(0, 255, 0), 2, Imgproc.LINE_AA);
+
+// Draw thick line
+Imgproc.line(img, new Point(10, 100), new Point(200, 200),
+             new Scalar(255, 0, 0), 5);</pre>
+
+    <p><strong>Line types:</strong></p>
+    <ul>
+        <li><code>LINE_4</code>: 4-connected line (faster, more jagged)</li>
+        <li><code>LINE_8</code>: 8-connected line (default)</li>
+        <li><code>LINE_AA</code>: Anti-aliased line (smoother, slower)</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/arrowedLine.html">arrowedLine()</a> - Line with arrow tip</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Draw rectangles</li>
+        <li><a href="doc/opencv/circle.html">circle()</a> - Draw circles</li>
+        <li><a href="doc/types/Point.html">Point</a> - Coordinate specification</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga7078a9fae8c7e7d13d24dac2520ae4a2" target="_blank">OpenCV line Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Size - OpenCV Size Class</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .signature { background: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin: 15px 0; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Size</h1>
+
+    <p>The <code>Size</code> class represents the size of a 2D object, specified by its width and height.</p>
+
+    <h2>Constructors</h2>
+
+    <div class="signature">
+        <pre>new Size()                    // Default: width=0, height=0
+new Size(double width, double height)
+new Size(double[] vals)       // From array [width, height]</pre>
+    </div>
+
+    <h2>Properties</h2>
+
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>width</code></td><td>double</td><td>The width dimension</td></tr>
+        <tr><td><code>height</code></td><td>double</td><td>The height dimension</td></tr>
+    </table>
+
+    <h2>Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>area()</code></td><td>Returns width * height</td></tr>
+        <tr><td><code>empty()</code></td><td>Returns true if width <= 0 or height <= 0</td></tr>
+        <tr><td><code>clone()</code></td><td>Creates a copy of this Size</td></tr>
+    </table>
+
+    <h2>Common Usage</h2>
+
+    <h3>Creating a Size</h3>
+    <pre>// For a 640x480 image
+Size size = new Size(640, 480);
+
+// Kernel size for blur operations (must be odd)
+Size kernelSize = new Size(5, 5);</pre>
+
+    <h3>With Image Operations</h3>
+    <pre>// Resize an image
+Imgproc.resize(src, dst, new Size(320, 240));
+
+// Gaussian blur with 5x5 kernel
+Imgproc.GaussianBlur(src, dst, new Size(5, 5), 0);</pre>
+
+    <h2>Notes</h2>
+
+    <ul>
+        <li>For kernel sizes (blur, morphology), both width and height must be <strong>positive odd numbers</strong> (1, 3, 5, 7, ...)</li>
+        <li>Size uses <code>double</code> values, but many operations expect integer sizes</li>
+        <li>A Size of (0, 0) often means "compute automatically from other parameters"</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> - Image container</li>
+        <li><a href="doc/types/Point.html">Point</a> - For specifying coordinates</li>
+        <li><a href="doc/types/Rect.html">Rect</a> - For specifying rectangular regions</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/d50/classcv_1_1Size__.html" target="_blank">OpenCV Size Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

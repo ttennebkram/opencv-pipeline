@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Box Blur (blur)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Box Blur (blur)</h1>
+
+    <p>Blurs an image using a normalized box filter. This is the simplest and fastest blur operation.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.blur(Mat src, Mat dst, Size ksize)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image; it can have any number of channels, which are processed independently.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and type as src.</li>
+        <li><a href="doc/types/Size.html">Size</a> ksize - Blurring kernel size (width, height). Both values must be positive and odd.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The box blur (also called box filter or averaging filter) replaces each pixel with the average of all pixels in the kernel area. It uses a normalized kernel:</p>
+
+    <pre>K = 1/(ksize.width * ksize.height) * [ 1 1 1 ... ]
+                                       [ 1 1 1 ... ]
+                                       [ ... ... ]</pre>
+
+    <p>This is equivalent to convolving the image with a kernel filled with ones and then dividing by the kernel area.</p>
+
+    <p><strong>Characteristics:</strong></p>
+    <ul>
+        <li>Fastest blur operation</li>
+        <li>Equal weighting for all pixels in the kernel</li>
+        <li>Can produce "boxy" artifacts on edges</li>
+        <li>Good for quick noise reduction</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Weighted blur (better quality)</li>
+        <li><a href="doc/opencv/medianBlur.html">medianBlur()</a> - Good for salt-and-pepper noise</li>
+        <li><a href="doc/opencv/bilateralFilter.html">bilateralFilter()</a> - Edge-preserving blur</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#ga8c45db9afe636703801b0b2e440fce37" target="_blank">OpenCV blur Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

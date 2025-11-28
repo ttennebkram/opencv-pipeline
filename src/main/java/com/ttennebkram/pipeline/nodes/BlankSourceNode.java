@@ -107,6 +107,11 @@ public class BlankSourceNode extends SourceNode {
         gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 4, true);
         boldFont.dispose();
 
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? new Color(230, 240, 255) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
+
         // Draw thread priority, work units, and FPS stats line
         drawFpsStatsLine(gc, x + 10, y + 19);
 

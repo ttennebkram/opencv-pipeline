@@ -5,7 +5,26 @@ Legend:
     ! = urgent a = very high pri  b = important          c = avg/lower pri
     ? = question                  X or x = No/dismissed  = = dupe
 
-add to .gitignore files like .TODO.txt.swp
+.Too many open files
+Exception in thread "Thread-0" java.lang.RuntimeException: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss368pdpc0000gp/T/opencv_openpnp1887031657301443306: Too many open files
+	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:170)
+	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:175)
+	at nu.pattern.OpenCV$TemporaryDirectory$1.run(OpenCV.java:142)
+Caused by: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss368pdpc0000gp/T/opencv_openpnp1887031657301443306: Too many open files
+	at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:100)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111)
+	at java.base/sun.nio.fs.UnixFileSystemProvider.newDirectoryStream(UnixFileSystemProvider.java:461)
+	at java.base/java.nio.file.Files.newDirectoryStream(Files.java:481)
+	at java.base/java.nio.file.FileTreeWalker.visit(FileTreeWalker.java:301)
+	at java.base/java.nio.file.FileTreeWalker.walk(FileTreeWalker.java:323)
+	at java.base/java.nio.file.Files.walkFileTree(Files.java:2779)
+	at java.base/java.nio.file.Files.walkFileTree(Files.java:2857)
+	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:155)
+	... 2 more
+
+
+/add to .gitignore files like .TODO.txt.swp
 
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
@@ -32,6 +51,11 @@ how many nodes override .paint()?
     Multi input: just take from input 1
     Multi output: just output to output 1
     Container node: have monitoring thread do the work
+
+Add help links
+    offer for local install
+
+connection points shouldn't accept connector drops or start connection gestures if they already have a connection there
 
 File Source node still sluggish to show new name after Properties name edit
 
@@ -174,6 +198,8 @@ check all Java Nodes against all Python Effects
         .if both 30 fps there would be ~60 objects emitted
         .make it a UI checkbox for queues-in-sync default to NO
 
+Done:
+-----
 /each node can have its own custom name
 /Have Container window open.  Now switch to main window, Container window doesn't acknowledge now-running pipeline, still 
 shows "Start Pipeline" button (should be "Stop Pipeline", and status bar shows Pipeline Stopped 

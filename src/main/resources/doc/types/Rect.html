@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rect - OpenCV Rectangle Class</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .signature { background: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin: 15px 0; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Rect</h1>
+
+    <p>The <code>Rect</code> class represents a rectangle defined by its top-left corner position and size.</p>
+
+    <h2>Constructors</h2>
+
+    <div class="signature">
+        <pre>new Rect()                                // Default: all zeros
+new Rect(int x, int y, int width, int height)
+new Rect(Point p, Size s)                 // From point and size
+new Rect(Point p1, Point p2)              // From two corners
+new Rect(double[] vals)                   // From array [x, y, width, height]</pre>
+    </div>
+
+    <h2>Properties</h2>
+
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>x</code></td><td>int</td><td>X-coordinate of top-left corner</td></tr>
+        <tr><td><code>y</code></td><td>int</td><td>Y-coordinate of top-left corner</td></tr>
+        <tr><td><code>width</code></td><td>int</td><td>Width of rectangle</td></tr>
+        <tr><td><code>height</code></td><td>int</td><td>Height of rectangle</td></tr>
+    </table>
+
+    <h2>Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>tl()</code></td><td>Returns top-left corner as Point</td></tr>
+        <tr><td><code>br()</code></td><td>Returns bottom-right corner as Point</td></tr>
+        <tr><td><code>size()</code></td><td>Returns Size(width, height)</td></tr>
+        <tr><td><code>area()</code></td><td>Returns width * height</td></tr>
+        <tr><td><code>empty()</code></td><td>Returns true if width <= 0 or height <= 0</td></tr>
+        <tr><td><code>contains(Point p)</code></td><td>Checks if point is inside rectangle</td></tr>
+        <tr><td><code>clone()</code></td><td>Creates a copy</td></tr>
+    </table>
+
+    <h2>Common Usage</h2>
+
+    <h3>Creating Rectangles</h3>
+    <pre>// Rectangle at (100,50) with size 200x150
+Rect roi = new Rect(100, 50, 200, 150);
+
+// From two corner points
+Rect rect = new Rect(new Point(10, 10), new Point(100, 80));</pre>
+
+    <h3>Cropping (Region of Interest)</h3>
+    <pre>// Extract a region from an image
+Rect roi = new Rect(50, 50, 100, 100);
+Mat cropped = new Mat(img, roi);  // Shares data with original
+
+// To get a copy:
+Mat croppedCopy = img.submat(roi).clone();</pre>
+
+    <h3>Drawing Rectangles</h3>
+    <pre>// Draw rectangle outline
+Imgproc.rectangle(img, new Rect(10, 10, 100, 80),
+                  new Scalar(0, 255, 0), 2);
+
+// Or using corner points
+Imgproc.rectangle(img, new Point(10, 10), new Point(110, 90),
+                  new Scalar(0, 255, 0), 2);</pre>
+
+    <h3>Bounding Rectangles</h3>
+    <pre>// Get bounding rectangle of a contour
+Rect boundingRect = Imgproc.boundingRect(contour);
+
+// Get minimum area rotated rectangle
+RotatedRect minRect = Imgproc.minAreaRect(contour2f);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> - Image container (use Rect for ROI)</li>
+        <li><a href="doc/types/Point.html">Point</a> - For corners</li>
+        <li><a href="doc/types/Size.html">Size</a> - For dimensions</li>
+        <li><a href="doc/opencv/rectangle.html">rectangle()</a> - Drawing function</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d2/d44/classcv_1_1Rect__.html" target="_blank">OpenCV Rect Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>convertTo - Brightness/Contrast</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>convertTo - Brightness/Contrast</h1>
+
+    <p>Converts a Mat to another data type with optional scaling. Commonly used for brightness and contrast adjustment.</p>
+
+    <h2>Signature</h2>
+    <p><code>mat.convertTo(Mat dst, int rtype, double alpha, double beta)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output matrix.</li>
+        <li>int rtype - Desired output type (e.g., CvType.CV_8U). Use -1 for same as source.</li>
+        <li>double alpha - Scale factor (gain/contrast). Default 1.0.</li>
+        <li>double beta - Value added to scaled values (bias/brightness). Default 0.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Each element is transformed by:</p>
+    <pre>dst(x,y) = saturate(alpha * src(x,y) + beta)</pre>
+
+    <p><strong>Parameter effects:</strong></p>
+    <ul>
+        <li><strong>alpha (gain):</strong> Controls contrast
+            <ul>
+                <li>alpha > 1: Increase contrast</li>
+                <li>alpha < 1: Decrease contrast</li>
+                <li>alpha = 1: No change</li>
+            </ul>
+        </li>
+        <li><strong>beta (bias):</strong> Controls brightness
+            <ul>
+                <li>beta > 0: Brighten image</li>
+                <li>beta < 0: Darken image</li>
+                <li>beta = 0: No change</li>
+            </ul>
+        </li>
+    </ul>
+
+    <p><strong>Examples:</strong></p>
+    <pre>// Increase brightness by 50
+src.convertTo(dst, -1, 1.0, 50);
+
+// Increase contrast (alpha = 1.5)
+src.convertTo(dst, -1, 1.5, 0);
+
+// Increase both contrast and brightness
+src.convertTo(dst, -1, 1.3, 30);
+
+// Decrease brightness (darken)
+src.convertTo(dst, -1, 1.0, -40);
+
+// Convert to float type
+src.convertTo(floatImg, CvType.CV_32F, 1.0/255.0, 0);
+
+// Invert image (negative)
+src.convertTo(dst, -1, -1, 255);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/add.html">add()</a> - Add constant value</li>
+        <li><a href="doc/opencv/CLAHE.html">CLAHE()</a> - Adaptive contrast enhancement</li>
+        <li><a href="doc/types/Mat.html">Mat</a> - Mat class reference</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d3/d63/classcv_1_1Mat.html#adf88c60c5b4980e05bb556080916978b" target="_blank">OpenCV Mat.convertTo Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

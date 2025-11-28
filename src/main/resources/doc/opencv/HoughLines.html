@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>HoughLines</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>HoughLines</h1>
+
+    <p>Finds lines in a binary image using the Standard Hough Transform. Returns lines as (rho, theta) pairs representing infinite lines.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.HoughLines(Mat image, Mat lines, double rho, double theta, int threshold)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - 8-bit, single-channel binary source image (typically from Canny edge detection).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> lines - Output vector of lines. Each line is represented by a 2-element vector (ρ, θ).</li>
+        <li>double rho - Distance resolution of the accumulator in pixels (typically 1).</li>
+        <li>double theta - Angle resolution of the accumulator in radians (typically π/180).</li>
+        <li>int threshold - Accumulator threshold. Only lines with enough votes are returned.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Lines are represented in polar form:</p>
+    <pre>ρ = x·cos(θ) + y·sin(θ)</pre>
+    <p>Where ρ is the distance from origin to the line, and θ is the angle of the perpendicular.</p>
+
+    <p><strong>Typical workflow:</strong></p>
+    <ol>
+        <li>Convert to grayscale</li>
+        <li>Apply edge detection (Canny)</li>
+        <li>Run HoughLines</li>
+        <li>Convert (ρ, θ) to line endpoints for drawing</li>
+    </ol>
+
+    <p><strong>Drawing detected lines:</strong></p>
+    <pre>for (int i = 0; i < lines.rows(); i++) {
+    double rho = lines.get(i, 0)[0];
+    double theta = lines.get(i, 0)[1];
+    double a = Math.cos(theta), b = Math.sin(theta);
+    double x0 = a * rho, y0 = b * rho;
+    Point pt1 = new Point(x0 + 1000*(-b), y0 + 1000*(a));
+    Point pt2 = new Point(x0 - 1000*(-b), y0 - 1000*(a));
+    Imgproc.line(dst, pt1, pt2, new Scalar(0, 0, 255), 2);
+}</pre>
+
+    <p><strong>Note:</strong> For line segments with endpoints, use HoughLinesP (Probabilistic Hough Transform) instead.</p>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/Canny.html">Canny()</a> - Edge detection for preprocessing</li>
+        <li><a href="doc/opencv/HoughCircles.html">HoughCircles()</a> - Detect circles</li>
+        <li><a href="doc/opencv/line.html">line()</a> - Draw detected lines</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/dd/d1a/group__imgproc__feature.html#ga46b4e588934f6c8dfd509cc6e0e4545a" target="_blank">OpenCV HoughLines Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

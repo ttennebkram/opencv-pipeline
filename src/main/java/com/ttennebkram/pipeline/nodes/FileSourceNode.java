@@ -105,6 +105,11 @@ public class FileSourceNode extends SourceNode {
         if (videoCapture != null) {
             videoCapture.release();
         }
+        // Release previous loadedImage if it exists
+        if (loadedImage != null) {
+            loadedImage.release();
+            loadedImage = null;
+        }
 
         videoCapture = new VideoCapture(path);
         if (!videoCapture.isOpened()) {
@@ -160,6 +165,10 @@ public class FileSourceNode extends SourceNode {
     }
 
     private void loadImage(String path) {
+        // Release previous loadedImage if it exists
+        if (loadedImage != null) {
+            loadedImage.release();
+        }
         loadedImage = Imgcodecs.imread(path);
         if (loadedImage.empty()) {
             return;
@@ -199,32 +208,40 @@ public class FileSourceNode extends SourceNode {
             thumbnailMat = cached;
             // Convert to ImageData for thumbnail (Image will be created on UI thread)
             Mat rgb = new Mat();
-            if (cached.channels() == 3) {
-                Imgproc.cvtColor(cached, rgb, Imgproc.COLOR_BGR2RGB);
-            } else {
-                rgb = cached;
-            }
+            boolean rgbCreated = false;
+            try {
+                if (cached.channels() == 3) {
+                    Imgproc.cvtColor(cached, rgb, Imgproc.COLOR_BGR2RGB);
+                    rgbCreated = true;
+                } else {
+                    rgb = cached;
+                }
 
-            int w = rgb.width();
-            int h = rgb.height();
-            byte[] data = new byte[w * h * 3];
-            rgb.get(0, 0, data);
+                int w = rgb.width();
+                int h = rgb.height();
+                byte[] data = new byte[w * h * 3];
+                rgb.get(0, 0, data);
 
-            PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-            ImageData imageData = new ImageData(w, h, 24, palette);
-            for (int row = 0; row < h; row++) {
-                for (int col = 0; col < w; col++) {
-                    int srcIdx = (row * w + col) * 3;
-                    int r = data[srcIdx] & 0xFF;
-                    int g = data[srcIdx + 1] & 0xFF;
-                    int b = data[srcIdx + 2] & 0xFF;
-                    imageData.setPixel(col, row, (r << 16) | (g << 8) | b);
+                PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+                ImageData imageData = new ImageData(w, h, 24, palette);
+                for (int row = 0; row < h; row++) {
+                    for (int col = 0; col < w; col++) {
+                        int srcIdx = (row * w + col) * 3;
+                        int r = data[srcIdx] & 0xFF;
+                        int g = data[srcIdx + 1] & 0xFF;
+                        int b = data[srcIdx + 2] & 0xFF;
+                        imageData.setPixel(col, row, (r << 16) | (g << 8) | b);
+                    }
+                }
+
+                // Set pending data - Image will be created on UI thread when drawThumbnail is called
+                setPendingThumbnailData(imageData);
+                return true;
+            } finally {
+                if (rgbCreated) {
+                    rgb.release();
                 }
             }
-
-            // Set pending data - Image will be created on UI thread when drawThumbnail is called
-            setPendingThumbnailData(imageData);
-            return true;
         } catch (Exception e) {
             return false;
         }
@@ -258,6 +275,11 @@ public class FileSourceNode extends SourceNode {
         gc.setFont(boldFont);
         gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 4, true);
         boldFont.dispose();
+
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? new Color(230, 240, 255) : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
 
         // Draw thread priority, work units, and FPS stats line
         drawFpsStatsLine(gc, x + 10, y + 19);
@@ -417,6 +439,12 @@ public class FileSourceNode extends SourceNode {
     public void dispose() {
         if (videoCapture != null) {
             videoCapture.release();
+        }
+        if (loadedImage != null) {
+            loadedImage.release();
+        }
+        if (thumbnailMat != null) {
+            thumbnailMat.release();
         }
     }
 

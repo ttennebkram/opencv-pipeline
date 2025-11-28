@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>inRange - Color Range</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>inRange - Color Range</h1>
+
+    <p>Checks if array elements lie between the elements of two other arrays. Creates a binary mask of pixels within the specified color range.</p>
+
+    <h2>Signature</h2>
+    <p><code>Core / cv2.inRange(Mat src, Scalar lowerb, Scalar upperb, Mat dst)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input array (single or multi-channel).</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> lowerb - Inclusive lower boundary (minimum values for each channel).</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> upperb - Inclusive upper boundary (maximum values for each channel).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output array of the same size as src and CV_8U type (binary mask).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>For each pixel, the function checks:</p>
+    <pre>dst(x,y) = 255 if lowerb ≤ src(x,y) ≤ upperb (all channels)
+         = 0   otherwise</pre>
+
+    <p>The output is a binary mask where white pixels (255) indicate pixels within the range.</p>
+
+    <div class="note">
+        <strong>Tip:</strong> For color detection, convert to HSV first. The Hue channel is more robust to lighting changes than BGR values.
+    </div>
+
+    <h2>Common HSV Color Ranges</h2>
+
+    <table>
+        <tr><th>Color</th><th>H Low</th><th>H High</th><th>S Range</th><th>V Range</th></tr>
+        <tr><td style="background:red;color:white">Red (low)</td><td>0</td><td>10</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:red;color:white">Red (high)</td><td>160</td><td>179</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:orange;color:white">Orange</td><td>10</td><td>25</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:yellow">Yellow</td><td>25</td><td>35</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:green;color:white">Green</td><td>35</td><td>85</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:blue;color:white">Blue</td><td>85</td><td>130</td><td>100-255</td><td>100-255</td></tr>
+        <tr><td style="background:purple;color:white">Purple</td><td>130</td><td>160</td><td>100-255</td><td>100-255</td></tr>
+    </table>
+
+    <p><em>Note: OpenCV uses H range 0-179, not 0-360. Multiply standard hue values by 0.5.</em></p>
+
+    <h2>Example Usage</h2>
+
+    <pre>// Detect blue objects
+Mat hsv = new Mat();
+Imgproc.cvtColor(src, hsv, Imgproc.COLOR_BGR2HSV);
+
+Scalar lowerBlue = new Scalar(100, 50, 50);
+Scalar upperBlue = new Scalar(130, 255, 255);
+
+Mat mask = new Mat();
+Core.inRange(hsv, lowerBlue, upperBlue, mask);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/cvtColor.html">cvtColor()</a> - Convert to HSV for better color detection</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> - Color boundary values</li>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Single-channel thresholding</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d2/de8/group__core__array.html#ga48af0ab51e36436c5d04340e036ce981" target="_blank">OpenCV inRange Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

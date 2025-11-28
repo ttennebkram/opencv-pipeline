@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Point - OpenCV Point Class</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .signature { background: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin: 15px 0; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Point</h1>
+
+    <p>The <code>Point</code> class represents a 2D point with x and y coordinates.</p>
+
+    <h2>Constructors</h2>
+
+    <div class="signature">
+        <pre>new Point()                   // Default: x=0, y=0
+new Point(double x, double y)
+new Point(double[] vals)      // From array [x, y]</pre>
+    </div>
+
+    <h2>Properties</h2>
+
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>x</code></td><td>double</td><td>The x-coordinate (horizontal position)</td></tr>
+        <tr><td><code>y</code></td><td>double</td><td>The y-coordinate (vertical position)</td></tr>
+    </table>
+
+    <h2>Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>dot(Point p)</code></td><td>Computes dot product with another point</td></tr>
+        <tr><td><code>inside(Rect r)</code></td><td>Checks if point is inside a rectangle</td></tr>
+        <tr><td><code>clone()</code></td><td>Creates a copy of this Point</td></tr>
+    </table>
+
+    <h2>Common Usage</h2>
+
+    <h3>Creating Points</h3>
+    <pre>// A point at coordinates (100, 50)
+Point pt = new Point(100, 50);
+
+// Origin
+Point origin = new Point(0, 0);</pre>
+
+    <h3>Drawing Operations</h3>
+    <pre>// Draw a line from (10,10) to (200,200)
+Imgproc.line(img, new Point(10, 10), new Point(200, 200),
+             new Scalar(0, 255, 0), 2);
+
+// Draw a circle at center (150, 150)
+Imgproc.circle(img, new Point(150, 150), 50,
+               new Scalar(255, 0, 0), -1);</pre>
+
+    <h3>Template Matching</h3>
+    <pre>// Find best match location
+Core.MinMaxLocResult result = Core.minMaxLoc(matchResult);
+Point matchLoc = result.maxLoc;  // Location of best match</pre>
+
+    <h2>Coordinate System</h2>
+
+    <p>OpenCV uses a coordinate system where:</p>
+    <ul>
+        <li><strong>x</strong> increases to the right (column index)</li>
+        <li><strong>y</strong> increases downward (row index)</li>
+        <li>Origin (0,0) is at the <strong>top-left</strong> corner</li>
+    </ul>
+
+    <pre>
+    (0,0) -----> x
+      |
+      |
+      v
+      y
+    </pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> - Image container</li>
+        <li><a href="doc/types/Size.html">Size</a> - For specifying dimensions</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> - For specifying colors</li>
+        <li><a href="doc/types/Rect.html">Rect</a> - For specifying rectangular regions</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/db/d4e/classcv_1_1Point__.html" target="_blank">OpenCV Point Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

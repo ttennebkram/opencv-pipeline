@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>calcHist - Calculate Histogram</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>calcHist - Calculate Histogram</h1>
+
+    <p>Calculates the histogram of an image. A histogram shows the distribution of pixel intensities.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.calcHist(List&lt;Mat&gt; images, MatOfInt channels, Mat mask, Mat hist, MatOfInt histSize, MatOfFloat ranges)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li>List&lt;<a href="doc/types/Mat.html">Mat</a>&gt; images - Source images (typically just one).</li>
+        <li>MatOfInt channels - Channel indices to compute histogram for (e.g., 0 for grayscale).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> mask - Optional mask (only pixels where mask != 0 are counted). Use empty Mat for no mask.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> hist - Output histogram.</li>
+        <li>MatOfInt histSize - Number of bins for each dimension (typically 256 for full range).</li>
+        <li>MatOfFloat ranges - Value ranges (typically 0-256 for 8-bit images).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>A histogram counts how many pixels have each intensity value. It's fundamental for:</p>
+    <ul>
+        <li>Image analysis and statistics</li>
+        <li>Contrast enhancement (histogram equalization)</li>
+        <li>Thresholding decisions</li>
+        <li>Image comparison</li>
+    </ul>
+
+    <p><strong>Example - Grayscale histogram:</strong></p>
+    <pre>List&lt;Mat&gt; images = Arrays.asList(gray);
+MatOfInt channels = new MatOfInt(0);
+Mat hist = new Mat();
+MatOfInt histSize = new MatOfInt(256);
+MatOfFloat ranges = new MatOfFloat(0, 256);
+
+Imgproc.calcHist(images, channels, new Mat(), hist, histSize, ranges);
+
+// Draw histogram
+int histH = 300, histW = 512;
+Mat histImage = new Mat(histH, histW, CvType.CV_8UC3, new Scalar(255, 255, 255));
+Core.normalize(hist, hist, 0, histH, Core.NORM_MINMAX);
+
+for (int i = 1; i < 256; i++) {
+    Imgproc.line(histImage,
+        new Point((i-1) * 2, histH - hist.get(i-1, 0)[0]),
+        new Point(i * 2, histH - hist.get(i, 0)[0]),
+        new Scalar(0, 0, 0), 2);
+}</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/CLAHE.html">CLAHE()</a> - Adaptive histogram equalization</li>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Use Otsu with histogram analysis</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d6/dc7/group__imgproc__hist.html#ga4b2b5fd75503ff9e6844cc4dcdaaa32d" target="_blank">OpenCV calcHist Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

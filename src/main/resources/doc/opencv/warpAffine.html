@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>warpAffine</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>warpAffine</h1>
+
+    <p>Applies an affine transformation to an image. Affine transforms preserve parallel lines and include rotation, scaling, translation, and shearing.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.warpAffine(Mat src, Mat dst, Mat M, Size dsize)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image with specified size.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> M - 2x3 transformation matrix.</li>
+        <li><a href="doc/types/Size.html">Size</a> dsize - Size of the output image.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The transformation is:</p>
+    <pre>dst(x,y) = src(M00*x + M01*y + M02, M10*x + M11*y + M12)</pre>
+
+    <p><strong>Creating transformation matrices:</strong></p>
+    <pre>// Rotation around center
+Point center = new Point(src.cols()/2, src.rows()/2);
+double angle = 45;  // degrees
+double scale = 1.0;
+Mat M = Imgproc.getRotationMatrix2D(center, angle, scale);
+Imgproc.warpAffine(src, dst, M, src.size());
+
+// Translation
+Mat M = new Mat(2, 3, CvType.CV_64F);
+M.put(0, 0, 1, 0, tx,   // tx = horizontal shift
+              0, 1, ty);  // ty = vertical shift
+Imgproc.warpAffine(src, dst, M, src.size());
+
+// From three point correspondences
+MatOfPoint2f srcPts = new MatOfPoint2f(
+    new Point(0, 0), new Point(100, 0), new Point(0, 100));
+MatOfPoint2f dstPts = new MatOfPoint2f(
+    new Point(10, 10), new Point(90, 20), new Point(20, 90));
+Mat M = Imgproc.getAffineTransform(srcPts, dstPts);</pre>
+
+    <p><strong>Border modes:</strong></p>
+    <ul>
+        <li><code>BORDER_CONSTANT</code>: Fill with specified color</li>
+        <li><code>BORDER_REPLICATE</code>: Extend edge pixels</li>
+        <li><code>BORDER_REFLECT</code>: Mirror at border</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/cvtColor.html">cvtColor()</a> - Color conversion</li>
+        <li><a href="doc/types/Size.html">Size</a> - Output dimensions</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#ga0203d9ee5fcd28d40dbc4a1ea4451983" target="_blank">OpenCV warpAffine Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

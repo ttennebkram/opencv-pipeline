@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SimpleBlobDetector</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>SimpleBlobDetector</h1>
+
+    <p>Detects blobs (regions) in an image based on various criteria like color, area, circularity, convexity, and inertia ratio.</p>
+
+    <h2>Signature</h2>
+    <p><code>Features2d / cv2.SimpleBlobDetector_create(SimpleBlobDetector_Params params)</code></p>
+
+    <h2>Description</h2>
+
+    <p>The blob detector works by:</p>
+    <ol>
+        <li>Thresholding the image at multiple levels</li>
+        <li>Finding connected components (blobs) at each level</li>
+        <li>Filtering blobs by specified criteria</li>
+        <li>Merging nearby blobs across threshold levels</li>
+    </ol>
+
+    <h2>Filter Parameters</h2>
+
+    <table>
+        <tr><th>Filter</th><th>Description</th></tr>
+        <tr><td>filterByColor</td><td>Filter by blob color (dark vs light)</td></tr>
+        <tr><td>filterByArea</td><td>Filter by blob size (minArea, maxArea)</td></tr>
+        <tr><td>filterByCircularity</td><td>Filter by how circular (4πArea/perimeter²)</td></tr>
+        <tr><td>filterByConvexity</td><td>Filter by convexity (Area/ConvexHullArea)</td></tr>
+        <tr><td>filterByInertia</td><td>Filter by elongation (circle=1, line=0)</td></tr>
+    </table>
+
+    <p><strong>Usage:</strong></p>
+    <pre>// Create detector with default parameters
+SimpleBlobDetector detector = SimpleBlobDetector.create();
+
+// Detect blobs
+MatOfKeyPoint keypoints = new MatOfKeyPoint();
+detector.detect(gray, keypoints);
+
+// Draw detected blobs
+Mat output = new Mat();
+Features2d.drawKeypoints(image, keypoints, output, new Scalar(0, 0, 255),
+    Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);</pre>
+
+    <p><strong>Custom parameters:</strong></p>
+    <pre>SimpleBlobDetector_Params params = new SimpleBlobDetector_Params();
+params.set_filterByArea(true);
+params.set_minArea(100);
+params.set_maxArea(5000);
+params.set_filterByCircularity(true);
+params.set_minCircularity(0.8f);  // Detect round blobs
+SimpleBlobDetector detector = SimpleBlobDetector.create(params);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/findContours.html">findContours()</a> - Find contours for more control</li>
+        <li><a href="doc/opencv/connectedComponents.html">connectedComponents()</a> - Label connected regions</li>
+        <li><a href="doc/opencv/HoughCircles.html">HoughCircles()</a> - Detect circles specifically</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d0/d7a/classcv_1_1SimpleBlobDetector.html" target="_blank">OpenCV SimpleBlobDetector Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

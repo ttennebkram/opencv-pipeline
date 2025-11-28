@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Adaptive Threshold</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Adaptive Threshold</h1>
+
+    <p>Applies an adaptive threshold to an image. Unlike simple thresholding, the threshold value is calculated for each pixel based on a local neighborhood.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.adaptiveThreshold(Mat src, Mat dst, double maxValue, int adaptiveMethod, int thresholdType, int blockSize, double C)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Source 8-bit single-channel image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Destination image of the same size and type as src.</li>
+        <li>double maxValue - Non-zero value assigned to pixels that satisfy the condition.</li>
+        <li>int adaptiveMethod - Adaptive thresholding algorithm: ADAPTIVE_THRESH_MEAN_C or ADAPTIVE_THRESH_GAUSSIAN_C.</li>
+        <li>int thresholdType - Must be THRESH_BINARY or THRESH_BINARY_INV.</li>
+        <li>int blockSize - Size of pixel neighborhood used for threshold calculation. Must be odd (3, 5, 7, ...).</li>
+        <li>double C - Constant subtracted from the calculated mean or weighted mean.</li>
+    </ul>
+
+    <h2>Adaptive Methods</h2>
+
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>ADAPTIVE_THRESH_MEAN_C</td><td>Threshold = mean of blockSize × blockSize neighborhood - C</td></tr>
+        <tr><td>ADAPTIVE_THRESH_GAUSSIAN_C</td><td>Threshold = Gaussian-weighted sum of neighborhood - C</td></tr>
+    </table>
+
+    <h2>Description</h2>
+
+    <p>Adaptive thresholding is particularly useful when:</p>
+    <ul>
+        <li>Lighting varies across the image</li>
+        <li>There are shadows or gradients</li>
+        <li>Global thresholding produces poor results</li>
+    </ul>
+
+    <p><strong>Parameter tuning:</strong></p>
+    <ul>
+        <li><strong>blockSize:</strong> Larger values = smoother threshold transitions. Typical: 11-31.</li>
+        <li><strong>C:</strong> Positive C = darker threshold (more white pixels). Negative C = brighter threshold. Typical: 2-10.</li>
+    </ul>
+
+    <p><strong>Common use cases:</strong></p>
+    <ul>
+        <li>Document/text binarization</li>
+        <li>Processing images with uneven lighting</li>
+        <li>Segmenting objects from variable backgrounds</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Simple global threshold</li>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Pre-processing for noise reduction</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d7/d1b/group__imgproc__misc.html#ga72b913f352e4a1b1b397736707afcde3" target="_blank">OpenCV adaptiveThreshold Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

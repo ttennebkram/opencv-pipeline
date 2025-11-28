@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>filter2D - Custom Convolution</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>filter2D - Custom Convolution</h1>
+
+    <p>Convolves an image with a custom kernel. This is the general-purpose filter that underlies many OpenCV operations.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.filter2D(Mat src, Mat dst, int ddepth, Mat kernel)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and channels as src.</li>
+        <li>int ddepth - Desired depth of the output (-1 for same as source).</li>
+        <li><a href="doc/types/Mat.html">Mat</a> kernel - Convolution kernel (single-channel floating point matrix).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Convolution slides the kernel over the image, computing weighted sums at each position:</p>
+    <pre>dst(x,y) = Σ kernel(i,j) * src(x+i, y+j)</pre>
+
+    <p><strong>Common kernel examples:</strong></p>
+    <pre>// Identity (no change)
+Mat kernel = new Mat(3, 3, CvType.CV_32F);
+kernel.put(0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
+
+// Edge detection (Laplacian-like)
+kernel.put(0, 0, 0, -1, 0, -1, 4, -1, 0, -1, 0);
+
+// Sharpen
+kernel.put(0, 0, 0, -1, 0, -1, 5, -1, 0, -1, 0);
+
+// Emboss
+kernel.put(0, 0, -2, -1, 0, -1, 1, 1, 0, 1, 2);
+
+// Box blur (averaging)
+Mat kernel = Mat.ones(5, 5, CvType.CV_32F);
+Core.divide(kernel, new Scalar(25), kernel);
+
+// Apply the kernel
+Imgproc.filter2D(src, dst, -1, kernel);</pre>
+
+    <p><strong>Creating custom effects:</strong></p>
+    <pre>// Custom 5x5 Gaussian-like kernel
+Mat kernel = new Mat(5, 5, CvType.CV_32F);
+kernel.put(0, 0,
+    1,  4,  6,  4, 1,
+    4, 16, 24, 16, 4,
+    6, 24, 36, 24, 6,
+    4, 16, 24, 16, 4,
+    1,  4,  6,  4, 1);
+Core.divide(kernel, new Scalar(256), kernel);  // Normalize</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Pre-built Gaussian filter</li>
+        <li><a href="doc/opencv/Sobel.html">Sobel()</a> - Pre-built edge detection</li>
+        <li><a href="doc/opencv/Laplacian.html">Laplacian()</a> - Pre-built Laplacian</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#ga27c049795ce870216ddfb366086b5a04" target="_blank">OpenCV filter2D Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

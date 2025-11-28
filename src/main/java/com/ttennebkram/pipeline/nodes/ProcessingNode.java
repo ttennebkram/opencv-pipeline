@@ -1,6 +1,7 @@
 package com.ttennebkram.pipeline.nodes;
 
 import com.google.gson.JsonObject;
+import com.ttennebkram.pipeline.ui.HelpBrowser;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.layout.GridData;
@@ -64,16 +65,40 @@ public abstract class ProcessingNode extends PipelineNode {
      * @return The Text widget for the name field (save reference to get value in OK handler)
      */
     protected Text addNameField(Shell dialog, int columns) {
-        // Type label at very top (read-only)
+        // Type label at very top (read-only) with optional help button
         Label typeLabel = new Label(dialog, SWT.NONE);
         typeLabel.setText("Type:");
-        Label typeValue = new Label(dialog, SWT.NONE);
-        typeValue.setText(getClass().getSimpleName());
-        GridData typeGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+
+        // Create a composite to hold type value and help button
+        Composite typeComposite = new Composite(dialog, SWT.NONE);
+        GridLayout typeLayout = new GridLayout(2, false);
+        typeLayout.marginWidth = 0;
+        typeLayout.marginHeight = 0;
+        typeLayout.horizontalSpacing = 5;
+        typeComposite.setLayout(typeLayout);
+        GridData typeCompGd = new GridData(SWT.FILL, SWT.CENTER, true, false);
         if (columns > 2) {
-            typeGd.horizontalSpan = columns - 1;
+            typeCompGd.horizontalSpan = columns - 1;
         }
-        typeValue.setLayoutData(typeGd);
+        typeComposite.setLayoutData(typeCompGd);
+
+        Label typeValue = new Label(typeComposite, SWT.NONE);
+        typeValue.setText(getClass().getSimpleName());
+        typeValue.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+
+        // Add help button if help is available for this node
+        if (HelpBrowser.hasHelp(getClass())) {
+            Button helpBtn = new Button(typeComposite, SWT.PUSH);
+            helpBtn.setText("?");
+            helpBtn.setToolTipText("Open help documentation");
+            GridData helpGd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+            helpGd.widthHint = 20;
+            helpGd.heightHint = 20;
+            helpBtn.setLayoutData(helpGd);
+            helpBtn.addListener(SWT.Selection, e -> {
+                HelpBrowser.openForNode(dialog, getClass());
+            });
+        }
 
         // Name field
         new Label(dialog, SWT.NONE).setText("Name:");
@@ -231,6 +256,11 @@ public abstract class ProcessingNode extends PipelineNode {
         gc.setFont(boldFont);
         gc.drawString(getDisplayLabel(), x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5, y + 5, true);
         boldFont.dispose();
+
+        // Draw help icon LAST so it's on top of any overlapping title text
+        Color helpBgColor = enabled ? getBackgroundColor() : new Color(DISABLED_BG_R, DISABLED_BG_G, DISABLED_BG_B);
+        drawHelpIcon(gc, helpBgColor);
+        helpBgColor.dispose();
 
         // Draw thread priority label
         Font smallFont = new Font(display, "Arial", 8, SWT.NORMAL);

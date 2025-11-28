@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dilate</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Dilate</h1>
+
+    <p>Dilates an image using a structuring element. Expands bright regions (or white areas in binary images).</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.dilate(Mat src, Mat dst, Mat kernel)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image; can have any number of channels, processed independently.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and type as src.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> kernel - Structuring element. Use getStructuringElement() to create, or pass empty Mat for 3x3 rectangle.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Dilation replaces each pixel with the local maximum over the area of the structuring element:</p>
+
+    <pre>dst(x,y) = max(src(x+x', y+y')) for (x',y') in kernel</pre>
+
+    <p><strong>Effects on binary images:</strong></p>
+    <ul>
+        <li>White regions grow/expand</li>
+        <li>Black regions shrink</li>
+        <li>Small holes are filled</li>
+        <li>Objects connect if close together</li>
+    </ul>
+
+    <p><strong>Effects on grayscale images:</strong></p>
+    <ul>
+        <li>Bright areas expand</li>
+        <li>Dark details are reduced</li>
+        <li>Overall image appears brighter</li>
+    </ul>
+
+    <p><strong>Common structuring elements:</strong></p>
+    <pre>// 5x5 rectangular kernel
+Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+
+// 5x5 elliptical kernel
+Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(5, 5));
+
+// 5x5 cross-shaped kernel
+Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(5, 5));</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/erode.html">erode()</a> - Opposite operation (shrink bright regions)</li>
+        <li><a href="doc/opencv/morphologyEx.html">morphologyEx()</a> - Advanced morphological operations</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d4/d86/group__imgproc__filter.html#ga4ff0f3318642c4f469d0e11f242f3b6c" target="_blank">OpenCV dilate Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

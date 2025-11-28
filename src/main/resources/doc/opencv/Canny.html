@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Canny Edge Detection</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>Canny Edge Detection</h1>
+
+    <p>Finds edges in an image using the Canny algorithm.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.Canny(Mat image, Mat edges, double threshold1, double threshold2)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - 8-bit input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> edges - Output edge map; single channels 8-bit image, which has the same size as image.</li>
+        <li>double threshold1 - First threshold for the hysteresis procedure.</li>
+        <li>double threshold2 - Second threshold for the hysteresis procedure.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Canny edge detector is a multi-stage algorithm:</p>
+    <ol>
+        <li><strong>Noise Reduction:</strong> Apply Gaussian filter to smooth the image</li>
+        <li><strong>Gradient Calculation:</strong> Find intensity gradients using Sobel operator</li>
+        <li><strong>Non-maximum Suppression:</strong> Thin the edges to 1-pixel width</li>
+        <li><strong>Hysteresis Thresholding:</strong> Use two thresholds to determine final edges</li>
+    </ol>
+
+    <p>Edges with intensity gradient above <code>threshold2</code> are considered strong edges. Edges between <code>threshold1</code> and <code>threshold2</code> are kept only if connected to strong edges.</p>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/Sobel.html">Sobel()</a> - Sobel derivatives</li>
+        <li><a href="doc/opencv/Laplacian.html">Laplacian()</a> - Laplacian operator</li>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Gaussian smoothing</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/dd/d1a/group__imgproc__feature.html#ga04723e007ed888ddf11d9ba04e2232de" target="_blank">OpenCV Canny Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

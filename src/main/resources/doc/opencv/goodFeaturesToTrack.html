@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>goodFeaturesToTrack (Shi-Tomasi)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>goodFeaturesToTrack (Shi-Tomasi)</h1>
+
+    <p>Finds the strongest corners in an image using the Shi-Tomasi method. Returns corner locations directly, ready for tracking.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.goodFeaturesToTrack(Mat image, MatOfPoint corners, int maxCorners, double qualityLevel, double minDistance)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> image - Input 8-bit or 32-bit single-channel image.</li>
+        <li>MatOfPoint corners - Output vector of detected corners.</li>
+        <li>int maxCorners - Maximum number of corners to return. 0 means no limit.</li>
+        <li>double qualityLevel - Minimum accepted quality (0-1). Corners with quality below maxQuality * qualityLevel are rejected.</li>
+        <li>double minDistance - Minimum Euclidean distance between returned corners.</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>The Shi-Tomasi method modifies Harris corner detection by using the minimum eigenvalue instead of the Harris formula:</p>
+    <pre>R = min(λ1, λ2)</pre>
+    <p>This often produces better corners for tracking applications.</p>
+
+    <p><strong>Advantages over Harris:</strong></p>
+    <ul>
+        <li>Returns corner locations directly (not a response map)</li>
+        <li>Built-in non-maximum suppression via minDistance</li>
+        <li>Quality thresholding is automatic</li>
+        <li>Better suited for optical flow and tracking</li>
+    </ul>
+
+    <p><strong>Example:</strong></p>
+    <pre>MatOfPoint corners = new MatOfPoint();
+Imgproc.goodFeaturesToTrack(gray, corners, 100, 0.01, 10);
+
+// Draw detected corners
+Point[] pts = corners.toArray();
+for (Point pt : pts) {
+    Imgproc.circle(dst, pt, 5, new Scalar(0, 255, 0), -1);
+}</pre>
+
+    <p><strong>Typical parameter values:</strong></p>
+    <ul>
+        <li>maxCorners = 100-500</li>
+        <li>qualityLevel = 0.01-0.1</li>
+        <li>minDistance = 10-30 pixels</li>
+    </ul>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/cornerHarris.html">cornerHarris()</a> - Harris corner detector</li>
+        <li><a href="doc/opencv/ORB.html">ORB()</a> - Feature detection with descriptors</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/dd/d1a/group__imgproc__feature.html#ga1d6bb77486c8f92d79c8793ad995d541" target="_blank">OpenCV goodFeaturesToTrack Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

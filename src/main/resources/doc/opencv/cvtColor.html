@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>cvtColor - Color Conversion</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        table { border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f4f4f4; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>cvtColor - Color Conversion</h1>
+
+    <p>Converts an image from one color space to another. This is one of the most frequently used OpenCV functions.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc / cv2.cvtColor(Mat src, Mat dst, int code)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image: 8-bit unsigned, 16-bit unsigned, or single-precision floating-point.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image of the same size and depth as src.</li>
+        <li>int code - Color space conversion code (see table below).</li>
+    </ul>
+
+    <h2>Common Conversion Codes</h2>
+
+    <table>
+        <tr><th>Code</th><th>Description</th></tr>
+        <tr><td>COLOR_BGR2GRAY</td><td>BGR to Grayscale</td></tr>
+        <tr><td>COLOR_GRAY2BGR</td><td>Grayscale to BGR (3-channel)</td></tr>
+        <tr><td>COLOR_BGR2RGB</td><td>BGR to RGB (swap channels)</td></tr>
+        <tr><td>COLOR_BGR2HSV</td><td>BGR to HSV (Hue, Saturation, Value)</td></tr>
+        <tr><td>COLOR_HSV2BGR</td><td>HSV to BGR</td></tr>
+        <tr><td>COLOR_BGR2Lab</td><td>BGR to CIE Lab</td></tr>
+        <tr><td>COLOR_BGR2YCrCb</td><td>BGR to YCrCb (luma, chroma)</td></tr>
+        <tr><td>COLOR_BGR2HLS</td><td>BGR to HLS (Hue, Lightness, Saturation)</td></tr>
+    </table>
+
+    <h2>Description</h2>
+
+    <p><strong>Grayscale conversion (COLOR_BGR2GRAY):</strong></p>
+    <pre>Gray = 0.299*R + 0.587*G + 0.114*B</pre>
+    <p>This weighted sum reflects human perception of brightness.</p>
+
+    <p><strong>HSV color space:</strong></p>
+    <ul>
+        <li><strong>H (Hue):</strong> 0-179 in OpenCV (color type: red, green, blue, etc.)</li>
+        <li><strong>S (Saturation):</strong> 0-255 (color intensity)</li>
+        <li><strong>V (Value):</strong> 0-255 (brightness)</li>
+    </ul>
+    <p>HSV is useful for color-based object detection since H is independent of lighting.</p>
+
+    <p><strong>Important:</strong> OpenCV uses BGR order by default, not RGB. When loading images from other sources or displaying with other libraries, you may need COLOR_BGR2RGB.</p>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/inRange.html">inRange()</a> - Color range filtering (often used with HSV)</li>
+        <li><a href="doc/types/Scalar.html">Scalar</a> - Color values</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d8/d01/group__imgproc__color__conversions.html#ga397ae87e1288a81d2363b61574eb8cab" target="_blank">OpenCV cvtColor Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

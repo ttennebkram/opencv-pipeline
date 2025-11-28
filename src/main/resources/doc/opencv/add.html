@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>add</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .note { background: #fff3cd; padding: 10px 15px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>add</h1>
+
+    <p>Calculates the per-element sum of two arrays or an array and a scalar. Values are saturated (clamped) to the valid range.</p>
+
+    <h2>Signature</h2>
+    <p><code>Core / cv2.add(Mat src1, Mat src2, Mat dst, Mat mask, int dtype)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src1 - First input array or scalar.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> src2 - Second input array or scalar.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output array with the same size and number of channels as the inputs.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> mask - Optional operation mask (8-bit single channel). Where mask is 0, dst is unchanged.</li>
+        <li>int dtype - Optional depth of the output array. Default is -1 (same as inputs).</li>
+    </ul>
+
+    <h2>Description</h2>
+
+    <p>Computes element-wise addition with saturation:</p>
+    <pre>dst(x,y) = saturate(src1(x,y) + src2(x,y))</pre>
+
+    <div class="note">
+        <strong>Saturation:</strong> For 8-bit images, results are clamped to 0-255. Values exceeding 255 become 255 (no overflow/wrap-around).
+    </div>
+
+    <p><strong>Common use cases:</strong></p>
+    <ul>
+        <li><strong>Brighten images:</strong> Add a scalar value to increase brightness</li>
+        <li><strong>Combine images:</strong> Layer two images together</li>
+        <li><strong>Add overlays:</strong> Combine image with graphics/text</li>
+    </ul>
+
+    <p><strong>Example:</strong></p>
+    <pre>// Brighten an image by 50
+Mat brighter = new Mat();
+Core.add(image, new Scalar(50, 50, 50), brighter);
+
+// Combine two images
+Mat combined = new Mat();
+Core.add(image1, image2, combined);</pre>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/subtract.html">subtract()</a> - Element-wise subtraction</li>
+        <li><a href="doc/opencv/addWeighted.html">addWeighted()</a> - Weighted sum (blending)</li>
+        <li><a href="doc/opencv/convertTo.html">convertTo()</a> - Adjust brightness/contrast with scaling</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/d2/de8/group__core__array.html#ga10ac1bfb180e2cfda1701d06c24fdbd6" target="_blank">OpenCV add Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>
