@@ -241,9 +241,6 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
      */
     public void updatePipelineButtonState() {
         boolean running = isPipelineRunning != null && isPipelineRunning.get();
-        System.out.println("[" + PipelineNode.timestamp() + "] updatePipelineButtonState called, running=" + running +
-            ", isPipelineRunning=" + (isPipelineRunning != null) +
-            ", pipelineStatusLabel=" + (pipelineStatusLabel != null && !pipelineStatusLabel.isDisposed()));
 
         // Update start/stop button
         if (startStopBtn != null && !startStopBtn.isDisposed()) {
@@ -262,7 +259,6 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                 // Show immediate status with thread count
                 int threadCount = countThreadsForContainer();
                 String text = "Pipeline Running (" + threadCount + " threads)";
-                System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: " + text);
                 pipelineStatusLabel.setText(text);
                 pipelineStatusLabel.setForeground(new Color(COLOR_STATUS_RUNNING[0], COLOR_STATUS_RUNNING[1], COLOR_STATUS_RUNNING[2]));
 
@@ -278,7 +274,6 @@ public class ContainerEditorWindow extends PipelineCanvasBase {
                     }
                 });
             } else {
-                System.out.println("[" + PipelineNode.timestamp() + "] Setting status label: Pipeline Stopped");
                 pipelineStatusLabel.setText("Pipeline Stopped");
                 pipelineStatusLabel.setForeground(new Color(COLOR_STATUS_STOPPED[0], COLOR_STATUS_STOPPED[1], COLOR_STATUS_STOPPED[2]));
             }
