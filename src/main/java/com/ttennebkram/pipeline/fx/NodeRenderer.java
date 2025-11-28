@@ -1,6 +1,7 @@
 package com.ttennebkram.pipeline.fx;
 
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -64,6 +65,19 @@ public class NodeRenderer {
                                    boolean selected, boolean enabled,
                                    Color bgColor, boolean hasInput,
                                    boolean hasDualInput, int outputCount) {
+        renderNode(gc, x, y, width, height, label, selected, enabled,
+                   bgColor, hasInput, hasDualInput, outputCount, null);
+    }
+
+    /**
+     * Render a processing node with a thumbnail image.
+     */
+    public static void renderNode(GraphicsContext gc, double x, double y,
+                                   double width, double height, String label,
+                                   boolean selected, boolean enabled,
+                                   Color bgColor, boolean hasInput,
+                                   boolean hasDualInput, int outputCount,
+                                   Image thumbnail) {
 
         // Draw background
         Color bg = enabled ? (bgColor != null ? bgColor : COLOR_NODE_BG) : COLOR_NODE_DISABLED_BG;
@@ -87,15 +101,27 @@ public class NodeRenderer {
         drawHelpIcon(gc, x + width - HELP_ICON_SIZE - HELP_ICON_MARGIN,
                      y + HELP_ICON_MARGIN);
 
-        // Draw placeholder for thumbnail area
-        gc.setStroke(Color.LIGHTGRAY);
-        gc.setLineWidth(1);
+        // Draw thumbnail or placeholder
         double thumbX = x + 40;
         double thumbY = y + 35;
-        gc.strokeRect(thumbX, thumbY, PROCESSING_NODE_THUMB_WIDTH, PROCESSING_NODE_THUMB_HEIGHT);
-        gc.setFill(Color.GRAY);
-        gc.setFont(Font.font("Arial", 9));
-        gc.fillText("(thumbnail)", thumbX + 30, thumbY + 45);
+
+        if (thumbnail != null) {
+            // Draw the actual thumbnail image
+            double thumbW = Math.min(thumbnail.getWidth(), PROCESSING_NODE_THUMB_WIDTH);
+            double thumbH = Math.min(thumbnail.getHeight(), PROCESSING_NODE_THUMB_HEIGHT);
+            // Center the thumbnail if smaller than max size
+            double drawX = thumbX + (PROCESSING_NODE_THUMB_WIDTH - thumbW) / 2;
+            double drawY = thumbY + (PROCESSING_NODE_THUMB_HEIGHT - thumbH) / 2;
+            gc.drawImage(thumbnail, drawX, drawY, thumbW, thumbH);
+        } else {
+            // Draw placeholder
+            gc.setStroke(Color.LIGHTGRAY);
+            gc.setLineWidth(1);
+            gc.strokeRect(thumbX, thumbY, PROCESSING_NODE_THUMB_WIDTH, PROCESSING_NODE_THUMB_HEIGHT);
+            gc.setFill(Color.GRAY);
+            gc.setFont(Font.font("Arial", 9));
+            gc.fillText("(no output)", thumbX + 30, thumbY + 45);
+        }
 
         // Draw input connection point(s)
         if (hasInput) {

@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.fx;
 
+import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
 /**
@@ -24,6 +25,9 @@ public class FXNode {
     public boolean hasInput;
     public boolean hasDualInput;
     public int outputCount;
+
+    // Thumbnail image for displaying node output
+    public Image thumbnail;
 
     // Unique identifier for serialization
     public int id;

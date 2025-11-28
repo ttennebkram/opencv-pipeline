@@ -19,16 +19,20 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import com.ttennebkram.pipeline.fx.FXConnection;
+import com.ttennebkram.pipeline.fx.FXImageUtils;
 import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.FXNodeFactory;
 import com.ttennebkram.pipeline.fx.FXNodeRegistry;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
+import com.ttennebkram.pipeline.fx.FXWebcamSource;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.prefs.Preferences;
 
@@ -99,6 +103,9 @@ public class PipelineEditorApp extends Application {
     private Preferences prefs;
     private List<String> recentFiles = new ArrayList<>();
     private Menu openRecentMenu;
+
+    // Webcam sources for live preview
+    private Map<Integer, FXWebcamSource> webcamSources = new HashMap<>();
 
     @Override
     public void start(Stage primaryStage) {
@@ -415,7 +422,7 @@ public class PipelineEditorApp extends Application {
             boolean isSelected = selectedNodes.contains(node);
             NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
                 node.label, isSelected, node.enabled, node.backgroundColor,
-                node.hasInput, node.hasDualInput, node.outputCount);
+                node.hasInput, node.hasDualInput, node.outputCount, node.thumbnail);
         }
 
         // Draw selection box
@@ -777,8 +784,57 @@ public class PipelineEditorApp extends Application {
         nodes.add(node);
         selectedNodes.clear();
         selectedNodes.add(node);
+
+        // If this is a webcam source, start capturing
+        if ("WebcamSource".equals(nodeTypeName)) {
+            startWebcamForNode(node);
+        }
+
         markDirty();
         paintCanvas();
+    }
+
+    /**
+     * Start webcam capture for a webcam source node.
+     */
+    private void startWebcamForNode(FXNode node) {
+        FXWebcamSource webcam = new FXWebcamSource();
+        webcam.setOnFrame(image -> {
+            // Update the node's thumbnail
+            node.thumbnail = FXImageUtils.createThumbnail(
+                webcam.getLastFrameClone(),
+                NodeRenderer.SOURCE_NODE_THUMB_WIDTH,
+                NodeRenderer.SOURCE_NODE_THUMB_HEIGHT
+            );
+            if (node.thumbnail == null) {
+                node.thumbnail = image; // Use the image directly if Mat not available
+            }
+
+            // Update preview if this node is selected
+            if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                previewImageView.setImage(image);
+            }
+
+            // Repaint canvas to show updated thumbnail
+            paintCanvas();
+        });
+
+        if (webcam.open()) {
+            webcamSources.put(node.id, webcam);
+            webcam.start();
+        } else {
+            System.err.println("Failed to open webcam for node " + node.id);
+        }
+    }
+
+    /**
+     * Stop webcam capture for a node.
+     */
+    private void stopWebcamForNode(FXNode node) {
+        FXWebcamSource webcam = webcamSources.remove(node.id);
+        if (webcam != null) {
+            webcam.close();
+        }
     }
 
     private int getNextNodeX() {
