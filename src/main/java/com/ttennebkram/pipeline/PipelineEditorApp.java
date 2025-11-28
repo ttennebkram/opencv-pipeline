@@ -20,6 +20,7 @@ import javafx.stage.Stage;
 
 import com.ttennebkram.pipeline.fx.FXConnection;
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.fx.FXNodeFactory;
 import com.ttennebkram.pipeline.fx.FXNodeRegistry;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
@@ -770,24 +771,8 @@ public class PipelineEditorApp extends Application {
     }
 
     private void addNodeAt(String nodeTypeName, int x, int y) {
-        FXNodeRegistry.NodeType typeInfo = FXNodeRegistry.getNodeType(nodeTypeName);
-        FXNode node;
-
-        if (typeInfo != null) {
-            // Use registry information to create the appropriate node type
-            if (typeInfo.isSource) {
-                node = FXNode.createSourceNode(typeInfo.displayName, typeInfo.name, x, y);
-            } else if (typeInfo.isDualInput) {
-                node = FXNode.createDualInputNode(typeInfo.displayName, typeInfo.name, x, y);
-            } else if (typeInfo.outputCount > 1) {
-                node = FXNode.createMultiOutputNode(typeInfo.displayName, typeInfo.name, x, y, typeInfo.outputCount);
-            } else {
-                node = new FXNode(typeInfo.displayName, typeInfo.name, x, y);
-            }
-        } else {
-            // Fallback for unknown types
-            node = new FXNode(nodeTypeName, nodeTypeName, x, y);
-        }
+        // Use factory to create the FXNode with correct type information
+        FXNode node = FXNodeFactory.createFXNode(nodeTypeName, x, y);
 
         nodes.add(node);
         selectedNodes.clear();
