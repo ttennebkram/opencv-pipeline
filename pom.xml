@@ -16,53 +16,8 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <swt.version>3.127.0</swt.version>
-        <!-- Default platform (overridden by profiles) -->
-        <swt.artifactId>org.eclipse.swt.cocoa.macosx.aarch64</swt.artifactId>
-        <platform.classifier>macos-aarch64</platform.classifier>
+        <javafx.version>23.0.2</javafx.version>
     </properties>
-
-    <!-- Platform-specific profiles for SWT -->
-    <profiles>
-        <profile>
-            <id>macos-aarch64</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <swt.artifactId>org.eclipse.swt.cocoa.macosx.aarch64</swt.artifactId>
-                <platform.classifier>macos-aarch64</platform.classifier>
-            </properties>
-        </profile>
-        <profile>
-            <id>macos-x86_64</id>
-            <properties>
-                <swt.artifactId>org.eclipse.swt.cocoa.macosx.x86_64</swt.artifactId>
-                <platform.classifier>macos-x86_64</platform.classifier>
-            </properties>
-        </profile>
-        <profile>
-            <id>linux-x86_64</id>
-            <properties>
-                <swt.artifactId>org.eclipse.swt.gtk.linux.x86_64</swt.artifactId>
-                <platform.classifier>linux-x86_64</platform.classifier>
-            </properties>
-        </profile>
-        <profile>
-            <id>linux-aarch64</id>
-            <properties>
-                <swt.artifactId>org.eclipse.swt.gtk.linux.aarch64</swt.artifactId>
-                <platform.classifier>linux-aarch64</platform.classifier>
-            </properties>
-        </profile>
-        <profile>
-            <id>windows-x86_64</id>
-            <properties>
-                <swt.artifactId>org.eclipse.swt.win32.win32.x86_64</swt.artifactId>
-                <platform.classifier>windows-x86_64</platform.classifier>
-            </properties>
-        </profile>
-    </profiles>
 
     <dependencies>
         <!-- OpenCV with native libraries bundled (supports all platforms) -->
@@ -72,17 +27,157 @@
             <version>4.9.0-0</version>
         </dependency>
 
-        <!-- SWT - platform specific (set by profile) -->
+        <!-- JavaFX - core modules -->
         <dependency>
-            <groupId>org.eclipse.platform</groupId>
-            <artifactId>${swt.artifactId}</artifactId>
-            <version>${swt.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.eclipse.platform</groupId>
-                    <artifactId>org.eclipse.swt</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- JavaFX platform-specific natives for cross-platform uber-jar -->
+        <!-- macOS Apple Silicon -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
+
+        <!-- macOS Intel -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac</classifier>
+        </dependency>
+
+        <!-- Linux x86_64 -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+
+        <!-- Linux ARM64 (Raspberry Pi) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux-aarch64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux-aarch64</classifier>
+        </dependency>
+
+        <!-- Windows x86_64 -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
         </dependency>
 
         <!-- Gson for JSON serialization -->
@@ -102,28 +197,39 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
+                    <!-- Temporarily exclude SWT-dependent files during JavaFX migration -->
+                    <!-- Only compiling the JavaFX launcher/app stubs for now -->
+                    <includes>
+                        <include>**/PipelineEditorApp.java</include>
+                        <include>**/PipelineEditorLauncher.java</include>
+                    </includes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.ttennebkram.pipeline.PipelineEditorApp</mainClass>
+                    <options>
+                        <option>-Xms512m</option>
+                        <option>-Xmx4g</option>
+                    </options>
+                </configuration>
+            </plugin>
+            <!-- exec:exec for running with proper classpath -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
                 <configuration>
-                    <executable>/Library/Java/JavaVirtualMachines/temurin-21-arm64.jdk/Contents/Home/bin/java</executable>
+                    <executable>java</executable>
                     <arguments>
-                        <argument>-XstartOnFirstThread</argument>
-                        <argument>-Xms512m</argument>
-                        <argument>-Xmx4g</argument>
                         <argument>-classpath</argument>
                         <classpath/>
-                        <argument>com.ttennebkram.pipeline.PipelineEditor</argument>
+                        <argument>-Xms512m</argument>
+                        <argument>-Xmx4g</argument>
+                        <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                     </arguments>
                 </configuration>
             </plugin>
@@ -141,10 +247,10 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.ttennebkram.pipeline.PipelineEditor</mainClass>
+                                    <mainClass>com.ttennebkram.pipeline.PipelineEditorLauncher</mainClass>
                                 </transformer>
                             </transformers>
-                            <finalName>opencv-pipeline-${platform.classifier}</finalName>
+                            <finalName>opencv-pipeline</finalName>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
