@@ -86,6 +86,9 @@ public class FXContainerEditorWindow {
     private double zoomLevel = 1.0;
     private static final int[] ZOOM_LEVELS = {25, 50, 75, 100, 125, 150, 200};
 
+    // Repaint timer for updating thumbnails while pipeline is running
+    private javafx.animation.AnimationTimer repaintTimer;
+
     public FXContainerEditorWindow(Stage parentStage, FXNode containerNode, Runnable onModified) {
         this.parentStage = parentStage;
         this.containerNode = containerNode;
@@ -192,6 +195,42 @@ public class FXContainerEditorWindow {
         // Position with 40,40 offset from parent
         stage.setX(parentStage.getX() + 40);
         stage.setY(parentStage.getY() + 40);
+
+        // Create repaint timer for updating thumbnails while pipeline is running
+        // Use AnimationTimer to repaint at ~10 fps when pipeline is running
+        repaintTimer = new javafx.animation.AnimationTimer() {
+            private long lastUpdate = 0;
+            private static final long REPAINT_INTERVAL_NS = 100_000_000L; // 100ms = 10fps
+            private int debugCounter = 0;
+
+            @Override
+            public void handle(long now) {
+                if (now - lastUpdate >= REPAINT_INTERVAL_NS) {
+                    if (isPipelineRunning != null && isPipelineRunning.get()) {
+                        debugCounter++;
+                        if (debugCounter % 10 == 1) {
+                            // Print debug info every 10 frames (~1 second)
+                            System.out.println("ContainerEditor repaint #" + debugCounter +
+                                " nodes=" + nodes.size() +
+                                " firstNode=" + (nodes.isEmpty() ? "none" : nodes.get(0).label +
+                                    " in=" + nodes.get(0).inputCount +
+                                    " out=" + nodes.get(0).outputCount1 +
+                                    " thumb=" + (nodes.get(0).thumbnail != null)));
+                        }
+                        paintCanvas();
+                    }
+                    lastUpdate = now;
+                }
+            }
+        };
+        repaintTimer.start();
+
+        // Stop repaint timer when window is closed
+        stage.setOnCloseRequest(e -> {
+            if (repaintTimer != null) {
+                repaintTimer.stop();
+            }
+        });
 
         paintCanvas();
     }
@@ -345,6 +384,8 @@ public class FXContainerEditorWindow {
             } else {
                 onStartPipeline.run();
             }
+            // Update button state after toggling
+            updatePipelineButtonState();
         }
     }
 
@@ -842,6 +883,10 @@ public class FXContainerEditorWindow {
 
         // Draw connections
         for (FXConnection conn : connections) {
+            // Skip connections with null source or target (can happen with malformed data)
+            if (conn.source == null || conn.target == null) {
+                continue;
+            }
             boolean isSelected = selectedConnections.contains(conn);
             double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
             double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
@@ -881,6 +926,19 @@ public class FXContainerEditorWindow {
                 node.hasInput, node.hasDualInput, node.outputCount,
                 node.thumbnail, node.isContainer,
                 node.inputCount, outputCounters, node.nodeType, node.isBoundaryNode);
+
+            // Draw stats line (Pri/Work/FPS) - only when there's work being done
+            if (node.workUnitsCompleted > 0) {
+                if (!node.hasInput) {
+                    // Source node - show FPS as well
+                    NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                        node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+                } else {
+                    // Processing node
+                    NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                        node.threadPriority, node.workUnitsCompleted);
+                }
+            }
         }
 
         // Draw selection box

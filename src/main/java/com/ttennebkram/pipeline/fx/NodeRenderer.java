@@ -63,6 +63,9 @@ public class NodeRenderer {
     private static final Color COLOR_QUEUE_BG_BACKPRESSURE = Color.rgb(139, 0, 0);  // Dark red
     private static final Color COLOR_QUEUE_TEXT = Color.WHITE;
     private static final Font QUEUE_STATS_FONT = Font.font("System", FontWeight.NORMAL, 10);
+    private static final Font STATS_LINE_FONT = Font.font("Arial", FontWeight.NORMAL, 8);
+    private static final Color COLOR_STATS_NORMAL = Color.DARKGRAY;
+    private static final Color COLOR_STATS_SLOWED = Color.rgb(200, 0, 0);  // Red for priority < 5
 
     /**
      * Render a processing node at the given position.
@@ -176,15 +179,16 @@ public class NodeRenderer {
             gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
         }
 
-        // Draw enabled checkbox (not for boundary nodes - they can't be disabled)
-        if (!isBoundaryNode) {
+        // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
+        boolean skipCheckbox = isBoundaryNode || "Monitor".equals(nodeType);
+        if (!skipCheckbox) {
             drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
         }
 
-        // Draw title (shift left if no checkbox for boundary nodes)
+        // Draw title (shift left if no checkbox)
         gc.setFill(Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 10));
-        double titleX = isBoundaryNode ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
+        double titleX = skipCheckbox ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
         gc.fillText(label, titleX, y + 15);
 
         // Draw help icon (grayed out if no help available)
@@ -318,15 +322,16 @@ public class NodeRenderer {
             gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
         }
 
-        // Draw enabled checkbox (not for boundary nodes - they can't be disabled)
-        if (!isBoundaryNode) {
+        // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
+        boolean skipCheckbox = isBoundaryNode || "Monitor".equals(nodeType);
+        if (!skipCheckbox) {
             drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
         }
 
-        // Draw title (shift left if no checkbox for boundary nodes)
+        // Draw title (shift left if no checkbox)
         gc.setFill(Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 10));
-        double titleX = isBoundaryNode ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
+        double titleX = skipCheckbox ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
         gc.fillText(label, titleX, y + 15);
 
         // Draw help icon (grayed out if no help available)
@@ -596,5 +601,40 @@ public class NodeRenderer {
                                            int outputIndex, int totalOutputs) {
         double spacing = nodeHeight / (totalOutputs + 1);
         return new double[]{nodeX + nodeWidth, nodeY + spacing * (outputIndex + 1)};
+    }
+
+    /**
+     * Draw the stats line for processing nodes: "Pri: N   Work: N"
+     * @param gc Graphics context
+     * @param x X position to start drawing
+     * @param y Y position for baseline
+     * @param priority Current thread priority (1-10)
+     * @param workUnits Number of work units completed
+     */
+    public static void drawStatsLine(GraphicsContext gc, double x, double y,
+                                      int priority, long workUnits) {
+        gc.setFont(STATS_LINE_FONT);
+        // Red text if priority is below 5, otherwise dark gray
+        gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
+        String statsLine = String.format("Pri: %d   Work: %,d", priority, workUnits);
+        gc.fillText(statsLine, x, y);
+    }
+
+    /**
+     * Draw the stats line for source nodes: "Pri: N   Work: N   FPS: N.NNN"
+     * @param gc Graphics context
+     * @param x X position to start drawing
+     * @param y Y position for baseline
+     * @param priority Current thread priority (1-10)
+     * @param workUnits Number of work units completed
+     * @param effectiveFps Current effective FPS after slowdown
+     */
+    public static void drawSourceStatsLine(GraphicsContext gc, double x, double y,
+                                            int priority, long workUnits, double effectiveFps) {
+        gc.setFont(STATS_LINE_FONT);
+        // Red text if priority is below 5, otherwise dark gray
+        gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
+        String statsLine = String.format("Pri: %d   Work: %,d   FPS: %.3f", priority, workUnits, effectiveFps);
+        gc.fillText(statsLine, x, y);
     }
 }

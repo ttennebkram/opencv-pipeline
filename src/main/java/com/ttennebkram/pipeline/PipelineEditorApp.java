@@ -518,6 +518,11 @@ public class PipelineEditorApp extends Application {
     // ========================= Canvas Painting =========================
 
     private void paintCanvas() {
+        // Sync stats from processors to FXNodes before rendering
+        if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
+            pipelineExecutor.syncAllStats();
+        }
+
         GraphicsContext gc = pipelineCanvas.getGraphicsContext2D();
 
         // Apply zoom transform
@@ -566,6 +571,19 @@ public class PipelineEditorApp extends Application {
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount, node.thumbnail,
                 node.isContainer, node.inputCount, outputCounters, node.nodeType);
+
+            // Draw stats line (Pri/Work/FPS) below title - only when pipeline is running
+            if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
+                if (!node.hasInput) {
+                    // Source node - show FPS as well
+                    NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                        node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+                } else {
+                    // Processing node
+                    NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                        node.threadPriority, node.workUnitsCompleted);
+                }
+            }
         }
 
         // Draw selection box
@@ -1223,6 +1241,9 @@ public class PipelineEditorApp extends Application {
         startStopBtn.setStyle("-fx-background-color: rgb(200, 100, 100);");
         updatePipelineStatus();
 
+        // Clear all node and connection stats before starting
+        clearPipelineStats();
+
         // Create and start the pipeline executor
         pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
         pipelineExecutor.setOnNodeOutput((node, mat) -> {
@@ -1263,6 +1284,26 @@ public class PipelineEditorApp extends Application {
         if (pipelineExecutor != null) {
             pipelineExecutor.stop();
             pipelineExecutor = null;
+        }
+    }
+
+    /**
+     * Clear all pipeline statistics (node counters, connection queue stats).
+     * Called when pipeline starts to reset counters from previous runs.
+     */
+    private void clearPipelineStats() {
+        // Clear node counters
+        for (FXNode node : nodes) {
+            node.inputCount = 0;
+            node.outputCount1 = 0;
+            node.outputCount2 = 0;
+            node.outputCount3 = 0;
+            node.outputCount4 = 0;
+        }
+        // Clear connection queue stats
+        for (FXConnection conn : connections) {
+            conn.queueSize = 0;
+            conn.totalFrames = 0;
         }
     }
 

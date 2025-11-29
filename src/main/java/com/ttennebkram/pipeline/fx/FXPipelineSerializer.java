@@ -111,24 +111,18 @@ public class FXPipelineSerializer {
         }
         root.add("nodes", nodesArray);
 
-        // Create node index map for connection serialization
-        Map<Integer, Integer> nodeIdToIndex = new HashMap<>();
-        for (int i = 0; i < nodes.size(); i++) {
-            nodeIdToIndex.put(nodes.get(i).id, i);
-        }
-
         // Serialize connections
         JsonArray connectionsArray = new JsonArray();
         for (FXConnection conn : connections) {
             JsonObject connJson = new JsonObject();
 
-            // Source
-            int sourceIndex = conn.source != null ? nodeIdToIndex.getOrDefault(conn.source.id, -1) : -1;
+            // Source - use indexOf to find actual position, like main branch does
+            int sourceIndex = conn.source != null ? nodes.indexOf(conn.source) : -1;
             connJson.addProperty("sourceIndex", sourceIndex);
             connJson.addProperty("sourceOutputIndex", conn.sourceOutputIndex);
 
-            // Target
-            int targetIndex = conn.target != null ? nodeIdToIndex.getOrDefault(conn.target.id, -1) : -1;
+            // Target - use indexOf to find actual position, like main branch does
+            int targetIndex = conn.target != null ? nodes.indexOf(conn.target) : -1;
             connJson.addProperty("targetIndex", targetIndex);
             connJson.addProperty("targetInputIndex", conn.targetInputIndex);
 
@@ -175,6 +169,13 @@ public class FXPipelineSerializer {
         List<FXNode> nodes = new ArrayList<>();
         List<FXConnection> connections = new ArrayList<>();
 
+        // First pass: find the maximum ID used in the file and advance the counter
+        // This prevents ID collisions when loading inner nodes
+        int maxIdInFile = findMaxIdInJson(root.getAsJsonArray("nodes"));
+        while (FXNode.generateNewId() <= maxIdInFile) {
+            // Keep generating until we're past the max
+        }
+
         // Deserialize nodes
         if (root.has("nodes")) {
             for (JsonElement elem : root.getAsJsonArray("nodes")) {
@@ -190,6 +191,11 @@ public class FXPipelineSerializer {
 
                 // Create node using factory - this sets the correct default label from registry
                 FXNode node = FXNodeFactory.createFXNode(type, (int) x, (int) y);
+
+                // Restore node ID if present in the file (important for connection references)
+                if (nodeJson.has("id")) {
+                    node.id = nodeJson.get("id").getAsInt();
+                }
 
                 // Only override label if user had customized it
                 // Keep factory-assigned label (from registry displayName) if:
@@ -269,10 +275,38 @@ public class FXPipelineSerializer {
                         node.pipelineFilePath = nodeJson.get("pipelineFile").getAsString();
                     }
                 }
-                if (node.isContainer && nodeJson.has("innerNodes")) {
-                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
-                    if (nodeJson.has("innerConnections")) {
-                        node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
+                // Load inner nodes: first try external pipeline file, then inline data
+                if (node.isContainer) {
+                    boolean loadedFromFile = false;
+
+                    // If external pipeline file is specified, load from it
+                    if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                        File pipelineFile = new File(node.pipelineFilePath);
+                        if (pipelineFile.exists()) {
+                            try {
+                                PipelineDocument externalDoc = load(node.pipelineFilePath);
+                                node.innerNodes = externalDoc.nodes;
+                                node.innerConnections = externalDoc.connections;
+                                // Reassign IDs to inner nodes to avoid collisions with outer nodes
+                                reassignInnerNodeIds(node.innerNodes);
+                                loadedFromFile = true;
+                                System.out.println("Loaded external pipeline for container: " + node.pipelineFilePath);
+                            } catch (IOException e) {
+                                System.err.println("Failed to load external pipeline " + node.pipelineFilePath + ": " + e.getMessage());
+                            }
+                        } else {
+                            System.err.println("External pipeline file not found: " + node.pipelineFilePath);
+                        }
+                    }
+
+                    // Fall back to inline inner nodes if not loaded from file
+                    if (!loadedFromFile && nodeJson.has("innerNodes")) {
+                        node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
+                        if (nodeJson.has("innerConnections")) {
+                            node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
+                        }
+                        // Reassign IDs to inner nodes to avoid collisions with outer nodes
+                        reassignInnerNodeIds(node.innerNodes);
                     }
                 }
 
@@ -280,24 +314,55 @@ public class FXPipelineSerializer {
             }
         }
 
+        // Build a map from node ID to node for ID-based connection lookup
+        Map<Integer, FXNode> nodeById = new HashMap<>();
+        for (FXNode node : nodes) {
+            nodeById.put(node.id, node);
+        }
+
         // Deserialize connections
         if (root.has("connections")) {
             for (JsonElement elem : root.getAsJsonArray("connections")) {
                 JsonObject connJson = elem.getAsJsonObject();
 
-                // Validate required connection fields
-                if (!connJson.has("sourceIndex") || !connJson.has("targetIndex")) {
-                    System.err.println("Warning: skipping connection with missing sourceIndex or targetIndex");
+                FXNode sourceNode = null;
+                FXNode targetNode = null;
+
+                // Support both formats: sourceIndex/targetIndex (new format) and sourceId/targetId (legacy format)
+                if (connJson.has("sourceIndex") && connJson.has("targetIndex")) {
+                    // New format: reference by array index
+                    int sourceIndex = connJson.get("sourceIndex").getAsInt();
+                    int targetIndex = connJson.get("targetIndex").getAsInt();
+                    sourceNode = (sourceIndex >= 0 && sourceIndex < nodes.size()) ? nodes.get(sourceIndex) : null;
+                    targetNode = (targetIndex >= 0 && targetIndex < nodes.size()) ? nodes.get(targetIndex) : null;
+                } else if (connJson.has("sourceId") && connJson.has("targetId")) {
+                    // Legacy format: reference by node ID
+                    int sourceId = connJson.get("sourceId").getAsInt();
+                    int targetId = connJson.get("targetId").getAsInt();
+                    sourceNode = nodeById.get(sourceId);
+                    targetNode = nodeById.get(targetId);
+                } else {
+                    System.err.println("Warning: skipping connection with missing source/target references");
                     continue;
                 }
 
-                int sourceIndex = connJson.get("sourceIndex").getAsInt();
-                int targetIndex = connJson.get("targetIndex").getAsInt();
-                int sourceOutputIndex = connJson.has("sourceOutputIndex") ? connJson.get("sourceOutputIndex").getAsInt() : 0;
-                int targetInputIndex = connJson.has("targetInputIndex") ? connJson.get("targetInputIndex").getAsInt() : 0;
+                // Handle output/input index - support both naming conventions
+                int sourceOutputIndex = 0;
+                if (connJson.has("sourceOutputIndex")) {
+                    sourceOutputIndex = connJson.get("sourceOutputIndex").getAsInt();
+                } else if (connJson.has("outputIndex")) {
+                    sourceOutputIndex = connJson.get("outputIndex").getAsInt();
+                }
 
-                FXNode sourceNode = (sourceIndex >= 0 && sourceIndex < nodes.size()) ? nodes.get(sourceIndex) : null;
-                FXNode targetNode = (targetIndex >= 0 && targetIndex < nodes.size()) ? nodes.get(targetIndex) : null;
+                int targetInputIndex = 0;
+                if (connJson.has("targetInputIndex")) {
+                    targetInputIndex = connJson.get("targetInputIndex").getAsInt();
+                } else if (connJson.has("inputIndex")) {
+                    // Old format used 1-based indexing (1=primary, 2=secondary)
+                    // Convert to 0-based (0=primary, 1=secondary)
+                    targetInputIndex = connJson.get("inputIndex").getAsInt() - 1;
+                    if (targetInputIndex < 0) targetInputIndex = 0;
+                }
 
                 FXConnection conn;
                 if (sourceNode != null && targetNode != null) {
@@ -321,6 +386,9 @@ public class FXPipelineSerializer {
                 connections.add(conn);
             }
         }
+
+        // Ensure the global ID counter is past all existing IDs to prevent future collisions
+        ensureUniqueIds(nodes);
 
         return new PipelineDocument(nodes, connections);
     }
@@ -417,20 +485,16 @@ public class FXPipelineSerializer {
      * Serialize a list of connections to a JsonArray.
      */
     private static JsonArray serializeConnections(List<FXConnection> connections, List<FXNode> nodes) {
-        Map<Integer, Integer> nodeIdToIndex = new HashMap<>();
-        for (int i = 0; i < nodes.size(); i++) {
-            nodeIdToIndex.put(nodes.get(i).id, i);
-        }
-
         JsonArray connectionsArray = new JsonArray();
         for (FXConnection conn : connections) {
             JsonObject connJson = new JsonObject();
 
-            int sourceIndex = conn.source != null ? nodeIdToIndex.getOrDefault(conn.source.id, -1) : -1;
+            // Use indexOf to find actual position in list, like main branch does
+            int sourceIndex = conn.source != null ? nodes.indexOf(conn.source) : -1;
             connJson.addProperty("sourceIndex", sourceIndex);
             connJson.addProperty("sourceOutputIndex", conn.sourceOutputIndex);
 
-            int targetIndex = conn.target != null ? nodeIdToIndex.getOrDefault(conn.target.id, -1) : -1;
+            int targetIndex = conn.target != null ? nodes.indexOf(conn.target) : -1;
             connJson.addProperty("targetIndex", targetIndex);
             connJson.addProperty("targetInputIndex", conn.targetInputIndex);
 
@@ -452,6 +516,11 @@ public class FXPipelineSerializer {
             double y = nodeJson.has("y") ? nodeJson.get("y").getAsDouble() : 0;
 
             FXNode node = FXNodeFactory.createFXNode(type, (int) x, (int) y);
+
+            // Restore node ID if present (for inner node ID consistency)
+            if (nodeJson.has("id")) {
+                node.id = nodeJson.get("id").getAsInt();
+            }
 
             if (nodeJson.has("label")) {
                 String savedLabel = nodeJson.get("label").getAsString();
@@ -521,5 +590,80 @@ public class FXPipelineSerializer {
             }
         }
         return connections;
+    }
+
+    /**
+     * Reassign unique IDs to inner nodes to avoid collisions with outer pipeline nodes.
+     * This is necessary because inner nodes loaded from external files may have IDs
+     * that overlap with IDs already used in the main pipeline.
+     *
+     * @param innerNodes List of inner nodes to reassign IDs
+     * @param existingNodes List of outer nodes to check for ID collisions (can be null)
+     */
+    private static void reassignInnerNodeIds(List<FXNode> innerNodes) {
+        for (FXNode node : innerNodes) {
+            node.reassignId();
+            // Recursively handle nested containers
+            if (node.isContainer && node.innerNodes != null && !node.innerNodes.isEmpty()) {
+                reassignInnerNodeIds(node.innerNodes);
+            }
+        }
+    }
+
+    /**
+     * Ensure all node IDs are unique by advancing the global ID counter past all existing IDs.
+     * Call this after loading a pipeline to prevent ID collisions.
+     */
+    public static void ensureUniqueIds(List<FXNode> nodes) {
+        int maxId = findMaxId(nodes);
+        // Advance the global counter past the maximum ID
+        while (FXNode.generateNewId() <= maxId) {
+            // Keep generating until we're past the max
+        }
+    }
+
+    /**
+     * Find the maximum ID used in a list of nodes, including inner nodes.
+     */
+    private static int findMaxId(List<FXNode> nodes) {
+        int maxId = 0;
+        for (FXNode node : nodes) {
+            if (node.id > maxId) {
+                maxId = node.id;
+            }
+            // Check inner nodes recursively
+            if (node.innerNodes != null && !node.innerNodes.isEmpty()) {
+                int innerMax = findMaxId(node.innerNodes);
+                if (innerMax > maxId) {
+                    maxId = innerMax;
+                }
+            }
+        }
+        return maxId;
+    }
+
+    /**
+     * Find the maximum ID used in a JSON array of nodes.
+     * This is a pre-load scan to find all IDs before deserializing.
+     */
+    private static int findMaxIdInJson(JsonArray nodesArray) {
+        int maxId = 0;
+        for (JsonElement elem : nodesArray) {
+            JsonObject nodeJson = elem.getAsJsonObject();
+            if (nodeJson.has("id")) {
+                int id = nodeJson.get("id").getAsInt();
+                if (id > maxId) {
+                    maxId = id;
+                }
+            }
+            // Check inline inner nodes
+            if (nodeJson.has("innerNodes")) {
+                int innerMax = findMaxIdInJson(nodeJson.getAsJsonArray("innerNodes"));
+                if (innerMax > maxId) {
+                    maxId = innerMax;
+                }
+            }
+        }
+        return maxId;
     }
 }

@@ -38,6 +38,11 @@ public class FXNode {
     public int outputCount3 = 0;  // Output 3 counter
     public int outputCount4 = 0;  // Output 4 counter
 
+    // Thread priority and work stats (for backpressure display)
+    public int threadPriority = 5;  // Default to NORM_PRIORITY
+    public long workUnitsCompleted = 0;
+    public double effectiveFps = 0;  // For source nodes only
+
     // Webcam-specific properties - default set dynamically when creating WebcamSource nodes
     public int cameraIndex = -1; // -1 means "auto-detect highest camera"
 
@@ -53,6 +58,21 @@ public class FXNode {
     // Unique identifier for serialization
     public int id;
     private static int nextId = 1;
+
+    /**
+     * Generate a new unique ID for a node.
+     * Used when loading inner nodes to avoid ID collisions with outer nodes.
+     */
+    public static int generateNewId() {
+        return nextId++;
+    }
+
+    /**
+     * Reassign a new unique ID to this node.
+     */
+    public void reassignId() {
+        this.id = nextId++;
+    }
 
     public FXNode(String label, String nodeType, double x, double y) {
         this.id = nextId++;
