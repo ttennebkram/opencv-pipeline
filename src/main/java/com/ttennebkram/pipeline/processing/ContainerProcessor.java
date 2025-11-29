@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.processing;
 
+import com.ttennebkram.pipeline.fx.FXNode;
 import org.opencv.core.Mat;
 
 import java.util.concurrent.BlockingQueue;
@@ -15,9 +16,47 @@ public class ContainerProcessor extends ThreadedProcessor {
     private BlockingQueue<Mat> containerInputQueue;  // Queue to ContainerInput boundary node
     private BlockingQueue<Mat> containerOutputQueue; // Queue from ContainerOutput boundary node
 
+    // Reference to internal ContainerOutput processor for backpressure signaling
+    private ThreadedProcessor containerOutputProcessor;
+
     public ContainerProcessor(String name) {
         // Pass a no-op processor - we override the processing loop entirely
         super(name, input -> null);
+    }
+
+    /**
+     * Set the internal ContainerOutput processor reference.
+     * Used to forward slowdown signals into the container's internal pipeline.
+     */
+    public void setContainerOutputProcessor(ThreadedProcessor outputProcessor) {
+        this.containerOutputProcessor = outputProcessor;
+    }
+
+    /**
+     * Override receiveSlowdownSignal to forward to internal ContainerOutput when at min priority.
+     * This allows backpressure from downstream to propagate into the container only after
+     * this container has exhausted its own priority reduction.
+     */
+    @Override
+    public synchronized void receiveSlowdownSignal() {
+        // Check if we're already at minimum priority before handling
+        int currentPriority = getThreadPriority();
+        boolean wasAtMinPriority = (currentPriority <= Thread.MIN_PRIORITY);
+
+        System.out.println("[ContainerProcessor] " + getName() + " RECEIVED SLOWDOWN SIGNAL! currentPriority=" + currentPriority + ", wasAtMinPriority=" + wasAtMinPriority);
+
+        // Handle our own slowdown first
+        super.receiveSlowdownSignal();
+
+        int newPriority = getThreadPriority();
+        System.out.println("[ContainerProcessor] " + getName() + " after super.receiveSlowdownSignal(), priority is now " + newPriority);
+
+        // Only forward to internal ContainerOutput if we were already at min priority
+        // (meaning we can't slow down any further ourselves)
+        if (wasAtMinPriority && containerOutputProcessor != null) {
+            System.out.println("[ContainerProcessor] " + getName() + " at min priority, forwarding slowdown to internal pipeline");
+            containerOutputProcessor.receiveSlowdownSignal();
+        }
     }
 
     /**
@@ -79,6 +118,8 @@ public class ContainerProcessor extends ThreadedProcessor {
                             if (outputQueue != null) {
                                 outputQueue.put(input.clone());
                                 incrementOutputWrites1();
+                                // Check backpressure in bypass mode too
+                                checkBackpressure();
                             }
                             notifyCallback(input.clone());
                             incrementWorkUnitsCompleted();
@@ -122,14 +163,24 @@ public class ContainerProcessor extends ThreadedProcessor {
                     Thread.sleep(5);
                 }
 
-                // Periodic debug output
+                // Periodic stats update - even when idle, update priority display
                 long now = System.currentTimeMillis();
                 if (now - lastDebugTime > 2000) {
+                    BlockingQueue<Mat> outQueue = getOutputQueue();
                     System.out.println("[ContainerProcessor] " + getName() + " stats: in=" + inputCount + " out=" + outputCount +
+                                       " pri=" + getThreadPriority() +
                                        " inputQueueSize=" + (inputQueue != null ? inputQueue.size() : -1) +
                                        " containerInQueueSize=" + (containerInputQueue != null ? containerInputQueue.size() : -1) +
-                                       " containerOutQueueSize=" + (containerOutputQueue != null ? containerOutputQueue.size() : -1));
+                                       " containerOutQueueSize=" + (containerOutputQueue != null ? containerOutputQueue.size() : -1) +
+                                       " downstreamQueueSize=" + (outQueue != null ? outQueue.size() : -1));
                     lastDebugTime = now;
+                }
+
+                // Update FXNode stats periodically (priority display) even when no work done
+                FXNode node = getFXNode();
+                if (node != null) {
+                    node.threadPriority = getThreadPriority();
+                    node.workUnitsCompleted = getWorkUnitsCompleted();
                 }
 
             } catch (InterruptedException e) {

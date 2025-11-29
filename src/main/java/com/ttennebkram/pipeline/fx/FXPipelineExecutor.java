@@ -2,6 +2,7 @@ package com.ttennebkram.pipeline.fx;
 
 import com.ttennebkram.pipeline.processing.ContainerProcessor;
 import com.ttennebkram.pipeline.processing.ProcessorFactory;
+import com.ttennebkram.pipeline.processing.SourceProcessor;
 import com.ttennebkram.pipeline.processing.ThreadedProcessor;
 import javafx.application.Platform;
 import org.opencv.core.Core;
@@ -112,16 +113,19 @@ public class FXPipelineExecutor {
         // Build execution order
         List<FXNode> executionOrder = buildExecutionOrder();
 
-        // Create processors for each non-source node
+        // Create processors for all nodes (including sources for backpressure signaling)
         for (FXNode node : executionOrder) {
-            if (!isSourceNode(node)) {
-                ThreadedProcessor tp = processorFactory.createProcessor(node);
-                if (tp != null) {
-                    tp.setEnabled(node.enabled);
-                }
+            System.out.println("[FXPipelineExecutor] Processing node: " + node.label + " (id=" + node.id + ", type=" + node.nodeType + ")");
+            ThreadedProcessor tp = processorFactory.createProcessor(node);
+            if (tp != null) {
+                tp.setEnabled(node.enabled);
+            }
 
-                // For Container nodes, set up internal processors and wiring
-                if ("Container".equals(node.nodeType) && node.innerNodes != null && !node.innerNodes.isEmpty()) {
+            // For Container nodes, set up internal processors and wiring
+            if ("Container".equals(node.nodeType)) {
+                System.out.println("[FXPipelineExecutor] Container " + node.label + " innerNodes=" +
+                                   (node.innerNodes != null ? node.innerNodes.size() : "null"));
+                if (node.innerNodes != null && !node.innerNodes.isEmpty()) {
                     setupContainerInternals(node);
                 }
             }
@@ -138,12 +142,21 @@ public class FXPipelineExecutor {
                     BlockingQueue<Mat> queue = sourceOutputQueues.computeIfAbsent(
                         conn.source.id, k -> new LinkedBlockingQueue<>());
                     ThreadedProcessor targetProc = processorFactory.getProcessor(conn.target);
+                    ThreadedProcessor sourceProc = processorFactory.getProcessor(conn.source);
                     if (targetProc != null) {
                         System.out.println("[FXPipelineExecutor]     Setting inputQueue on " + conn.target.label);
                         if (conn.targetInputIndex == 1) {
                             targetProc.setInputQueue2(queue);
+                            // Wire upstream reference for backpressure signaling
+                            if (sourceProc != null) {
+                                targetProc.setInputNode2(sourceProc);
+                            }
                         } else {
                             targetProc.setInputQueue(queue);
+                            // Wire upstream reference for backpressure signaling
+                            if (sourceProc != null) {
+                                targetProc.setInputNode(sourceProc);
+                            }
                         }
                     } else {
                         System.out.println("[FXPipelineExecutor]     WARNING: targetProc is null for " + conn.target.label);
@@ -243,11 +256,24 @@ public class FXPipelineExecutor {
         // We need to extend the container's processing to use these queues
         processorFactory.setContainerQueues(containerNode, containerToInputQueue, outputToContainerQueue);
 
-        // Wire ContainerOutput's parent container reference for backpressure signaling
-        // When ContainerOutput detects backpressure, it signals the container to slow down
+        // Wire boundary nodes' parent container reference for backpressure signaling
+        // Backpressure travels UPSTREAM through the INPUT boundary node:
+        // When ContainerInput's output queue backs up, it signals the container to slow down
         if (containerProc instanceof ContainerProcessor) {
-            outputProc.setParentContainer((ContainerProcessor) containerProc);
-            System.out.println("Container " + containerNode.label + " backpressure link established");
+            ContainerProcessor cp = (ContainerProcessor) containerProc;
+            // ContainerInput signals the Container when internal pipeline backs up
+            inputProc.setParentContainer(cp);
+            // ContainerOutput also signals Container (for completeness, though less common)
+            outputProc.setParentContainer(cp);
+            // Reverse direction: when container gets slowdown from downstream,
+            // it forwards to ContainerOutput to slow down the internal pipeline
+            cp.setContainerOutputProcessor(outputProc);
+            System.out.println("Container " + containerNode.label + " (id=" + containerNode.id + ") bidirectional backpressure links established");
+            System.out.println("  inputProc=" + inputProc.getName() + " parentContainer set to " + cp.getName());
+            System.out.println("  outputProc=" + outputProc.getName() + " parentContainer set to " + cp.getName());
+        } else {
+            System.err.println("WARNING: containerProc for " + containerNode.label + " is NOT a ContainerProcessor: " +
+                               (containerProc != null ? containerProc.getClass().getSimpleName() : "null"));
         }
 
         System.out.println("Container " + containerNode.label + " internal wiring complete");
@@ -256,7 +282,8 @@ public class FXPipelineExecutor {
     /**
      * Start a feeder thread for a source node.
      * This thread reads from the source (webcam, file, blank) and feeds
-     * frames into the output queue at the configured FPS.
+     * frames into the output queue at the FPS controlled by the SourceProcessor.
+     * Backpressure is handled via the SourceProcessor's receiveSlowdownSignal().
      */
     private void startSourceFeeder(FXNode sourceNode) {
         BlockingQueue<Mat> outputQueue = sourceOutputQueues.get(sourceNode.id);
@@ -265,25 +292,42 @@ public class FXPipelineExecutor {
             System.out.println("[FXPipelineExecutor] Source " + sourceNode.label + " has no output queue - skipping");
             return;
         }
+
+        // Get the SourceProcessor for this node (created by ProcessorFactory)
+        ThreadedProcessor tp = processorFactory.getProcessor(sourceNode);
+        if (tp == null) {
+            System.err.println("[FXPipelineExecutor] Source " + sourceNode.label + " (id=" + sourceNode.id +
+                               ") has NO processor! Check if it was in executionOrder.");
+            return;
+        }
+        if (!(tp instanceof SourceProcessor)) {
+            System.err.println("[FXPipelineExecutor] Source " + sourceNode.label + " (id=" + sourceNode.id +
+                               ") has wrong processor type: " + tp.getClass().getSimpleName() + " (expected SourceProcessor)");
+            return;
+        }
+        SourceProcessor sourceProc = (SourceProcessor) tp;
+
         System.out.println("[FXPipelineExecutor] Source " + sourceNode.label + " starting feeder thread");
 
         Thread feederThread = new Thread(() -> {
-            // Use node's configured FPS, defaulting to 1.0 for images if not set
-            double nodeFps = sourceNode.fps > 0 ? sourceNode.fps : 1.0;
-            long frameDelayMs = (long) (1000.0 / nodeFps);
             long frameCount = 0;
             long lastDebugTime = System.currentTimeMillis();
 
-            System.out.println("[SourceFeeder] " + sourceNode.label + " thread started, fps=" + nodeFps);
+            System.out.println("[SourceFeeder] " + sourceNode.label + " thread started, originalFps=" + sourceProc.getOriginalFps());
 
             while (running.get()) {
                 long startTime = System.currentTimeMillis();
+
+                // Get effective FPS from SourceProcessor (may be reduced due to backpressure)
+                double effectiveFps = sourceProc.getEffectiveFps();
+                long frameDelayMs = effectiveFps > 0 ? (long) (1000.0 / effectiveFps) : 1000;
 
                 try {
                     Mat frame = getSourceFrame(sourceNode);
                     if (frame != null) {
                         frameCount++;
-                        // Update source node stats
+                        // Update stats via SourceProcessor
+                        sourceProc.incrementWorkUnits();
                         sourceNode.outputCount1++;
 
                         // Send thumbnail update
@@ -299,7 +343,9 @@ public class FXPipelineExecutor {
 
                         // Debug output every 2 seconds
                         if (System.currentTimeMillis() - lastDebugTime > 2000) {
-                            System.out.println("[SourceFeeder] " + sourceNode.label + " fed " + frameCount + " frames, queueSize=" + outputQueue.size());
+                            System.out.println("[SourceFeeder] " + sourceNode.label + " fed " + frameCount + " frames, queueSize=" + outputQueue.size() +
+                                               ", fps=" + String.format("%.2f", effectiveFps) + "/" + String.format("%.2f", sourceProc.getOriginalFps()) +
+                                               " (slowdownLevel=" + sourceProc.getFpsSlowdownLevel() + ")");
                             lastDebugTime = System.currentTimeMillis();
                         }
                     } else if (frameCount == 0 && System.currentTimeMillis() - lastDebugTime > 2000) {
@@ -313,7 +359,7 @@ public class FXPipelineExecutor {
                     System.err.println("Source feeder error for " + sourceNode.label + ": " + e.getMessage());
                 }
 
-                // Maintain frame rate
+                // Maintain frame rate (using effective FPS from SourceProcessor)
                 long elapsed = System.currentTimeMillis() - startTime;
                 long sleepTime = frameDelayMs - elapsed;
                 if (sleepTime > 0) {

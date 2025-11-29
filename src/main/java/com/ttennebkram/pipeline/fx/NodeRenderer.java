@@ -63,9 +63,9 @@ public class NodeRenderer {
     private static final Color COLOR_QUEUE_BG_BACKPRESSURE = Color.rgb(139, 0, 0);  // Dark red
     private static final Color COLOR_QUEUE_TEXT = Color.WHITE;
     private static final Font QUEUE_STATS_FONT = Font.font("System", FontWeight.NORMAL, 10);
-    private static final Font STATS_LINE_FONT = Font.font("Arial", FontWeight.NORMAL, 8);
-    private static final Color COLOR_STATS_NORMAL = Color.DARKGRAY;
-    private static final Color COLOR_STATS_SLOWED = Color.rgb(200, 0, 0);  // Red for priority < 5
+    private static final Font STATS_LINE_FONT = Font.font("Arial", FontWeight.BOLD, 9);
+    private static final Color COLOR_STATS_NORMAL = Color.rgb(40, 40, 40);  // Near-black for visibility
+    private static final Color COLOR_STATS_SLOWED = Color.rgb(180, 0, 0);  // Red for priority < 5
 
     /**
      * Render a processing node at the given position.

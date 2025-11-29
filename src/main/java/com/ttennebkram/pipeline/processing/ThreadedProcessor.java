@@ -240,6 +240,31 @@ public class ThreadedProcessor {
         return originalFps / Math.pow(2, fpsSlowdownLevel);
     }
 
+    // Protected accessors for subclasses (SourceProcessor)
+    protected void setLastSlowdownReceivedTime(long time) {
+        this.lastSlowdownReceivedTime = time;
+    }
+
+    protected long getLastSlowdownReceivedTime() {
+        return lastSlowdownReceivedTime;
+    }
+
+    protected void setInSlowdownMode(boolean mode) {
+        this.inSlowdownMode = mode;
+    }
+
+    protected boolean isInSlowdownMode() {
+        return inSlowdownMode;
+    }
+
+    protected void incrementSlowdownPriorityReduction() {
+        slowdownPriorityReduction++;
+    }
+
+    protected int getSlowdownPriorityReduction() {
+        return slowdownPriorityReduction;
+    }
+
     /**
      * Get a timestamp string for logging.
      */
@@ -341,7 +366,9 @@ public class ThreadedProcessor {
      * For boundary nodes (ContainerOutput), also signals the parent container.
      */
     private void signalUpstreamSlowdown() {
-        System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to upstream nodes");
+        System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to upstream nodes (inputNode=" +
+                           (inputNode != null ? inputNode.getName() : "null") + ", parentContainer=" +
+                           (parentContainer != null ? parentContainer.getName() : "null") + ")");
         if (inputNode != null) {
             inputNode.receiveSlowdownSignal();
         }
@@ -350,7 +377,7 @@ public class ThreadedProcessor {
         }
         // For boundary nodes (ContainerOutput), signal the parent container
         if (parentContainer != null) {
-            System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to parent container");
+            System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to parent container: " + parentContainer.getName());
             parentContainer.receiveSlowdownSignal();
         }
     }
@@ -361,6 +388,7 @@ public class ThreadedProcessor {
      * For source nodes: reduces priority first, then FPS if at min priority.
      */
     public synchronized void receiveSlowdownSignal() {
+        System.out.println("[" + timestamp() + "] [Processor " + name + "] receiveSlowdownSignal() called");
         long now = System.currentTimeMillis();
         lastSlowdownReceivedTime = now;
         inSlowdownMode = true;

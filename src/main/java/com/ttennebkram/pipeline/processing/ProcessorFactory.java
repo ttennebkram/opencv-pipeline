@@ -75,6 +75,12 @@ public class ProcessorFactory {
         if ("Container".equals(fxNode.nodeType) || fxNode.isContainer) {
             // Container nodes use specialized ContainerProcessor
             tp = new ContainerProcessor(fxNode.label);
+        } else if (isSourceNode(fxNode.nodeType)) {
+            // Source nodes use SourceProcessor for backpressure signaling
+            SourceProcessor sp = new SourceProcessor(fxNode.label);
+            double fps = fxNode.fps > 0 ? fxNode.fps : 1.0;
+            sp.setOriginalFps(fps);
+            tp = sp;
         } else {
             ImageProcessor processor = createImageProcessor(fxNode);
             if (processor == null) {
@@ -95,6 +101,15 @@ public class ProcessorFactory {
 
         processors.put(fxNode.id, tp);
         return tp;
+    }
+
+    /**
+     * Check if a node type is a source node.
+     */
+    private boolean isSourceNode(String nodeType) {
+        return "WebcamSource".equals(nodeType) ||
+               "FileSource".equals(nodeType) ||
+               "BlankSource".equals(nodeType);
     }
 
     /**
