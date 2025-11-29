@@ -1,6 +1,6 @@
 # OpenCV Pipeline Editor
 
-A visual node-based editor for creating OpenCV image processing pipelines. Built with OpenCV, Java, SWT, and Eclipse GEF.
+A visual node-based editor for creating OpenCV image processing pipelines. Built with OpenCV, Java, JavaFX, and Eclipse GEF.
 Not just a drawing program - **it's live!**  Each node you see is **an actual thread**, and each conneciton between them is a queue.  It even supports sub-pipeline diagrams.
 
 ![Screenshot](screenshots/pipeline.png)
