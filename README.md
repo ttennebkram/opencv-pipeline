@@ -2,6 +2,8 @@
 
 A visual node-based editor for creating OpenCV image processing pipelines. Built with OpenCV, Java, SWT, and Eclipse GEF.
 
+![Screenshot](screenshots/pipeline.png)
+
 ## Quick Start
 
 Download the JAR for your platform from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases) and run:
