@@ -4,7 +4,7 @@ A visual node-based editor for creating OpenCV image processing pipelines. Built
 
 ![Screenshot](screenshots/pipeline.png)
 
-Not just a drawing program - it's live!  Each node you see is an actual thread, and each conneciton between them is a queue.  It even supports sub-pipeline diagrams.
+Not just a drawing program - **it's live!**  Each node you see is **an actual thread**, and each conneciton between them is a queue.  It even supports sub-pipeline diagrams.
 
 ## Quick Start
 
