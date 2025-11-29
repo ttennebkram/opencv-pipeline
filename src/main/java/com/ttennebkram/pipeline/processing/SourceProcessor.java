@@ -91,8 +91,6 @@ public class SourceProcessor extends ThreadedProcessor {
         if (currentPriority > Thread.MIN_PRIORITY) {
             // First, reduce priority like other nodes
             int newPriority = currentPriority - 1;
-            System.out.println("[SourceProcessor] " + getName() + " RECEIVED SLOWDOWN, " +
-                "lowering priority: " + currentPriority + " -> " + newPriority);
             setThreadPriority(newPriority);
             incrementSlowdownPriorityReduction();
         } else if (fpsSlowdownLevel < MAX_FPS_SLOWDOWN_LEVELS) {
@@ -100,12 +98,8 @@ public class SourceProcessor extends ThreadedProcessor {
             fpsSlowdownLevel++;
             double effectiveFps = getEffectiveFps();
             frameDelayMs = effectiveFps > 0 ? (long) (1000.0 / effectiveFps) : 0;
-            System.out.println("[SourceProcessor] " + getName() + " RECEIVED SLOWDOWN at min priority, " +
-                "reducing FPS: " + String.format("%.3f", originalFps) + " -> " + String.format("%.3f", effectiveFps) +
-                " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
-        } else {
-            System.out.println("[SourceProcessor] " + getName() + " RECEIVED SLOWDOWN but already at max slowdown");
         }
+        // else: Already at max slowdown, nothing more we can do
     }
 
     /**
@@ -124,13 +118,9 @@ public class SourceProcessor extends ThreadedProcessor {
         // First recover FPS if reduced (uses longer FPS_RECOVERY_MS interval)
         if (fpsSlowdownLevel > 0) {
             if (timeSinceSlowdown >= FPS_RECOVERY_MS) {
-                double oldFps = getEffectiveFps();
                 fpsSlowdownLevel--;
                 double newFps = getEffectiveFps();
                 frameDelayMs = newFps > 0 ? (long) (1000.0 / newFps) : 0;
-                System.out.println("[SourceProcessor] " + getName() + " SLOWDOWN RECOVERY, " +
-                    "raising FPS: " + String.format("%.3f", oldFps) + " -> " + String.format("%.3f", newFps) +
-                    " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
                 setLastSlowdownReceivedTime(now); // Reset timer for next recovery step
             }
             return; // Don't recover priority until FPS is fully restored
@@ -151,8 +141,6 @@ public class SourceProcessor extends ThreadedProcessor {
         // The actual frame generation happens in FXPipelineExecutor.startSourceFeeder().
         // This method exists so the processor can be started (for stats tracking)
         // but doesn't need to do anything.
-        System.out.println("[SourceProcessor] " + getName() + " processingLoop started (stats/recovery thread)");
-
         while (isRunning()) {
             try {
                 // Check recovery periodically
@@ -172,8 +160,6 @@ public class SourceProcessor extends ThreadedProcessor {
                 break;
             }
         }
-
-        System.out.println("[SourceProcessor] " + getName() + " processingLoop exiting");
     }
 
     /**

@@ -323,19 +323,12 @@ public class ThreadedProcessor {
         if (maxQueueSize >= 5) {
             // Respect cooldown - only lower priority once per second
             if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
-                String whichQueue = (outputQueue2Size >= 5 && outputQueueSize < 5) ? "OUTPUT2" :
-                                    (outputQueueSize >= 5 && outputQueue2Size < 5) ? "OUTPUT" : "BOTH OUTPUTS";
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] " + whichQueue + " QUEUE BACKED UP (sizes=" +
-                    outputQueueSize + "/" + outputQueue2Size + ")");
-
                 // Try to lower our own priority
                 Thread pt = processingThread;
                 if (pt != null && pt.isAlive()) {
                     int currentPriority = pt.getPriority();
                     if (currentPriority > Thread.MIN_PRIORITY) {
                         int newPriority = currentPriority - 1;
-                        System.out.println("[" + timestamp() + "] [Processor " + name + "] lowering OWN priority: " +
-                            currentPriority + " -> " + newPriority);
                         pt.setPriority(newPriority);
                         lastRunningPriority = newPriority;
                         inSlowdownMode = true;
@@ -343,7 +336,6 @@ public class ThreadedProcessor {
                         lastPriorityAdjustmentTime = now;
                     } else {
                         // Already at min priority, signal upstream to slow down
-                        System.out.println("[" + timestamp() + "] [Processor " + name + "] at min priority, signaling upstream to slow down");
                         if (inputNode != null) {
                             inputNode.receiveSlowdownSignal();
                         }
@@ -362,9 +354,6 @@ public class ThreadedProcessor {
      * For boundary nodes (ContainerOutput), also signals the parent container.
      */
     private void signalUpstreamSlowdown() {
-        System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to upstream nodes (inputNode=" +
-                           (inputNode != null ? inputNode.getName() : "null") + ", parentContainer=" +
-                           (parentContainer != null ? parentContainer.getName() : "null") + ")");
         if (inputNode != null) {
             inputNode.receiveSlowdownSignal();
         }
@@ -373,7 +362,6 @@ public class ThreadedProcessor {
         }
         // For boundary nodes (ContainerOutput), signal the parent container
         if (parentContainer != null) {
-            System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to parent container: " + parentContainer.getName());
             parentContainer.receiveSlowdownSignal();
         }
     }
@@ -384,7 +372,6 @@ public class ThreadedProcessor {
      * For source nodes: reduces priority first, then FPS if at min priority.
      */
     public synchronized void receiveSlowdownSignal() {
-        System.out.println("[" + timestamp() + "] [Processor " + name + "] receiveSlowdownSignal() called");
         long now = System.currentTimeMillis();
         lastSlowdownReceivedTime = now;
         inSlowdownMode = true;
@@ -396,8 +383,6 @@ public class ThreadedProcessor {
             if (currentPriority > Thread.MIN_PRIORITY) {
                 // Reduce priority by 1
                 int newPriority = currentPriority - 1;
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] RECEIVED SLOWDOWN, " +
-                    "lowering priority: " + currentPriority + " -> " + newPriority);
                 pt.setPriority(newPriority);
                 lastRunningPriority = newPriority;
                 slowdownPriorityReduction++;
@@ -406,12 +391,8 @@ public class ThreadedProcessor {
                 fpsSlowdownLevel++;
                 double effectiveFps = getEffectiveFps();
                 frameDelayMs = effectiveFps > 0 ? (long) (1000.0 / effectiveFps) : 0;
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] RECEIVED SLOWDOWN at min priority, " +
-                    "reducing FPS: " + String.format("%.3f", originalFps) + " -> " + String.format("%.3f", effectiveFps) +
-                    " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
             } else {
                 // Already at minimum priority (and min FPS for sources), cascade upstream
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] RECEIVED SLOWDOWN at min priority, cascading upstream");
                 signalUpstreamSlowdown();
             }
         }
@@ -430,27 +411,12 @@ public class ThreadedProcessor {
         long now = System.currentTimeMillis();
         long timeSinceSlowdown = now - lastSlowdownReceivedTime;
 
-        // Debug: log recovery check status periodically
-        Thread pt = processingThread;
-        if (pt != null && pt.isAlive()) {
-            int currentPriority = pt.getPriority();
-            if (currentPriority < originalPriority && timeSinceSlowdown > 5000) {
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] RECOVERY CHECK: pri=" +
-                    currentPriority + "/" + originalPriority + ", timeSinceSlowdown=" + timeSinceSlowdown +
-                    "ms, needsWait=" + (SLOWDOWN_RECOVERY_MS - timeSinceSlowdown) + "ms");
-            }
-        }
-
         // For source nodes, recover FPS first (with longer interval)
         if (isSource && fpsSlowdownLevel > 0) {
             if (timeSinceSlowdown >= FPS_RECOVERY_MS) {
-                double oldFps = getEffectiveFps();
                 fpsSlowdownLevel--;
                 double newFps = getEffectiveFps();
                 frameDelayMs = newFps > 0 ? (long) (1000.0 / newFps) : 0;
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] SLOWDOWN RECOVERY, " +
-                    "raising FPS: " + String.format("%.3f", oldFps) + " -> " + String.format("%.3f", newFps) +
-                    " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
                 lastSlowdownReceivedTime = now; // Reset timer for next recovery step
             }
             return; // Don't recover priority until FPS is fully restored
@@ -458,15 +424,13 @@ public class ThreadedProcessor {
 
         // Recover priority if below original
         if (timeSinceSlowdown >= SLOWDOWN_RECOVERY_MS) {
-            pt = processingThread;
+            Thread pt = processingThread;
             if (pt != null && pt.isAlive()) {
                 int currentPriority = pt.getPriority();
 
                 if (currentPriority < originalPriority) {
                     // Raise priority by 1
                     int newPriority = currentPriority + 1;
-                    System.out.println("[" + timestamp() + "] [Processor " + name + "] SLOWDOWN RECOVERY, " +
-                        "raising priority: " + currentPriority + " -> " + newPriority);
                     pt.setPriority(newPriority);
                     lastRunningPriority = newPriority;
                     lastSlowdownReceivedTime = now; // Reset timer for next recovery step
@@ -477,7 +441,6 @@ public class ThreadedProcessor {
             // Fully recovered - priority is back to original and FPS is not reduced
             if (fpsSlowdownLevel <= 0) {
                 inSlowdownMode = false;
-                System.out.println("[" + timestamp() + "] [Processor " + name + "] EXITED SLOWDOWN MODE");
             }
         }
     }
@@ -506,8 +469,6 @@ public class ThreadedProcessor {
      * Main processing loop. Subclasses can override this to customize behavior.
      */
     protected void processingLoop() {
-        System.out.println("[ThreadedProcessor] " + name + " starting processingLoop, inputQueue=" + (inputQueue != null ? "set" : "NULL") + ", outputQueue=" + (outputQueue != null ? "set" : "NULL"));
-        long lastDebugTime = System.currentTimeMillis();
         while (running.get()) {
             try {
                 if (inputQueue == null) {
@@ -526,12 +487,6 @@ public class ThreadedProcessor {
                 // Update FXNode stats directly (each thread updates its own node)
                 if (fxNode != null) {
                     fxNode.inputCount = (int) inputReads1;
-                }
-
-                // Debug every 2 seconds
-                if (System.currentTimeMillis() - lastDebugTime > 2000) {
-                    System.out.println("[ThreadedProcessor] " + name + " processed " + inputReads1 + " frames, outputWrites=" + outputWrites1);
-                    lastDebugTime = System.currentTimeMillis();
                 }
 
                 if (input == null) {

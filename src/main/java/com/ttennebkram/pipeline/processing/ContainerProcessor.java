@@ -43,18 +43,12 @@ public class ContainerProcessor extends ThreadedProcessor {
         int currentPriority = getThreadPriority();
         boolean wasAtMinPriority = (currentPriority <= Thread.MIN_PRIORITY);
 
-        System.out.println("[ContainerProcessor] " + getName() + " RECEIVED SLOWDOWN SIGNAL! currentPriority=" + currentPriority + ", wasAtMinPriority=" + wasAtMinPriority);
-
         // Handle our own slowdown first
         super.receiveSlowdownSignal();
-
-        int newPriority = getThreadPriority();
-        System.out.println("[ContainerProcessor] " + getName() + " after super.receiveSlowdownSignal(), priority is now " + newPriority);
 
         // Only forward to internal ContainerOutput if we were already at min priority
         // (meaning we can't slow down any further ourselves)
         if (wasAtMinPriority && containerOutputProcessor != null) {
-            System.out.println("[ContainerProcessor] " + getName() + " at min priority, forwarding slowdown to internal pipeline");
             containerOutputProcessor.receiveSlowdownSignal();
         }
     }
@@ -85,16 +79,6 @@ public class ContainerProcessor extends ThreadedProcessor {
      */
     @Override
     protected void processingLoop() {
-        System.out.println("[ContainerProcessor] " + getName() + " starting processingLoop");
-        System.out.println("[ContainerProcessor] " + getName() + " inputQueue=" + (getInputQueue() != null ? "set" : "NULL") +
-                           ", containerInputQueue=" + (containerInputQueue != null ? "set" : "NULL") +
-                           ", containerOutputQueue=" + (containerOutputQueue != null ? "set" : "NULL") +
-                           ", outputQueue=" + (getOutputQueue() != null ? "set" : "NULL"));
-
-        long lastDebugTime = System.currentTimeMillis();
-        long inputCount = 0;
-        long outputCount = 0;
-
         while (isRunning()) {
             try {
                 boolean didWork = false;
@@ -107,7 +91,6 @@ public class ContainerProcessor extends ThreadedProcessor {
                 if (inputQueue != null) {
                     Mat input = inputQueue.poll(10, TimeUnit.MILLISECONDS);
                     if (input != null) {
-                        inputCount++;
                         incrementInputReads1();
 
                         // Bypass mode: if disabled OR if no internal pipeline loaded
@@ -136,7 +119,6 @@ public class ContainerProcessor extends ThreadedProcessor {
                 if (isEnabled() && containerOutputQueue != null) {
                     Mat output = containerOutputQueue.poll(10, TimeUnit.MILLISECONDS);
                     if (output != null) {
-                        outputCount++;
                         // Work is completed when we dequeue from boundary output
                         incrementWorkUnitsCompleted();
 
@@ -163,19 +145,6 @@ public class ContainerProcessor extends ThreadedProcessor {
                     Thread.sleep(5);
                 }
 
-                // Periodic stats update - even when idle, update priority display
-                long now = System.currentTimeMillis();
-                if (now - lastDebugTime > 2000) {
-                    BlockingQueue<Mat> outQueue = getOutputQueue();
-                    System.out.println("[ContainerProcessor] " + getName() + " stats: in=" + inputCount + " out=" + outputCount +
-                                       " pri=" + getThreadPriority() +
-                                       " inputQueueSize=" + (inputQueue != null ? inputQueue.size() : -1) +
-                                       " containerInQueueSize=" + (containerInputQueue != null ? containerInputQueue.size() : -1) +
-                                       " containerOutQueueSize=" + (containerOutputQueue != null ? containerOutputQueue.size() : -1) +
-                                       " downstreamQueueSize=" + (outQueue != null ? outQueue.size() : -1));
-                    lastDebugTime = now;
-                }
-
                 // Update FXNode stats periodically (priority display) even when no work done
                 FXNode node = getFXNode();
                 if (node != null) {
@@ -188,6 +157,5 @@ public class ContainerProcessor extends ThreadedProcessor {
                 break;
             }
         }
-        System.out.println("[ContainerProcessor] " + getName() + " exiting processingLoop");
     }
 }

@@ -52,6 +52,13 @@ Boundary nodes should also have their "other ends" displayed
     Input Boundary node should add it's In: count
     Output Boundary node should add it's Out: count
 
+Boundary nodes shouldn't have FPS
+
+!Double-click for most node types not bringing up full dailog
+    example: clicking on Gain, no way to set the actual gain
+
+Add note to dialog that FFT is slow
+
 .In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 
 .When selecting a new file in the File Source, you don't see a thumbnail of it once loaded 

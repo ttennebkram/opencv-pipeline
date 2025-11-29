@@ -28,14 +28,8 @@ public class DualInputProcessor extends ThreadedProcessor {
 
     @Override
     protected void processingLoop() {
-        System.out.println("[DualInputProcessor] " + getName() + " starting processingLoop");
         BlockingQueue<Mat> inputQueue = getInputQueue();
         BlockingQueue<Mat> inputQueue2 = getInputQueue2();
-        System.out.println("[DualInputProcessor] " + getName() + " inputQueue=" + (inputQueue != null ? "set" : "NULL") +
-                           ", inputQueue2=" + (inputQueue2 != null ? "set" : "NULL") +
-                           ", outputQueue=" + (getOutputQueue() != null ? "set" : "NULL"));
-
-        long lastDebugTime = System.currentTimeMillis();
 
         while (isRunning()) {
             try {
@@ -117,19 +111,6 @@ public class DualInputProcessor extends ThreadedProcessor {
                     }
                 }
 
-                // Debug every 2 seconds
-                long now = System.currentTimeMillis();
-                if (now - lastDebugTime > 2000) {
-                    System.out.println("[DualInputProcessor] " + getName() +
-                        " reads1=" + (node != null ? node.inputCount : 0) +
-                        " reads2=" + (node != null ? node.inputCount2 : 0) +
-                        " outputs=" + (node != null ? node.outputCount1 : 0) +
-                        " q1=" + (inputQueue != null ? inputQueue.size() : -1) +
-                        " q2=" + (inputQueue2 != null ? inputQueue2.size() : -1) +
-                        " syncMode=" + syncMode);
-                    lastDebugTime = now;
-                }
-
                 // Process if we have at least one valid input
                 if (lastInput1 != null || lastInput2 != null) {
                     Mat output;
@@ -177,8 +158,6 @@ public class DualInputProcessor extends ThreadedProcessor {
             lastInput2.release();
             lastInput2 = null;
         }
-
-        System.out.println("[DualInputProcessor] " + getName() + " exiting processingLoop");
     }
 
 }

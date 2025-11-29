@@ -204,24 +204,11 @@ public class FXContainerEditorWindow {
         repaintTimer = new javafx.animation.AnimationTimer() {
             private long lastUpdate = 0;
             private static final long REPAINT_INTERVAL_NS = 100_000_000L; // 100ms = 10fps
-            private int debugCounter = 0;
 
             @Override
             public void handle(long now) {
                 if (now - lastUpdate >= REPAINT_INTERVAL_NS) {
                     if (isPipelineRunning != null && isPipelineRunning.get()) {
-                        debugCounter++;
-                        if (debugCounter % 10 == 1) {
-                            // Print debug info every 10 frames (~1 second)
-                            StringBuilder thumbStatus = new StringBuilder();
-                            for (FXNode n : nodes) {
-                                thumbStatus.append(n.label).append("(id=").append(n.id)
-                                           .append(",hash=").append(System.identityHashCode(n))
-                                           .append("):").append(n.thumbnail != null ? "Y" : "N").append(" ");
-                            }
-                            System.out.println("[ContainerEditor " + containerNode.label + "] repaint #" + debugCounter +
-                                " nodes=" + nodes.size() + " thumbs=[" + thumbStatus.toString().trim() + "]");
-                        }
                         paintCanvas();
                     }
                     lastUpdate = now;

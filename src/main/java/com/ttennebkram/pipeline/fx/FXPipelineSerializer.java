@@ -292,7 +292,7 @@ public class FXPipelineSerializer {
 
                     // First try inline inner nodes - these may have thumbnails from a previous save
                     if (nodeJson.has("innerNodes")) {
-                        node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
+                        node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), path);
                         if (nodeJson.has("innerConnections")) {
                             node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
                         }
@@ -557,6 +557,13 @@ public class FXPipelineSerializer {
      * Deserialize a JsonArray into a list of nodes.
      */
     private static List<FXNode> deserializeNodes(JsonArray nodesArray) {
+        return deserializeNodes(nodesArray, null);
+    }
+
+    /**
+     * Deserialize a JsonArray into a list of nodes with parent path for external file resolution.
+     */
+    private static List<FXNode> deserializeNodes(JsonArray nodesArray, String parentPath) {
         List<FXNode> nodes = new ArrayList<>();
         for (JsonElement elem : nodesArray) {
             JsonObject nodeJson = elem.getAsJsonObject();
@@ -640,16 +647,44 @@ public class FXPipelineSerializer {
                 // Load inner nodes: prioritize inline data (which may have thumbnails) over external file
                 boolean loadedInline = false;
                 if (nodeJson.has("innerNodes")) {
-                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
+                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), parentPath);
                     if (nodeJson.has("innerConnections")) {
                         node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
                     }
                     reassignInnerNodeIds(node.innerNodes);
                     loadedInline = true;
+                    System.out.println("Loaded inline inner nodes for nested container: " + node.label +
+                                       " (" + node.innerNodes.size() + " nodes)");
                 }
-                // Fall back to external pipeline file if no inline data
-                // Note: We don't have the parent path here, so external file loading
-                // would need to be handled at a higher level if needed
+                // Fall back to external pipeline file if no inline data and we have a parent path
+                if (!loadedInline && node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty() && parentPath != null) {
+                    // Resolve relative paths against the parent document's directory
+                    String resolvedPath = node.pipelineFilePath;
+                    File pipelineFile = new File(resolvedPath);
+                    if (!pipelineFile.isAbsolute()) {
+                        // Relative path - resolve against parent document's directory
+                        File parentDir = new File(parentPath).getParentFile();
+                        if (parentDir != null) {
+                            pipelineFile = new File(parentDir, node.pipelineFilePath);
+                            resolvedPath = pipelineFile.getAbsolutePath();
+                        }
+                    }
+                    if (pipelineFile.exists()) {
+                        try {
+                            PipelineDocument externalDoc = load(resolvedPath);
+                            node.innerNodes = externalDoc.nodes;
+                            node.innerConnections = externalDoc.connections;
+                            // Reassign IDs to inner nodes to avoid collisions with outer nodes
+                            reassignInnerNodeIds(node.innerNodes);
+                            System.out.println("Loaded external pipeline for nested container: " + resolvedPath);
+                        } catch (IOException e) {
+                            System.err.println("Failed to load external pipeline " + resolvedPath + ": " + e.getMessage());
+                        }
+                    } else {
+                        System.err.println("External pipeline file not found: " + resolvedPath +
+                            " (original: " + node.pipelineFilePath + ")");
+                    }
+                }
             }
 
             nodes.add(node);

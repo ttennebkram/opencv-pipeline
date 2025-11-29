@@ -102,14 +102,6 @@ public class ProcessorFactory {
         // Set up callback to update FXNode thumbnail
         tp.setOnFrameCallback(mat -> {
             if (onNodeOutput != null && mat != null) {
-                // Debug: trace which FXNode is being updated
-                if (fxNode.nodeType.contains("Invert") ||
-                    "ContainerInput".equals(fxNode.nodeType) ||
-                    "ContainerOutput".equals(fxNode.nodeType)) {
-                    System.out.println("[ProcessorFactory] Callback fired for " + fxNode.label +
-                                       " (id=" + fxNode.id + ", type=" + fxNode.nodeType +
-                                       ", hashCode=" + System.identityHashCode(fxNode) + ")");
-                }
                 onNodeOutput.accept(new NodeOutput(fxNode, mat));
             }
         });
@@ -154,23 +146,13 @@ public class ProcessorFactory {
         ThreadedProcessor sourceProc = processors.get(source.id);
         ThreadedProcessor targetProc = processors.get(target.id);
 
-        System.out.println("[ProcessorFactory] wireConnection: " + source.label + " (id=" + source.id + ") -> " + target.label + " (id=" + target.id + ")");
-        System.out.println("[ProcessorFactory]   sourceProc=" + (sourceProc != null ? sourceProc.getName() : "NULL") +
-                           ", targetProc=" + (targetProc != null ? targetProc.getName() : "NULL") +
-                           ", sourceOutputIndex=" + sourceOutputIndex + ", targetInputIndex=" + targetInputIndex);
-
         if (sourceProc == null || targetProc == null) {
-            System.err.println("[ProcessorFactory]   WARNING: Cannot wire, processor is null!");
+            System.err.println("[ProcessorFactory] WARNING: Cannot wire " + source.label + " -> " + target.label + ", processor is null!");
             return;
         }
 
         // Create queue for this connection
         BlockingQueue<Mat> queue = new java.util.concurrent.LinkedBlockingQueue<>();
-
-        // Wire output of source to input of target
-        System.out.println("[ProcessorFactory]   Wiring: setting " + sourceProc.getName() + ".outputQueue" +
-                           (sourceOutputIndex == 1 ? "2" : "") + " and " +
-                           targetProc.getName() + ".inputQueue" + (targetInputIndex == 1 ? "2" : ""));
 
         // Set source output queue (support dual output)
         if (sourceOutputIndex == 1) {
@@ -189,17 +171,13 @@ public class ProcessorFactory {
             // Wire upstream reference for backpressure signaling
             targetProc.setInputNode(sourceProc);
         }
-        System.out.println("[ProcessorFactory]   After wiring: " + targetProc.getName() + ".inputQueue=" +
-                           (targetProc.getInputQueue() != null ? "set" : "NULL"));
     }
 
     /**
      * Start all processors.
      */
     public void startAll() {
-        System.out.println("[ProcessorFactory] startAll: starting " + processors.size() + " processors");
         for (ThreadedProcessor tp : processors.values()) {
-            System.out.println("[ProcessorFactory]   Starting " + tp.getName() + " (" + tp.getClass().getSimpleName() + ")");
             tp.startProcessing();
         }
     }

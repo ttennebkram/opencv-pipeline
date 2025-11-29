@@ -126,7 +126,6 @@ public class FXPipelineExecutor {
 
         // Create processors for all nodes (including sources for backpressure signaling)
         for (FXNode node : executionOrder) {
-            System.out.println("[FXPipelineExecutor] Processing node: " + node.label + " (id=" + node.id + ", type=" + node.nodeType + ")");
             ThreadedProcessor tp = processorFactory.createProcessor(node);
             if (tp != null) {
                 tp.setEnabled(node.enabled);
@@ -136,10 +135,6 @@ public class FXPipelineExecutor {
             if ("Container".equals(node.nodeType) || node.isContainer) {
                 boolean hasInnerNodes = node.innerNodes != null && !node.innerNodes.isEmpty();
                 boolean hasExternalFile = node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty();
-                System.out.println("[FXPipelineExecutor] Container " + node.label + " innerNodes=" +
-                                   (node.innerNodes != null ? node.innerNodes.size() : "null") +
-                                   ", pipelineFile=" + node.pipelineFilePath +
-                                   ", isContainer=" + node.isContainer);
                 if (hasInnerNodes || hasExternalFile) {
                     setupContainerInternals(node);
                 }
@@ -147,11 +142,8 @@ public class FXPipelineExecutor {
         }
 
         // Wire up connections - create queues between nodes
-        System.out.println("[FXPipelineExecutor] Wiring " + connections.size() + " connections:");
         for (FXConnection conn : connections) {
             if (conn.source != null && conn.target != null) {
-                System.out.println("[FXPipelineExecutor]   " + conn.source.label + " -> " + conn.target.label +
-                                   " (source is " + (isSourceNode(conn.source) ? "SOURCE" : "processor") + ")");
                 if (isSourceNode(conn.source)) {
                     // Source -> Processing: create source output queue
                     BlockingQueue<Mat> queue = sourceOutputQueues.computeIfAbsent(
@@ -159,7 +151,6 @@ public class FXPipelineExecutor {
                     ThreadedProcessor targetProc = processorFactory.getProcessor(conn.target);
                     ThreadedProcessor sourceProc = processorFactory.getProcessor(conn.source);
                     if (targetProc != null) {
-                        System.out.println("[FXPipelineExecutor]     Setting inputQueue on " + conn.target.label);
                         if (conn.targetInputIndex == 1) {
                             targetProc.setInputQueue2(queue);
                             // Wire upstream reference for backpressure signaling
@@ -173,8 +164,6 @@ public class FXPipelineExecutor {
                                 targetProc.setInputNode(sourceProc);
                             }
                         }
-                    } else {
-                        System.out.println("[FXPipelineExecutor]     WARNING: targetProc is null for " + conn.target.label);
                     }
                 } else {
                     // Processing -> Processing: wire via ProcessorFactory
@@ -185,10 +174,8 @@ public class FXPipelineExecutor {
         }
 
         // Start source feeder threads
-        System.out.println("[FXPipelineExecutor] Starting source feeders for " + nodes.size() + " nodes:");
         for (FXNode node : nodes) {
             if (isSourceNode(node)) {
-                System.out.println("[FXPipelineExecutor]   Starting feeder for " + node.label + " (type=" + node.nodeType + ")");
                 startSourceFeeder(node);
             }
         }
@@ -301,15 +288,11 @@ public class FXPipelineExecutor {
                     }
                 }
 
-                System.out.println("[FXPipelineExecutor] Updated container " + containerNode.label +
-                                   " with " + containerNode.innerNodes.size() + " nodes and " +
-                                   containerNode.innerConnections.size() + " connections from " + containerNode.pipelineFilePath);
             } else {
                 System.err.println("[FXPipelineExecutor] External pipeline file not found: " + resolvedPath);
             }
         } catch (Exception e) {
             System.err.println("[FXPipelineExecutor] Error loading external pipeline file: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -529,7 +512,6 @@ public class FXPipelineExecutor {
         BlockingQueue<Mat> outputQueue = sourceOutputQueues.get(sourceNode.id);
         if (outputQueue == null) {
             // No connections from this source, skip
-            System.out.println("[FXPipelineExecutor] Source " + sourceNode.label + " has no output queue - skipping");
             return;
         }
 
@@ -547,14 +529,7 @@ public class FXPipelineExecutor {
         }
         SourceProcessor sourceProc = (SourceProcessor) tp;
 
-        System.out.println("[FXPipelineExecutor] Source " + sourceNode.label + " starting feeder thread");
-
         Thread feederThread = new Thread(() -> {
-            long frameCount = 0;
-            long lastDebugTime = System.currentTimeMillis();
-
-            System.out.println("[SourceFeeder] " + sourceNode.label + " thread started, originalFps=" + sourceProc.getOriginalFps());
-
             while (running.get()) {
                 long startTime = System.currentTimeMillis();
 
@@ -565,7 +540,6 @@ public class FXPipelineExecutor {
                 try {
                     Mat frame = getSourceFrame(sourceNode);
                     if (frame != null) {
-                        frameCount++;
                         // Update stats via SourceProcessor
                         sourceProc.incrementWorkUnits();
                         sourceNode.outputCount1++;
@@ -580,17 +554,6 @@ public class FXPipelineExecutor {
 
                         // Put frame on output queue
                         outputQueue.put(frame);
-
-                        // Debug output every 2 seconds
-                        if (System.currentTimeMillis() - lastDebugTime > 2000) {
-                            System.out.println("[SourceFeeder] " + sourceNode.label + " fed " + frameCount + " frames, queueSize=" + outputQueue.size() +
-                                               ", fps=" + String.format("%.2f", effectiveFps) + "/" + String.format("%.2f", sourceProc.getOriginalFps()) +
-                                               " (slowdownLevel=" + sourceProc.getFpsSlowdownLevel() + ")");
-                            lastDebugTime = System.currentTimeMillis();
-                        }
-                    } else if (frameCount == 0 && System.currentTimeMillis() - lastDebugTime > 2000) {
-                        System.out.println("[SourceFeeder] " + sourceNode.label + " getSourceFrame returned null");
-                        lastDebugTime = System.currentTimeMillis();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
