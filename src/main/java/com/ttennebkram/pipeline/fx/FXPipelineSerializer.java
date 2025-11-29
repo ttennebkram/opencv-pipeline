@@ -257,6 +257,9 @@ public class FXPipelineSerializer {
                     }
                 }
 
+                // Restore generic properties for processing nodes
+                loadNodeProperties(nodeJson, node);
+
                 // Restore thumbnail from Base64-encoded PNG
                 if (nodeJson.has("thumbnail")) {
                     String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
@@ -563,6 +566,9 @@ public class FXPipelineSerializer {
                 node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
             }
 
+            // Load generic properties for processing nodes
+            loadNodeProperties(nodeJson, node);
+
             nodes.add(node);
         }
         return nodes;
@@ -665,5 +671,64 @@ public class FXPipelineSerializer {
             }
         }
         return maxId;
+    }
+
+    /**
+     * Load node-specific properties from JSON into FXNode.properties map.
+     * This handles all processing node properties like radius, smoothness, gain, bitEnabled, etc.
+     */
+    private static void loadNodeProperties(JsonObject nodeJson, FXNode node) {
+        // List of known structural fields to skip (not processing properties)
+        java.util.Set<String> skipFields = new java.util.HashSet<>(java.util.Arrays.asList(
+            "id", "type", "x", "y", "label", "enabled", "hasInput", "hasDualInput", "outputCount",
+            "isBoundaryNode", "isContainer", "bgColorR", "bgColorG", "bgColorB", "thumbnail",
+            "cameraIndex", "filePath", "fps", "pipelineFile", "innerNodes", "innerConnections",
+            "threadPriority", "workUnitsCompleted", "inputReads1", "inputReads2", "name", "customName",
+            "numOutputs", "containerName", "boundaryInputY", "boundaryOutputY"
+        ));
+
+        for (java.util.Map.Entry<String, JsonElement> entry : nodeJson.entrySet()) {
+            String key = entry.getKey();
+            if (skipFields.contains(key)) {
+                continue;
+            }
+
+            JsonElement value = entry.getValue();
+            if (value.isJsonPrimitive()) {
+                com.google.gson.JsonPrimitive prim = value.getAsJsonPrimitive();
+                if (prim.isNumber()) {
+                    // Store as Double for consistency
+                    node.properties.put(key, prim.getAsDouble());
+                } else if (prim.isBoolean()) {
+                    node.properties.put(key, prim.getAsBoolean());
+                } else if (prim.isString()) {
+                    node.properties.put(key, prim.getAsString());
+                }
+            } else if (value.isJsonArray()) {
+                // Handle arrays (like redBitEnabled, redBitGain, etc.)
+                JsonArray arr = value.getAsJsonArray();
+                if (arr.size() > 0) {
+                    JsonElement first = arr.get(0);
+                    if (first.isJsonPrimitive()) {
+                        com.google.gson.JsonPrimitive prim = first.getAsJsonPrimitive();
+                        if (prim.isBoolean()) {
+                            // Boolean array
+                            boolean[] boolArr = new boolean[arr.size()];
+                            for (int i = 0; i < arr.size(); i++) {
+                                boolArr[i] = arr.get(i).getAsBoolean();
+                            }
+                            node.properties.put(key, boolArr);
+                        } else if (prim.isNumber()) {
+                            // Double array
+                            double[] doubleArr = new double[arr.size()];
+                            for (int i = 0; i < arr.size(); i++) {
+                                doubleArr[i] = arr.get(i).getAsDouble();
+                            }
+                            node.properties.put(key, doubleArr);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -30,6 +30,11 @@ New bugs after SWT -> JavaFX conversoion
 
 .In the container editor window, the button bar doesn't have as much horizontal padding to show the green background 
 
+if nothing matches search box, then it should display "No matches found, please change or clear your search term" in itallics where the buttons would normally appear, on the green background
+
+Pri display in nodes, needs to be darker gray or black
+
+Boundary nodes Input: needs to show the number of things it's read in.  Output node needs to show its stats for Out:
 
 File Source: properties label I think "File:"? is truncated, the dialog is not wide enough
 

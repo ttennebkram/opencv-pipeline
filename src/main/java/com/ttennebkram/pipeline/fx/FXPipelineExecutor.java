@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.fx;
 
+import com.ttennebkram.pipeline.processing.ContainerProcessor;
 import com.ttennebkram.pipeline.processing.ProcessorFactory;
 import com.ttennebkram.pipeline.processing.ThreadedProcessor;
 import javafx.application.Platform;
@@ -241,6 +242,13 @@ public class FXPipelineExecutor {
         // Store the queues in the container processor so it can use them
         // We need to extend the container's processing to use these queues
         processorFactory.setContainerQueues(containerNode, containerToInputQueue, outputToContainerQueue);
+
+        // Wire ContainerOutput's parent container reference for backpressure signaling
+        // When ContainerOutput detects backpressure, it signals the container to slow down
+        if (containerProc instanceof ContainerProcessor) {
+            outputProc.setParentContainer((ContainerProcessor) containerProc);
+            System.out.println("Container " + containerNode.label + " backpressure link established");
+        }
 
         System.out.println("Container " + containerNode.label + " internal wiring complete");
     }

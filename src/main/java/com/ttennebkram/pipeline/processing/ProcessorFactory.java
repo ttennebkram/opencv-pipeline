@@ -402,8 +402,12 @@ public class ProcessorFactory {
             case "Gain":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    double gain = 1.0;
+                    if (fxNode.properties.containsKey("gain")) {
+                        gain = ((Number) fxNode.properties.get("gain")).doubleValue();
+                    }
                     Mat output = new Mat();
-                    input.convertTo(output, -1, 1.5, 20);
+                    input.convertTo(output, -1, gain, 0);
                     return output;
                 };
 
@@ -581,6 +585,18 @@ public class ProcessorFactory {
                     return output;
                 };
 
+            case "FFTHighPass":
+                return createFFTHighPassProcessor(fxNode);
+
+            case "BitPlanesColor":
+                return createBitPlanesColorProcessor(fxNode);
+
+            case "FFTLowPass":
+                return createFFTLowPassProcessor(fxNode);
+
+            case "BitPlanesGrayscale":
+                return createBitPlanesGrayscaleProcessor(fxNode);
+
             // Dual input nodes - these need special handling
             case "AddClamp":
             case "SubtractClamp":
@@ -613,5 +629,604 @@ public class ProcessorFactory {
                 System.err.println("Unknown node type: " + type);
                 return input -> input != null ? input.clone() : null;
         }
+    }
+
+    // ====== FFT High-Pass Filter Implementation ======
+
+    // Butterworth filter constants
+    private static final double BUTTERWORTH_ORDER_MAX = 10.0;
+    private static final double BUTTERWORTH_ORDER_MIN = 0.5;
+    private static final double BUTTERWORTH_ORDER_RANGE = 9.5;
+    private static final double BUTTERWORTH_SMOOTHNESS_SCALE = 100.0;
+    private static final double BUTTERWORTH_TARGET_ATTENUATION = 0.03;
+    private static final double BUTTERWORTH_DIVISION_EPSILON = 1e-10;
+
+    private ImageProcessor createFFTHighPassProcessor(FXNode fxNode) {
+        return input -> {
+            if (input == null || input.empty()) return input;
+
+            // Read properties from FXNode
+            int radius = 0;
+            int smoothness = 0;
+            if (fxNode.properties.containsKey("radius")) {
+                radius = ((Number) fxNode.properties.get("radius")).intValue();
+            }
+            if (fxNode.properties.containsKey("smoothness")) {
+                smoothness = ((Number) fxNode.properties.get("smoothness")).intValue();
+            }
+
+            // Split into BGR channels
+            List<Mat> channels = new ArrayList<>();
+            Core.split(input, channels);
+
+            try {
+                // Apply FFT filter to each channel
+                List<Mat> filteredChannels = new ArrayList<>();
+                try {
+                    for (Mat channel : channels) {
+                        Mat filtered = applyFFTToChannel(channel, radius, smoothness);
+                        filteredChannels.add(filtered);
+                    }
+
+                    // Merge filtered channels
+                    Mat output = new Mat();
+                    Core.merge(filteredChannels, output);
+                    return output;
+                } finally {
+                    for (Mat m : filteredChannels) {
+                        m.release();
+                    }
+                }
+            } finally {
+                for (Mat m : channels) {
+                    m.release();
+                }
+            }
+        };
+    }
+
+    private int getOptimalFFTSize(int n) {
+        int pow2 = nextPowerOf2(n);
+        int optimal = Core.getOptimalDFTSize(n);
+        // Use power of 2 if it adds less than 25% overhead
+        if (pow2 <= optimal * 1.25) {
+            return pow2;
+        }
+        return optimal % 2 == 0 ? optimal : optimal + 1;
+    }
+
+    private int nextPowerOf2(int n) {
+        int power = 1;
+        while (power < n) {
+            power *= 2;
+        }
+        return power;
+    }
+
+    private Mat applyFFTToChannel(Mat channel, int radius, int smoothness) {
+        int origRows = channel.rows();
+        int origCols = channel.cols();
+
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Pad image to optimal size
+        Mat padded = new Mat();
+        Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+            Core.BORDER_CONSTANT, Scalar.all(0));
+
+        // Convert to float
+        Mat floatChannel = new Mat();
+        padded.convertTo(floatChannel, CvType.CV_32F);
+        padded.release();
+
+        // Create complex image with zero imaginary part
+        Mat complexI = new Mat();
+        List<Mat> planes = new ArrayList<>();
+        planes.add(floatChannel);
+        planes.add(Mat.zeros(floatChannel.size(), CvType.CV_32F));
+        Core.merge(planes, complexI);
+        planes.get(1).release();
+        floatChannel.release();
+
+        // Compute DFT
+        Core.dft(complexI, complexI);
+
+        // Shift zero frequency to center
+        fftShift(complexI);
+
+        // Create and apply mask
+        Mat mask = createFFTMask(optRows, optCols, radius, smoothness);
+
+        // Split, multiply each plane by mask, merge back
+        List<Mat> dftPlanes = new ArrayList<>();
+        Core.split(complexI, dftPlanes);
+        complexI.release();
+
+        Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+        Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+        mask.release();
+
+        Mat maskedDft = new Mat();
+        Core.merge(dftPlanes, maskedDft);
+        for (Mat p : dftPlanes) p.release();
+
+        // Inverse shift
+        fftShift(maskedDft);
+
+        // Inverse DFT
+        Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+        // Get real part
+        List<Mat> idftPlanes = new ArrayList<>();
+        Core.split(maskedDft, idftPlanes);
+        maskedDft.release();
+
+        Mat magnitude = idftPlanes.get(0);
+        idftPlanes.get(1).release();
+
+        // Crop to original size
+        Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+        Mat result = cropped.clone();
+        magnitude.release();
+
+        // Clip to 0-255 and convert to 8-bit
+        Core.min(result, new Scalar(255), result);
+        Core.max(result, new Scalar(0), result);
+
+        Mat output = new Mat();
+        result.convertTo(output, CvType.CV_8U);
+        result.release();
+
+        return output;
+    }
+
+    private void fftShift(Mat input) {
+        int cx = input.cols() / 2;
+        int cy = input.rows() / 2;
+
+        Mat q0 = new Mat(input, new Rect(0, 0, cx, cy));
+        Mat q1 = new Mat(input, new Rect(cx, 0, cx, cy));
+        Mat q2 = new Mat(input, new Rect(0, cy, cx, cy));
+        Mat q3 = new Mat(input, new Rect(cx, cy, cx, cy));
+
+        Mat tmp = new Mat();
+        q0.copyTo(tmp);
+        q3.copyTo(q0);
+        tmp.copyTo(q3);
+
+        q1.copyTo(tmp);
+        q2.copyTo(q1);
+        tmp.copyTo(q2);
+
+        tmp.release();
+    }
+
+    private Mat createFFTMask(int rows, int cols, int radius, int smoothness) {
+        Mat mask = new Mat(rows, cols, CvType.CV_32F);
+
+        if (radius == 0) {
+            mask.setTo(new Scalar(1.0));
+            return mask;
+        }
+
+        int crow = rows / 2;
+        int ccol = cols / 2;
+
+        if (smoothness == 0) {
+            // Hard circle mask
+            mask.setTo(new Scalar(1.0));
+            Imgproc.circle(mask, new Point(ccol, crow), radius, new Scalar(0.0), -1);
+        } else {
+            // Butterworth filter
+            float[] maskData = new float[rows * cols];
+            double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
+            if (order < BUTTERWORTH_ORDER_MIN) {
+                order = BUTTERWORTH_ORDER_MIN;
+            }
+            double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
+            double effectiveCutoff = radius * shiftFactor;
+            double twoN = 2 * order;
+
+            for (int y = 0; y < rows; y++) {
+                int dy = y - crow;
+                int dy2 = dy * dy;
+                for (int x = 0; x < cols; x++) {
+                    int dx = x - ccol;
+                    double distance = Math.sqrt(dx * dx + dy2);
+                    double ratio = effectiveCutoff / (distance + BUTTERWORTH_DIVISION_EPSILON);
+                    float value = (float) (1.0 / (1.0 + Math.pow(ratio, twoN)));
+                    maskData[y * cols + x] = value;
+                }
+            }
+            mask.put(0, 0, maskData);
+        }
+
+        return mask;
+    }
+
+    // ====== Bit Planes Color Implementation ======
+
+    private ImageProcessor createBitPlanesColorProcessor(FXNode fxNode) {
+        return input -> {
+            if (input == null || input.empty()) return input;
+
+            // Read properties from FXNode
+            boolean[][] bitEnabled = new boolean[3][8];
+            double[][] bitGain = new double[3][8];
+
+            // Initialize defaults
+            for (int c = 0; c < 3; c++) {
+                for (int i = 0; i < 8; i++) {
+                    bitEnabled[c][i] = true;
+                    bitGain[c][i] = 1.0;
+                }
+            }
+
+            // Load from properties if present
+            String[] channelNames = {"red", "green", "blue"};
+            for (int c = 0; c < 3; c++) {
+                String enabledKey = channelNames[c] + "BitEnabled";
+                String gainKey = channelNames[c] + "BitGain";
+
+                if (fxNode.properties.containsKey(enabledKey)) {
+                    boolean[] arr = (boolean[]) fxNode.properties.get(enabledKey);
+                    for (int i = 0; i < Math.min(arr.length, 8); i++) {
+                        bitEnabled[c][i] = arr[i];
+                    }
+                }
+                if (fxNode.properties.containsKey(gainKey)) {
+                    double[] arr = (double[]) fxNode.properties.get(gainKey);
+                    for (int i = 0; i < Math.min(arr.length, 8); i++) {
+                        bitGain[c][i] = arr[i];
+                    }
+                }
+            }
+
+            Mat color = null;
+            boolean colorCreated = false;
+            List<Mat> channels = new ArrayList<>();
+            List<Mat> resultChannels = new ArrayList<>();
+
+            try {
+                // Ensure we have a color image
+                if (input.channels() == 1) {
+                    color = new Mat();
+                    colorCreated = true;
+                    Imgproc.cvtColor(input, color, Imgproc.COLOR_GRAY2BGR);
+                } else {
+                    color = input;
+                }
+
+                // Split into BGR channels
+                Core.split(color, channels);
+
+                // Process each channel (BGR order in OpenCV)
+                // channels: 0=Blue, 1=Green, 2=Red
+                int[] channelMap = {2, 1, 0}; // Red, Green, Blue -> BGR indices
+
+                // Initialize result channels list
+                for (int c = 0; c < 3; c++) {
+                    resultChannels.add(null);
+                }
+
+                for (int colorIdx = 0; colorIdx < 3; colorIdx++) {
+                    int bgrIdx = channelMap[colorIdx];
+                    Mat channel = channels.get(bgrIdx);
+
+                    // Get channel data
+                    byte[] channelData = new byte[channel.rows() * channel.cols()];
+                    channel.get(0, 0, channelData);
+
+                    float[] resultData = new float[channelData.length];
+
+                    // Process each bit plane
+                    for (int i = 0; i < 8; i++) {
+                        if (!bitEnabled[colorIdx][i]) {
+                            continue;
+                        }
+
+                        // Extract bit plane (bit 7-i, since i=0 is MSB)
+                        int bitIndex = 7 - i;
+
+                        for (int j = 0; j < channelData.length; j++) {
+                            int pixelValue = channelData[j] & 0xFF;
+                            int bit = (pixelValue >> bitIndex) & 1;
+                            // Scale to original bit weight and apply gain
+                            resultData[j] += bit * (1 << bitIndex) * (float) bitGain[colorIdx][i];
+                        }
+                    }
+
+                    // Clip to valid range [0, 255]
+                    for (int j = 0; j < resultData.length; j++) {
+                        resultData[j] = Math.max(0, Math.min(255, resultData[j]));
+                    }
+
+                    // Convert to 8-bit
+                    Mat resultMat = new Mat(channel.rows(), channel.cols(), CvType.CV_32F);
+                    Mat result8u = new Mat();
+                    try {
+                        resultMat.put(0, 0, resultData);
+                        resultMat.convertTo(result8u, CvType.CV_8U);
+                        resultChannels.set(bgrIdx, result8u);
+                    } finally {
+                        resultMat.release();
+                    }
+                }
+
+                // Merge channels back
+                Mat output = new Mat();
+                Core.merge(resultChannels, output);
+
+                return output;
+            } finally {
+                // Release intermediate Mats
+                if (colorCreated && color != null) color.release();
+                for (Mat ch : channels) {
+                    if (ch != null) ch.release();
+                }
+                for (Mat ch : resultChannels) {
+                    if (ch != null) ch.release();
+                }
+            }
+        };
+    }
+
+    // ====== FFT Low-Pass Filter Implementation ======
+
+    private ImageProcessor createFFTLowPassProcessor(FXNode fxNode) {
+        return input -> {
+            if (input == null || input.empty()) return input;
+
+            // Read properties from FXNode
+            int radius = 100;  // Default is higher for low-pass
+            int smoothness = 0;
+            if (fxNode.properties.containsKey("radius")) {
+                radius = ((Number) fxNode.properties.get("radius")).intValue();
+            }
+            if (fxNode.properties.containsKey("smoothness")) {
+                smoothness = ((Number) fxNode.properties.get("smoothness")).intValue();
+            }
+
+            // Split into BGR channels
+            List<Mat> channels = new ArrayList<>();
+            Core.split(input, channels);
+
+            try {
+                // Apply FFT filter to each channel
+                List<Mat> filteredChannels = new ArrayList<>();
+                try {
+                    for (Mat channel : channels) {
+                        Mat filtered = applyFFTLowPassToChannel(channel, radius, smoothness);
+                        filteredChannels.add(filtered);
+                    }
+
+                    // Merge filtered channels
+                    Mat output = new Mat();
+                    Core.merge(filteredChannels, output);
+                    return output;
+                } finally {
+                    for (Mat m : filteredChannels) {
+                        m.release();
+                    }
+                }
+            } finally {
+                for (Mat m : channels) {
+                    m.release();
+                }
+            }
+        };
+    }
+
+    private Mat applyFFTLowPassToChannel(Mat channel, int radius, int smoothness) {
+        int origRows = channel.rows();
+        int origCols = channel.cols();
+
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Pad image to optimal size
+        Mat padded = new Mat();
+        Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+            Core.BORDER_CONSTANT, Scalar.all(0));
+
+        // Convert to float
+        Mat floatChannel = new Mat();
+        padded.convertTo(floatChannel, CvType.CV_32F);
+        padded.release();
+
+        // Create complex image with zero imaginary part
+        Mat complexI = new Mat();
+        List<Mat> planes = new ArrayList<>();
+        planes.add(floatChannel);
+        planes.add(Mat.zeros(floatChannel.size(), CvType.CV_32F));
+        Core.merge(planes, complexI);
+        planes.get(1).release();
+        floatChannel.release();
+
+        // Compute DFT
+        Core.dft(complexI, complexI);
+
+        // Shift zero frequency to center
+        fftShift(complexI);
+
+        // Create and apply LOW-PASS mask (inverted from high-pass)
+        Mat mask = createFFTLowPassMask(optRows, optCols, radius, smoothness);
+
+        // Split, multiply each plane by mask, merge back
+        List<Mat> dftPlanes = new ArrayList<>();
+        Core.split(complexI, dftPlanes);
+        complexI.release();
+
+        Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+        Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+        mask.release();
+
+        Mat maskedDft = new Mat();
+        Core.merge(dftPlanes, maskedDft);
+        for (Mat p : dftPlanes) p.release();
+
+        // Inverse shift
+        fftShift(maskedDft);
+
+        // Inverse DFT
+        Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+        // Get real part
+        List<Mat> idftPlanes = new ArrayList<>();
+        Core.split(maskedDft, idftPlanes);
+        maskedDft.release();
+
+        Mat magnitude = idftPlanes.get(0);
+        idftPlanes.get(1).release();
+
+        // Crop to original size
+        Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+        Mat result = cropped.clone();
+        magnitude.release();
+
+        // Clip to 0-255 and convert to 8-bit
+        Core.min(result, new Scalar(255), result);
+        Core.max(result, new Scalar(0), result);
+
+        Mat output = new Mat();
+        result.convertTo(output, CvType.CV_8U);
+        result.release();
+
+        return output;
+    }
+
+    private Mat createFFTLowPassMask(int rows, int cols, int radius, int smoothness) {
+        Mat mask = new Mat(rows, cols, CvType.CV_32F);
+
+        if (radius == 0) {
+            // No filtering - block everything
+            mask.setTo(new Scalar(0.0));
+            return mask;
+        }
+
+        int crow = rows / 2;
+        int ccol = cols / 2;
+
+        if (smoothness == 0) {
+            // Hard circle mask - filled circle passes, outside blocks
+            mask.setTo(new Scalar(0.0));
+            Imgproc.circle(mask, new Point(ccol, crow), radius, new Scalar(1.0), -1);
+        } else {
+            // Butterworth low-pass filter
+            float[] maskData = new float[rows * cols];
+            double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
+            if (order < BUTTERWORTH_ORDER_MIN) {
+                order = BUTTERWORTH_ORDER_MIN;
+            }
+            double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
+            double effectiveCutoff = radius * shiftFactor;
+            double twoN = 2 * order;
+
+            for (int y = 0; y < rows; y++) {
+                int dy = y - crow;
+                int dy2 = dy * dy;
+                for (int x = 0; x < cols; x++) {
+                    int dx = x - ccol;
+                    double distance = Math.sqrt(dx * dx + dy2);
+                    // Low-pass: ratio is distance/cutoff (opposite of high-pass)
+                    double ratio = (distance + BUTTERWORTH_DIVISION_EPSILON) / effectiveCutoff;
+                    float value = (float) (1.0 / (1.0 + Math.pow(ratio, twoN)));
+                    maskData[y * cols + x] = value;
+                }
+            }
+            mask.put(0, 0, maskData);
+        }
+
+        return mask;
+    }
+
+    // ====== Bit Planes Grayscale Implementation ======
+
+    private ImageProcessor createBitPlanesGrayscaleProcessor(FXNode fxNode) {
+        return input -> {
+            if (input == null || input.empty()) return input;
+
+            // Read properties from FXNode
+            boolean[] bitEnabled = new boolean[8];
+            double[] bitGain = new double[8];
+
+            // Initialize defaults (all enabled, gain 1.0)
+            for (int i = 0; i < 8; i++) {
+                bitEnabled[i] = true;
+                bitGain[i] = 1.0;
+            }
+
+            // Load from properties if present
+            if (fxNode.properties.containsKey("bitEnabled")) {
+                boolean[] arr = (boolean[]) fxNode.properties.get("bitEnabled");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) {
+                    bitEnabled[i] = arr[i];
+                }
+            }
+            if (fxNode.properties.containsKey("bitGain")) {
+                double[] arr = (double[]) fxNode.properties.get("bitGain");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) {
+                    bitGain[i] = arr[i];
+                }
+            }
+
+            Mat gray = null;
+
+            try {
+                // Convert to grayscale if needed
+                gray = new Mat();
+                if (input.channels() == 3) {
+                    Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
+                } else {
+                    gray = input.clone();
+                }
+
+                // Get grayscale data
+                byte[] grayData = new byte[gray.rows() * gray.cols()];
+                gray.get(0, 0, grayData);
+
+                float[] resultData = new float[grayData.length];
+
+                // Process each bit plane
+                for (int i = 0; i < 8; i++) {
+                    if (!bitEnabled[i]) {
+                        continue;
+                    }
+
+                    // Extract bit plane (bit 7-i, since i=0 is MSB)
+                    int bitIndex = 7 - i;
+
+                    for (int j = 0; j < grayData.length; j++) {
+                        int pixelValue = grayData[j] & 0xFF;
+                        int bit = (pixelValue >> bitIndex) & 1;
+                        // Scale to original bit weight and apply gain
+                        resultData[j] += bit * (1 << bitIndex) * (float) bitGain[i];
+                    }
+                }
+
+                // Clip to valid range [0, 255]
+                for (int j = 0; j < resultData.length; j++) {
+                    resultData[j] = Math.max(0, Math.min(255, resultData[j]));
+                }
+
+                // Convert to 8-bit grayscale
+                Mat resultMat = new Mat(gray.rows(), gray.cols(), CvType.CV_32F);
+                resultMat.put(0, 0, resultData);
+
+                Mat result8u = new Mat();
+                resultMat.convertTo(result8u, CvType.CV_8U);
+                resultMat.release();
+
+                // Convert back to BGR for display
+                Mat output = new Mat();
+                Imgproc.cvtColor(result8u, output, Imgproc.COLOR_GRAY2BGR);
+                result8u.release();
+
+                return output;
+            } finally {
+                if (gray != null) gray.release();
+            }
+        };
     }
 }

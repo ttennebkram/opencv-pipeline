@@ -3,6 +3,9 @@ package com.ttennebkram.pipeline.fx;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Lightweight node data class for JavaFX rendering.
  * This is independent of SWT and holds only the data needed for display and interaction.
@@ -54,6 +57,9 @@ public class FXNode {
     public java.util.List<FXNode> innerNodes = new java.util.ArrayList<>();
     public java.util.List<FXConnection> innerConnections = new java.util.ArrayList<>();
     public String pipelineFilePath = "";  // Path to external pipeline JSON file for containers
+
+    // Generic properties map for node-specific settings (radius, smoothness, gain, bitEnabled, etc.)
+    public Map<String, Object> properties = new HashMap<>();
 
     // Unique identifier for serialization
     public int id;

@@ -974,6 +974,43 @@ public class PipelineEditorApp extends Application {
             dialog.addCustomContent(pipelineRow);
 
             dialog.addDescription("Select an external pipeline file for this sub-diagram.\nLeave empty to edit the sub-diagram inline.");
+        } else if ("Gain".equals(node.nodeType)) {
+            // Get current gain value from properties (default 1.0)
+            double currentGain = 1.0;
+            if (node.properties.containsKey("gain")) {
+                currentGain = ((Number) node.properties.get("gain")).doubleValue();
+            }
+
+            // Create logarithmic gain slider (0.05x to 20x)
+            // Slider range: 0-100, mapped logarithmically
+            // log10(0.05) = -1.301, log10(20) = 1.301, range = 2.602
+            // Formula: gain = 10^((slider - 50) / 50 * 1.301)
+            // Or equivalently: slider = (log10(gain) / 1.301) * 50 + 50
+            final double LOG_RANGE = Math.log10(20.0);  // ~1.301
+            double sliderVal = (Math.log10(currentGain) / LOG_RANGE) * 50 + 50;
+            sliderVal = Math.max(0, Math.min(100, sliderVal));  // Clamp to valid range
+
+            Slider gainSlider = new Slider(0, 100, sliderVal);
+            gainSlider.setPrefWidth(200);
+            gainSlider.setShowTickMarks(true);
+
+            Label gainValueLabel = new Label(formatGainValue(currentGain));
+            gainValueLabel.setMinWidth(60);
+
+            gainSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                double logVal = (newVal.doubleValue() - 50) / 50.0 * LOG_RANGE;
+                double g = Math.pow(10, logVal);
+                gainValueLabel.setText(formatGainValue(g));
+            });
+
+            HBox gainRow = new HBox(10);
+            gainRow.getChildren().addAll(new Label("Gain (5% - 20x):"), gainSlider, gainValueLabel);
+            dialog.addCustomContent(gainRow);
+            dialog.addDescription("Brightness/Gain Adjustment\ncv2.multiply(src, gain)");
+
+            // Store slider reference for OK handler
+            node.properties.put("_gainSlider", gainSlider);
+            node.properties.put("_gainLogRange", LOG_RANGE);
         }
 
         // Set OK handler to save values
@@ -1023,11 +1060,33 @@ public class PipelineEditorApp extends Application {
                 node.pipelineFilePath = newPath;
             }
 
+            // Handle Gain properties
+            if ("Gain".equals(node.nodeType) && node.properties.containsKey("_gainSlider")) {
+                Slider gainSlider = (Slider) node.properties.get("_gainSlider");
+                double logRange = (Double) node.properties.getOrDefault("_gainLogRange", Math.log10(20.0));
+                double logVal = (gainSlider.getValue() - 50) / 50.0 * logRange;
+                double gain = Math.pow(10, logVal);
+                node.properties.put("gain", gain);
+                node.properties.remove("_gainSlider");  // Clean up temp reference
+                node.properties.remove("_gainLogRange");
+            }
+
             markDirty();
             paintCanvas();
         });
 
         dialog.showAndWaitForResult();
+    }
+
+    /**
+     * Format gain value for display: "xx%" if <1.0, "x.xxX" if >=1.0
+     */
+    private String formatGainValue(double gain) {
+        if (gain < 1.0) {
+            return String.format("%.0f%%", gain * 100);
+        } else {
+            return String.format("%.2fx", gain);
+        }
     }
 
     // ========================= Actions =========================

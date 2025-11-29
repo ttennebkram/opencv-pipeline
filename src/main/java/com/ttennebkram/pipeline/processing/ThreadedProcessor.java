@@ -43,6 +43,7 @@ public class ThreadedProcessor {
     private long inputReads2 = 0;
     private long workUnitsCompleted = 0;
     private long outputWrites1 = 0;
+    private long outputWrites2 = 0;
 
     // Backpressure timing constants (from main branch)
     /** Cooldown between priority reductions (going down) - 1 second per step */
@@ -70,6 +71,10 @@ public class ThreadedProcessor {
     // Upstream node references for signaling slowdown
     private ThreadedProcessor inputNode;
     private ThreadedProcessor inputNode2;
+
+    // Parent container reference for boundary nodes (ContainerInput/ContainerOutput)
+    // When a ContainerOutput receives backpressure/slowdown, it forwards to the container
+    private ContainerProcessor parentContainer;
 
     // Callbacks
     private Consumer<Mat> onFrameCallback;
@@ -152,6 +157,19 @@ public class ThreadedProcessor {
 
     public void setInputNode2(ThreadedProcessor node) {
         this.inputNode2 = node;
+    }
+
+    /**
+     * Set the parent container for boundary nodes (ContainerInput/ContainerOutput).
+     * When a ContainerOutput detects backpressure or receives slowdown signal,
+     * it forwards to the parent container.
+     */
+    public void setParentContainer(ContainerProcessor container) {
+        this.parentContainer = container;
+    }
+
+    public ContainerProcessor getParentContainer() {
+        return parentContainer;
     }
 
     public void setThreadPriority(int priority) {
@@ -320,6 +338,7 @@ public class ThreadedProcessor {
 
     /**
      * Signal upstream nodes to slow down because this node is overwhelmed.
+     * For boundary nodes (ContainerOutput), also signals the parent container.
      */
     private void signalUpstreamSlowdown() {
         System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to upstream nodes");
@@ -328,6 +347,11 @@ public class ThreadedProcessor {
         }
         if (inputNode2 != null) {
             inputNode2.receiveSlowdownSignal();
+        }
+        // For boundary nodes (ContainerOutput), signal the parent container
+        if (parentContainer != null) {
+            System.out.println("[" + timestamp() + "] [Processor " + name + "] SIGNALING SLOWDOWN to parent container");
+            parentContainer.receiveSlowdownSignal();
         }
     }
 
@@ -509,11 +533,13 @@ public class ThreadedProcessor {
                     }
                     if (outputQueue2 != null) {
                         outputQueue2.put(output.clone());
+                        outputWrites2++;
                     }
 
                     // Update FXNode output stats directly
                     if (fxNode != null) {
                         fxNode.outputCount1 = (int) outputWrites1;
+                        fxNode.outputCount2 = (int) outputWrites2;
                         fxNode.workUnitsCompleted = workUnitsCompleted;
                         fxNode.threadPriority = getThreadPriority();
                         fxNode.effectiveFps = getEffectiveFps();
@@ -553,6 +579,13 @@ public class ThreadedProcessor {
         outputWrites1++;
         if (fxNode != null) {
             fxNode.outputCount1 = (int) outputWrites1;
+        }
+    }
+
+    protected void incrementOutputWrites2() {
+        outputWrites2++;
+        if (fxNode != null) {
+            fxNode.outputCount2 = (int) outputWrites2;
         }
     }
 
