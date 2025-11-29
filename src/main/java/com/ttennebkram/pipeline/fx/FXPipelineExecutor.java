@@ -53,11 +53,22 @@ public class FXPipelineExecutor {
     // Flag to use per-node threading (can be toggled for comparison/debugging)
     private boolean usePerNodeThreading = true;
 
+    // Base path for resolving relative pipeline file paths (for nested containers)
+    private String basePath = null;
+
     public FXPipelineExecutor(List<FXNode> nodes, List<FXConnection> connections,
                               Map<Integer, FXWebcamSource> webcamSources) {
         this.nodes = nodes;
         this.connections = connections;
         this.webcamSources = webcamSources;
+    }
+
+    /**
+     * Set the base path for resolving relative pipeline file paths.
+     * This should be the path to the current pipeline document file.
+     */
+    public void setBasePath(String basePath) {
+        this.basePath = basePath;
     }
 
     /**
@@ -122,10 +133,14 @@ public class FXPipelineExecutor {
             }
 
             // For Container nodes, set up internal processors and wiring
-            if ("Container".equals(node.nodeType)) {
+            if ("Container".equals(node.nodeType) || node.isContainer) {
+                boolean hasInnerNodes = node.innerNodes != null && !node.innerNodes.isEmpty();
+                boolean hasExternalFile = node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty();
                 System.out.println("[FXPipelineExecutor] Container " + node.label + " innerNodes=" +
-                                   (node.innerNodes != null ? node.innerNodes.size() : "null"));
-                if (node.innerNodes != null && !node.innerNodes.isEmpty()) {
+                                   (node.innerNodes != null ? node.innerNodes.size() : "null") +
+                                   ", pipelineFile=" + node.pipelineFilePath +
+                                   ", isContainer=" + node.isContainer);
+                if (hasInnerNodes || hasExternalFile) {
                     setupContainerInternals(node);
                 }
             }
@@ -183,12 +198,249 @@ public class FXPipelineExecutor {
     }
 
     /**
+     * Resolve a pipeline file path, handling both absolute and relative paths.
+     * Relative paths are resolved against the basePath (parent document directory).
+     */
+    private String resolvePipelinePath(String pipelinePath) {
+        if (pipelinePath == null || pipelinePath.isEmpty()) {
+            return pipelinePath;
+        }
+        java.io.File file = new java.io.File(pipelinePath);
+        // If it's already absolute, use it as-is
+        if (file.isAbsolute()) {
+            return pipelinePath;
+        }
+        // Relative path - resolve against basePath
+        if (basePath != null && !basePath.isEmpty()) {
+            java.io.File baseDir = new java.io.File(basePath);
+            if (baseDir.isFile()) {
+                baseDir = baseDir.getParentFile();
+            }
+            if (baseDir != null) {
+                java.io.File resolved = new java.io.File(baseDir, pipelinePath);
+                return resolved.getAbsolutePath();
+            }
+        }
+        // No basePath available, return as-is
+        return pipelinePath;
+    }
+
+    /**
+     * Load a container's inner nodes from an external pipeline file if specified.
+     * ALWAYS reloads from the external file at execution time to ensure we have the
+     * complete pipeline (saved inline data may be incomplete/corrupted).
+     */
+    private void loadContainerFromExternalFile(FXNode containerNode) {
+        if (containerNode.pipelineFilePath == null || containerNode.pipelineFilePath.isEmpty()) {
+            return;
+        }
+
+        try {
+            String resolvedPath = resolvePipelinePath(containerNode.pipelineFilePath);
+            java.io.File pipelineFile = new java.io.File(resolvedPath);
+            if (pipelineFile.exists()) {
+                FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(resolvedPath);
+
+                // Instead of replacing nodes wholesale (which breaks editor references),
+                // update existing nodes in place when possible, or add fresh nodes to the existing list.
+                if (containerNode.innerNodes == null) {
+                    containerNode.innerNodes = new java.util.ArrayList<>();
+                }
+                if (containerNode.innerConnections == null) {
+                    containerNode.innerConnections = new java.util.ArrayList<>();
+                }
+
+                // Build a map from nodeType+label to existing nodes for matching
+                Map<String, FXNode> existingByKey = new HashMap<>();
+                for (FXNode existing : containerNode.innerNodes) {
+                    String key = existing.nodeType + ":" + existing.label;
+                    existingByKey.put(key, existing);
+                }
+
+                // Update or add nodes from the loaded document
+                List<FXNode> updatedNodes = new ArrayList<>();
+                for (FXNode loadedNode : doc.nodes) {
+                    String key = loadedNode.nodeType + ":" + loadedNode.label;
+                    FXNode existing = existingByKey.get(key);
+                    if (existing != null) {
+                        // Update existing node in place to preserve editor references
+                        updateNodeInPlace(existing, loadedNode);
+                        updatedNodes.add(existing);
+                        existingByKey.remove(key); // Mark as used
+                    } else {
+                        // New node, add to list with fresh ID
+                        loadedNode.reassignId();
+                        // Also reassign IDs for nested containers
+                        if (loadedNode.isContainer && loadedNode.innerNodes != null) {
+                            reassignNodeIds(loadedNode.innerNodes);
+                        }
+                        updatedNodes.add(loadedNode);
+                    }
+                }
+
+                // Clear and repopulate with updated/new nodes
+                containerNode.innerNodes.clear();
+                containerNode.innerNodes.addAll(updatedNodes);
+
+                // Connections need to be rebuilt to reference the correct nodes
+                // Build ID mapping from loaded doc nodes to actual nodes
+                Map<Integer, FXNode> loadedIdToActual = new HashMap<>();
+                for (int i = 0; i < doc.nodes.size(); i++) {
+                    loadedIdToActual.put(doc.nodes.get(i).id, updatedNodes.get(i));
+                }
+
+                // Rebuild connections using actual nodes
+                containerNode.innerConnections.clear();
+                for (FXConnection loadedConn : doc.connections) {
+                    FXNode actualSource = loadedIdToActual.get(loadedConn.source != null ? loadedConn.source.id : -1);
+                    FXNode actualTarget = loadedIdToActual.get(loadedConn.target != null ? loadedConn.target.id : -1);
+                    if (actualSource != null && actualTarget != null) {
+                        FXConnection newConn = new FXConnection(actualSource, loadedConn.sourceOutputIndex,
+                                                                 actualTarget, loadedConn.targetInputIndex);
+                        containerNode.innerConnections.add(newConn);
+                    }
+                }
+
+                System.out.println("[FXPipelineExecutor] Updated container " + containerNode.label +
+                                   " with " + containerNode.innerNodes.size() + " nodes and " +
+                                   containerNode.innerConnections.size() + " connections from " + containerNode.pipelineFilePath);
+            } else {
+                System.err.println("[FXPipelineExecutor] External pipeline file not found: " + resolvedPath);
+            }
+        } catch (Exception e) {
+            System.err.println("[FXPipelineExecutor] Error loading external pipeline file: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Update an existing FXNode in place with data from a loaded node.
+     * This preserves the existing object reference so that any editors or
+     * callbacks bound to this node continue to work.
+     */
+    private void updateNodeInPlace(FXNode existing, FXNode loaded) {
+        // Update position and size
+        existing.x = loaded.x;
+        existing.y = loaded.y;
+        existing.width = loaded.width;
+        existing.height = loaded.height;
+
+        // Update properties
+        existing.enabled = loaded.enabled;
+        existing.properties.clear();
+        existing.properties.putAll(loaded.properties);
+
+        // Update container-specific fields
+        if (existing.isContainer && loaded.isContainer) {
+            existing.pipelineFilePath = loaded.pipelineFilePath;
+            // For nested containers, recursively update inner nodes in place to preserve editor references
+            if (loaded.innerNodes != null && !loaded.innerNodes.isEmpty()) {
+                if (existing.innerNodes == null) {
+                    existing.innerNodes = new ArrayList<>();
+                }
+                // Use the same in-place update strategy recursively
+                updateInnerNodesInPlace(existing.innerNodes, loaded.innerNodes);
+            }
+            // Rebuild connections to reference the actual nodes
+            if (loaded.innerConnections != null && !loaded.innerConnections.isEmpty()) {
+                if (existing.innerConnections == null) {
+                    existing.innerConnections = new ArrayList<>();
+                }
+                // Build ID mapping from loaded nodes to existing nodes
+                Map<Integer, FXNode> loadedIdToExisting = new HashMap<>();
+                for (int i = 0; i < loaded.innerNodes.size() && i < existing.innerNodes.size(); i++) {
+                    loadedIdToExisting.put(loaded.innerNodes.get(i).id, existing.innerNodes.get(i));
+                }
+                existing.innerConnections.clear();
+                for (FXConnection conn : loaded.innerConnections) {
+                    FXNode srcNode = loadedIdToExisting.get(conn.source != null ? conn.source.id : -1);
+                    FXNode tgtNode = loadedIdToExisting.get(conn.target != null ? conn.target.id : -1);
+                    if (srcNode != null && tgtNode != null) {
+                        existing.innerConnections.add(new FXConnection(srcNode, conn.sourceOutputIndex,
+                                                                        tgtNode, conn.targetInputIndex));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively reassign unique IDs to all nodes in a list to avoid collisions
+     * with outer pipeline nodes. This is needed when loading container internals
+     * from external files.
+     */
+    private void reassignNodeIds(java.util.List<FXNode> nodes) {
+        for (FXNode node : nodes) {
+            node.reassignId();
+            // Recursively handle nested containers
+            if (node.isContainer && node.innerNodes != null && !node.innerNodes.isEmpty()) {
+                reassignNodeIds(node.innerNodes);
+            }
+        }
+    }
+
+    /**
+     * Update existing nodes in place from loaded nodes, preserving object identity.
+     * This is critical for nested containers where editors may be bound to nodes.
+     * Matches nodes by nodeType+label key.
+     */
+    private void updateInnerNodesInPlace(List<FXNode> existing, List<FXNode> loaded) {
+        // Build a map from nodeType+label to existing nodes
+        Map<String, FXNode> existingByKey = new HashMap<>();
+        for (FXNode node : existing) {
+            String key = node.nodeType + ":" + node.label;
+            existingByKey.put(key, node);
+        }
+
+        // Update or add nodes
+        List<FXNode> updatedNodes = new ArrayList<>();
+        for (FXNode loadedNode : loaded) {
+            String key = loadedNode.nodeType + ":" + loadedNode.label;
+            FXNode existingNode = existingByKey.get(key);
+            if (existingNode != null) {
+                // Update existing node in place - recursively call updateNodeInPlace
+                updateNodeInPlace(existingNode, loadedNode);
+                updatedNodes.add(existingNode);
+                existingByKey.remove(key);
+            } else {
+                // New node, add with fresh ID
+                loadedNode.reassignId();
+                if (loadedNode.isContainer && loadedNode.innerNodes != null) {
+                    reassignNodeIds(loadedNode.innerNodes);
+                }
+                updatedNodes.add(loadedNode);
+            }
+        }
+
+        // Replace the contents of the existing list
+        existing.clear();
+        existing.addAll(updatedNodes);
+    }
+
+    /**
      * Set up the internal processors for a Container node.
      * Creates processors for all inner nodes including boundary nodes,
      * wires internal connections, and connects boundary nodes to the container.
      */
     private void setupContainerInternals(FXNode containerNode) {
+        System.out.println("[FXPipelineExecutor] setupContainerInternals called for: " + containerNode.label +
+                           " (id=" + containerNode.id + ", hash=" + System.identityHashCode(containerNode) +
+                           ", isContainer=" + containerNode.isContainer +
+                           ", pipelineFile=" + containerNode.pipelineFilePath + ")");
+        if (containerNode.innerNodes != null) {
+            System.out.println("[FXPipelineExecutor]   innerNodes BEFORE loadContainerFromExternalFile:");
+            for (FXNode n : containerNode.innerNodes) {
+                System.out.println("[FXPipelineExecutor]     " + n.nodeType + ":" + n.label + " (id=" + n.id + ", hash=" + System.identityHashCode(n) + ")");
+            }
+        }
+
+        // If container has an external pipeline file, load from it first
+        if (containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
+            loadContainerFromExternalFile(containerNode);
+        }
+
         if (containerNode.innerNodes == null || containerNode.innerNodes.isEmpty()) {
+            System.err.println("[FXPipelineExecutor] Container " + containerNode.label + " has no inner nodes after loading!");
             return;
         }
 
@@ -216,6 +468,19 @@ public class FXPipelineExecutor {
             ThreadedProcessor tp = processorFactory.createProcessor(innerNode);
             if (tp != null) {
                 tp.setEnabled(innerNode.enabled);
+            }
+
+            // Recursively set up nested containers
+            // Check for pipelineFilePath too, since we may need to load from external file
+            if ("Container".equals(innerNode.nodeType) || innerNode.isContainer) {
+                boolean hasInnerNodes = innerNode.innerNodes != null && !innerNode.innerNodes.isEmpty();
+                boolean hasExternalFile = innerNode.pipelineFilePath != null && !innerNode.pipelineFilePath.isEmpty();
+                if (hasInnerNodes || hasExternalFile) {
+                    System.out.println("[FXPipelineExecutor] Found nested container " + innerNode.label +
+                                       " with " + (innerNode.innerNodes != null ? innerNode.innerNodes.size() : 0) +
+                                       " inner nodes, pipelineFile=" + innerNode.pipelineFilePath + " - setting up recursively");
+                    setupContainerInternals(innerNode);
+                }
             }
         }
 
@@ -468,19 +733,34 @@ public class FXPipelineExecutor {
                 // SourceProcessor updates threadPriority, workUnitsCompleted, and effectiveFps
                 processorFactory.syncStats(node);
 
-                // Sync inner nodes for Container nodes
-                if ("Container".equals(node.nodeType) && node.innerNodes != null) {
-                    for (FXNode innerNode : node.innerNodes) {
-                        processorFactory.syncStats(innerNode);
-                    }
-                    // Also sync inner connection queue stats
-                    if (node.innerConnections != null) {
-                        syncInnerConnectionQueues(node.innerConnections);
-                    }
+                // Recursively sync inner nodes for Container nodes
+                if (("Container".equals(node.nodeType) || node.isContainer) && node.innerNodes != null) {
+                    syncContainerInnerStats(node);
                 }
             }
             // Sync queue sizes for connections
             syncConnectionQueues();
+        }
+    }
+
+    /**
+     * Recursively sync stats for all inner nodes of a container, including nested containers.
+     */
+    private void syncContainerInnerStats(FXNode containerNode) {
+        if (containerNode.innerNodes == null) return;
+
+        for (FXNode innerNode : containerNode.innerNodes) {
+            processorFactory.syncStats(innerNode);
+
+            // Recursively sync nested containers
+            if (("Container".equals(innerNode.nodeType) || innerNode.isContainer) && innerNode.innerNodes != null) {
+                syncContainerInnerStats(innerNode);
+            }
+        }
+
+        // Sync inner connection queue stats
+        if (containerNode.innerConnections != null) {
+            syncInnerConnectionQueues(containerNode.innerConnections);
         }
     }
 

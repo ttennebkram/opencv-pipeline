@@ -102,6 +102,14 @@ public class ProcessorFactory {
         // Set up callback to update FXNode thumbnail
         tp.setOnFrameCallback(mat -> {
             if (onNodeOutput != null && mat != null) {
+                // Debug: trace which FXNode is being updated
+                if (fxNode.nodeType.contains("Invert") ||
+                    "ContainerInput".equals(fxNode.nodeType) ||
+                    "ContainerOutput".equals(fxNode.nodeType)) {
+                    System.out.println("[ProcessorFactory] Callback fired for " + fxNode.label +
+                                       " (id=" + fxNode.id + ", type=" + fxNode.nodeType +
+                                       ", hashCode=" + System.identityHashCode(fxNode) + ")");
+                }
                 onNodeOutput.accept(new NodeOutput(fxNode, mat));
             }
         });

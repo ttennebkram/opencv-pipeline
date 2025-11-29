@@ -53,6 +53,9 @@ public class FXContainerEditorWindow {
     private Stage parentStage;
     private Runnable onModified;
 
+    // Base path for resolving relative pipeline file paths (directory of the parent document)
+    private String basePath = null;
+
     // Reference to container's internal nodes and connections
     private List<FXNode> nodes;
     private List<FXConnection> connections;
@@ -210,12 +213,14 @@ public class FXContainerEditorWindow {
                         debugCounter++;
                         if (debugCounter % 10 == 1) {
                             // Print debug info every 10 frames (~1 second)
-                            System.out.println("ContainerEditor repaint #" + debugCounter +
-                                " nodes=" + nodes.size() +
-                                " firstNode=" + (nodes.isEmpty() ? "none" : nodes.get(0).label +
-                                    " in=" + nodes.get(0).inputCount +
-                                    " out=" + nodes.get(0).outputCount1 +
-                                    " thumb=" + (nodes.get(0).thumbnail != null)));
+                            StringBuilder thumbStatus = new StringBuilder();
+                            for (FXNode n : nodes) {
+                                thumbStatus.append(n.label).append("(id=").append(n.id)
+                                           .append(",hash=").append(System.identityHashCode(n))
+                                           .append("):").append(n.thumbnail != null ? "Y" : "N").append(" ");
+                            }
+                            System.out.println("[ContainerEditor " + containerNode.label + "] repaint #" + debugCounter +
+                                " nodes=" + nodes.size() + " thumbs=[" + thumbStatus.toString().trim() + "]");
                         }
                         paintCanvas();
                     }
@@ -384,8 +389,8 @@ public class FXContainerEditorWindow {
             } else {
                 onStartPipeline.run();
             }
-            // Update button state after toggling
-            updatePipelineButtonState();
+            // Update button state after toggling - use Platform.runLater to ensure state is updated
+            javafx.application.Platform.runLater(this::updatePipelineButtonState);
         }
     }
 
@@ -427,6 +432,14 @@ public class FXContainerEditorWindow {
 
     public void setOnRequestGlobalSave(Runnable callback) {
         this.onRequestGlobalSave = callback;
+    }
+
+    /**
+     * Set the base path for resolving relative pipeline file paths.
+     * This should be the directory containing the parent pipeline document.
+     */
+    public void setBasePath(String basePath) {
+        this.basePath = basePath;
     }
 
     private HBox createStatusBar() {
@@ -476,6 +489,39 @@ public class FXContainerEditorWindow {
         canvas.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
                 handleDoubleClick(e);
+            }
+        });
+
+        // Right-click context menu
+        ContextMenu contextMenu = new ContextMenu();
+        canvas.setOnContextMenuRequested(e -> {
+            contextMenu.getItems().clear();
+            double canvasX = e.getX() / zoomLevel;
+            double canvasY = e.getY() / zoomLevel;
+
+            FXNode node = getNodeAt(canvasX, canvasY);
+            if (node != null) {
+                MenuItem propertiesItem = new MenuItem("Properties...");
+                propertiesItem.setOnAction(ae -> showNodeProperties(node));
+                contextMenu.getItems().add(propertiesItem);
+
+                if (node.isContainer) {
+                    MenuItem openContainerItem = new MenuItem("Open Subdiagram");
+                    openContainerItem.setOnAction(ae -> openNestedContainer(node));
+                    contextMenu.getItems().add(openContainerItem);
+                }
+
+                contextMenu.getItems().add(new SeparatorMenuItem());
+
+                MenuItem deleteItem = new MenuItem("Delete");
+                deleteItem.setOnAction(ae -> {
+                    selectedNodes.clear();
+                    selectedNodes.add(node);
+                    deleteSelected();
+                });
+                contextMenu.getItems().add(deleteItem);
+
+                contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
             }
         });
     }
@@ -672,8 +718,113 @@ public class FXContainerEditorWindow {
 
         FXNode node = getNodeAt(canvasX, canvasY);
         if (node != null) {
-            showNodeProperties(node);
+            // If it's a container node, open its subdiagram instead of showing properties
+            if (node.isContainer) {
+                openNestedContainer(node);
+            } else {
+                showNodeProperties(node);
+            }
         }
+    }
+
+    /**
+     * Resolve a pipeline file path, handling both absolute and relative paths.
+     * Relative paths are resolved against the basePath (parent document directory).
+     */
+    private String resolvePipelinePath(String pipelinePath) {
+        if (pipelinePath == null || pipelinePath.isEmpty()) {
+            return pipelinePath;
+        }
+        java.io.File file = new java.io.File(pipelinePath);
+        // If it's already absolute and exists, use it as-is
+        if (file.isAbsolute()) {
+            return pipelinePath;
+        }
+        // Relative path - resolve against basePath
+        if (basePath != null && !basePath.isEmpty()) {
+            java.io.File baseDir = new java.io.File(basePath);
+            if (baseDir.isFile()) {
+                baseDir = baseDir.getParentFile();
+            }
+            if (baseDir != null) {
+                java.io.File resolved = new java.io.File(baseDir, pipelinePath);
+                return resolved.getAbsolutePath();
+            }
+        }
+        // No basePath available, return as-is
+        return pipelinePath;
+    }
+
+    /**
+     * Open a nested container's subdiagram in a new editor window.
+     */
+    private void openNestedContainer(FXNode containerNode) {
+        // If there's a pipeline file path set AND the container has no inner nodes yet,
+        // load from that file. If the container already has inner nodes (e.g., set up by
+        // the executor for a running pipeline), we use those to preserve node identity
+        // so that thumbnails and stats update correctly.
+        boolean hasExistingNodes = containerNode.innerNodes != null && !containerNode.innerNodes.isEmpty();
+        if (!hasExistingNodes && containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
+            try {
+                // Resolve the path (handle relative paths)
+                String resolvedPath = resolvePipelinePath(containerNode.pipelineFilePath);
+                java.io.File pipelineFile = new java.io.File(resolvedPath);
+                if (pipelineFile.exists()) {
+                    FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(resolvedPath);
+                    // Initialize the container's inner nodes and connections from the file
+                    if (containerNode.innerNodes == null) {
+                        containerNode.innerNodes = new java.util.ArrayList<>();
+                    }
+                    if (containerNode.innerConnections == null) {
+                        containerNode.innerConnections = new java.util.ArrayList<>();
+                    }
+                    containerNode.innerNodes.addAll(doc.nodes);
+                    containerNode.innerConnections.addAll(doc.connections);
+                } else {
+                    // File doesn't exist - show warning and continue with existing inner nodes
+                    javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.WARNING);
+                    alert.setTitle("File Not Found");
+                    alert.setHeaderText("Pipeline file not found");
+                    alert.setContentText("The file '" + containerNode.pipelineFilePath + "' does not exist.\n" +
+                        "(Resolved to: " + resolvedPath + ")\n" +
+                        "Opening with current inner nodes.");
+                    alert.showAndWait();
+                }
+            } catch (Exception ex) {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR);
+                alert.setTitle("Error Loading Pipeline");
+                alert.setHeaderText("Failed to load nested pipeline");
+                alert.setContentText("Error: " + ex.getMessage());
+                alert.showAndWait();
+                return;
+            }
+        }
+
+        // Open a new container editor window for the nested container
+        FXContainerEditorWindow nestedEditor = new FXContainerEditorWindow(stage, containerNode, () -> {
+            // When nested container is modified, mark this container as modified too
+            notifyModified();
+        });
+        // Pass along the basePath for nested containers
+        nestedEditor.setBasePath(basePath);
+
+        // Copy pipeline control callbacks to nested editor
+        // Wrap to also update parent window's button state
+        nestedEditor.setOnStartPipeline(() -> {
+            if (onStartPipeline != null) onStartPipeline.run();
+            javafx.application.Platform.runLater(this::updatePipelineButtonState);
+        });
+        nestedEditor.setOnStopPipeline(() -> {
+            if (onStopPipeline != null) onStopPipeline.run();
+            javafx.application.Platform.runLater(this::updatePipelineButtonState);
+        });
+        nestedEditor.setIsPipelineRunning(isPipelineRunning);
+        nestedEditor.setOnRequestGlobalSave(onRequestGlobalSave);
+
+        nestedEditor.show();
+        nestedEditor.updatePipelineButtonState();
     }
 
     private void showNodeProperties(FXNode node) {
@@ -691,14 +842,53 @@ public class FXContainerEditorWindow {
             dialog.addDescription("When enabled, wait for new data on both\ninputs before processing (synchronized mode).");
         }
 
+        // Add pipeline file path for container nodes
+        TextField pipelineFileField = null;
+        if (node.isContainer) {
+            final TextField fileField = new TextField(node.pipelineFilePath != null ? node.pipelineFilePath : "");
+            fileField.setPrefWidth(250);
+            pipelineFileField = fileField;
+
+            Button browseButton = new Button("Browse...");
+            browseButton.setOnAction(e -> {
+                javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+                fileChooser.setTitle("Select Pipeline File");
+                fileChooser.getExtensionFilters().add(
+                    new javafx.stage.FileChooser.ExtensionFilter("Pipeline Files", "*.json"));
+                // Set initial directory based on current path
+                if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                    java.io.File currentFile = new java.io.File(node.pipelineFilePath);
+                    if (currentFile.getParentFile() != null && currentFile.getParentFile().exists()) {
+                        fileChooser.setInitialDirectory(currentFile.getParentFile());
+                    }
+                }
+                java.io.File selectedFile = fileChooser.showOpenDialog(stage);
+                if (selectedFile != null) {
+                    fileField.setText(selectedFile.getAbsolutePath());
+                }
+            });
+
+            HBox fileRow = new HBox(5);
+            fileRow.getChildren().addAll(new Label("Pipeline File:"), fileField, browseButton);
+            dialog.addCustomContent(fileRow);
+            dialog.addDescription("External pipeline JSON file for this container.\nDouble-click the container to open its subdiagram.");
+        }
+
         // Set OK handler to save values
         final javafx.scene.control.CheckBox finalSyncCheckBox = syncCheckBox;
+        final TextField finalPipelineFileField = pipelineFileField;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
 
             // Handle dual-input "Queues in Sync" property
             if ((node.hasDualInput || isDualInputNodeType(node.nodeType)) && finalSyncCheckBox != null) {
                 node.queuesInSync = finalSyncCheckBox.isSelected();
+            }
+
+            // Handle container pipeline file path
+            if (node.isContainer && finalPipelineFileField != null) {
+                String newPath = finalPipelineFileField.getText().trim();
+                node.pipelineFilePath = newPath;
             }
 
             paintCanvas();

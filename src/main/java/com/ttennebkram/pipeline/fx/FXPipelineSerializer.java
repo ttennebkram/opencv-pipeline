@@ -274,6 +274,10 @@ public class FXPipelineSerializer {
                 if (nodeJson.has("isContainer")) {
                     node.isContainer = nodeJson.get("isContainer").getAsBoolean();
                 }
+                // Also mark as container if nodeType is "Container" (for files without isContainer flag)
+                if ("Container".equals(type)) {
+                    node.isContainer = true;
+                }
                 // Ensure container nodes use the standard container color
                 if (node.isContainer) {
                     node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
@@ -282,38 +286,51 @@ public class FXPipelineSerializer {
                         node.pipelineFilePath = nodeJson.get("pipelineFile").getAsString();
                     }
                 }
-                // Load inner nodes: first try external pipeline file, then inline data
+                // Load inner nodes: prioritize inline data (which may have thumbnails) over external file
                 if (node.isContainer) {
-                    boolean loadedFromFile = false;
+                    boolean loadedInline = false;
 
-                    // If external pipeline file is specified, load from it
-                    if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
-                        File pipelineFile = new File(node.pipelineFilePath);
-                        if (pipelineFile.exists()) {
-                            try {
-                                PipelineDocument externalDoc = load(node.pipelineFilePath);
-                                node.innerNodes = externalDoc.nodes;
-                                node.innerConnections = externalDoc.connections;
-                                // Reassign IDs to inner nodes to avoid collisions with outer nodes
-                                reassignInnerNodeIds(node.innerNodes);
-                                loadedFromFile = true;
-                                System.out.println("Loaded external pipeline for container: " + node.pipelineFilePath);
-                            } catch (IOException e) {
-                                System.err.println("Failed to load external pipeline " + node.pipelineFilePath + ": " + e.getMessage());
-                            }
-                        } else {
-                            System.err.println("External pipeline file not found: " + node.pipelineFilePath);
-                        }
-                    }
-
-                    // Fall back to inline inner nodes if not loaded from file
-                    if (!loadedFromFile && nodeJson.has("innerNodes")) {
+                    // First try inline inner nodes - these may have thumbnails from a previous save
+                    if (nodeJson.has("innerNodes")) {
                         node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
                         if (nodeJson.has("innerConnections")) {
                             node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
                         }
                         // Reassign IDs to inner nodes to avoid collisions with outer nodes
                         reassignInnerNodeIds(node.innerNodes);
+                        loadedInline = true;
+                        System.out.println("Loaded inline inner nodes for container: " + node.label +
+                                           " (" + node.innerNodes.size() + " nodes)");
+                    }
+
+                    // Fall back to external pipeline file if no inline data
+                    if (!loadedInline && node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                        // Resolve relative paths against the parent document's directory
+                        String resolvedPath = node.pipelineFilePath;
+                        File pipelineFile = new File(resolvedPath);
+                        if (!pipelineFile.isAbsolute()) {
+                            // Relative path - resolve against parent document's directory
+                            File parentDir = new File(path).getParentFile();
+                            if (parentDir != null) {
+                                pipelineFile = new File(parentDir, node.pipelineFilePath);
+                                resolvedPath = pipelineFile.getAbsolutePath();
+                            }
+                        }
+                        if (pipelineFile.exists()) {
+                            try {
+                                PipelineDocument externalDoc = load(resolvedPath);
+                                node.innerNodes = externalDoc.nodes;
+                                node.innerConnections = externalDoc.connections;
+                                // Reassign IDs to inner nodes to avoid collisions with outer nodes
+                                reassignInnerNodeIds(node.innerNodes);
+                                System.out.println("Loaded external pipeline for container: " + resolvedPath);
+                            } catch (IOException e) {
+                                System.err.println("Failed to load external pipeline " + resolvedPath + ": " + e.getMessage());
+                            }
+                        } else {
+                            System.err.println("External pipeline file not found: " + resolvedPath +
+                                " (original: " + node.pipelineFilePath + ")");
+                        }
                     }
                 }
 
@@ -484,6 +501,31 @@ public class FXPipelineSerializer {
                 nodeJson.addProperty("bgColorB", node.backgroundColor.getBlue());
             }
 
+            // Save thumbnail as Base64-encoded PNG (for inner nodes too)
+            if (node.thumbnail != null) {
+                String thumbnailBase64 = imageToBase64(node.thumbnail);
+                if (thumbnailBase64 != null) {
+                    nodeJson.addProperty("thumbnail", thumbnailBase64);
+                }
+            }
+
+            // Container-specific properties (for nested containers)
+            nodeJson.addProperty("isContainer", node.isContainer);
+            if (node.isContainer) {
+                // Save pipeline file path if set (external sub-diagram file)
+                if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
+                    nodeJson.addProperty("pipelineFile", node.pipelineFilePath);
+                }
+                // Also save inline inner nodes if present (recursively)
+                if (!node.innerNodes.isEmpty()) {
+                    JsonArray innerNodesArray = serializeNodes(node.innerNodes);
+                    nodeJson.add("innerNodes", innerNodesArray);
+
+                    JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
+                    nodeJson.add("innerConnections", innerConnectionsArray);
+                }
+            }
+
             nodesArray.add(nodeJson);
         }
         return nodesArray;
@@ -573,6 +615,42 @@ public class FXPipelineSerializer {
 
             // Load generic properties for processing nodes
             loadNodeProperties(nodeJson, node);
+
+            // Restore thumbnail from Base64-encoded PNG (for inner nodes too)
+            if (nodeJson.has("thumbnail")) {
+                String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
+                node.thumbnail = base64ToImage(thumbnailBase64);
+            }
+
+            // Load container-specific properties (for nested containers)
+            // Check both isContainer flag and nodeType for backwards compatibility with older files
+            if (nodeJson.has("isContainer")) {
+                node.isContainer = nodeJson.get("isContainer").getAsBoolean();
+            }
+            // Also mark as container if nodeType is "Container" (for files without isContainer flag)
+            if ("Container".equals(type)) {
+                node.isContainer = true;
+            }
+            if (node.isContainer) {
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                // Load pipeline file path if present
+                if (nodeJson.has("pipelineFile")) {
+                    node.pipelineFilePath = nodeJson.get("pipelineFile").getAsString();
+                }
+                // Load inner nodes: prioritize inline data (which may have thumbnails) over external file
+                boolean loadedInline = false;
+                if (nodeJson.has("innerNodes")) {
+                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"));
+                    if (nodeJson.has("innerConnections")) {
+                        node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
+                    }
+                    reassignInnerNodeIds(node.innerNodes);
+                    loadedInline = true;
+                }
+                // Fall back to external pipeline file if no inline data
+                // Note: We don't have the parent path here, so external file loading
+                // would need to be handled at a higher level if needed
+            }
 
             nodes.add(node);
         }

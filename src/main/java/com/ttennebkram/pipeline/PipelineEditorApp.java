@@ -800,6 +800,9 @@ public class PipelineEditorApp extends Application {
         editorWindow.setIsPipelineRunning(() -> pipelineRunning);
         editorWindow.setOnRequestGlobalSave(this::saveDiagram);
 
+        // Set base path for resolving relative pipeline file paths
+        editorWindow.setBasePath(currentFilePath);
+
         editorWindow.show();
         editorWindow.updatePipelineButtonState();
     }
@@ -1333,6 +1336,7 @@ public class PipelineEditorApp extends Application {
 
         // Create and start the pipeline executor
         pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
+        pipelineExecutor.setBasePath(currentFilePath);  // For resolving relative paths in nested containers
         pipelineExecutor.setOnNodeOutput((node, mat) -> {
             // Update node thumbnail
             node.thumbnail = FXImageUtils.matToImage(mat,

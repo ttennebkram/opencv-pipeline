@@ -398,6 +398,16 @@ public class NodeRenderer {
             }
         }
 
+        // For ContainerInput boundary nodes: show "In:" on left side (frames entering container)
+        // ContainerInput has no hasInput but receives data from outside the container
+        if (isBoundaryNode && "ContainerInput".equals(nodeType)) {
+            gc.setFill(Color.rgb(60, 60, 60));
+            double inputY = y + height / 2;
+            // Use outputCounter[0] as the "In:" value since that's what flows through
+            int inVal = (outputCounters != null && outputCounters.length > 0) ? outputCounters[0] : 0;
+            gc.fillText("In:" + inVal, x + 14, inputY + 4);
+        }
+
         // Draw output connection point(s) with counters
         double outSpacing = height / (outputCount + 1);
         for (int i = 0; i < outputCount; i++) {
@@ -410,6 +420,17 @@ public class NodeRenderer {
             // Measure text width approximately and right-align
             double textWidth = outLabel.length() * 5.5;
             gc.fillText(outLabel, x + width - textWidth - 10, outputY + 4);
+        }
+
+        // For ContainerOutput boundary nodes: show "Out:" on right side (frames leaving container)
+        // ContainerOutput has no outputs but sends data to outside the container
+        if (isBoundaryNode && "ContainerOutput".equals(nodeType)) {
+            gc.setFill(Color.rgb(60, 60, 60));
+            double outputY = y + height / 2;
+            // Use inputCounter as the "Out:" value since that's what flows through
+            String outLabel = "Out:" + inputCounter;
+            double textWidth = outLabel.length() * 5.5;
+            gc.fillText(outLabel, x + width - textWidth - 14, outputY + 4);
         }
     }
 
