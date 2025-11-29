@@ -81,6 +81,13 @@ public class ProcessorFactory {
             double fps = fxNode.fps > 0 ? fxNode.fps : 1.0;
             sp.setOriginalFps(fps);
             tp = sp;
+        } else if (isDualInputNode(fxNode.nodeType)) {
+            // Dual-input nodes use DualInputProcessor
+            DualImageProcessor dualProcessor = createDualImageProcessor(fxNode);
+            if (dualProcessor == null) {
+                return null;
+            }
+            tp = new DualInputProcessor(fxNode.label, dualProcessor);
         } else {
             ImageProcessor processor = createImageProcessor(fxNode);
             if (processor == null) {
@@ -110,6 +117,19 @@ public class ProcessorFactory {
         return "WebcamSource".equals(nodeType) ||
                "FileSource".equals(nodeType) ||
                "BlankSource".equals(nodeType);
+    }
+
+    /**
+     * Check if a node type is a dual-input node.
+     */
+    private boolean isDualInputNode(String nodeType) {
+        return "AddClamp".equals(nodeType) ||
+               "SubtractClamp".equals(nodeType) ||
+               "AddWeighted".equals(nodeType) ||
+               "BitwiseAnd".equals(nodeType) ||
+               "BitwiseOr".equals(nodeType) ||
+               "BitwiseXor".equals(nodeType) ||
+               "MatchTemplate".equals(nodeType);
     }
 
     /**
@@ -644,6 +664,144 @@ public class ProcessorFactory {
                 System.err.println("Unknown node type: " + type);
                 return input -> input != null ? input.clone() : null;
         }
+    }
+
+    /**
+     * Create a DualImageProcessor for dual-input node types.
+     */
+    private DualImageProcessor createDualImageProcessor(FXNode fxNode) {
+        String type = fxNode.nodeType;
+
+        switch (type) {
+            case "AddClamp":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.add(input1, converted2, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "SubtractClamp":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.subtract(input1, converted2, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "BitwiseAnd":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.bitwise_and(input1, converted2, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "BitwiseOr":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.bitwise_or(input1, converted2, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "BitwiseXor":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.bitwise_xor(input1, converted2, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "AddWeighted":
+                return (input1, input2) -> {
+                    if (input1 == null && input2 == null) return null;
+                    if (input1 == null) return input2.clone();
+                    if (input2 == null) return input1.clone();
+
+                    // Get alpha from properties (default 0.5)
+                    double alpha = 0.5;
+                    if (fxNode.properties.containsKey("alpha")) {
+                        alpha = ((Number) fxNode.properties.get("alpha")).doubleValue();
+                    }
+                    double beta = 1.0 - alpha;
+
+                    Mat output = new Mat();
+                    Mat resized2 = ensureSameSize(input1, input2);
+                    Mat converted2 = ensureSameType(input1, resized2);
+                    Core.addWeighted(input1, alpha, converted2, beta, 0, output);
+                    if (resized2 != input2) resized2.release();
+                    if (converted2 != resized2) converted2.release();
+                    return output;
+                };
+
+            case "MatchTemplate":
+                // Template matching is more complex - for now just passthrough
+                return (input1, input2) -> input1 != null ? input1.clone() : null;
+
+            default:
+                System.err.println("Unknown dual-input node type: " + type);
+                return (input1, input2) -> input1 != null ? input1.clone() : null;
+        }
+    }
+
+    /**
+     * Resize input2 to match input1 dimensions if needed.
+     */
+    private Mat ensureSameSize(Mat input1, Mat input2) {
+        if (input1.width() == input2.width() && input1.height() == input2.height()) {
+            return input2;
+        }
+        Mat resized = new Mat();
+        Imgproc.resize(input2, resized, new Size(input1.width(), input1.height()));
+        return resized;
+    }
+
+    /**
+     * Convert input2 to match input1 type if needed.
+     */
+    private Mat ensureSameType(Mat input1, Mat input2) {
+        if (input1.type() == input2.type()) {
+            return input2;
+        }
+        Mat converted = new Mat();
+        input2.convertTo(converted, input1.type());
+        return converted;
     }
 
     // ====== FFT High-Pass Filter Implementation ======

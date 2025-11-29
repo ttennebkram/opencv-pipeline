@@ -677,16 +677,47 @@ public class FXContainerEditorWindow {
     }
 
     private void showNodeProperties(FXNode node) {
-        // Simple properties dialog
-        TextInputDialog dialog = new TextInputDialog(node.label);
-        dialog.setTitle("Node Properties");
-        dialog.setHeaderText("Edit node: " + node.nodeType);
-        dialog.setContentText("Name:");
-        dialog.showAndWait().ifPresent(name -> {
-            node.label = name;
+        FXPropertiesDialog dialog = new FXPropertiesDialog(
+            stage,
+            node.label + " Properties",
+            node.nodeType,
+            node.label
+        );
+
+        // Add "Queues in Sync" checkbox for dual-input nodes
+        javafx.scene.control.CheckBox syncCheckBox = null;
+        if (node.hasDualInput || isDualInputNodeType(node.nodeType)) {
+            syncCheckBox = dialog.addCheckbox("Queues in Sync", node.queuesInSync);
+            dialog.addDescription("When enabled, wait for new data on both\ninputs before processing (synchronized mode).");
+        }
+
+        // Set OK handler to save values
+        final javafx.scene.control.CheckBox finalSyncCheckBox = syncCheckBox;
+        dialog.setOnOk(() -> {
+            node.label = dialog.getNameValue();
+
+            // Handle dual-input "Queues in Sync" property
+            if ((node.hasDualInput || isDualInputNodeType(node.nodeType)) && finalSyncCheckBox != null) {
+                node.queuesInSync = finalSyncCheckBox.isSelected();
+            }
+
             paintCanvas();
             notifyModified();
         });
+
+        dialog.showAndWaitForResult();
+    }
+
+    /**
+     * Check if a node type is a dual-input node by type name.
+     */
+    private boolean isDualInputNodeType(String nodeType) {
+        return "AddClamp".equals(nodeType) ||
+               "SubtractClamp".equals(nodeType) ||
+               "AddWeighted".equals(nodeType) ||
+               "BitwiseAnd".equals(nodeType) ||
+               "BitwiseOr".equals(nodeType) ||
+               "BitwiseXor".equals(nodeType);
     }
 
     private FXNode getNodeAt(double x, double y) {
@@ -925,7 +956,7 @@ public class FXContainerEditorWindow {
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount,
                 node.thumbnail, node.isContainer,
-                node.inputCount, outputCounters, node.nodeType, node.isBoundaryNode);
+                node.inputCount, node.inputCount2, outputCounters, node.nodeType, node.isBoundaryNode);
 
             // Draw stats line (Pri/Work/FPS) - only when there's work being done
             if (node.workUnitsCompleted > 0) {

@@ -36,11 +36,17 @@ Pri display in nodes, needs to be darker gray or black
 
 Boundary nodes Input: needs to show the number of things it's read in.  Output node needs to show its stats for Out:
 
+Thumbnails look jagged, how calculated?  How interpolated?
+
+Add (Clamp) -> Add w/Clamp
+
 File Source: properties label I think "File:"? is truncated, the dialog is not wide enough
 
 File Source (and probably others): the Category from the button bar doesn't need to be displayed in the properties dialog box 
 
-!There's no Open on the file menu 
+we're not shhowing the method signatures any more in Properties
+
+Rendering of two input nodes: use the same vertical spacing as Clone outputs for both connection drag point and In1: In2:
 
 .In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 
@@ -292,6 +298,7 @@ check all Java Nodes against all Python Effects
 Done:
 -----
 
+/There's no Open on the file menu 
 /make the container node color the same as the boundary nodes.  Put a constant somewhere where all 3 can see it 
 /File Source: no field for file path
 /File Source: no browse button for file path

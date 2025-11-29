@@ -69,6 +69,10 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
 
         getDialogPane().setContent(grid);
 
+        // Set minimum size to ensure content is visible
+        getDialogPane().setMinWidth(350);
+        getDialogPane().setMinHeight(200);
+
         // Buttons
         ButtonType okButton = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);

@@ -64,6 +64,7 @@ public class FXPipelineSerializer {
             // Node configuration
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
+            nodeJson.addProperty("queuesInSync", node.queuesInSync);
             nodeJson.addProperty("outputCount", node.outputCount);
             nodeJson.addProperty("isBoundaryNode", node.isBoundaryNode);
 
@@ -228,6 +229,9 @@ public class FXPipelineSerializer {
                 }
                 if (nodeJson.has("hasDualInput")) {
                     node.hasDualInput = nodeJson.get("hasDualInput").getAsBoolean();
+                }
+                if (nodeJson.has("queuesInSync")) {
+                    node.queuesInSync = nodeJson.get("queuesInSync").getAsBoolean();
                 }
                 if (nodeJson.has("outputCount")) {
                     node.outputCount = nodeJson.get("outputCount").getAsInt();
@@ -470,6 +474,7 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("enabled", node.enabled);
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
+            nodeJson.addProperty("queuesInSync", node.queuesInSync);
             nodeJson.addProperty("outputCount", node.outputCount);
             nodeJson.addProperty("isBoundaryNode", node.isBoundaryNode);
 

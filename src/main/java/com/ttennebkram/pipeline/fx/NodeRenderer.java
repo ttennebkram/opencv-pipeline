@@ -254,7 +254,7 @@ public class NodeRenderer {
                                    int inputCounter, int[] outputCounters) {
         renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
                    hasInput, hasDualInput, outputCount, thumbnail, isContainer,
-                   inputCounter, outputCounters, null);
+                   inputCounter, 0, outputCounters, null);
     }
 
     /**
@@ -269,7 +269,22 @@ public class NodeRenderer {
                                    int inputCounter, int[] outputCounters, String nodeType) {
         renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
                    hasInput, hasDualInput, outputCount, thumbnail, isContainer,
-                   inputCounter, outputCounters, nodeType, false);
+                   inputCounter, 0, outputCounters, nodeType, false);
+    }
+
+    /**
+     * Render a processing node with counters including input2Counter for dual-input nodes.
+     */
+    public static void renderNode(GraphicsContext gc, double x, double y,
+                                   double width, double height, String label,
+                                   boolean selected, boolean enabled,
+                                   Color bgColor, boolean hasInput,
+                                   boolean hasDualInput, int outputCount,
+                                   Image thumbnail, boolean isContainer,
+                                   int inputCounter, int inputCounter2, int[] outputCounters, String nodeType) {
+        renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
+                   hasInput, hasDualInput, outputCount, thumbnail, isContainer,
+                   inputCounter, inputCounter2, outputCounters, nodeType, false);
     }
 
     /**
@@ -282,7 +297,7 @@ public class NodeRenderer {
                                    Color bgColor, boolean hasInput,
                                    boolean hasDualInput, int outputCount,
                                    Image thumbnail, boolean isContainer,
-                                   int inputCounter, int[] outputCounters, String nodeType,
+                                   int inputCounter, int inputCounter2, int[] outputCounters, String nodeType,
                                    boolean isBoundaryNode) {
 
         // Draw background
@@ -372,9 +387,14 @@ public class NodeRenderer {
             drawConnectionPoint(gc, x, inputY, true);
             // Draw input counter label - dark color for visibility
             gc.setFill(Color.rgb(60, 60, 60));
-            gc.fillText("In:" + inputCounter, x + 10, inputY + 4);
+            // For dual-input nodes, label as "In1:" instead of "In:"
+            String inLabel = hasDualInput ? "In1:" + inputCounter : "In:" + inputCounter;
+            gc.fillText(inLabel, x + 10, inputY + 4);
             if (hasDualInput) {
                 drawConnectionPoint(gc, x, inputY + 20, true);
+                // Draw second input counter label - reset fill color after drawing connection point
+                gc.setFill(Color.rgb(60, 60, 60));
+                gc.fillText("In2:" + inputCounter2, x + 10, inputY + 24);
             }
         }
 

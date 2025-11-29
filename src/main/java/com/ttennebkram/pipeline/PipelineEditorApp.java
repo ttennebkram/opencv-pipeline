@@ -570,7 +570,7 @@ public class PipelineEditorApp extends Application {
             NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount, node.thumbnail,
-                node.isContainer, node.inputCount, outputCounters, node.nodeType);
+                node.isContainer, node.inputCount, node.inputCount2, outputCounters, node.nodeType);
 
             // Draw stats line (Pri/Work/FPS) below title - only when pipeline is running
             if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
@@ -1013,11 +1013,21 @@ public class PipelineEditorApp extends Application {
             node.properties.put("_gainLogRange", LOG_RANGE);
         }
 
+        // Add "Queues in Sync" checkbox for dual-input nodes
+        // Check both the flag and the node type (in case loaded from old saved file)
+        CheckBox syncCheckBox = null;
+        boolean isDualInput = node.hasDualInput || isDualInputNodeType(node.nodeType);
+        if (isDualInput) {
+            syncCheckBox = dialog.addCheckbox("Queues in Sync", node.queuesInSync);
+            dialog.addDescription("When enabled, wait for new data on both\ninputs before processing (synchronized mode).");
+        }
+
         // Set OK handler to save values
         final Spinner<Integer> finalCameraSpinner = cameraSpinner;
         final TextField finalFileField = filePathField;
         final TextField finalPipelineField = pipelineFileField;
         final ComboBox<String> finalFpsCombo = fpsCombo;
+        final CheckBox finalSyncCheckBox = syncCheckBox;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
 
@@ -1071,11 +1081,29 @@ public class PipelineEditorApp extends Application {
                 node.properties.remove("_gainLogRange");
             }
 
+            // Handle dual-input "Queues in Sync" property
+            if (node.hasDualInput && finalSyncCheckBox != null) {
+                node.queuesInSync = finalSyncCheckBox.isSelected();
+            }
+
             markDirty();
             paintCanvas();
         });
 
         dialog.showAndWaitForResult();
+    }
+
+    /**
+     * Check if a node type is a dual-input node by type name.
+     * This is used as a fallback for older saved files that might not have hasDualInput=true.
+     */
+    private boolean isDualInputNodeType(String nodeType) {
+        return "AddClamp".equals(nodeType) ||
+               "SubtractClamp".equals(nodeType) ||
+               "AddWeighted".equals(nodeType) ||
+               "BitwiseAnd".equals(nodeType) ||
+               "BitwiseOr".equals(nodeType) ||
+               "BitwiseXor".equals(nodeType);
     }
 
     /**

@@ -27,6 +27,7 @@ public class FXNode {
     // Connection configuration
     public boolean hasInput;
     public boolean hasDualInput;
+    public boolean queuesInSync;  // For dual-input nodes: require both inputs to have new data before processing
     public boolean isContainer;
     public boolean isBoundaryNode;  // Container I/O boundary nodes (Input/Output)
     public int outputCount;
@@ -36,6 +37,7 @@ public class FXNode {
 
     // Counter for input/output frames processed
     public int inputCount = 0;
+    public int inputCount2 = 0;  // Second input counter (for dual-input nodes)
     public int outputCount1 = 0;  // Output 1 counter
     public int outputCount2 = 0;  // Output 2 counter (for multi-output nodes)
     public int outputCount3 = 0;  // Output 3 counter

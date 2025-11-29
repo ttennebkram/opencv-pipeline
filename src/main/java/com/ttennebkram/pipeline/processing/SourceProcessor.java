@@ -103,13 +103,6 @@ public class SourceProcessor extends ThreadedProcessor {
             System.out.println("[SourceProcessor] " + getName() + " RECEIVED SLOWDOWN at min priority, " +
                 "reducing FPS: " + String.format("%.3f", originalFps) + " -> " + String.format("%.3f", effectiveFps) +
                 " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
-
-            // Update FXNode stats for UI display
-            FXNode node = getFXNode();
-            if (node != null) {
-                // threadPriority field shows effective FPS level (10 = full, lower = reduced)
-                node.threadPriority = (int) Math.round((effectiveFps / originalFps) * 10);
-            }
         } else {
             System.out.println("[SourceProcessor] " + getName() + " RECEIVED SLOWDOWN but already at max slowdown");
         }
@@ -139,12 +132,6 @@ public class SourceProcessor extends ThreadedProcessor {
                     "raising FPS: " + String.format("%.3f", oldFps) + " -> " + String.format("%.3f", newFps) +
                     " (level " + fpsSlowdownLevel + "/" + MAX_FPS_SLOWDOWN_LEVELS + ")");
                 setLastSlowdownReceivedTime(now); // Reset timer for next recovery step
-
-                // Update FXNode stats for UI display
-                FXNode node = getFXNode();
-                if (node != null) {
-                    node.threadPriority = (int) Math.round((newFps / originalFps) * 10);
-                }
             }
             return; // Don't recover priority until FPS is fully restored
         }
@@ -175,14 +162,7 @@ public class SourceProcessor extends ThreadedProcessor {
                 FXNode node = getFXNode();
                 if (node != null) {
                     node.workUnitsCompleted = getWorkUnitsCompleted();
-                    // Show priority during priority reduction phase, then FPS ratio when FPS is reduced
-                    if (fpsSlowdownLevel > 0 && originalFps > 0) {
-                        // FPS has been reduced - show FPS ratio (0-10 scale)
-                        node.threadPriority = (int) Math.round((getEffectiveFps() / originalFps) * 10);
-                    } else {
-                        // Priority reduction phase - show actual tracked priority
-                        node.threadPriority = getThreadPriority();
-                    }
+                    node.threadPriority = getThreadPriority();
                     node.effectiveFps = getEffectiveFps();
                 }
 

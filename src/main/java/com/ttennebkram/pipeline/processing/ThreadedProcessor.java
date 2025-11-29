@@ -59,6 +59,9 @@ public class ThreadedProcessor {
     private volatile boolean inSlowdownMode = false;
     private int slowdownPriorityReduction = 0;
 
+    // Backpressure detection state - tracks if WE have signaled upstream
+    private volatile boolean sentBackpressureSignal = false;
+
     // Source node FPS slowdown
     private double originalFps = 0;
     private int fpsSlowdownLevel = 0;
@@ -115,6 +118,14 @@ public class ThreadedProcessor {
         this.isDualInput = dualInput;
     }
 
+    public void setIsDualInput(boolean dualInput) {
+        this.isDualInput = dualInput;
+    }
+
+    public boolean isDualInput() {
+        return isDualInput;
+    }
+
     public void setIsSource(boolean isSource) {
         this.isSource = isSource;
     }
@@ -145,6 +156,10 @@ public class ThreadedProcessor {
 
     public BlockingQueue<Mat> getInputQueue() {
         return inputQueue;
+    }
+
+    public BlockingQueue<Mat> getInputQueue2() {
+        return inputQueue2;
     }
 
     public BlockingQueue<Mat> getOutputQueue() {
@@ -280,95 +295,65 @@ public class ThreadedProcessor {
     }
 
     /**
-     * Check output queue and apply progressive backpressure.
-     * When this node's output queue backs up, progressively lower THIS node's priority.
-     * - Queue size 5+: reduce by 1
+     * Check OUTPUT queues and handle backpressure.
+     * If ANY output queue is backed up (>=5), it means DOWNSTREAM can't keep up.
+     * We lower OUR OWN priority (to slow our processing rate) with cooldown.
+     * If we're already at min priority, we signal UPSTREAM to slow down.
      *
-     * If already at minimum priority and queue still backed up, signal upstream to slow down.
+     * Key behavior: Keep lowering priority with cooldown while queue stays >= 5.
+     * When ALL queues drop below 5, recovery timer starts counting.
      */
     protected void checkBackpressure() {
         // First, check if we should recover from slowdown mode
         checkSlowdownRecovery();
 
-        // Calculate queue size from output queue
-        int queueSize = outputQueue != null ? outputQueue.size() : 0;
+        // Check BOTH output queues - if either is backing up, downstream can't keep up
+        int outputQueueSize = outputQueue != null ? outputQueue.size() : 0;
+        int outputQueue2Size = outputQueue2 != null ? outputQueue2.size() : 0;
+        int maxQueueSize = Math.max(outputQueueSize, outputQueue2Size);
 
-        // Also check input queue if connected to a source (source has no natural blocking)
-        // Input queue backing up means we're not keeping up with the source
-        int inputQueueSize = 0;
-        if (inputQueue != null && inputNode != null && inputNode.isSource()) {
-            inputQueueSize = inputQueue.size();
-        }
-
-        // Use the max of output and input queue sizes for backpressure decision
-        int effectiveQueueSize = Math.max(queueSize, inputQueueSize);
-
-        // If no queues to monitor, nothing to do
-        if (outputQueue == null && inputQueueSize == 0) {
+        // If no output queues to monitor, nothing to do
+        if (outputQueue == null && outputQueue2 == null) {
             return;
         }
 
-        if (processingThread != null && processingThread.isAlive()) {
-            int currentPriority = processingThread.getPriority();
-            long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
 
-            // If in slowdown mode, don't raise priority - let checkSlowdownRecovery() handle it
-            if (inSlowdownMode) {
-                if (effectiveQueueSize >= 5) {
+        // If any output queue is backed up (>=5), we need to slow down
+        if (maxQueueSize >= 5) {
+            // Respect cooldown - only lower priority once per second
+            if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
+                String whichQueue = (outputQueue2Size >= 5 && outputQueueSize < 5) ? "OUTPUT2" :
+                                    (outputQueueSize >= 5 && outputQueue2Size < 5) ? "OUTPUT" : "BOTH OUTPUTS";
+                System.out.println("[" + timestamp() + "] [Processor " + name + "] " + whichQueue + " QUEUE BACKED UP (sizes=" +
+                    outputQueueSize + "/" + outputQueue2Size + ")");
+
+                // Try to lower our own priority
+                Thread pt = processingThread;
+                if (pt != null && pt.isAlive()) {
+                    int currentPriority = pt.getPriority();
                     if (currentPriority > Thread.MIN_PRIORITY) {
-                        // Lower by 1 if cooldown has passed
-                        if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
-                            int newPriority = currentPriority - 1;
-                            System.out.println("[" + timestamp() + "] [Processor " + name + "] LOWERING priority: " +
-                                currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ", inSlowdownMode)");
-                            processingThread.setPriority(newPriority);
-                            lastPriorityAdjustmentTime = now;
-                            lastRunningPriority = newPriority;
-                        }
-                    } else {
-                        // At min priority, signal upstream
-                        if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
-                            signalUpstreamSlowdown();
-                            lastPriorityAdjustmentTime = now;
-                        }
-                    }
-                }
-                return; // Don't raise priority - let slowdown recovery handle it
-            }
-
-            // Normal backpressure logic (not in slowdown mode)
-            if (effectiveQueueSize >= 5) {
-                // Queue backed up - lower priority by 1 if cooldown has passed
-                if (currentPriority > Thread.MIN_PRIORITY) {
-                    if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                         int newPriority = currentPriority - 1;
-                        System.out.println("[" + timestamp() + "] [Processor " + name + "] LOWERING priority: " +
-                            currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ")");
-                        processingThread.setPriority(newPriority);
-                        lastPriorityAdjustmentTime = now;
+                        System.out.println("[" + timestamp() + "] [Processor " + name + "] lowering OWN priority: " +
+                            currentPriority + " -> " + newPriority);
+                        pt.setPriority(newPriority);
                         lastRunningPriority = newPriority;
-                    }
-                } else {
-                    // At min priority and still backed up - signal upstream
-                    if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
-                        signalUpstreamSlowdown();
+                        inSlowdownMode = true;
+                        lastSlowdownReceivedTime = now;
                         lastPriorityAdjustmentTime = now;
-                    }
-                }
-            } else if (effectiveQueueSize == 0) {
-                // Queue empty - raise priority by 1 toward original if cooldown has passed
-                if (currentPriority < originalPriority) {
-                    if (now - lastPriorityAdjustmentTime >= PRIORITY_RAISE_COOLDOWN_MS) {
-                        int newPriority = currentPriority + 1;
-                        System.out.println("[" + timestamp() + "] [Processor " + name + "] RAISING priority: " +
-                            currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ")");
-                        processingThread.setPriority(newPriority);
+                    } else {
+                        // Already at min priority, signal upstream to slow down
+                        System.out.println("[" + timestamp() + "] [Processor " + name + "] at min priority, signaling upstream to slow down");
+                        if (inputNode != null) {
+                            inputNode.receiveSlowdownSignal();
+                        }
+                        lastSlowdownReceivedTime = now;
                         lastPriorityAdjustmentTime = now;
-                        lastRunningPriority = newPriority;
                     }
                 }
             }
-            // If queue is 1-4, do nothing - hold current priority
+            // NOTE: Don't reset lastSlowdownReceivedTime here on every check - only when we take action
+            // This allows recovery to start when queue drops below 5
         }
     }
 
@@ -445,6 +430,17 @@ public class ThreadedProcessor {
         long now = System.currentTimeMillis();
         long timeSinceSlowdown = now - lastSlowdownReceivedTime;
 
+        // Debug: log recovery check status periodically
+        Thread pt = processingThread;
+        if (pt != null && pt.isAlive()) {
+            int currentPriority = pt.getPriority();
+            if (currentPriority < originalPriority && timeSinceSlowdown > 5000) {
+                System.out.println("[" + timestamp() + "] [Processor " + name + "] RECOVERY CHECK: pri=" +
+                    currentPriority + "/" + originalPriority + ", timeSinceSlowdown=" + timeSinceSlowdown +
+                    "ms, needsWait=" + (SLOWDOWN_RECOVERY_MS - timeSinceSlowdown) + "ms");
+            }
+        }
+
         // For source nodes, recover FPS first (with longer interval)
         if (isSource && fpsSlowdownLevel > 0) {
             if (timeSinceSlowdown >= FPS_RECOVERY_MS) {
@@ -460,29 +456,26 @@ public class ThreadedProcessor {
             return; // Don't recover priority until FPS is fully restored
         }
 
-        // Recover priority if reduced
+        // Recover priority if below original
         if (timeSinceSlowdown >= SLOWDOWN_RECOVERY_MS) {
-            if (slowdownPriorityReduction > 0) {
-                Thread pt = processingThread;
-                if (pt != null && pt.isAlive()) {
-                    int currentPriority = pt.getPriority();
-                    int maxAllowedPriority = originalPriority;
+            pt = processingThread;
+            if (pt != null && pt.isAlive()) {
+                int currentPriority = pt.getPriority();
 
-                    if (currentPriority < maxAllowedPriority) {
-                        int newPriority = currentPriority + 1;
-                        System.out.println("[" + timestamp() + "] [Processor " + name + "] SLOWDOWN RECOVERY, " +
-                            "raising priority: " + currentPriority + " -> " + newPriority);
-                        pt.setPriority(newPriority);
-                        lastRunningPriority = newPriority;
-                        slowdownPriorityReduction--;
-                        lastSlowdownReceivedTime = now; // Reset timer for next recovery step
-                        return; // Only recover one thing per check
-                    }
+                if (currentPriority < originalPriority) {
+                    // Raise priority by 1
+                    int newPriority = currentPriority + 1;
+                    System.out.println("[" + timestamp() + "] [Processor " + name + "] SLOWDOWN RECOVERY, " +
+                        "raising priority: " + currentPriority + " -> " + newPriority);
+                    pt.setPriority(newPriority);
+                    lastRunningPriority = newPriority;
+                    lastSlowdownReceivedTime = now; // Reset timer for next recovery step
+                    return; // Only recover one step per check
                 }
             }
 
-            // Fully recovered
-            if (slowdownPriorityReduction <= 0 && fpsSlowdownLevel <= 0) {
+            // Fully recovered - priority is back to original and FPS is not reduced
+            if (fpsSlowdownLevel <= 0) {
                 inSlowdownMode = false;
                 System.out.println("[" + timestamp() + "] [Processor " + name + "] EXITED SLOWDOWN MODE");
             }
@@ -502,6 +495,7 @@ public class ThreadedProcessor {
         fpsSlowdownLevel = 0;
         slowdownPriorityReduction = 0;
         inSlowdownMode = false;
+        sentBackpressureSignal = false;
 
         processingThread = new Thread(this::processingLoop, "Processor-" + name);
         processingThread.setPriority(threadPriority);
@@ -555,9 +549,6 @@ public class ThreadedProcessor {
 
                 workUnitsCompleted++;
 
-                // Check backpressure after processing
-                checkBackpressure();
-
                 if (output != null) {
                     // Notify callback with a clone
                     if (onFrameCallback != null) {
@@ -574,6 +565,10 @@ public class ThreadedProcessor {
                         outputQueue2.put(output.clone());
                         outputWrites2++;
                     }
+
+                    // Check backpressure AFTER putting on output queues
+                    // This is when we can detect if queues are backing up
+                    checkBackpressure();
 
                     // Update FXNode output stats directly
                     if (fxNode != null) {
@@ -602,6 +597,13 @@ public class ThreadedProcessor {
         inputReads1++;
         if (fxNode != null) {
             fxNode.inputCount = (int) inputReads1;
+        }
+    }
+
+    protected void incrementInputReads2() {
+        inputReads2++;
+        if (fxNode != null) {
+            fxNode.inputCount2 = (int) inputReads2;
         }
     }
 
