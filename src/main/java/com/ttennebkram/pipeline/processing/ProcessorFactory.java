@@ -84,6 +84,7 @@ public class ProcessorFactory {
         }
 
         tp.setEnabled(fxNode.enabled);
+        tp.setFXNode(fxNode);  // Each processor updates its own FXNode directly
 
         // Set up callback to update FXNode thumbnail
         tp.setOnFrameCallback(mat -> {

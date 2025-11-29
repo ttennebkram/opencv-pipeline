@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.processing;
 
+import com.ttennebkram.pipeline.fx.FXNode;
 import org.opencv.core.Mat;
 
 import java.text.SimpleDateFormat;
@@ -12,12 +13,15 @@ import java.util.function.Consumer;
  * Base class for threaded image processors.
  * Runs in its own thread, consuming from input queue and producing to output queue.
  * Implements backpressure system with cascading slowdown signals.
- * No UI dependencies - pure OpenCV processing.
+ * Each processor updates its associated FXNode's stats directly.
  */
 public class ThreadedProcessor {
 
     private final String name;
     private final ImageProcessor processor;
+
+    // Reference to associated FXNode for direct stats updates
+    private FXNode fxNode;
 
     private Thread processingThread;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -80,6 +84,18 @@ public class ThreadedProcessor {
 
     public String getName() {
         return name;
+    }
+
+    /**
+     * Set the associated FXNode for direct stats updates.
+     * Each processor updates its FXNode's stats directly in its own thread.
+     */
+    public void setFXNode(FXNode fxNode) {
+        this.fxNode = fxNode;
+    }
+
+    public FXNode getFXNode() {
+        return fxNode;
     }
 
     public void setEnabled(boolean enabled) {
@@ -450,6 +466,11 @@ public class ThreadedProcessor {
                 Mat input = inputQueue.take();
                 inputReads1++;
 
+                // Update FXNode stats directly (each thread updates its own node)
+                if (fxNode != null) {
+                    fxNode.inputCount = (int) inputReads1;
+                }
+
                 // Debug every 2 seconds
                 if (System.currentTimeMillis() - lastDebugTime > 2000) {
                     System.out.println("[ThreadedProcessor] " + name + " processed " + inputReads1 + " frames, outputWrites=" + outputWrites1);
@@ -490,6 +511,14 @@ public class ThreadedProcessor {
                         outputQueue2.put(output.clone());
                     }
 
+                    // Update FXNode output stats directly
+                    if (fxNode != null) {
+                        fxNode.outputCount1 = (int) outputWrites1;
+                        fxNode.workUnitsCompleted = workUnitsCompleted;
+                        fxNode.threadPriority = getThreadPriority();
+                        fxNode.effectiveFps = getEffectiveFps();
+                    }
+
                     output.release();
                 }
 
@@ -506,14 +535,25 @@ public class ThreadedProcessor {
 
     protected void incrementInputReads1() {
         inputReads1++;
+        if (fxNode != null) {
+            fxNode.inputCount = (int) inputReads1;
+        }
     }
 
     protected void incrementWorkUnitsCompleted() {
         workUnitsCompleted++;
+        if (fxNode != null) {
+            fxNode.workUnitsCompleted = workUnitsCompleted;
+            fxNode.threadPriority = getThreadPriority();
+            fxNode.effectiveFps = getEffectiveFps();
+        }
     }
 
     protected void incrementOutputWrites1() {
         outputWrites1++;
+        if (fxNode != null) {
+            fxNode.outputCount1 = (int) outputWrites1;
+        }
     }
 
     protected void notifyCallback(Mat frame) {

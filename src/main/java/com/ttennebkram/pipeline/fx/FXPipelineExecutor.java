@@ -427,9 +427,39 @@ public class FXPipelineExecutor {
                     // Use node's configured FPS, defaulting to 1.0 for images
                     node.effectiveFps = node.fps > 0 ? node.fps : 1.0;
                 }
+
+                // Sync inner nodes for Container nodes
+                if ("Container".equals(node.nodeType) && node.innerNodes != null) {
+                    for (FXNode innerNode : node.innerNodes) {
+                        processorFactory.syncStats(innerNode);
+                    }
+                    // Also sync inner connection queue stats
+                    if (node.innerConnections != null) {
+                        syncInnerConnectionQueues(node.innerConnections);
+                    }
+                }
             }
             // Sync queue sizes for connections
             syncConnectionQueues();
+        }
+    }
+
+    /**
+     * Sync queue sizes for inner connections of a Container node.
+     */
+    private void syncInnerConnectionQueues(List<FXConnection> innerConnections) {
+        for (FXConnection conn : innerConnections) {
+            if (conn.source != null && conn.target != null) {
+                ThreadedProcessor sourceProc = processorFactory.getProcessor(conn.source);
+                if (sourceProc != null) {
+                    BlockingQueue<Mat> queue = conn.sourceOutputIndex == 1 ?
+                        sourceProc.getOutputQueue2() : sourceProc.getOutputQueue();
+                    if (queue != null) {
+                        conn.queueSize = queue.size();
+                    }
+                    conn.totalFrames = sourceProc.getWorkUnitsCompleted();
+                }
+            }
         }
     }
 
