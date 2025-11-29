@@ -2,7 +2,7 @@
 
 A visual node-based editor for creating OpenCV image processing pipelines. Built with OpenCV, Java, SWT, and Eclipse GEF.
 
-![Screenshot](screenshots/pipeline-Screenshot 2025-11-29 at 12.01.08 AM.png)
+![Screenshot](screenshots/pipeline.png)
 
 
 ## Quick Start
