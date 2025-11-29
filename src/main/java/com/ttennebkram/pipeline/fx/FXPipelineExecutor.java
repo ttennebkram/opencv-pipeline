@@ -423,17 +423,6 @@ public class FXPipelineExecutor {
      * wires internal connections, and connects boundary nodes to the container.
      */
     private void setupContainerInternals(FXNode containerNode) {
-        System.out.println("[FXPipelineExecutor] setupContainerInternals called for: " + containerNode.label +
-                           " (id=" + containerNode.id + ", hash=" + System.identityHashCode(containerNode) +
-                           ", isContainer=" + containerNode.isContainer +
-                           ", pipelineFile=" + containerNode.pipelineFilePath + ")");
-        if (containerNode.innerNodes != null) {
-            System.out.println("[FXPipelineExecutor]   innerNodes BEFORE loadContainerFromExternalFile:");
-            for (FXNode n : containerNode.innerNodes) {
-                System.out.println("[FXPipelineExecutor]     " + n.nodeType + ":" + n.label + " (id=" + n.id + ", hash=" + System.identityHashCode(n) + ")");
-            }
-        }
-
         // If container has an external pipeline file, load from it first
         if (containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
             loadContainerFromExternalFile(containerNode);
@@ -460,9 +449,6 @@ public class FXPipelineExecutor {
             return;
         }
 
-        System.out.println("Setting up container internals for " + containerNode.label +
-                           " with " + containerNode.innerNodes.size() + " inner nodes");
-
         // Create processors for all inner nodes (including boundary nodes)
         for (FXNode innerNode : containerNode.innerNodes) {
             ThreadedProcessor tp = processorFactory.createProcessor(innerNode);
@@ -476,9 +462,6 @@ public class FXPipelineExecutor {
                 boolean hasInnerNodes = innerNode.innerNodes != null && !innerNode.innerNodes.isEmpty();
                 boolean hasExternalFile = innerNode.pipelineFilePath != null && !innerNode.pipelineFilePath.isEmpty();
                 if (hasInnerNodes || hasExternalFile) {
-                    System.out.println("[FXPipelineExecutor] Found nested container " + innerNode.label +
-                                       " with " + (innerNode.innerNodes != null ? innerNode.innerNodes.size() : 0) +
-                                       " inner nodes, pipelineFile=" + innerNode.pipelineFilePath + " - setting up recursively");
                     setupContainerInternals(innerNode);
                 }
             }
@@ -530,13 +513,10 @@ public class FXPipelineExecutor {
         if (containerProc instanceof ContainerProcessor) {
             ContainerProcessor cp = (ContainerProcessor) containerProc;
             inputProc.setParentContainer(cp);
-            System.out.println("Container " + containerNode.label + " (id=" + containerNode.id + ") backpressure: ContainerInput -> Container -> upstream");
         } else {
             System.err.println("WARNING: containerProc for " + containerNode.label + " is NOT a ContainerProcessor: " +
                                (containerProc != null ? containerProc.getClass().getSimpleName() : "null"));
         }
-
-        System.out.println("Container " + containerNode.label + " internal wiring complete");
     }
 
     /**
