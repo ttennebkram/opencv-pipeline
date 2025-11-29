@@ -290,10 +290,21 @@ public class ThreadedProcessor {
         // First, check if we should recover from slowdown mode
         checkSlowdownRecovery();
 
-        // Calculate queue size
+        // Calculate queue size from output queue
         int queueSize = outputQueue != null ? outputQueue.size() : 0;
 
-        if (outputQueue == null) {
+        // Also check input queue if connected to a source (source has no natural blocking)
+        // Input queue backing up means we're not keeping up with the source
+        int inputQueueSize = 0;
+        if (inputQueue != null && inputNode != null && inputNode.isSource()) {
+            inputQueueSize = inputQueue.size();
+        }
+
+        // Use the max of output and input queue sizes for backpressure decision
+        int effectiveQueueSize = Math.max(queueSize, inputQueueSize);
+
+        // If no queues to monitor, nothing to do
+        if (outputQueue == null && inputQueueSize == 0) {
             return;
         }
 
@@ -303,13 +314,13 @@ public class ThreadedProcessor {
 
             // If in slowdown mode, don't raise priority - let checkSlowdownRecovery() handle it
             if (inSlowdownMode) {
-                if (queueSize >= 5) {
+                if (effectiveQueueSize >= 5) {
                     if (currentPriority > Thread.MIN_PRIORITY) {
                         // Lower by 1 if cooldown has passed
                         if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                             int newPriority = currentPriority - 1;
                             System.out.println("[" + timestamp() + "] [Processor " + name + "] LOWERING priority: " +
-                                currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ", inSlowdownMode)");
+                                currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ", inSlowdownMode)");
                             processingThread.setPriority(newPriority);
                             lastPriorityAdjustmentTime = now;
                             lastRunningPriority = newPriority;
@@ -326,13 +337,13 @@ public class ThreadedProcessor {
             }
 
             // Normal backpressure logic (not in slowdown mode)
-            if (queueSize >= 5) {
+            if (effectiveQueueSize >= 5) {
                 // Queue backed up - lower priority by 1 if cooldown has passed
                 if (currentPriority > Thread.MIN_PRIORITY) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_LOWER_COOLDOWN_MS) {
                         int newPriority = currentPriority - 1;
                         System.out.println("[" + timestamp() + "] [Processor " + name + "] LOWERING priority: " +
-                            currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
+                            currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
                         lastRunningPriority = newPriority;
@@ -344,13 +355,13 @@ public class ThreadedProcessor {
                         lastPriorityAdjustmentTime = now;
                     }
                 }
-            } else if (queueSize == 0) {
+            } else if (effectiveQueueSize == 0) {
                 // Queue empty - raise priority by 1 toward original if cooldown has passed
                 if (currentPriority < originalPriority) {
                     if (now - lastPriorityAdjustmentTime >= PRIORITY_RAISE_COOLDOWN_MS) {
                         int newPriority = currentPriority + 1;
                         System.out.println("[" + timestamp() + "] [Processor " + name + "] RAISING priority: " +
-                            currentPriority + " -> " + newPriority + " (queueSize=" + queueSize + ")");
+                            currentPriority + " -> " + newPriority + " (outQ=" + queueSize + ", inQ=" + inputQueueSize + ")");
                         processingThread.setPriority(newPriority);
                         lastPriorityAdjustmentTime = now;
                         lastRunningPriority = newPriority;

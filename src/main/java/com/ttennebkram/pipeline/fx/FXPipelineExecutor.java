@@ -253,24 +253,19 @@ public class FXPipelineExecutor {
         outputProc.setOutputQueue(outputToContainerQueue);
 
         // Store the queues in the container processor so it can use them
-        // We need to extend the container's processing to use these queues
         processorFactory.setContainerQueues(containerNode, containerToInputQueue, outputToContainerQueue);
 
-        // Wire boundary nodes' parent container reference for backpressure signaling
-        // Backpressure travels UPSTREAM through the INPUT boundary node:
-        // When ContainerInput's output queue backs up, it signals the container to slow down
+        // Wire backpressure signaling for container:
+        // When internal pipeline backs up, ContainerInput's outputQueue fills.
+        // ContainerInput signals parentContainer (ContainerProcessor), which then
+        // signals upstream in the main diagram.
+        // NOTE: We do NOT wire cp.setContainerOutputProcessor() because that would create
+        // a cycle: downstream slowdown -> Container -> ContainerOutput -> internal pipeline
+        // -> ContainerInput -> parentContainer (Container) -> LOOP
         if (containerProc instanceof ContainerProcessor) {
             ContainerProcessor cp = (ContainerProcessor) containerProc;
-            // ContainerInput signals the Container when internal pipeline backs up
             inputProc.setParentContainer(cp);
-            // ContainerOutput also signals Container (for completeness, though less common)
-            outputProc.setParentContainer(cp);
-            // Reverse direction: when container gets slowdown from downstream,
-            // it forwards to ContainerOutput to slow down the internal pipeline
-            cp.setContainerOutputProcessor(outputProc);
-            System.out.println("Container " + containerNode.label + " (id=" + containerNode.id + ") bidirectional backpressure links established");
-            System.out.println("  inputProc=" + inputProc.getName() + " parentContainer set to " + cp.getName());
-            System.out.println("  outputProc=" + outputProc.getName() + " parentContainer set to " + cp.getName());
+            System.out.println("Container " + containerNode.label + " (id=" + containerNode.id + ") backpressure: ContainerInput -> Container -> upstream");
         } else {
             System.err.println("WARNING: containerProc for " + containerNode.label + " is NOT a ContainerProcessor: " +
                                (containerProc != null ? containerProc.getClass().getSimpleName() : "null"));
@@ -469,18 +464,9 @@ public class FXPipelineExecutor {
     public void syncAllStats() {
         if (processorFactory != null) {
             for (FXNode node : nodes) {
-                if (!isSourceNode(node)) {
-                    processorFactory.syncStats(node);
-                }
-                // Source nodes track their own stats via feeder threads
-                // but they need threadPriority set for display
-                if (isSourceNode(node)) {
-                    // Source nodes run at Thread.NORM_PRIORITY (5) by default
-                    node.threadPriority = 5;
-                    node.workUnitsCompleted = node.outputCount1;
-                    // Use node's configured FPS, defaulting to 1.0 for images
-                    node.effectiveFps = node.fps > 0 ? node.fps : 1.0;
-                }
+                // Sync stats for all nodes including sources
+                // SourceProcessor updates threadPriority, workUnitsCompleted, and effectiveFps
+                processorFactory.syncStats(node);
 
                 // Sync inner nodes for Container nodes
                 if ("Container".equals(node.nodeType) && node.innerNodes != null) {

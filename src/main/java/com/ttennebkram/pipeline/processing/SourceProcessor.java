@@ -77,7 +77,8 @@ public class SourceProcessor extends ThreadedProcessor {
 
     /**
      * Override receiveSlowdownSignal to implement FPS-based slowdown for sources.
-     * First reduces thread priority, then halves FPS when at MIN_PRIORITY.
+     * Like the main branch, sources first reduce priority, then halve FPS when at MIN_PRIORITY.
+     * We track a "virtual" priority since the actual feeder thread is separate.
      */
     @Override
     public synchronized void receiveSlowdownSignal() {
@@ -174,10 +175,15 @@ public class SourceProcessor extends ThreadedProcessor {
                 FXNode node = getFXNode();
                 if (node != null) {
                     node.workUnitsCompleted = getWorkUnitsCompleted();
-                    // Keep threadPriority updated based on effective FPS
-                    if (originalFps > 0) {
+                    // Show priority during priority reduction phase, then FPS ratio when FPS is reduced
+                    if (fpsSlowdownLevel > 0 && originalFps > 0) {
+                        // FPS has been reduced - show FPS ratio (0-10 scale)
                         node.threadPriority = (int) Math.round((getEffectiveFps() / originalFps) * 10);
+                    } else {
+                        // Priority reduction phase - show actual tracked priority
+                        node.threadPriority = getThreadPriority();
                     }
+                    node.effectiveFps = getEffectiveFps();
                 }
 
                 Thread.sleep(500);
