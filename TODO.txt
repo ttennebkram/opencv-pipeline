@@ -59,6 +59,8 @@ File Source (and probably others): the Category from the button bar doesn't need
 
 .In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 
+When doing File New, the Container windows from the previous drawing should close
+
 
 
 .Still see old Preview image when have created a new file

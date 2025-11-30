@@ -61,6 +61,16 @@ public class FXPipelineSerializer {
             // State
             nodeJson.addProperty("enabled", node.enabled);
 
+            // Runtime stats (persist work completed, priority, and I/O counts across sessions)
+            nodeJson.addProperty("workUnitsCompleted", node.workUnitsCompleted);
+            nodeJson.addProperty("threadPriority", node.threadPriority);
+            nodeJson.addProperty("inputCount", node.inputCount);
+            nodeJson.addProperty("inputCount2", node.inputCount2);
+            nodeJson.addProperty("outputCount1", node.outputCount1);
+            nodeJson.addProperty("outputCount2", node.outputCount2);
+            nodeJson.addProperty("outputCount3", node.outputCount3);
+            nodeJson.addProperty("outputCount4", node.outputCount4);
+
             // Node configuration
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
@@ -82,6 +92,9 @@ public class FXPipelineSerializer {
                 nodeJson.addProperty("filePath", node.filePath);
                 nodeJson.addProperty("fps", node.fps);
             }
+
+            // Save generic properties map (for processing nodes like Gain, FFT, BitPlanes, etc.)
+            saveNodeProperties(nodeJson, node);
 
             // Container-specific properties - internal nodes and connections
             nodeJson.addProperty("isContainer", node.isContainer);
@@ -221,6 +234,32 @@ public class FXPipelineSerializer {
                 // Restore state
                 if (nodeJson.has("enabled")) {
                     node.enabled = nodeJson.get("enabled").getAsBoolean();
+                }
+
+                // Restore runtime stats (work completed, priority, and I/O counts persisted across sessions)
+                if (nodeJson.has("workUnitsCompleted")) {
+                    node.workUnitsCompleted = nodeJson.get("workUnitsCompleted").getAsLong();
+                }
+                if (nodeJson.has("threadPriority")) {
+                    node.threadPriority = nodeJson.get("threadPriority").getAsInt();
+                }
+                if (nodeJson.has("inputCount")) {
+                    node.inputCount = nodeJson.get("inputCount").getAsInt();
+                }
+                if (nodeJson.has("inputCount2")) {
+                    node.inputCount2 = nodeJson.get("inputCount2").getAsInt();
+                }
+                if (nodeJson.has("outputCount1")) {
+                    node.outputCount1 = nodeJson.get("outputCount1").getAsInt();
+                }
+                if (nodeJson.has("outputCount2")) {
+                    node.outputCount2 = nodeJson.get("outputCount2").getAsInt();
+                }
+                if (nodeJson.has("outputCount3")) {
+                    node.outputCount3 = nodeJson.get("outputCount3").getAsInt();
+                }
+                if (nodeJson.has("outputCount4")) {
+                    node.outputCount4 = nodeJson.get("outputCount4").getAsInt();
                 }
 
                 // Restore node configuration
@@ -449,6 +488,11 @@ public class FXPipelineSerializer {
                 return "Webcam".equals(savedLabel);
             case "FileSource":
                 return "File".equals(savedLabel) || "File Source".equals(savedLabel);
+            // Blur nodes were renamed to have "Blur" suffix
+            case "BilateralFilter":
+                return "Bilateral".equals(savedLabel);
+            case "MeanShift":
+                return "Mean Shift".equals(savedLabel);
             // Add more mappings here as needed when node labels are updated
             default:
                 return false;
@@ -489,6 +533,14 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("y", node.y);
             // Don't save width/height - derived from node type
             nodeJson.addProperty("enabled", node.enabled);
+            nodeJson.addProperty("workUnitsCompleted", node.workUnitsCompleted);
+            nodeJson.addProperty("threadPriority", node.threadPriority);
+            nodeJson.addProperty("inputCount", node.inputCount);
+            nodeJson.addProperty("inputCount2", node.inputCount2);
+            nodeJson.addProperty("outputCount1", node.outputCount1);
+            nodeJson.addProperty("outputCount2", node.outputCount2);
+            nodeJson.addProperty("outputCount3", node.outputCount3);
+            nodeJson.addProperty("outputCount4", node.outputCount4);
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
             nodeJson.addProperty("queuesInSync", node.queuesInSync);
@@ -500,6 +552,9 @@ public class FXPipelineSerializer {
                 nodeJson.addProperty("bgColorG", node.backgroundColor.getGreen());
                 nodeJson.addProperty("bgColorB", node.backgroundColor.getBlue());
             }
+
+            // Save generic properties map (for processing nodes like Gain, FFT, BitPlanes, etc.)
+            saveNodeProperties(nodeJson, node);
 
             // Save thumbnail as Base64-encoded PNG (for inner nodes too)
             if (node.thumbnail != null) {
@@ -594,11 +649,38 @@ public class FXPipelineSerializer {
             if (nodeJson.has("enabled")) {
                 node.enabled = nodeJson.get("enabled").getAsBoolean();
             }
+            if (nodeJson.has("workUnitsCompleted")) {
+                node.workUnitsCompleted = nodeJson.get("workUnitsCompleted").getAsLong();
+            }
+            if (nodeJson.has("threadPriority")) {
+                node.threadPriority = nodeJson.get("threadPriority").getAsInt();
+            }
+            if (nodeJson.has("inputCount")) {
+                node.inputCount = nodeJson.get("inputCount").getAsInt();
+            }
+            if (nodeJson.has("inputCount2")) {
+                node.inputCount2 = nodeJson.get("inputCount2").getAsInt();
+            }
+            if (nodeJson.has("outputCount1")) {
+                node.outputCount1 = nodeJson.get("outputCount1").getAsInt();
+            }
+            if (nodeJson.has("outputCount2")) {
+                node.outputCount2 = nodeJson.get("outputCount2").getAsInt();
+            }
+            if (nodeJson.has("outputCount3")) {
+                node.outputCount3 = nodeJson.get("outputCount3").getAsInt();
+            }
+            if (nodeJson.has("outputCount4")) {
+                node.outputCount4 = nodeJson.get("outputCount4").getAsInt();
+            }
             if (nodeJson.has("hasInput")) {
                 node.hasInput = nodeJson.get("hasInput").getAsBoolean();
             }
             if (nodeJson.has("hasDualInput")) {
                 node.hasDualInput = nodeJson.get("hasDualInput").getAsBoolean();
+            }
+            if (nodeJson.has("queuesInSync")) {
+                node.queuesInSync = nodeJson.get("queuesInSync").getAsBoolean();
             }
             if (nodeJson.has("outputCount")) {
                 node.outputCount = nodeJson.get("outputCount").getAsInt();
@@ -789,6 +871,63 @@ public class FXPipelineSerializer {
             }
         }
         return maxId;
+    }
+
+    /**
+     * Save node-specific properties from FXNode.properties map into JSON.
+     * This handles all processing node properties like radius, smoothness, gain, bitEnabled, etc.
+     */
+    private static void saveNodeProperties(JsonObject nodeJson, FXNode node) {
+        if (node.properties == null || node.properties.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> entry : node.properties.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            // Skip temporary UI controls (prefixed with underscore)
+            if (key.startsWith("_")) {
+                continue;
+            }
+
+            if (value instanceof Number) {
+                if (value instanceof Double) {
+                    nodeJson.addProperty(key, (Double) value);
+                } else if (value instanceof Integer) {
+                    nodeJson.addProperty(key, (Integer) value);
+                } else if (value instanceof Long) {
+                    nodeJson.addProperty(key, (Long) value);
+                } else {
+                    nodeJson.addProperty(key, ((Number) value).doubleValue());
+                }
+            } else if (value instanceof Boolean) {
+                nodeJson.addProperty(key, (Boolean) value);
+            } else if (value instanceof String) {
+                nodeJson.addProperty(key, (String) value);
+            } else if (value instanceof boolean[]) {
+                boolean[] arr = (boolean[]) value;
+                JsonArray jsonArr = new JsonArray();
+                for (boolean b : arr) {
+                    jsonArr.add(b);
+                }
+                nodeJson.add(key, jsonArr);
+            } else if (value instanceof double[]) {
+                double[] arr = (double[]) value;
+                JsonArray jsonArr = new JsonArray();
+                for (double d : arr) {
+                    jsonArr.add(d);
+                }
+                nodeJson.add(key, jsonArr);
+            } else if (value instanceof int[]) {
+                int[] arr = (int[]) value;
+                JsonArray jsonArr = new JsonArray();
+                for (int i : arr) {
+                    jsonArr.add(i);
+                }
+                nodeJson.add(key, jsonArr);
+            }
+        }
     }
 
     /**

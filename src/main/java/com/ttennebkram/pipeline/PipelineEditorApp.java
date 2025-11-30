@@ -572,17 +572,14 @@ public class PipelineEditorApp extends Application {
                 node.hasInput, node.hasDualInput, node.outputCount, node.thumbnail,
                 node.isContainer, node.inputCount, node.inputCount2, outputCounters, node.nodeType);
 
-            // Draw stats line (Pri/Work/FPS) below title - only when pipeline is running
-            if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
-                if (!node.hasInput) {
-                    // Source node - show FPS as well
-                    NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
-                        node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
-                } else {
-                    // Processing node
-                    NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
-                        node.threadPriority, node.workUnitsCompleted);
-                }
+            // Draw stats line (Pri/Work/FPS) below title - always show (including after load)
+            // Source nodes (no input) show FPS; processing nodes don't
+            if (!node.hasInput) {
+                NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                    node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+            } else {
+                NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                    node.threadPriority, node.workUnitsCompleted);
             }
         }
 
@@ -782,6 +779,7 @@ public class PipelineEditorApp extends Application {
         double canvasY = e.getY() / zoomLevel;
 
         FXNode node = getNodeAt(canvasX, canvasY);
+        System.out.println("[DEBUG] handleDoubleClick: node = " + (node != null ? node.nodeType : "null"));
         if (node != null) {
             if (node.isContainer) {
                 openContainerEditor(node);
@@ -867,12 +865,23 @@ public class PipelineEditorApp extends Application {
     }
 
     private void showNodeProperties(FXNode node) {
+        System.out.println("[DEBUG] showNodeProperties called with nodeType: '" + node.nodeType + "'");
         FXPropertiesDialog dialog = new FXPropertiesDialog(
             primaryStage,
             node.label + " Properties",
             node.nodeType,
             node.label
         );
+
+        // Add method signature/description from registry
+        FXNodeRegistry.NodeType typeInfo = FXNodeRegistry.getNodeType(node.nodeType);
+        if (typeInfo != null && typeInfo.description != null) {
+            dialog.addDescription(typeInfo.description);
+        }
+
+        // Use FXNodePropertiesHelper to add comprehensive properties for supported node types
+        // This helper covers all nodes with properties that differ from the main branch
+        com.ttennebkram.pipeline.fx.FXNodePropertiesHelper.addPropertiesForNode(dialog, node);
 
         // Add node-type-specific properties
         Spinner<Integer> cameraSpinner = null;
@@ -936,6 +945,64 @@ public class PipelineEditorApp extends Application {
             fpsRow.getChildren().addAll(fpsLabel, fpsCombo);
             dialog.addCustomContent(fpsRow);
             dialog.addDescription("Automatic: 1 FPS for images, video native rate for videos.");
+        } else if ("BlankSource".equals(node.nodeType)) {
+            // BlankSource properties: width, height, color, fps
+            int currentWidth = node.properties.containsKey("imageWidth") ?
+                ((Number) node.properties.get("imageWidth")).intValue() : 640;
+            int currentHeight = node.properties.containsKey("imageHeight") ?
+                ((Number) node.properties.get("imageHeight")).intValue() : 480;
+            int currentColorIndex = node.properties.containsKey("colorIndex") ?
+                ((Number) node.properties.get("colorIndex")).intValue() : 0;
+            int currentFpsIndex = node.properties.containsKey("fpsIndex") ?
+                ((Number) node.properties.get("fpsIndex")).intValue() : 2;
+
+            // Width spinner
+            Spinner<Integer> widthSpinner = new Spinner<>(1, 4096, currentWidth);
+            widthSpinner.setEditable(true);
+            widthSpinner.setPrefWidth(100);
+            HBox widthRow = new HBox(10);
+            Label widthLabel = new Label("Width:");
+            widthLabel.setMinWidth(50);
+            widthRow.getChildren().addAll(widthLabel, widthSpinner);
+            dialog.addCustomContent(widthRow);
+
+            // Height spinner
+            Spinner<Integer> heightSpinner = new Spinner<>(1, 4096, currentHeight);
+            heightSpinner.setEditable(true);
+            heightSpinner.setPrefWidth(100);
+            HBox heightRow = new HBox(10);
+            Label heightLabel = new Label("Height:");
+            heightLabel.setMinWidth(50);
+            heightRow.getChildren().addAll(heightLabel, heightSpinner);
+            dialog.addCustomContent(heightRow);
+
+            // Color combo box
+            String[] colorOptions = {"Black", "White", "Red", "Green", "Blue", "Yellow"};
+            ComboBox<String> colorCombo = new ComboBox<>();
+            colorCombo.getItems().addAll(colorOptions);
+            colorCombo.setValue(colorOptions[Math.min(currentColorIndex, colorOptions.length - 1)]);
+            HBox colorRow = new HBox(10);
+            Label colorLabel = new Label("Color:");
+            colorLabel.setMinWidth(50);
+            colorRow.getChildren().addAll(colorLabel, colorCombo);
+            dialog.addCustomContent(colorRow);
+
+            // FPS combo box
+            String[] fpsOptions = {"1", "15", "30", "60"};
+            ComboBox<String> blankFpsCombo = new ComboBox<>();
+            blankFpsCombo.getItems().addAll(fpsOptions);
+            blankFpsCombo.setValue(fpsOptions[Math.min(currentFpsIndex, fpsOptions.length - 1)]);
+            HBox blankFpsRow = new HBox(10);
+            Label blankFpsLabel = new Label("FPS:");
+            blankFpsLabel.setMinWidth(50);
+            blankFpsRow.getChildren().addAll(blankFpsLabel, blankFpsCombo);
+            dialog.addCustomContent(blankFpsRow);
+
+            // Store control references for OK handler
+            node.properties.put("_widthSpinner", widthSpinner);
+            node.properties.put("_heightSpinner", heightSpinner);
+            node.properties.put("_colorCombo", colorCombo);
+            node.properties.put("_blankFpsCombo", blankFpsCombo);
         } else if ("Container".equals(node.nodeType)) {
             // Pipeline file path with browse button
             pipelineFileField = new TextField(node.pipelineFilePath != null ? node.pipelineFilePath : "");
@@ -1014,6 +1081,586 @@ public class PipelineEditorApp extends Application {
             // Store slider reference for OK handler
             node.properties.put("_gainSlider", gainSlider);
             node.properties.put("_gainLogRange", LOG_RANGE);
+        } else if ("MedianBlur".equals(node.nodeType)) {
+            int currentKsize = node.properties.containsKey("ksize") ?
+                ((Number) node.properties.get("ksize")).intValue() : 5;
+
+            Slider ksizeSlider = new Slider(1, 31, currentKsize);
+            ksizeSlider.setPrefWidth(200);
+            ksizeSlider.setMajorTickUnit(10);
+            ksizeSlider.setShowTickMarks(true);
+
+            Label ksizeValueLabel = new Label(String.valueOf(currentKsize));
+            ksizeValueLabel.setMinWidth(30);
+
+            ksizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                int v = newVal.intValue();
+                if (v % 2 == 0) v++;  // Must be odd
+                ksizeValueLabel.setText(String.valueOf(v));
+            });
+
+            HBox ksizeRow = new HBox(10);
+            ksizeRow.getChildren().addAll(new Label("Kernel Size:"), ksizeSlider, ksizeValueLabel);
+            dialog.addCustomContent(ksizeRow);
+
+            node.properties.put("_ksizeSlider", ksizeSlider);
+        } else if ("Erode".equals(node.nodeType) || "Dilate".equals(node.nodeType)) {
+            int currentKsize = node.properties.containsKey("kernelSize") ?
+                ((Number) node.properties.get("kernelSize")).intValue() : 5;
+            int currentIter = node.properties.containsKey("iterations") ?
+                ((Number) node.properties.get("iterations")).intValue() : 1;
+
+            Slider ksizeSlider = new Slider(1, 21, currentKsize);
+            ksizeSlider.setPrefWidth(200);
+            ksizeSlider.setMajorTickUnit(5);
+            ksizeSlider.setShowTickMarks(true);
+
+            Label ksizeValueLabel = new Label(String.valueOf(currentKsize));
+            ksizeValueLabel.setMinWidth(30);
+
+            ksizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                ksizeValueLabel.setText(String.valueOf(newVal.intValue()));
+            });
+
+            HBox ksizeRow = new HBox(10);
+            ksizeRow.getChildren().addAll(new Label("Kernel Size:"), ksizeSlider, ksizeValueLabel);
+            dialog.addCustomContent(ksizeRow);
+
+            Slider iterSlider = new Slider(1, 10, currentIter);
+            iterSlider.setPrefWidth(200);
+            iterSlider.setMajorTickUnit(3);
+            iterSlider.setShowTickMarks(true);
+
+            Label iterValueLabel = new Label(String.valueOf(currentIter));
+            iterValueLabel.setMinWidth(30);
+
+            iterSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                iterValueLabel.setText(String.valueOf(newVal.intValue()));
+            });
+
+            HBox iterRow = new HBox(10);
+            iterRow.getChildren().addAll(new Label("Iterations:"), iterSlider, iterValueLabel);
+            dialog.addCustomContent(iterRow);
+
+            node.properties.put("_kernelSizeSlider", ksizeSlider);
+            node.properties.put("_iterationsSlider", iterSlider);
+        } else if ("MorphOpen".equals(node.nodeType) || "MorphClose".equals(node.nodeType)) {
+            int currentKsize = node.properties.containsKey("kernelSize") ?
+                ((Number) node.properties.get("kernelSize")).intValue() : 5;
+
+            Slider ksizeSlider = new Slider(1, 21, currentKsize);
+            ksizeSlider.setPrefWidth(200);
+            ksizeSlider.setMajorTickUnit(5);
+            ksizeSlider.setShowTickMarks(true);
+
+            Label ksizeValueLabel = new Label(String.valueOf(currentKsize));
+            ksizeValueLabel.setMinWidth(30);
+
+            ksizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                ksizeValueLabel.setText(String.valueOf(newVal.intValue()));
+            });
+
+            HBox ksizeRow = new HBox(10);
+            ksizeRow.getChildren().addAll(new Label("Kernel Size:"), ksizeSlider, ksizeValueLabel);
+            dialog.addCustomContent(ksizeRow);
+
+            node.properties.put("_kernelSizeSlider", ksizeSlider);
+        } else if ("BitPlanesGrayscale".equals(node.nodeType)) {
+            // Bit Planes Grayscale - 8 bit planes with enable checkbox and gain slider each
+            dialog.addDescription("Bit Planes Grayscale: Select and adjust bit planes\nBit plane decomposition with gain");
+
+            // Load current values from properties
+            boolean[] bitEnabled = new boolean[8];
+            double[] bitGain = new double[8];
+            for (int i = 0; i < 8; i++) {
+                bitEnabled[i] = true;
+                bitGain[i] = 1.0;
+            }
+            if (node.properties.containsKey("bitEnabled")) {
+                boolean[] arr = (boolean[]) node.properties.get("bitEnabled");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) bitEnabled[i] = arr[i];
+            }
+            if (node.properties.containsKey("bitGain")) {
+                double[] arr = (double[]) node.properties.get("bitGain");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) bitGain[i] = arr[i];
+            }
+
+            // Create arrays to hold controls
+            CheckBox[] checkBoxes = new CheckBox[8];
+            Slider[] gainSliders = new Slider[8];
+            Label[] gainLabels = new Label[8];
+
+            // Header
+            HBox headerRow = new HBox(10);
+            Label bitHeader = new Label("Bit");
+            bitHeader.setMinWidth(30);
+            Label onHeader = new Label("On");
+            onHeader.setMinWidth(30);
+            Label gainHeader = new Label("Gain (0.1x - 10x)");
+            gainHeader.setMinWidth(200);
+            headerRow.getChildren().addAll(bitHeader, onHeader, gainHeader);
+            dialog.addCustomContent(headerRow);
+
+            // 8 rows for bit planes
+            for (int i = 0; i < 8; i++) {
+                int bitNum = 7 - i;
+                final int idx = i;
+
+                HBox row = new HBox(10);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+                Label bitLabel = new Label(String.valueOf(bitNum));
+                bitLabel.setMinWidth(30);
+
+                checkBoxes[i] = new CheckBox();
+                checkBoxes[i].setSelected(bitEnabled[i]);
+
+                // Logarithmic gain slider: 0-200 maps to 0.1x-10x (center=100 = 1.0x)
+                gainSliders[i] = new Slider(0, 200, Math.log10(bitGain[i]) * 100 + 100);
+                gainSliders[i].setPrefWidth(180);
+
+                gainLabels[i] = new Label(String.format("%.2fx", bitGain[i]));
+                gainLabels[i].setMinWidth(50);
+
+                gainSliders[i].valueProperty().addListener((obs, oldVal, newVal) -> {
+                    double g = Math.pow(10, (newVal.doubleValue() - 100) / 100.0);
+                    gainLabels[idx].setText(String.format("%.2fx", g));
+                });
+
+                row.getChildren().addAll(bitLabel, checkBoxes[i], gainSliders[i], gainLabels[i]);
+                dialog.addCustomContent(row);
+            }
+
+            // Store control references
+            node.properties.put("_bitCheckBoxes", checkBoxes);
+            node.properties.put("_bitGainSliders", gainSliders);
+
+        } else if ("BitPlanesColor".equals(node.nodeType)) {
+            // Bit Planes Color - Tabbed interface with Red, Green, Blue channels
+            dialog.addDescription("Bit Planes Color: Select and adjust RGB bit planes\nBit plane decomposition with gain (RGB)");
+
+            // Load current values from properties
+            boolean[][] bitEnabled = new boolean[3][8];
+            double[][] bitGain = new double[3][8];
+            String[] channelNames = {"red", "green", "blue"};
+
+            for (int c = 0; c < 3; c++) {
+                for (int i = 0; i < 8; i++) {
+                    bitEnabled[c][i] = true;
+                    bitGain[c][i] = 1.0;
+                }
+                String enabledKey = channelNames[c] + "BitEnabled";
+                String gainKey = channelNames[c] + "BitGain";
+                if (node.properties.containsKey(enabledKey)) {
+                    boolean[] arr = (boolean[]) node.properties.get(enabledKey);
+                    for (int i = 0; i < Math.min(arr.length, 8); i++) bitEnabled[c][i] = arr[i];
+                }
+                if (node.properties.containsKey(gainKey)) {
+                    double[] arr = (double[]) node.properties.get(gainKey);
+                    for (int i = 0; i < Math.min(arr.length, 8); i++) bitGain[c][i] = arr[i];
+                }
+            }
+
+            // Create tabbed pane
+            TabPane tabPane = new TabPane();
+            tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+
+            CheckBox[][] checkBoxes = new CheckBox[3][8];
+            Slider[][] gainSliders = new Slider[3][8];
+
+            String[] tabNames = {"Red", "Green", "Blue"};
+            for (int c = 0; c < 3; c++) {
+                Tab tab = new Tab(tabNames[c]);
+                VBox tabContent = new VBox(5);
+                tabContent.setPadding(new Insets(10));
+
+                // Header
+                HBox headerRow = new HBox(10);
+                Label bitHeader = new Label("Bit");
+                bitHeader.setMinWidth(30);
+                Label onHeader = new Label("On");
+                onHeader.setMinWidth(30);
+                Label gainHeader = new Label("Gain (0.1x - 10x)");
+                headerRow.getChildren().addAll(bitHeader, onHeader, gainHeader);
+                tabContent.getChildren().add(headerRow);
+
+                // 8 rows for bit planes
+                for (int i = 0; i < 8; i++) {
+                    int bitNum = 7 - i;
+                    final int channel = c;
+                    final int idx = i;
+
+                    HBox row = new HBox(10);
+                    row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+                    Label bitLabel = new Label(String.valueOf(bitNum));
+                    bitLabel.setMinWidth(30);
+
+                    checkBoxes[c][i] = new CheckBox();
+                    checkBoxes[c][i].setSelected(bitEnabled[c][i]);
+
+                    gainSliders[c][i] = new Slider(0, 200, Math.log10(bitGain[c][i]) * 100 + 100);
+                    gainSliders[c][i].setPrefWidth(180);
+
+                    Label gainLabel = new Label(String.format("%.2fx", bitGain[c][i]));
+                    gainLabel.setMinWidth(50);
+
+                    gainSliders[c][i].valueProperty().addListener((obs, oldVal, newVal) -> {
+                        double g = Math.pow(10, (newVal.doubleValue() - 100) / 100.0);
+                        gainLabel.setText(String.format("%.2fx", g));
+                    });
+
+                    row.getChildren().addAll(bitLabel, checkBoxes[c][i], gainSliders[c][i], gainLabel);
+                    tabContent.getChildren().add(row);
+                }
+
+                tab.setContent(tabContent);
+                tabPane.getTabs().add(tab);
+            }
+
+            dialog.addCustomContent(tabPane);
+
+            // Store control references
+            node.properties.put("_colorBitCheckBoxes", checkBoxes);
+            node.properties.put("_colorBitGainSliders", gainSliders);
+
+        } else if (isFFTNodeType(node.nodeType)) {
+            // FFT Low-Pass / High-Pass filter properties
+            System.out.println("[DEBUG] Creating FFT properties UI for nodeType: " + node.nodeType);
+            int currentRadius = 100;
+            int currentSmoothness = 0;
+            if (node.properties.containsKey("radius")) {
+                currentRadius = ((Number) node.properties.get("radius")).intValue();
+            }
+            if (node.properties.containsKey("smoothness")) {
+                currentSmoothness = ((Number) node.properties.get("smoothness")).intValue();
+            }
+
+            // Radius slider (0-200)
+            Slider radiusSlider = new Slider(0, 200, currentRadius);
+            radiusSlider.setPrefWidth(200);
+            radiusSlider.setShowTickMarks(true);
+            radiusSlider.setMajorTickUnit(50);
+
+            Label radiusValueLabel = new Label(String.valueOf(currentRadius));
+            radiusValueLabel.setMinWidth(40);
+
+            radiusSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                radiusValueLabel.setText(String.valueOf(newVal.intValue()));
+            });
+
+            HBox radiusRow = new HBox(10);
+            radiusRow.getChildren().addAll(new Label("Radius:"), radiusSlider, radiusValueLabel);
+            dialog.addCustomContent(radiusRow);
+
+            // Smoothness slider (0-100)
+            Slider smoothnessSlider = new Slider(0, 100, currentSmoothness);
+            smoothnessSlider.setPrefWidth(200);
+            smoothnessSlider.setShowTickMarks(true);
+            smoothnessSlider.setMajorTickUnit(25);
+
+            Label smoothnessValueLabel = new Label(String.valueOf(currentSmoothness));
+            smoothnessValueLabel.setMinWidth(40);
+
+            smoothnessSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                smoothnessValueLabel.setText(String.valueOf(newVal.intValue()));
+            });
+
+            HBox smoothnessRow = new HBox(10);
+            smoothnessRow.getChildren().addAll(new Label("Smoothness:"), smoothnessSlider, smoothnessValueLabel);
+            dialog.addCustomContent(smoothnessRow);
+
+            // Determine the filter type for description
+            boolean isLowPass = node.nodeType.contains("LowPass");
+            String filterDesc = isLowPass ? "FFT Low-Pass Filter" : "FFT High-Pass Filter";
+            String methodSig = "Core.dft() / Core.idft()";
+            dialog.addDescription(filterDesc + "\n" + methodSig + "\n\nNote: FFT processing is computationally expensive (it's slow!).");
+
+            // Store slider references for OK handler
+            node.properties.put("_radiusSlider", radiusSlider);
+            node.properties.put("_smoothnessSlider", smoothnessSlider);
+        } else if ("AdaptiveThreshold".equals(node.nodeType)) {
+            // AdaptiveThreshold properties
+            int maxValue = node.properties.containsKey("maxValue") ?
+                ((Number) node.properties.get("maxValue")).intValue() : 255;
+            int methodIndex = node.properties.containsKey("methodIndex") ?
+                ((Number) node.properties.get("methodIndex")).intValue() : 1;
+            int typeIndex = node.properties.containsKey("typeIndex") ?
+                ((Number) node.properties.get("typeIndex")).intValue() : 0;
+            int blockSize = node.properties.containsKey("blockSize") ?
+                ((Number) node.properties.get("blockSize")).intValue() : 11;
+            int cValue = node.properties.containsKey("cValue") ?
+                ((Number) node.properties.get("cValue")).intValue() : 2;
+
+            Slider maxValueSlider = dialog.addSlider("Max Value:", 0, 255, maxValue, "%.0f");
+
+            String[] methods = {"Mean", "Gaussian"};
+            ComboBox<String> methodCombo = dialog.addComboBox("Method:", methods, methods[methodIndex]);
+
+            String[] types = {"Binary", "Binary Inv"};
+            ComboBox<String> typeCombo = dialog.addComboBox("Type:", types, types[typeIndex]);
+
+            // Block size must be odd and >= 3
+            Slider blockSizeSlider = dialog.addSlider("Block Size:", 3, 99, blockSize, "%.0f");
+            Slider cValueSlider = dialog.addSlider("C Value:", 0, 50, cValue, "%.0f");
+
+            node.properties.put("_maxValueSlider", maxValueSlider);
+            node.properties.put("_methodCombo", methodCombo);
+            node.properties.put("_typeCombo", typeCombo);
+            node.properties.put("_blockSizeSlider", blockSizeSlider);
+            node.properties.put("_cValueSlider", cValueSlider);
+        } else if ("AddWeighted".equals(node.nodeType)) {
+            // AddWeighted properties (alpha, beta, gamma for blending)
+            double alpha = node.properties.containsKey("alpha") ?
+                ((Number) node.properties.get("alpha")).doubleValue() : 0.5;
+            double beta = node.properties.containsKey("beta") ?
+                ((Number) node.properties.get("beta")).doubleValue() : 0.5;
+            double gamma = node.properties.containsKey("gamma") ?
+                ((Number) node.properties.get("gamma")).doubleValue() : 0.0;
+
+            Slider alphaSlider = dialog.addSlider("Alpha (Input 1 weight):", 0, 100, alpha * 100, "%.0f%%");
+            Slider betaSlider = dialog.addSlider("Beta (Input 2 weight):", 0, 100, beta * 100, "%.0f%%");
+            Slider gammaSlider = dialog.addSlider("Gamma (brightness):", 0, 255, gamma, "%.0f");
+
+            node.properties.put("_alphaSlider", alphaSlider);
+            node.properties.put("_betaSlider", betaSlider);
+            node.properties.put("_gammaSlider", gammaSlider);
+        } else if ("BilateralFilter".equals(node.nodeType)) {
+            // BilateralFilter properties
+            int diameter = node.properties.containsKey("diameter") ?
+                ((Number) node.properties.get("diameter")).intValue() : 9;
+            int sigmaColor = node.properties.containsKey("sigmaColor") ?
+                ((Number) node.properties.get("sigmaColor")).intValue() : 75;
+            int sigmaSpace = node.properties.containsKey("sigmaSpace") ?
+                ((Number) node.properties.get("sigmaSpace")).intValue() : 75;
+
+            Slider diameterSlider = dialog.addSlider("Diameter:", 1, 25, diameter, "%.0f");
+            Slider sigmaColorSlider = dialog.addSlider("Sigma Color:", 1, 200, sigmaColor, "%.0f");
+            Slider sigmaSpaceSlider = dialog.addSlider("Sigma Space:", 1, 200, sigmaSpace, "%.0f");
+
+            node.properties.put("_diameterSlider", diameterSlider);
+            node.properties.put("_sigmaColorSlider", sigmaColorSlider);
+            node.properties.put("_sigmaSpaceSlider", sigmaSpaceSlider);
+        } else if ("CLAHE".equals(node.nodeType)) {
+            // CLAHE properties
+            double clipLimit = node.properties.containsKey("clipLimit") ?
+                ((Number) node.properties.get("clipLimit")).doubleValue() : 2.0;
+            int tileSize = node.properties.containsKey("tileSize") ?
+                ((Number) node.properties.get("tileSize")).intValue() : 8;
+            int colorModeIndex = node.properties.containsKey("colorModeIndex") ?
+                ((Number) node.properties.get("colorModeIndex")).intValue() : 0;
+
+            Slider clipLimitSlider = dialog.addSlider("Clip Limit:", 1.0, 40.0, clipLimit, "%.1f");
+            Slider tileSizeSlider = dialog.addSlider("Tile Size:", 2, 32, tileSize, "%.0f");
+
+            String[] colorModes = {"LAB", "HSV", "Grayscale"};
+            ComboBox<String> colorModeCombo = dialog.addComboBox("Color Mode:", colorModes, colorModes[colorModeIndex]);
+
+            node.properties.put("_clipLimitSlider", clipLimitSlider);
+            node.properties.put("_tileSizeSlider", tileSizeSlider);
+            node.properties.put("_colorModeCombo", colorModeCombo);
+        } else if ("ColorInRange".equals(node.nodeType)) {
+            // ColorInRange properties
+            boolean useHSV = node.properties.containsKey("useHSV") ?
+                (Boolean) node.properties.get("useHSV") : true;
+            int hLow = node.properties.containsKey("hLow") ?
+                ((Number) node.properties.get("hLow")).intValue() : 0;
+            int hHigh = node.properties.containsKey("hHigh") ?
+                ((Number) node.properties.get("hHigh")).intValue() : 179;
+            int sLow = node.properties.containsKey("sLow") ?
+                ((Number) node.properties.get("sLow")).intValue() : 0;
+            int sHigh = node.properties.containsKey("sHigh") ?
+                ((Number) node.properties.get("sHigh")).intValue() : 255;
+            int vLow = node.properties.containsKey("vLow") ?
+                ((Number) node.properties.get("vLow")).intValue() : 0;
+            int vHigh = node.properties.containsKey("vHigh") ?
+                ((Number) node.properties.get("vHigh")).intValue() : 255;
+            int outputMode = node.properties.containsKey("outputMode") ?
+                ((Number) node.properties.get("outputMode")).intValue() : 0;
+
+            CheckBox useHSVCheckBox = dialog.addCheckbox("Use HSV (unchecked = BGR)", useHSV);
+            Slider hLowSlider = dialog.addSlider("H/B Low:", 0, 255, hLow, "%.0f");
+            Slider hHighSlider = dialog.addSlider("H/B High:", 0, 255, hHigh, "%.0f");
+            Slider sLowSlider = dialog.addSlider("S/G Low:", 0, 255, sLow, "%.0f");
+            Slider sHighSlider = dialog.addSlider("S/G High:", 0, 255, sHigh, "%.0f");
+            Slider vLowSlider = dialog.addSlider("V/R Low:", 0, 255, vLow, "%.0f");
+            Slider vHighSlider = dialog.addSlider("V/R High:", 0, 255, vHigh, "%.0f");
+
+            String[] outputModes = {"Mask Only", "Keep In-Range", "Keep Out-of-Range"};
+            ComboBox<String> outputModeCombo = dialog.addComboBox("Output Mode:", outputModes, outputModes[outputMode]);
+
+            node.properties.put("_useHSVCheckBox", useHSVCheckBox);
+            node.properties.put("_hLowSlider", hLowSlider);
+            node.properties.put("_hHighSlider", hHighSlider);
+            node.properties.put("_sLowSlider", sLowSlider);
+            node.properties.put("_sHighSlider", sHighSlider);
+            node.properties.put("_vLowSlider", vLowSlider);
+            node.properties.put("_vHighSlider", vHighSlider);
+            node.properties.put("_outputModeCombo", outputModeCombo);
+        } else if ("Crop".equals(node.nodeType)) {
+            // Crop properties
+            int cropX = node.properties.containsKey("cropX") ?
+                ((Number) node.properties.get("cropX")).intValue() : 0;
+            int cropY = node.properties.containsKey("cropY") ?
+                ((Number) node.properties.get("cropY")).intValue() : 0;
+            int cropWidth = node.properties.containsKey("cropWidth") ?
+                ((Number) node.properties.get("cropWidth")).intValue() : 100;
+            int cropHeight = node.properties.containsKey("cropHeight") ?
+                ((Number) node.properties.get("cropHeight")).intValue() : 100;
+
+            Spinner<Integer> xSpinner = dialog.addSpinner("X:", -4096, 4096, cropX);
+            Spinner<Integer> ySpinner = dialog.addSpinner("Y:", -4096, 4096, cropY);
+            Spinner<Integer> widthSpinner = dialog.addSpinner("Width:", 1, 4096, cropWidth);
+            Spinner<Integer> heightSpinner = dialog.addSpinner("Height:", 1, 4096, cropHeight);
+
+            node.properties.put("_cropXSpinner", xSpinner);
+            node.properties.put("_cropYSpinner", ySpinner);
+            node.properties.put("_cropWidthSpinner", widthSpinner);
+            node.properties.put("_cropHeightSpinner", heightSpinner);
+        } else if ("Sobel".equals(node.nodeType)) {
+            // Sobel properties
+            int dx = node.properties.containsKey("dx") ?
+                ((Number) node.properties.get("dx")).intValue() : 1;
+            int dy = node.properties.containsKey("dy") ?
+                ((Number) node.properties.get("dy")).intValue() : 0;
+            int kernelSizeIndex = node.properties.containsKey("kernelSizeIndex") ?
+                ((Number) node.properties.get("kernelSizeIndex")).intValue() : 1;
+
+            String[] derivOrders = {"0", "1", "2"};
+            ToggleGroup dxGroup = dialog.addRadioButtons("dx (X derivative):", derivOrders, dx);
+            ToggleGroup dyGroup = dialog.addRadioButtons("dy (Y derivative):", derivOrders, dy);
+            String[] kernelSizes = {"1", "3", "5", "7"};
+            ComboBox<String> kernelSizeCombo = dialog.addComboBox("Kernel Size:", kernelSizes, kernelSizes[kernelSizeIndex]);
+            dialog.addDescription("Note: dx + dy must be >= 1");
+
+            node.properties.put("_dxGroup", dxGroup);
+            node.properties.put("_dyGroup", dyGroup);
+            node.properties.put("_kernelSizeCombo", kernelSizeCombo);
+        } else if ("Scharr".equals(node.nodeType)) {
+            // Scharr properties
+            int directionIndex = node.properties.containsKey("directionIndex") ?
+                ((Number) node.properties.get("directionIndex")).intValue() : 2;
+            int scalePercent = node.properties.containsKey("scalePercent") ?
+                ((Number) node.properties.get("scalePercent")).intValue() : 100;
+            int delta = node.properties.containsKey("delta") ?
+                ((Number) node.properties.get("delta")).intValue() : 0;
+
+            String[] directions = {"X", "Y", "Both"};
+            ComboBox<String> dirCombo = dialog.addComboBox("Direction:", directions, directions[directionIndex]);
+            Slider scaleSlider = dialog.addSlider("Scale (%):", 10, 500, scalePercent, "%.0f%%");
+            Slider deltaSlider = dialog.addSlider("Delta:", 0, 255, delta, "%.0f");
+
+            node.properties.put("_directionCombo", dirCombo);
+            node.properties.put("_scaleSlider", scaleSlider);
+            node.properties.put("_deltaSlider", deltaSlider);
+        } else if ("Laplacian".equals(node.nodeType)) {
+            // Laplacian properties
+            int kernelSizeIndex = node.properties.containsKey("kernelSizeIndex") ?
+                ((Number) node.properties.get("kernelSizeIndex")).intValue() : 1;
+            int scalePercent = node.properties.containsKey("scalePercent") ?
+                ((Number) node.properties.get("scalePercent")).intValue() : 100;
+            int delta = node.properties.containsKey("delta") ?
+                ((Number) node.properties.get("delta")).intValue() : 0;
+            boolean useAbsolute = node.properties.containsKey("useAbsolute") ?
+                (Boolean) node.properties.get("useAbsolute") : true;
+
+            String[] ksizes = {"1", "3", "5", "7"};
+            ComboBox<String> ksizeCombo = dialog.addComboBox("Kernel Size:", ksizes, ksizes[kernelSizeIndex]);
+            Slider scaleSlider = dialog.addSlider("Scale (%):", 10, 500, scalePercent, "%.0f%%");
+            Slider deltaSlider = dialog.addSlider("Delta:", 0, 255, delta, "%.0f");
+            CheckBox absCheckBox = dialog.addCheckbox("Use Absolute Value", useAbsolute);
+
+            node.properties.put("_ksizeCombo", ksizeCombo);
+            node.properties.put("_scaleSlider", scaleSlider);
+            node.properties.put("_deltaSlider", deltaSlider);
+            node.properties.put("_absCheckBox", absCheckBox);
+        } else if ("Rectangle".equals(node.nodeType)) {
+            // Rectangle drawing properties
+            int x1 = node.properties.containsKey("x1") ?
+                ((Number) node.properties.get("x1")).intValue() : 50;
+            int y1 = node.properties.containsKey("y1") ?
+                ((Number) node.properties.get("y1")).intValue() : 50;
+            int x2 = node.properties.containsKey("x2") ?
+                ((Number) node.properties.get("x2")).intValue() : 200;
+            int y2 = node.properties.containsKey("y2") ?
+                ((Number) node.properties.get("y2")).intValue() : 150;
+            int colorR = node.properties.containsKey("colorR") ?
+                ((Number) node.properties.get("colorR")).intValue() : 0;
+            int colorG = node.properties.containsKey("colorG") ?
+                ((Number) node.properties.get("colorG")).intValue() : 255;
+            int colorB = node.properties.containsKey("colorB") ?
+                ((Number) node.properties.get("colorB")).intValue() : 0;
+            int thickness = node.properties.containsKey("thickness") ?
+                ((Number) node.properties.get("thickness")).intValue() : 2;
+            boolean filled = node.properties.containsKey("filled") ?
+                (Boolean) node.properties.get("filled") : false;
+
+            Spinner<Integer> x1Spinner = dialog.addSpinner("X1:", -4096, 4096, x1);
+            Spinner<Integer> y1Spinner = dialog.addSpinner("Y1:", -4096, 4096, y1);
+            Spinner<Integer> x2Spinner = dialog.addSpinner("X2:", -4096, 4096, x2);
+            Spinner<Integer> y2Spinner = dialog.addSpinner("Y2:", -4096, 4096, y2);
+            Spinner<Integer> rSpinner = dialog.addSpinner("Color R:", 0, 255, colorR);
+            Spinner<Integer> gSpinner = dialog.addSpinner("Color G:", 0, 255, colorG);
+            Spinner<Integer> bSpinner = dialog.addSpinner("Color B:", 0, 255, colorB);
+            Spinner<Integer> thicknessSpinner = dialog.addSpinner("Thickness:", 1, 50, thickness);
+            CheckBox filledCheckBox = dialog.addCheckbox("Filled", filled);
+
+            node.properties.put("_x1Spinner", x1Spinner);
+            node.properties.put("_y1Spinner", y1Spinner);
+            node.properties.put("_x2Spinner", x2Spinner);
+            node.properties.put("_y2Spinner", y2Spinner);
+            node.properties.put("_colorRSpinner", rSpinner);
+            node.properties.put("_colorGSpinner", gSpinner);
+            node.properties.put("_colorBSpinner", bSpinner);
+            node.properties.put("_thicknessSpinner", thicknessSpinner);
+            node.properties.put("_filledCheckBox", filledCheckBox);
+        } else if ("Circle".equals(node.nodeType)) {
+            // Circle drawing properties
+            int centerX = node.properties.containsKey("centerX") ?
+                ((Number) node.properties.get("centerX")).intValue() : 100;
+            int centerY = node.properties.containsKey("centerY") ?
+                ((Number) node.properties.get("centerY")).intValue() : 100;
+            int radius = node.properties.containsKey("radius") ?
+                ((Number) node.properties.get("radius")).intValue() : 50;
+            int colorR = node.properties.containsKey("colorR") ?
+                ((Number) node.properties.get("colorR")).intValue() : 0;
+            int colorG = node.properties.containsKey("colorG") ?
+                ((Number) node.properties.get("colorG")).intValue() : 255;
+            int colorB = node.properties.containsKey("colorB") ?
+                ((Number) node.properties.get("colorB")).intValue() : 0;
+            int thickness = node.properties.containsKey("thickness") ?
+                ((Number) node.properties.get("thickness")).intValue() : 2;
+            boolean filled = node.properties.containsKey("filled") ?
+                (Boolean) node.properties.get("filled") : false;
+
+            Spinner<Integer> cxSpinner = dialog.addSpinner("Center X:", -4096, 4096, centerX);
+            Spinner<Integer> cySpinner = dialog.addSpinner("Center Y:", -4096, 4096, centerY);
+            Spinner<Integer> radiusSpinner = dialog.addSpinner("Radius:", 1, 2000, radius);
+            Spinner<Integer> rSpinner = dialog.addSpinner("Color R:", 0, 255, colorR);
+            Spinner<Integer> gSpinner = dialog.addSpinner("Color G:", 0, 255, colorG);
+            Spinner<Integer> bSpinner = dialog.addSpinner("Color B:", 0, 255, colorB);
+            Spinner<Integer> thicknessSpinner = dialog.addSpinner("Thickness:", 1, 50, thickness);
+            CheckBox filledCheckBox = dialog.addCheckbox("Filled", filled);
+
+            node.properties.put("_centerXSpinner", cxSpinner);
+            node.properties.put("_centerYSpinner", cySpinner);
+            node.properties.put("_radiusSpinner", radiusSpinner);
+            node.properties.put("_colorRSpinner", rSpinner);
+            node.properties.put("_colorGSpinner", gSpinner);
+            node.properties.put("_colorBSpinner", bSpinner);
+            node.properties.put("_thicknessSpinner", thicknessSpinner);
+            node.properties.put("_filledCheckBox", filledCheckBox);
+        } else if ("Grayscale".equals(node.nodeType)) {
+            // Grayscale/Color Convert properties
+            int conversionIndex = node.properties.containsKey("conversionIndex") ?
+                ((Number) node.properties.get("conversionIndex")).intValue() : 0;
+
+            String[] conversions = {"BGR to Gray", "BGR to HSV", "BGR to LAB", "BGR to RGB",
+                                   "Gray to BGR", "HSV to BGR", "LAB to BGR", "RGB to BGR"};
+            ComboBox<String> conversionCombo = dialog.addComboBox("Conversion:", conversions,
+                conversions[Math.min(conversionIndex, conversions.length - 1)]);
+
+            node.properties.put("_conversionCombo", conversionCombo);
         }
 
         // Add "Queues in Sync" checkbox for dual-input nodes
@@ -1033,6 +1680,9 @@ public class PipelineEditorApp extends Application {
         final CheckBox finalSyncCheckBox = syncCheckBox;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
+
+            // Save properties handled by the helper class (covers all nodes with main branch differences)
+            com.ttennebkram.pipeline.fx.FXNodePropertiesHelper.savePropertiesForNode(node);
 
             // Handle webcam-specific properties
             if ("WebcamSource".equals(node.nodeType) && finalCameraSpinner != null) {
@@ -1073,6 +1723,51 @@ public class PipelineEditorApp extends Application {
                 node.pipelineFilePath = newPath;
             }
 
+            // Handle BlankSource properties
+            if ("BlankSource".equals(node.nodeType) && node.properties.containsKey("_widthSpinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> widthSpinner = (Spinner<Integer>) node.properties.get("_widthSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> heightSpinner = (Spinner<Integer>) node.properties.get("_heightSpinner");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> colorCombo = (ComboBox<String>) node.properties.get("_colorCombo");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> blankFpsCombo = (ComboBox<String>) node.properties.get("_blankFpsCombo");
+
+                node.properties.put("imageWidth", widthSpinner.getValue());
+                node.properties.put("imageHeight", heightSpinner.getValue());
+
+                // Get color index from combo box selection
+                String[] colorOptions = {"Black", "White", "Red", "Green", "Blue", "Yellow"};
+                int colorIndex = 0;
+                String selectedColor = colorCombo.getValue();
+                for (int i = 0; i < colorOptions.length; i++) {
+                    if (colorOptions[i].equals(selectedColor)) {
+                        colorIndex = i;
+                        break;
+                    }
+                }
+                node.properties.put("colorIndex", colorIndex);
+
+                // Get fps index from combo box selection
+                String[] fpsOptions = {"1", "15", "30", "60"};
+                int fpsIndex = 2;  // default to 30 fps
+                String selectedFps = blankFpsCombo.getValue();
+                for (int i = 0; i < fpsOptions.length; i++) {
+                    if (fpsOptions[i].equals(selectedFps)) {
+                        fpsIndex = i;
+                        break;
+                    }
+                }
+                node.properties.put("fpsIndex", fpsIndex);
+
+                // Clean up temp references
+                node.properties.remove("_widthSpinner");
+                node.properties.remove("_heightSpinner");
+                node.properties.remove("_colorCombo");
+                node.properties.remove("_blankFpsCombo");
+            }
+
             // Handle Gain properties
             if ("Gain".equals(node.nodeType) && node.properties.containsKey("_gainSlider")) {
                 Slider gainSlider = (Slider) node.properties.get("_gainSlider");
@@ -1082,6 +1777,579 @@ public class PipelineEditorApp extends Application {
                 node.properties.put("gain", gain);
                 node.properties.remove("_gainSlider");  // Clean up temp reference
                 node.properties.remove("_gainLogRange");
+            }
+
+            // Handle FFT filter properties
+            if (isFFTNodeType(node.nodeType) && node.properties.containsKey("_radiusSlider")) {
+                Slider radiusSlider = (Slider) node.properties.get("_radiusSlider");
+                Slider smoothnessSlider = (Slider) node.properties.get("_smoothnessSlider");
+                node.properties.put("radius", (int) radiusSlider.getValue());
+                node.properties.put("smoothness", (int) smoothnessSlider.getValue());
+                node.properties.remove("_radiusSlider");  // Clean up temp references
+                node.properties.remove("_smoothnessSlider");
+            }
+
+            // Handle MedianBlur properties
+            if ("MedianBlur".equals(node.nodeType) && node.properties.containsKey("_ksizeSlider")) {
+                Slider ksizeSlider = (Slider) node.properties.get("_ksizeSlider");
+                int ksize = (int) ksizeSlider.getValue();
+                if (ksize % 2 == 0) ksize++;  // Must be odd
+                node.properties.put("ksize", ksize);
+                node.properties.remove("_ksizeSlider");
+            }
+
+            // Handle Erode/Dilate properties
+            if (("Erode".equals(node.nodeType) || "Dilate".equals(node.nodeType)) && node.properties.containsKey("_kernelSizeSlider")) {
+                Slider ksizeSlider = (Slider) node.properties.get("_kernelSizeSlider");
+                Slider iterSlider = (Slider) node.properties.get("_iterationsSlider");
+                node.properties.put("kernelSize", (int) ksizeSlider.getValue());
+                node.properties.put("iterations", (int) iterSlider.getValue());
+                node.properties.remove("_kernelSizeSlider");
+                node.properties.remove("_iterationsSlider");
+            }
+
+            // Handle MorphOpen/MorphClose properties
+            if (("MorphOpen".equals(node.nodeType) || "MorphClose".equals(node.nodeType)) && node.properties.containsKey("_kernelSizeSlider")) {
+                Slider ksizeSlider = (Slider) node.properties.get("_kernelSizeSlider");
+                node.properties.put("kernelSize", (int) ksizeSlider.getValue());
+                node.properties.remove("_kernelSizeSlider");
+            }
+
+            // Handle BitPlanesGrayscale properties
+            if ("BitPlanesGrayscale".equals(node.nodeType) && node.properties.containsKey("_bitCheckBoxes")) {
+                CheckBox[] checkBoxes = (CheckBox[]) node.properties.get("_bitCheckBoxes");
+                Slider[] gainSliders = (Slider[]) node.properties.get("_bitGainSliders");
+                boolean[] bitEnabled = new boolean[8];
+                double[] bitGain = new double[8];
+                for (int i = 0; i < 8; i++) {
+                    bitEnabled[i] = checkBoxes[i].isSelected();
+                    bitGain[i] = Math.pow(10, (gainSliders[i].getValue() - 100) / 100.0);
+                }
+                node.properties.put("bitEnabled", bitEnabled);
+                node.properties.put("bitGain", bitGain);
+                node.properties.remove("_bitCheckBoxes");
+                node.properties.remove("_bitGainSliders");
+            }
+
+            // Handle BitPlanesColor properties
+            if ("BitPlanesColor".equals(node.nodeType) && node.properties.containsKey("_colorBitCheckBoxes")) {
+                CheckBox[][] checkBoxes = (CheckBox[][]) node.properties.get("_colorBitCheckBoxes");
+                Slider[][] gainSliders = (Slider[][]) node.properties.get("_colorBitGainSliders");
+                String[] channelNames = {"red", "green", "blue"};
+                for (int c = 0; c < 3; c++) {
+                    boolean[] bitEnabled = new boolean[8];
+                    double[] bitGain = new double[8];
+                    for (int i = 0; i < 8; i++) {
+                        bitEnabled[i] = checkBoxes[c][i].isSelected();
+                        bitGain[i] = Math.pow(10, (gainSliders[c][i].getValue() - 100) / 100.0);
+                    }
+                    node.properties.put(channelNames[c] + "BitEnabled", bitEnabled);
+                    node.properties.put(channelNames[c] + "BitGain", bitGain);
+                }
+                node.properties.remove("_colorBitCheckBoxes");
+                node.properties.remove("_colorBitGainSliders");
+            }
+
+            // Handle AdaptiveThreshold properties
+            if ("AdaptiveThreshold".equals(node.nodeType) && node.properties.containsKey("_maxValueSlider")) {
+                Slider maxValueSlider = (Slider) node.properties.get("_maxValueSlider");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> methodCombo = (ComboBox<String>) node.properties.get("_methodCombo");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> typeCombo = (ComboBox<String>) node.properties.get("_typeCombo");
+                Slider blockSizeSlider = (Slider) node.properties.get("_blockSizeSlider");
+                Slider cValueSlider = (Slider) node.properties.get("_cValueSlider");
+
+                node.properties.put("maxValue", (int) maxValueSlider.getValue());
+                String[] methods = {"Mean", "Gaussian"};
+                int methodIndex = java.util.Arrays.asList(methods).indexOf(methodCombo.getValue());
+                node.properties.put("methodIndex", Math.max(0, methodIndex));
+                String[] types = {"Binary", "Binary Inv"};
+                int typeIndex = java.util.Arrays.asList(types).indexOf(typeCombo.getValue());
+                node.properties.put("typeIndex", Math.max(0, typeIndex));
+                int blockSize = (int) blockSizeSlider.getValue();
+                if (blockSize % 2 == 0) blockSize++;
+                if (blockSize < 3) blockSize = 3;
+                node.properties.put("blockSize", blockSize);
+                node.properties.put("cValue", (int) cValueSlider.getValue());
+
+                node.properties.remove("_maxValueSlider");
+                node.properties.remove("_methodCombo");
+                node.properties.remove("_typeCombo");
+                node.properties.remove("_blockSizeSlider");
+                node.properties.remove("_cValueSlider");
+            }
+
+            // Handle AddWeighted properties
+            if ("AddWeighted".equals(node.nodeType) && node.properties.containsKey("_alphaSlider")) {
+                Slider alphaSlider = (Slider) node.properties.get("_alphaSlider");
+                Slider betaSlider = (Slider) node.properties.get("_betaSlider");
+                Slider gammaSlider = (Slider) node.properties.get("_gammaSlider");
+                node.properties.put("alpha", alphaSlider.getValue() / 100.0);
+                node.properties.put("beta", betaSlider.getValue() / 100.0);
+                node.properties.put("gamma", gammaSlider.getValue());
+                node.properties.remove("_alphaSlider");
+                node.properties.remove("_betaSlider");
+                node.properties.remove("_gammaSlider");
+            }
+
+            // Handle BilateralFilter properties
+            if ("BilateralFilter".equals(node.nodeType) && node.properties.containsKey("_diameterSlider")) {
+                Slider diameterSlider = (Slider) node.properties.get("_diameterSlider");
+                Slider sigmaColorSlider = (Slider) node.properties.get("_sigmaColorSlider");
+                Slider sigmaSpaceSlider = (Slider) node.properties.get("_sigmaSpaceSlider");
+                node.properties.put("diameter", (int) diameterSlider.getValue());
+                node.properties.put("sigmaColor", (int) sigmaColorSlider.getValue());
+                node.properties.put("sigmaSpace", (int) sigmaSpaceSlider.getValue());
+                node.properties.remove("_diameterSlider");
+                node.properties.remove("_sigmaColorSlider");
+                node.properties.remove("_sigmaSpaceSlider");
+            }
+
+            // Handle CLAHE properties
+            if ("CLAHE".equals(node.nodeType) && node.properties.containsKey("_clipLimitSlider")) {
+                Slider clipLimitSlider = (Slider) node.properties.get("_clipLimitSlider");
+                Slider tileSizeSlider = (Slider) node.properties.get("_tileSizeSlider");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> colorModeCombo = (ComboBox<String>) node.properties.get("_colorModeCombo");
+                node.properties.put("clipLimit", clipLimitSlider.getValue());
+                node.properties.put("tileSize", (int) tileSizeSlider.getValue());
+                String[] colorModes = {"LAB", "HSV", "Grayscale"};
+                int colorModeIndex = java.util.Arrays.asList(colorModes).indexOf(colorModeCombo.getValue());
+                node.properties.put("colorModeIndex", Math.max(0, colorModeIndex));
+                node.properties.remove("_clipLimitSlider");
+                node.properties.remove("_tileSizeSlider");
+                node.properties.remove("_colorModeCombo");
+            }
+
+            // Handle ColorInRange properties
+            if ("ColorInRange".equals(node.nodeType) && node.properties.containsKey("_useHSVCheckBox")) {
+                CheckBox useHSVCheckBox = (CheckBox) node.properties.get("_useHSVCheckBox");
+                Slider hLowSlider = (Slider) node.properties.get("_hLowSlider");
+                Slider hHighSlider = (Slider) node.properties.get("_hHighSlider");
+                Slider sLowSlider = (Slider) node.properties.get("_sLowSlider");
+                Slider sHighSlider = (Slider) node.properties.get("_sHighSlider");
+                Slider vLowSlider = (Slider) node.properties.get("_vLowSlider");
+                Slider vHighSlider = (Slider) node.properties.get("_vHighSlider");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> outputModeCombo = (ComboBox<String>) node.properties.get("_outputModeCombo");
+                node.properties.put("useHSV", useHSVCheckBox.isSelected());
+                node.properties.put("hLow", (int) hLowSlider.getValue());
+                node.properties.put("hHigh", (int) hHighSlider.getValue());
+                node.properties.put("sLow", (int) sLowSlider.getValue());
+                node.properties.put("sHigh", (int) sHighSlider.getValue());
+                node.properties.put("vLow", (int) vLowSlider.getValue());
+                node.properties.put("vHigh", (int) vHighSlider.getValue());
+                String[] outputModes = {"Mask Only", "Keep In-Range", "Keep Out-of-Range"};
+                int outputMode = java.util.Arrays.asList(outputModes).indexOf(outputModeCombo.getValue());
+                node.properties.put("outputMode", Math.max(0, outputMode));
+                node.properties.remove("_useHSVCheckBox");
+                node.properties.remove("_hLowSlider");
+                node.properties.remove("_hHighSlider");
+                node.properties.remove("_sLowSlider");
+                node.properties.remove("_sHighSlider");
+                node.properties.remove("_vLowSlider");
+                node.properties.remove("_vHighSlider");
+                node.properties.remove("_outputModeCombo");
+            }
+
+            // Handle Crop properties
+            if ("Crop".equals(node.nodeType) && node.properties.containsKey("_cropXSpinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> xSpinner = (Spinner<Integer>) node.properties.get("_cropXSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> ySpinner = (Spinner<Integer>) node.properties.get("_cropYSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> widthSpinner = (Spinner<Integer>) node.properties.get("_cropWidthSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> heightSpinner = (Spinner<Integer>) node.properties.get("_cropHeightSpinner");
+                node.properties.put("cropX", xSpinner.getValue());
+                node.properties.put("cropY", ySpinner.getValue());
+                node.properties.put("cropWidth", widthSpinner.getValue());
+                node.properties.put("cropHeight", heightSpinner.getValue());
+                node.properties.remove("_cropXSpinner");
+                node.properties.remove("_cropYSpinner");
+                node.properties.remove("_cropWidthSpinner");
+                node.properties.remove("_cropHeightSpinner");
+            }
+
+            // Handle Sobel properties
+            if ("Sobel".equals(node.nodeType) && node.properties.containsKey("_dxGroup")) {
+                ToggleGroup dxGroup = (ToggleGroup) node.properties.get("_dxGroup");
+                ToggleGroup dyGroup = (ToggleGroup) node.properties.get("_dyGroup");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> kernelSizeCombo = (ComboBox<String>) node.properties.get("_kernelSizeCombo");
+                // Get selected index from radio button groups (stored in userData)
+                int dxVal = dxGroup.getSelectedToggle() != null ? (Integer) dxGroup.getSelectedToggle().getUserData() : 1;
+                int dyVal = dyGroup.getSelectedToggle() != null ? (Integer) dyGroup.getSelectedToggle().getUserData() : 0;
+                node.properties.put("dx", dxVal);
+                node.properties.put("dy", dyVal);
+                String[] kernelSizes = {"1", "3", "5", "7"};
+                int kernelSizeIndex = java.util.Arrays.asList(kernelSizes).indexOf(kernelSizeCombo.getValue());
+                node.properties.put("kernelSizeIndex", Math.max(0, kernelSizeIndex));
+                node.properties.remove("_dxGroup");
+                node.properties.remove("_dyGroup");
+                node.properties.remove("_kernelSizeCombo");
+            }
+
+            // Handle Scharr properties
+            if ("Scharr".equals(node.nodeType) && node.properties.containsKey("_directionCombo")) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> dirCombo = (ComboBox<String>) node.properties.get("_directionCombo");
+                Slider scaleSlider = (Slider) node.properties.get("_scaleSlider");
+                Slider deltaSlider = (Slider) node.properties.get("_deltaSlider");
+                String[] directions = {"X", "Y", "Both"};
+                int directionIndex = java.util.Arrays.asList(directions).indexOf(dirCombo.getValue());
+                node.properties.put("directionIndex", Math.max(0, directionIndex));
+                node.properties.put("scalePercent", (int) scaleSlider.getValue());
+                node.properties.put("delta", (int) deltaSlider.getValue());
+                node.properties.remove("_directionCombo");
+                node.properties.remove("_scaleSlider");
+                node.properties.remove("_deltaSlider");
+            }
+
+            // Handle Laplacian properties
+            if ("Laplacian".equals(node.nodeType) && node.properties.containsKey("_ksizeCombo")) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> ksizeCombo = (ComboBox<String>) node.properties.get("_ksizeCombo");
+                Slider scaleSlider = (Slider) node.properties.get("_scaleSlider");
+                Slider deltaSlider = (Slider) node.properties.get("_deltaSlider");
+                CheckBox absCheckBox = (CheckBox) node.properties.get("_absCheckBox");
+                String[] ksizes = {"1", "3", "5", "7"};
+                int ksizeIndex = java.util.Arrays.asList(ksizes).indexOf(ksizeCombo.getValue());
+                node.properties.put("kernelSizeIndex", Math.max(0, ksizeIndex));
+                node.properties.put("scalePercent", (int) scaleSlider.getValue());
+                node.properties.put("delta", (int) deltaSlider.getValue());
+                node.properties.put("useAbsolute", absCheckBox.isSelected());
+                node.properties.remove("_ksizeCombo");
+                node.properties.remove("_scaleSlider");
+                node.properties.remove("_deltaSlider");
+                node.properties.remove("_absCheckBox");
+            }
+
+            // Handle HoughCircles properties
+            if ("HoughCircles".equals(node.nodeType) && node.properties.containsKey("_showOrigCheckBox")) {
+                CheckBox showOrigCheckBox = (CheckBox) node.properties.get("_showOrigCheckBox");
+                Slider minDistSlider = (Slider) node.properties.get("_minDistSlider");
+                Slider param1Slider = (Slider) node.properties.get("_param1Slider");
+                Slider param2Slider = (Slider) node.properties.get("_param2Slider");
+                Slider minRadiusSlider = (Slider) node.properties.get("_minRadiusSlider");
+                Slider maxRadiusSlider = (Slider) node.properties.get("_maxRadiusSlider");
+                Slider thicknessSlider = (Slider) node.properties.get("_thicknessSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                node.properties.put("showOriginal", showOrigCheckBox.isSelected());
+                node.properties.put("minDist", (int) minDistSlider.getValue());
+                node.properties.put("param1", (int) param1Slider.getValue());
+                node.properties.put("param2", (int) param2Slider.getValue());
+                node.properties.put("minRadius", (int) minRadiusSlider.getValue());
+                node.properties.put("maxRadius", (int) maxRadiusSlider.getValue());
+                node.properties.put("thickness", (int) thicknessSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.remove("_showOrigCheckBox");
+                node.properties.remove("_minDistSlider");
+                node.properties.remove("_param1Slider");
+                node.properties.remove("_param2Slider");
+                node.properties.remove("_minRadiusSlider");
+                node.properties.remove("_maxRadiusSlider");
+                node.properties.remove("_thicknessSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+            }
+
+            // Handle HoughLines properties
+            if ("HoughLines".equals(node.nodeType) && node.properties.containsKey("_thresholdSlider")) {
+                Slider thresholdSlider = (Slider) node.properties.get("_thresholdSlider");
+                Slider minLengthSlider = (Slider) node.properties.get("_minLengthSlider");
+                Slider maxGapSlider = (Slider) node.properties.get("_maxGapSlider");
+                Slider thicknessSlider = (Slider) node.properties.get("_thicknessSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                node.properties.put("threshold", (int) thresholdSlider.getValue());
+                node.properties.put("minLineLength", (int) minLengthSlider.getValue());
+                node.properties.put("maxLineGap", (int) maxGapSlider.getValue());
+                node.properties.put("thickness", (int) thicknessSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.remove("_thresholdSlider");
+                node.properties.remove("_minLengthSlider");
+                node.properties.remove("_maxGapSlider");
+                node.properties.remove("_thicknessSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+            }
+
+            // Handle HarrisCorners properties
+            if ("HarrisCorners".equals(node.nodeType) && node.properties.containsKey("_showOrigCheckBox")) {
+                CheckBox showOrigCheckBox = (CheckBox) node.properties.get("_showOrigCheckBox");
+                Slider blockSizeSlider = (Slider) node.properties.get("_blockSizeSlider");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> ksizeCombo = (ComboBox<String>) node.properties.get("_ksizeCombo");
+                Slider kSlider = (Slider) node.properties.get("_kSlider");
+                Slider threshSlider = (Slider) node.properties.get("_threshSlider");
+                Slider markerSlider = (Slider) node.properties.get("_markerSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                node.properties.put("showOriginal", showOrigCheckBox.isSelected());
+                node.properties.put("blockSize", (int) blockSizeSlider.getValue());
+                node.properties.put("ksize", Integer.parseInt(ksizeCombo.getValue()));
+                node.properties.put("kPercent", (int) kSlider.getValue());
+                node.properties.put("thresholdPercent", (int) threshSlider.getValue());
+                node.properties.put("markerSize", (int) markerSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.remove("_showOrigCheckBox");
+                node.properties.remove("_blockSizeSlider");
+                node.properties.remove("_ksizeCombo");
+                node.properties.remove("_kSlider");
+                node.properties.remove("_threshSlider");
+                node.properties.remove("_markerSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+            }
+
+            // Handle Contours properties
+            if ("Contours".equals(node.nodeType) && node.properties.containsKey("_showOrigCheckBox")) {
+                CheckBox showOrigCheckBox = (CheckBox) node.properties.get("_showOrigCheckBox");
+                Slider thicknessSlider = (Slider) node.properties.get("_thicknessSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                node.properties.put("showOriginal", showOrigCheckBox.isSelected());
+                node.properties.put("thickness", (int) thicknessSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.remove("_showOrigCheckBox");
+                node.properties.remove("_thicknessSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+            }
+
+            // Handle Rectangle properties
+            if ("Rectangle".equals(node.nodeType) && node.properties.containsKey("_x1Spinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> x1Spinner = (Spinner<Integer>) node.properties.get("_x1Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> y1Spinner = (Spinner<Integer>) node.properties.get("_y1Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> x2Spinner = (Spinner<Integer>) node.properties.get("_x2Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> y2Spinner = (Spinner<Integer>) node.properties.get("_y2Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> thicknessSpinner = (Spinner<Integer>) node.properties.get("_thicknessSpinner");
+                CheckBox filledCheckBox = (CheckBox) node.properties.get("_filledCheckBox");
+                node.properties.put("x1", x1Spinner.getValue());
+                node.properties.put("y1", y1Spinner.getValue());
+                node.properties.put("x2", x2Spinner.getValue());
+                node.properties.put("y2", y2Spinner.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.put("thickness", thicknessSpinner.getValue());
+                node.properties.put("filled", filledCheckBox.isSelected());
+                node.properties.remove("_x1Spinner");
+                node.properties.remove("_y1Spinner");
+                node.properties.remove("_x2Spinner");
+                node.properties.remove("_y2Spinner");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+                node.properties.remove("_thicknessSpinner");
+                node.properties.remove("_filledCheckBox");
+            }
+
+            // Handle Circle properties
+            if ("Circle".equals(node.nodeType) && node.properties.containsKey("_centerXSpinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> cxSpinner = (Spinner<Integer>) node.properties.get("_centerXSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> cySpinner = (Spinner<Integer>) node.properties.get("_centerYSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> radiusSpinner = (Spinner<Integer>) node.properties.get("_radiusSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> thicknessSpinner = (Spinner<Integer>) node.properties.get("_thicknessSpinner");
+                CheckBox filledCheckBox = (CheckBox) node.properties.get("_filledCheckBox");
+                node.properties.put("centerX", cxSpinner.getValue());
+                node.properties.put("centerY", cySpinner.getValue());
+                node.properties.put("radius", radiusSpinner.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.put("thickness", thicknessSpinner.getValue());
+                node.properties.put("filled", filledCheckBox.isSelected());
+                node.properties.remove("_centerXSpinner");
+                node.properties.remove("_centerYSpinner");
+                node.properties.remove("_radiusSpinner");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+                node.properties.remove("_thicknessSpinner");
+                node.properties.remove("_filledCheckBox");
+            }
+
+            // Handle Ellipse properties
+            if ("Ellipse".equals(node.nodeType) && node.properties.containsKey("_centerXSpinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> cxSpinner = (Spinner<Integer>) node.properties.get("_centerXSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> cySpinner = (Spinner<Integer>) node.properties.get("_centerYSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> axisXSpinner = (Spinner<Integer>) node.properties.get("_axisXSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> axisYSpinner = (Spinner<Integer>) node.properties.get("_axisYSpinner");
+                Slider angleSlider = (Slider) node.properties.get("_angleSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> thicknessSpinner = (Spinner<Integer>) node.properties.get("_thicknessSpinner");
+                CheckBox filledCheckBox = (CheckBox) node.properties.get("_filledCheckBox");
+                node.properties.put("centerX", cxSpinner.getValue());
+                node.properties.put("centerY", cySpinner.getValue());
+                node.properties.put("axisX", axisXSpinner.getValue());
+                node.properties.put("axisY", axisYSpinner.getValue());
+                node.properties.put("angle", (int) angleSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.put("thickness", thicknessSpinner.getValue());
+                node.properties.put("filled", filledCheckBox.isSelected());
+                node.properties.remove("_centerXSpinner");
+                node.properties.remove("_centerYSpinner");
+                node.properties.remove("_axisXSpinner");
+                node.properties.remove("_axisYSpinner");
+                node.properties.remove("_angleSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+                node.properties.remove("_thicknessSpinner");
+                node.properties.remove("_filledCheckBox");
+            }
+
+            // Handle Line/Arrow properties
+            if (("Line".equals(node.nodeType) || "Arrow".equals(node.nodeType)) && node.properties.containsKey("_x1Spinner")) {
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> x1Spinner = (Spinner<Integer>) node.properties.get("_x1Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> y1Spinner = (Spinner<Integer>) node.properties.get("_y1Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> x2Spinner = (Spinner<Integer>) node.properties.get("_x2Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> y2Spinner = (Spinner<Integer>) node.properties.get("_y2Spinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> thicknessSpinner = (Spinner<Integer>) node.properties.get("_thicknessSpinner");
+                node.properties.put("x1", x1Spinner.getValue());
+                node.properties.put("y1", y1Spinner.getValue());
+                node.properties.put("x2", x2Spinner.getValue());
+                node.properties.put("y2", y2Spinner.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.put("thickness", thicknessSpinner.getValue());
+                node.properties.remove("_x1Spinner");
+                node.properties.remove("_y1Spinner");
+                node.properties.remove("_x2Spinner");
+                node.properties.remove("_y2Spinner");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+                node.properties.remove("_thicknessSpinner");
+            }
+
+            // Handle Text properties
+            if ("Text".equals(node.nodeType) && node.properties.containsKey("_textField")) {
+                TextField textField = (TextField) node.properties.get("_textField");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> xSpinner = (Spinner<Integer>) node.properties.get("_posXSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> ySpinner = (Spinner<Integer>) node.properties.get("_posYSpinner");
+                @SuppressWarnings("unchecked")
+                ComboBox<String> fontCombo = (ComboBox<String>) node.properties.get("_fontCombo");
+                Slider scaleSlider = (Slider) node.properties.get("_fontScaleSlider");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> rSpinner = (Spinner<Integer>) node.properties.get("_colorRSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> gSpinner = (Spinner<Integer>) node.properties.get("_colorGSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> bSpinner = (Spinner<Integer>) node.properties.get("_colorBSpinner");
+                @SuppressWarnings("unchecked")
+                Spinner<Integer> thicknessSpinner = (Spinner<Integer>) node.properties.get("_thicknessSpinner");
+                node.properties.put("text", textField.getText());
+                node.properties.put("posX", xSpinner.getValue());
+                node.properties.put("posY", ySpinner.getValue());
+                String[] fonts = {"Simplex", "Plain", "Duplex", "Complex", "Triplex", "Complex Small", "Script Simplex", "Script Complex"};
+                int fontIndex = java.util.Arrays.asList(fonts).indexOf(fontCombo.getValue());
+                node.properties.put("fontIndex", Math.max(0, fontIndex));
+                node.properties.put("fontScale", scaleSlider.getValue());
+                node.properties.put("colorR", rSpinner.getValue());
+                node.properties.put("colorG", gSpinner.getValue());
+                node.properties.put("colorB", bSpinner.getValue());
+                node.properties.put("thickness", thicknessSpinner.getValue());
+                node.properties.remove("_textField");
+                node.properties.remove("_posXSpinner");
+                node.properties.remove("_posYSpinner");
+                node.properties.remove("_fontCombo");
+                node.properties.remove("_fontScaleSlider");
+                node.properties.remove("_colorRSpinner");
+                node.properties.remove("_colorGSpinner");
+                node.properties.remove("_colorBSpinner");
+                node.properties.remove("_thicknessSpinner");
+            }
+
+            // Handle Grayscale/Color Convert properties
+            if ("Grayscale".equals(node.nodeType) && node.properties.containsKey("_conversionCombo")) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> conversionCombo = (ComboBox<String>) node.properties.get("_conversionCombo");
+                String[] conversions = {"BGR to Gray", "BGR to HSV", "BGR to LAB", "BGR to RGB",
+                                       "Gray to BGR", "HSV to BGR", "LAB to BGR", "RGB to BGR"};
+                int conversionIndex = java.util.Arrays.asList(conversions).indexOf(conversionCombo.getValue());
+                node.properties.put("conversionIndex", Math.max(0, conversionIndex));
+                node.properties.remove("_conversionCombo");
             }
 
             // Handle dual-input "Queues in Sync" property
@@ -1107,6 +2375,16 @@ public class PipelineEditorApp extends Application {
                "BitwiseAnd".equals(nodeType) ||
                "BitwiseOr".equals(nodeType) ||
                "BitwiseXor".equals(nodeType);
+    }
+
+    /**
+     * Check if a node type is an FFT filter node.
+     */
+    private boolean isFFTNodeType(String nodeType) {
+        return "FFTLowPass".equals(nodeType) ||
+               "FFTHighPass".equals(nodeType) ||
+               "FFTLowPass4".equals(nodeType) ||
+               "FFTHighPass4".equals(nodeType);
     }
 
     /**

@@ -137,11 +137,73 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
         slider.setShowTickMarks(true);
         slider.setShowTickLabels(true);
 
+        // Configure sensible tick spacing based on range
+        double range = max - min;
+        if (range <= 10) {
+            slider.setMajorTickUnit(1);
+        } else if (range <= 50) {
+            slider.setMajorTickUnit(10);
+        } else if (range <= 100) {
+            slider.setMajorTickUnit(25);
+        } else if (range <= 255) {
+            slider.setMajorTickUnit(50);
+        } else {
+            slider.setMajorTickUnit(range / 4);
+        }
+        slider.setMinorTickCount(0);
+
         Label valueLabel = new Label(String.format(formatString, currentValue));
         valueLabel.setMinWidth(50);
 
         slider.valueProperty().addListener((obs, oldVal, newVal) -> {
             valueLabel.setText(String.format(formatString, newVal.doubleValue()));
+        });
+
+        row.getChildren().addAll(slider, valueLabel);
+        contentArea.getChildren().add(row);
+
+        return slider;
+    }
+
+    /**
+     * Add a slider for kernel sizes that must be odd values (1, 3, 5, ..., 31).
+     * Snaps to odd values and shows only odd tick labels.
+     * @param label The field label
+     * @param currentValue Current value (will be rounded to nearest odd)
+     * @return The slider for later value retrieval
+     */
+    public Slider addOddKernelSlider(String label, int currentValue) {
+        HBox row = new HBox(10);
+        row.getChildren().add(new Label(label));
+
+        // Ensure current value is odd
+        if (currentValue % 2 == 0) currentValue++;
+        if (currentValue < 1) currentValue = 1;
+        if (currentValue > 31) currentValue = 31;
+
+        Slider slider = new Slider(1, 31, currentValue);
+        slider.setPrefWidth(200);
+        slider.setShowTickMarks(true);
+        slider.setShowTickLabels(true);
+        slider.setMajorTickUnit(10);
+        slider.setMinorTickCount(4);
+        slider.setSnapToTicks(true);
+        slider.setBlockIncrement(2);  // Arrow keys move by 2
+
+        Label valueLabel = new Label(String.valueOf(currentValue));
+        valueLabel.setMinWidth(50);
+
+        // Snap to odd values
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            int val = newVal.intValue();
+            if (val % 2 == 0) {
+                // Snap to nearest odd
+                val = val < oldVal.intValue() ? val - 1 : val + 1;
+                if (val < 1) val = 1;
+                if (val > 31) val = 31;
+                slider.setValue(val);
+            }
+            valueLabel.setText(String.valueOf((int) slider.getValue()));
         });
 
         row.getChildren().addAll(slider, valueLabel);
@@ -223,6 +285,36 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
         contentArea.getChildren().add(row);
 
         return comboBox;
+    }
+
+    /**
+     * Add horizontal radio buttons for selecting from a small set of options.
+     * @param label The field label
+     * @param options Available options (displayed as button labels)
+     * @param currentIndex Currently selected index (0-based)
+     * @return The ToggleGroup for later value retrieval via getSelectedToggle()
+     */
+    public ToggleGroup addRadioButtons(String label, String[] options, int currentIndex) {
+        HBox row = new HBox(10);
+        row.getChildren().add(new Label(label));
+
+        ToggleGroup group = new ToggleGroup();
+        HBox buttonsBox = new HBox(8);
+
+        for (int i = 0; i < options.length; i++) {
+            RadioButton rb = new RadioButton(options[i]);
+            rb.setToggleGroup(group);
+            rb.setUserData(i);  // Store the index as user data
+            if (i == currentIndex) {
+                rb.setSelected(true);
+            }
+            buttonsBox.getChildren().add(rb);
+        }
+
+        row.getChildren().add(buttonsBox);
+        contentArea.getChildren().add(row);
+
+        return group;
     }
 
     /**

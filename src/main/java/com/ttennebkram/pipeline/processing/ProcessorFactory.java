@@ -245,6 +245,14 @@ public class ProcessorFactory {
             case "Threshold":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    double threshold = 127;
+                    double maxValue = 255;
+                    if (fxNode.properties.containsKey("threshold")) {
+                        threshold = ((Number) fxNode.properties.get("threshold")).doubleValue();
+                    }
+                    if (fxNode.properties.containsKey("maxValue")) {
+                        maxValue = ((Number) fxNode.properties.get("maxValue")).doubleValue();
+                    }
                     Mat gray = new Mat();
                     if (input.channels() == 3) {
                         Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
@@ -252,7 +260,7 @@ public class ProcessorFactory {
                         gray = input.clone();
                     }
                     Mat output = new Mat();
-                    Imgproc.threshold(gray, output, 127, 255, Imgproc.THRESH_BINARY);
+                    Imgproc.threshold(gray, output, threshold, maxValue, Imgproc.THRESH_BINARY);
                     gray.release();
                     Mat bgr = new Mat();
                     Imgproc.cvtColor(output, bgr, Imgproc.COLOR_GRAY2BGR);
@@ -263,16 +271,31 @@ public class ProcessorFactory {
             case "GaussianBlur":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 15;
+                    double sigmaX = 0;
+                    if (fxNode.properties.containsKey("kernelSize")) {
+                        ksize = ((Number) fxNode.properties.get("kernelSize")).intValue();
+                    }
+                    if (fxNode.properties.containsKey("sigmaX")) {
+                        sigmaX = ((Number) fxNode.properties.get("sigmaX")).doubleValue();
+                    }
+                    if (ksize % 2 == 0) ksize++;  // Must be odd
                     Mat output = new Mat();
-                    Imgproc.GaussianBlur(input, output, new Size(15, 15), 0);
+                    Imgproc.GaussianBlur(input, output, new Size(ksize, ksize), sigmaX);
                     return output;
                 };
 
             case "MedianBlur":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    if (fxNode.properties.containsKey("ksize")) {
+                        ksize = ((Number) fxNode.properties.get("ksize")).intValue();
+                    }
+                    if (ksize % 2 == 0) ksize++;  // Must be odd
+                    if (ksize < 1) ksize = 1;
                     Mat output = new Mat();
-                    Imgproc.medianBlur(input, output, 5);
+                    Imgproc.medianBlur(input, output, ksize);
                     return output;
                 };
 
@@ -287,14 +310,27 @@ public class ProcessorFactory {
             case "BoxBlur":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    if (fxNode.properties.containsKey("ksize")) {
+                        ksize = ((Number) fxNode.properties.get("ksize")).intValue();
+                    }
+                    if (ksize < 1) ksize = 1;
                     Mat output = new Mat();
-                    Imgproc.blur(input, output, new Size(5, 5));
+                    Imgproc.blur(input, output, new Size(ksize, ksize));
                     return output;
                 };
 
             case "CannyEdge":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    double threshold1 = 100;
+                    double threshold2 = 200;
+                    if (fxNode.properties.containsKey("threshold1")) {
+                        threshold1 = ((Number) fxNode.properties.get("threshold1")).doubleValue();
+                    }
+                    if (fxNode.properties.containsKey("threshold2")) {
+                        threshold2 = ((Number) fxNode.properties.get("threshold2")).doubleValue();
+                    }
                     Mat gray = new Mat();
                     if (input.channels() == 3) {
                         Imgproc.cvtColor(input, gray, Imgproc.COLOR_BGR2GRAY);
@@ -302,7 +338,7 @@ public class ProcessorFactory {
                         gray = input.clone();
                     }
                     Mat output = new Mat();
-                    Imgproc.Canny(gray, output, 100, 200);
+                    Imgproc.Canny(gray, output, threshold1, threshold2);
                     gray.release();
                     Mat bgr = new Mat();
                     Imgproc.cvtColor(output, bgr, Imgproc.COLOR_GRAY2BGR);
@@ -358,9 +394,19 @@ public class ProcessorFactory {
             case "Erode":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    int iterations = 1;
+                    if (fxNode.properties.containsKey("kernelSize")) {
+                        ksize = ((Number) fxNode.properties.get("kernelSize")).intValue();
+                    }
+                    if (fxNode.properties.containsKey("iterations")) {
+                        iterations = ((Number) fxNode.properties.get("iterations")).intValue();
+                    }
+                    if (ksize < 1) ksize = 1;
+                    if (iterations < 1) iterations = 1;
                     Mat output = new Mat();
-                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
-                    Imgproc.erode(input, output, kernel);
+                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(ksize, ksize));
+                    Imgproc.erode(input, output, kernel, new Point(-1, -1), iterations);
                     kernel.release();
                     return output;
                 };
@@ -368,9 +414,19 @@ public class ProcessorFactory {
             case "Dilate":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    int iterations = 1;
+                    if (fxNode.properties.containsKey("kernelSize")) {
+                        ksize = ((Number) fxNode.properties.get("kernelSize")).intValue();
+                    }
+                    if (fxNode.properties.containsKey("iterations")) {
+                        iterations = ((Number) fxNode.properties.get("iterations")).intValue();
+                    }
+                    if (ksize < 1) ksize = 1;
+                    if (iterations < 1) iterations = 1;
                     Mat output = new Mat();
-                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
-                    Imgproc.dilate(input, output, kernel);
+                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(ksize, ksize));
+                    Imgproc.dilate(input, output, kernel, new Point(-1, -1), iterations);
                     kernel.release();
                     return output;
                 };
@@ -378,8 +434,13 @@ public class ProcessorFactory {
             case "MorphOpen":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    if (fxNode.properties.containsKey("kernelSize")) {
+                        ksize = ((Number) fxNode.properties.get("kernelSize")).intValue();
+                    }
+                    if (ksize < 1) ksize = 1;
                     Mat output = new Mat();
-                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(ksize, ksize));
                     Imgproc.morphologyEx(input, output, Imgproc.MORPH_OPEN, kernel);
                     kernel.release();
                     return output;
@@ -388,8 +449,13 @@ public class ProcessorFactory {
             case "MorphClose":
                 return input -> {
                     if (input == null || input.empty()) return input;
+                    int ksize = 5;
+                    if (fxNode.properties.containsKey("kernelSize")) {
+                        ksize = ((Number) fxNode.properties.get("kernelSize")).intValue();
+                    }
+                    if (ksize < 1) ksize = 1;
                     Mat output = new Mat();
-                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+                    Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(ksize, ksize));
                     Imgproc.morphologyEx(input, output, Imgproc.MORPH_CLOSE, kernel);
                     kernel.release();
                     return output;
@@ -607,12 +673,14 @@ public class ProcessorFactory {
                 };
 
             case "FFTHighPass":
+            case "FFTHighPass4":  // Multi-output variant - only primary output supported
                 return createFFTHighPassProcessor(fxNode);
 
             case "BitPlanesColor":
                 return createBitPlanesColorProcessor(fxNode);
 
             case "FFTLowPass":
+            case "FFTLowPass4":  // Multi-output variant - only primary output supported
                 return createFFTLowPassProcessor(fxNode);
 
             case "BitPlanesGrayscale":
