@@ -639,6 +639,14 @@ public class FXPipelineExecutor {
             }
         }
         sourceFeederThreads.clear();
+
+        // Drain and release any remaining Mats in source output queues
+        for (java.util.concurrent.BlockingQueue<Mat> queue : sourceOutputQueues.values()) {
+            Mat mat;
+            while ((mat = queue.poll()) != null) {
+                mat.release();
+            }
+        }
         sourceOutputQueues.clear();
 
         // Stop single-threaded executor if active

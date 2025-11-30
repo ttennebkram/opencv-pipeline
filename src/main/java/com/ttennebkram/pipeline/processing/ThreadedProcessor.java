@@ -84,6 +84,10 @@ public class ThreadedProcessor {
     // Callbacks
     private Consumer<Mat> onFrameCallback;
 
+    // Throttle callbacks to avoid overwhelming JavaFX (max ~30 fps per node)
+    private long lastCallbackTime = 0;
+    private static final long MIN_CALLBACK_INTERVAL_MS = 33; // ~30 fps max
+
     // Timestamp formatter for logging
     private static final SimpleDateFormat LOG_TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSS");
 
@@ -548,10 +552,14 @@ public class ThreadedProcessor {
                 workUnitsCompleted++;
 
                 if (output != null) {
-                    // Notify callback with a clone
+                    // Notify callback with a clone (throttled to avoid overwhelming JavaFX)
                     if (onFrameCallback != null) {
-                        Mat callbackCopy = output.clone();
-                        onFrameCallback.accept(callbackCopy);
+                        long now = System.currentTimeMillis();
+                        if (now - lastCallbackTime >= MIN_CALLBACK_INTERVAL_MS) {
+                            lastCallbackTime = now;
+                            Mat callbackCopy = output.clone();
+                            onFrameCallback.accept(callbackCopy);
+                        }
                     }
 
                     // Put on output queues (support dual output)
@@ -630,7 +638,17 @@ public class ThreadedProcessor {
 
     protected void notifyCallback(Mat frame) {
         if (onFrameCallback != null) {
-            onFrameCallback.accept(frame);
+            long now = System.currentTimeMillis();
+            if (now - lastCallbackTime >= MIN_CALLBACK_INTERVAL_MS) {
+                lastCallbackTime = now;
+                onFrameCallback.accept(frame);
+            } else {
+                // Throttled - release the frame since we're not using it
+                frame.release();
+            }
+        } else {
+            // No callback - release the frame
+            frame.release();
         }
     }
 
@@ -648,6 +666,37 @@ public class ThreadedProcessor {
                 Thread.currentThread().interrupt();
             }
             processingThread = null;
+        }
+
+        // Drain and release any remaining Mats in queues to prevent memory leaks
+        drainQueues();
+    }
+
+    /**
+     * Drain all queues and release any remaining Mats.
+     */
+    private void drainQueues() {
+        // Drain input queue
+        if (inputQueue != null) {
+            Mat mat;
+            while ((mat = inputQueue.poll()) != null) {
+                mat.release();
+            }
+        }
+
+        // Drain output queues
+        drainQueue(outputQueue);
+        drainQueue(outputQueue2);
+        drainQueue(outputQueue3);
+        drainQueue(outputQueue4);
+    }
+
+    private void drainQueue(BlockingQueue<Mat> queue) {
+        if (queue != null) {
+            Mat mat;
+            while ((mat = queue.poll()) != null) {
+                mat.release();
+            }
         }
     }
 

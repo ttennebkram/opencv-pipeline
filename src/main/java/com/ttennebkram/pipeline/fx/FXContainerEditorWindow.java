@@ -614,6 +614,33 @@ public class FXContainerEditorWindow {
         for (FXNode node : nodes) {
             int outputIdx = node.getOutputPointAt(canvasX, canvasY, tolerance);
             if (outputIdx >= 0) {
+                // Check if there's an existing connection from this output - yank it
+                FXConnection existingConn = findConnectionFromOutput(node, outputIdx);
+                if (existingConn != null) {
+                    // Yank: remove connection and start dragging from the source end toward the old target
+                    connections.remove(existingConn);
+                    // Start a new connection from the same source (so user can reconnect it)
+                    connectionSource = node;
+                    connectionOutputIndex = outputIdx;
+                    if (existingConn.target != null) {
+                        double[] targetPt = existingConn.target.getInputPoint(existingConn.targetInputIndex);
+                        if (targetPt != null) {
+                            connectionEndX = targetPt[0];
+                            connectionEndY = targetPt[1];
+                        } else {
+                            connectionEndX = canvasX;
+                            connectionEndY = canvasY;
+                        }
+                    } else {
+                        connectionEndX = canvasX;
+                        connectionEndY = canvasY;
+                    }
+                    isDrawingConnection = true;
+                    notifyModified();
+                    paintCanvas();
+                    return;
+                }
+                // No existing connection - start drawing a new connection
                 connectionSource = node;
                 connectionOutputIndex = outputIdx;
                 connectionEndX = canvasX;
@@ -624,7 +651,24 @@ public class FXContainerEditorWindow {
 
             int inputIdx = node.getInputPointAt(canvasX, canvasY, tolerance);
             if (inputIdx >= 0) {
-                // For input clicks, we start a "reverse" connection - user will drag to an output
+                // Check if there's an existing connection to this input - yank it
+                FXConnection existingConn = findConnectionToInput(node, inputIdx);
+                if (existingConn != null) {
+                    // Yank: remove connection and start dragging from the source
+                    FXNode source = existingConn.source;
+                    int sourceOutputIdx = existingConn.sourceOutputIndex;
+                    connections.remove(existingConn);
+                    // Start a new connection from the original source
+                    connectionSource = source;
+                    connectionOutputIndex = sourceOutputIdx;
+                    connectionEndX = canvasX;
+                    connectionEndY = canvasY;
+                    isDrawingConnection = true;
+                    notifyModified();
+                    paintCanvas();
+                    return;
+                }
+                // No existing connection - start a "reverse" connection (user will drag to an output)
                 connectionTarget = node;
                 connectionInputIndex = inputIdx;
                 connectionEndX = canvasX;
@@ -1130,6 +1174,32 @@ public class FXContainerEditorWindow {
                 if (isPointNearBezier(px, py, startPt[0], startPt[1], endPt[0], endPt[1], tolerance)) {
                     return conn;
                 }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a connection from a specific output point.
+     * Returns the first connection found from that node's output index.
+     */
+    private FXConnection findConnectionFromOutput(FXNode node, int outputIndex) {
+        for (FXConnection conn : connections) {
+            if (conn.source == node && conn.sourceOutputIndex == outputIndex) {
+                return conn;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a connection to a specific input point.
+     * Returns the first connection found to that node's input index.
+     */
+    private FXConnection findConnectionToInput(FXNode node, int inputIndex) {
+        for (FXConnection conn : connections) {
+            if (conn.target == node && conn.targetInputIndex == inputIndex) {
+                return conn;
             }
         }
         return null;
