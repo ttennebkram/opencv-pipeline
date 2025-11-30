@@ -97,7 +97,11 @@ public class FXPipelineExecutor {
 
         if (usePerNodeThreading) {
             startPerNodeThreading();
+            int processors = processorFactory.getProcessorCount();
+            int totalThreads = processors + 1; // +1 for JavaFX
+            System.out.println("[FXPipelineExecutor] Started multi-threaded mode: " + processors + " processors, " + totalThreads + " threads (1 for JavaFX)");
         } else {
+            System.out.println("[FXPipelineExecutor] Started single-threaded mode: 2 threads (1 for JavaFX)");
             // Original single-threaded execution
             executionThread = new Thread(this::executionLoop, "FXPipelineExecutor");
             executionThread.setDaemon(true);
@@ -663,6 +667,16 @@ public class FXPipelineExecutor {
      */
     public boolean isRunning() {
         return running.get();
+    }
+
+    /**
+     * Get the number of processing threads currently active.
+     */
+    public int getThreadCount() {
+        if (processorFactory != null) {
+            return processorFactory.getProcessorCount();
+        }
+        return usePerNodeThreading ? 0 : 1;
     }
 
     /**

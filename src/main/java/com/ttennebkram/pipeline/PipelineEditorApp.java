@@ -885,6 +885,7 @@ public class PipelineEditorApp extends Application {
         editorWindow.setOnStartPipeline(this::startPipeline);
         editorWindow.setOnStopPipeline(this::stopPipeline);
         editorWindow.setIsPipelineRunning(() -> pipelineRunning);
+        editorWindow.setGetThreadCount(() -> pipelineExecutor != null ? pipelineExecutor.getThreadCount() + 1 : 1); // +1 for JavaFX thread
         editorWindow.setOnRequestGlobalSave(this::saveDiagram);
 
         // Set base path for resolving relative pipeline file paths
@@ -1571,7 +1572,6 @@ public class PipelineEditorApp extends Application {
         pipelineRunning = true;
         startStopBtn.setText("Stop Pipeline");
         startStopBtn.setStyle("-fx-base: #F08080;");  // Light coral when running (bright enough for 3D effect)
-        updatePipelineStatus();
 
         // Clear all node and connection stats before starting
         clearPipelineStats();
@@ -1597,11 +1597,14 @@ public class PipelineEditorApp extends Application {
             paintCanvas();
         });
         pipelineExecutor.start();
+
+        // Update status after executor has started and processors are created
+        updatePipelineStatus();
     }
 
     private void updatePipelineStatus() {
-        // Count threads: 1 for executor + 1 for each active webcam
-        int threadCount = 1 + webcamSources.size();
+        // Count threads: processor threads + 1 for JavaFX thread + 1 for each active webcam
+        int threadCount = (pipelineExecutor != null ? pipelineExecutor.getThreadCount() : 0) + 1 + webcamSources.size();
         statusBar.setText("Pipeline running (" + threadCount + " thread" + (threadCount != 1 ? "s" : "") + ")");
         statusBar.setTextFill(COLOR_STATUS_RUNNING);
     }

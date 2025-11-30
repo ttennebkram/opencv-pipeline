@@ -45,6 +45,7 @@ public class FXContainerEditorWindow {
     private Runnable onStartPipeline;
     private Runnable onStopPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
+    private java.util.function.Supplier<Integer> getThreadCount;
 
     // Callback to trigger global save (parent pipeline)
     private Runnable onRequestGlobalSave;
@@ -396,8 +397,8 @@ public class FXContainerEditorWindow {
             }
             // Update status bar label
             if (pipelineStatusLabel != null) {
-                int threadCount = Thread.activeCount();
                 if (running) {
+                    int threadCount = (getThreadCount != null) ? getThreadCount.get() : 0;
                     pipelineStatusLabel.setText("Pipeline running | Threads: " + threadCount);
                     pipelineStatusLabel.setTextFill(javafx.scene.paint.Color.rgb(0, 128, 0));
                 } else {
@@ -418,6 +419,10 @@ public class FXContainerEditorWindow {
 
     public void setIsPipelineRunning(java.util.function.Supplier<Boolean> supplier) {
         this.isPipelineRunning = supplier;
+    }
+
+    public void setGetThreadCount(java.util.function.Supplier<Integer> supplier) {
+        this.getThreadCount = supplier;
     }
 
     public void setOnRequestGlobalSave(Runnable callback) {
@@ -894,6 +899,7 @@ public class FXContainerEditorWindow {
             javafx.application.Platform.runLater(this::updatePipelineButtonState);
         });
         nestedEditor.setIsPipelineRunning(isPipelineRunning);
+        nestedEditor.setGetThreadCount(getThreadCount);
         nestedEditor.setOnRequestGlobalSave(onRequestGlobalSave);
 
         nestedEditor.show();

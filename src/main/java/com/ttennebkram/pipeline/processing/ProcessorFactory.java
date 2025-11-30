@@ -215,6 +215,13 @@ public class ProcessorFactory {
     }
 
     /**
+     * Get the number of processors (threads) currently created.
+     */
+    public int getProcessorCount() {
+        return processors.size();
+    }
+
+    /**
      * Sync stats from processors back to FXNodes.
      * Updates input/output counters, thread priority, work units, and effective FPS.
      */
