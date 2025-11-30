@@ -57,10 +57,25 @@ File Source (and probably others): the Category from the button bar doesn't need
 
 .we're not showing the method signatures any more in Properties
 
-.In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 
-When doing File New, the Container windows from the previous drawing should close
+.When doing File New, the Container windows from the previous drawing should close
 
+File Source: while running the pipeline, you select a new image with the file source,
+    it doesn't send the new image through the pipeline
+
+.FFT4 out1: not getting filtered image
+.FFT4 out2: looks like just a passthrough
+.FFT4 out3: not getting the FFT visualization
+.FFT4 out4: not getting the filter curve
+.FFT4 Tool Tips over the connector endpoints
+    tool tips over all the connection points
+
+.when I multi-highlight notes and use arrow keys to move, it moves the grid instead, not the nodes
+    it shoiuld move by the equivalent of 1 pixel per keystroke when at 100%
+
+.FFT 4 needs tool tips over every output
+    and also on its inputs
+    and all connection points should have tooltips
 
 
 .Still see old Preview image when have created a new file
@@ -293,6 +308,7 @@ check all Java Nodes against all Python Effects
 Done:
 -----
 
+/In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
 /File source, needs FPS in properties, default to automatic, which is 1fps for static image, and normal fps for video
 /Pipeline not stopped when creating a new file
 /Also worried about threads from old diagram staying running when New or Open other diagram

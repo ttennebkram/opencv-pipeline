@@ -83,14 +83,11 @@ public class FXHelpBrowser {
      * @param docPath Path relative to resources, e.g., "doc/opencv/GaussianBlur.html"
      */
     public static void open(Stage parent, String docPath) {
-        System.out.println("DEBUG: FXHelpBrowser.open called with docPath: " + docPath);
         try {
             FXHelpBrowser helpBrowser = new FXHelpBrowser(parent);
             helpBrowser.navigate(docPath);
             helpBrowser.show();
-            System.out.println("DEBUG: Help window should now be visible");
         } catch (Exception e) {
-            System.err.println("DEBUG: Exception in FXHelpBrowser.open: " + e);
             e.printStackTrace();
         }
     }
@@ -101,13 +98,10 @@ public class FXHelpBrowser {
      * @param nodeType The node type name to show help for
      */
     public static void openForNodeType(Stage parent, String nodeType) {
-        System.out.println("DEBUG: openForNodeType called with nodeType: " + nodeType);
         String docPath = getDocPathForNodeType(nodeType);
-        System.out.println("DEBUG: docPath resolved to: " + docPath);
         if (docPath != null) {
             open(parent, docPath);
         } else {
-            System.out.println("DEBUG: No docPath found, opening no-help.html");
             open(parent, "doc/no-help.html");
         }
     }

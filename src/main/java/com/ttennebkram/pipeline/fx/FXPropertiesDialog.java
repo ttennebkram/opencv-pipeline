@@ -166,6 +166,117 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
     }
 
     /**
+     * Add a slider with a custom value display converter.
+     * The slider operates on internal values (min to max), but displays converted values.
+     * Both the current value label AND the tick labels use the converter.
+     * @param label The field label
+     * @param min Minimum internal value
+     * @param max Maximum internal value
+     * @param currentValue Current internal value
+     * @param displayConverter Function to convert internal value to display string
+     * @return The slider for later value retrieval
+     */
+    public Slider addSliderWithConverter(String label, double min, double max, double currentValue,
+                                         java.util.function.Function<Double, String> displayConverter) {
+        HBox row = new HBox(10);
+        row.getChildren().add(new Label(label));
+
+        Slider slider = new Slider(min, max, currentValue);
+        slider.setPrefWidth(200);
+        slider.setShowTickMarks(true);
+        slider.setShowTickLabels(true);
+
+        // Configure sensible tick spacing based on range
+        double range = max - min;
+        if (range <= 10) {
+            slider.setMajorTickUnit(1);
+        } else if (range <= 50) {
+            slider.setMajorTickUnit(10);
+        } else if (range <= 100) {
+            slider.setMajorTickUnit(25);
+        } else if (range <= 255) {
+            slider.setMajorTickUnit(50);
+        } else {
+            slider.setMajorTickUnit(range / 4);
+        }
+        slider.setMinorTickCount(0);
+
+        // Use custom label formatter for tick labels
+        slider.setLabelFormatter(new javafx.util.StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return displayConverter.apply(value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                return 0.0; // Not used for slider labels
+            }
+        });
+
+        Label valueLabel = new Label(displayConverter.apply(currentValue));
+        valueLabel.setMinWidth(60);
+
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            valueLabel.setText(displayConverter.apply(newVal.doubleValue()));
+        });
+
+        row.getChildren().addAll(slider, valueLabel);
+        contentArea.getChildren().add(row);
+
+        return slider;
+    }
+
+    /**
+     * Add a slider for logarithmic gain control (5% to 20x).
+     * Tick marks are placed at nice round gain values: 5%, 10%, 25%, 50%, 1x, 2x, 5x, 10x, 20x
+     * @param label The field label
+     * @param currentSliderValue Current slider value (0-100, where 50 = 1.0x gain)
+     * @param logRange The log10 range (log10(20) for 5%-20x range)
+     * @param displayConverter Function to convert slider value to display string
+     * @return The slider for later value retrieval
+     */
+    public Slider addLogGainSlider(String label, double currentSliderValue, double logRange,
+                                   java.util.function.Function<Double, String> displayConverter) {
+        HBox row = new HBox(10);
+        row.getChildren().add(new Label(label));
+
+        Slider slider = new Slider(0, 100, currentSliderValue);
+        slider.setPrefWidth(200);
+        slider.setShowTickMarks(true);
+        slider.setShowTickLabels(true);
+
+        // Set tick unit to 50 so we get marks at 0, 50, 100 (5%, 1x, 20x)
+        slider.setMajorTickUnit(50);
+        slider.setMinorTickCount(0);
+
+        // Use custom label formatter for tick labels
+        slider.setLabelFormatter(new javafx.util.StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return displayConverter.apply(value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                return 0.0; // Not used for slider labels
+            }
+        });
+
+        Label valueLabel = new Label(displayConverter.apply(currentSliderValue));
+        valueLabel.setMinWidth(60);
+
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            valueLabel.setText(displayConverter.apply(newVal.doubleValue()));
+        });
+
+        row.getChildren().addAll(slider, valueLabel);
+        contentArea.getChildren().add(row);
+
+        return slider;
+    }
+
+    /**
      * Add a slider for kernel sizes that must be odd values (1, 3, 5, ..., 31).
      * Snaps to odd values and shows only odd tick labels.
      * @param label The field label

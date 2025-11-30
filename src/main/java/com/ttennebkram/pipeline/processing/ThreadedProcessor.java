@@ -30,6 +30,8 @@ public class ThreadedProcessor {
     private BlockingQueue<Mat> outputQueue;
     private BlockingQueue<Mat> inputQueue2; // For dual-input processors
     private BlockingQueue<Mat> outputQueue2; // For dual-output processors (e.g., Clone)
+    private BlockingQueue<Mat> outputQueue3; // For quad-output processors (e.g., FFT4)
+    private BlockingQueue<Mat> outputQueue4; // For quad-output processors (e.g., FFT4)
 
     private int threadPriority = Thread.NORM_PRIORITY;
     private int originalPriority = Thread.NORM_PRIORITY;
@@ -152,6 +154,47 @@ public class ThreadedProcessor {
 
     public BlockingQueue<Mat> getOutputQueue2() {
         return outputQueue2;
+    }
+
+    public void setOutputQueue3(BlockingQueue<Mat> queue) {
+        this.outputQueue3 = queue;
+    }
+
+    public BlockingQueue<Mat> getOutputQueue3() {
+        return outputQueue3;
+    }
+
+    public void setOutputQueue4(BlockingQueue<Mat> queue) {
+        this.outputQueue4 = queue;
+    }
+
+    public BlockingQueue<Mat> getOutputQueue4() {
+        return outputQueue4;
+    }
+
+    /**
+     * Get output queue by index (0-based).
+     */
+    public BlockingQueue<Mat> getOutputQueue(int index) {
+        switch (index) {
+            case 0: return outputQueue;
+            case 1: return outputQueue2;
+            case 2: return outputQueue3;
+            case 3: return outputQueue4;
+            default: return null;
+        }
+    }
+
+    /**
+     * Set output queue by index (0-based).
+     */
+    public void setOutputQueue(int index, BlockingQueue<Mat> queue) {
+        switch (index) {
+            case 0: outputQueue = queue; break;
+            case 1: outputQueue2 = queue; break;
+            case 2: outputQueue3 = queue; break;
+            case 3: outputQueue4 = queue; break;
+        }
     }
 
     public BlockingQueue<Mat> getInputQueue() {

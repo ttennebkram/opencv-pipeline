@@ -1,7 +1,15 @@
 package com.ttennebkram.pipeline.fx;
 
+import javafx.geometry.Insets;
 import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,6 +54,9 @@ public class FXNodePropertiesHelper {
                 return true;
             case "FileSource":
                 addFileSourceProperties(dialog, props);
+                return true;
+            case "Filter2D":
+                addFilter2DProperties(dialog, props);
                 return true;
             case "GaussianBlur":
                 addGaussianBlurProperties(dialog, props);
@@ -92,6 +103,69 @@ public class FXNodePropertiesHelper {
             case "WebcamSource":
                 addWebcamSourceProperties(dialog, props);
                 return true;
+            // New nodes migrated from editor files
+            case "FFTLowPass":
+            case "FFTHighPass":
+            case "FFTLowPass4":
+            case "FFTHighPass4":
+                addFFTFilterProperties(dialog, props);
+                return true;
+            case "Sobel":
+                addSobelProperties(dialog, props);
+                return true;
+            case "Scharr":
+                addScharrProperties(dialog, props);
+                return true;
+            case "Laplacian":
+                addLaplacianProperties(dialog, props);
+                return true;
+            case "AdaptiveThreshold":
+                addAdaptiveThresholdProperties(dialog, props);
+                return true;
+            case "AddWeighted":
+                addAddWeightedProperties(dialog, props);
+                return true;
+            case "BilateralFilter":
+                addBilateralFilterProperties(dialog, props);
+                return true;
+            case "CLAHE":
+                addCLAHEProperties(dialog, props);
+                return true;
+            case "ColorInRange":
+                addColorInRangeProperties(dialog, props);
+                return true;
+            case "Crop":
+                addCropProperties(dialog, props);
+                return true;
+            case "BlankSource":
+                addBlankSourceProperties(dialog, props);
+                return true;
+            case "Gain":
+                addGainProperties(dialog, props);
+                return true;
+            case "MedianBlur":
+                addMedianBlurProperties(dialog, props);
+                return true;
+            case "Erode":
+            case "Dilate":
+                addErodeDilateProperties(dialog, props);
+                return true;
+            case "MorphOpen":
+            case "MorphClose":
+                addMorphOpenCloseProperties(dialog, props);
+                return true;
+            case "BitPlanesGrayscale":
+                addBitPlanesGrayscaleProperties(dialog, props);
+                return true;
+            case "BitPlanesColor":
+                addBitPlanesColorProperties(dialog, props);
+                return true;
+            case "Rectangle":
+                addRectangleProperties(dialog, props);
+                return true;
+            case "Circle":
+                addCircleProperties(dialog, props);
+                return true;
             default:
                 return false;
         }
@@ -134,7 +208,10 @@ public class FXNodePropertiesHelper {
                 saveEllipseProperties(props);
                 break;
             case "FileSource":
-                saveFileSourceProperties(props);
+                saveFileSourceProperties(node, props);
+                break;
+            case "Filter2D":
+                saveFilter2DProperties(props);
                 break;
             case "GaussianBlur":
                 saveGaussianBlurProperties(props);
@@ -180,6 +257,69 @@ public class FXNodePropertiesHelper {
                 break;
             case "WebcamSource":
                 saveWebcamSourceProperties(props);
+                break;
+            // New nodes migrated from editor files
+            case "FFTLowPass":
+            case "FFTHighPass":
+            case "FFTLowPass4":
+            case "FFTHighPass4":
+                saveFFTFilterProperties(props);
+                break;
+            case "Sobel":
+                saveSobelProperties(props);
+                break;
+            case "Scharr":
+                saveScharrProperties(props);
+                break;
+            case "Laplacian":
+                saveLaplacianProperties(props);
+                break;
+            case "AdaptiveThreshold":
+                saveAdaptiveThresholdProperties(props);
+                break;
+            case "AddWeighted":
+                saveAddWeightedProperties(props);
+                break;
+            case "BilateralFilter":
+                saveBilateralFilterProperties(props);
+                break;
+            case "CLAHE":
+                saveCLAHEProperties(props);
+                break;
+            case "ColorInRange":
+                saveColorInRangeProperties(props);
+                break;
+            case "Crop":
+                saveCropProperties(props);
+                break;
+            case "BlankSource":
+                saveBlankSourceProperties(props);
+                break;
+            case "Gain":
+                saveGainProperties(props);
+                break;
+            case "MedianBlur":
+                saveMedianBlurProperties(props);
+                break;
+            case "Erode":
+            case "Dilate":
+                saveErodeDilateProperties(props);
+                break;
+            case "MorphOpen":
+            case "MorphClose":
+                saveMorphOpenCloseProperties(props);
+                break;
+            case "BitPlanesGrayscale":
+                saveBitPlanesGrayscaleProperties(props);
+                break;
+            case "BitPlanesColor":
+                saveBitPlanesColorProperties(props);
+                break;
+            case "Rectangle":
+                saveRectangleProperties(props);
+                break;
+            case "Circle":
+                saveCircleProperties(props);
                 break;
         }
     }
@@ -492,32 +632,7 @@ public class FXNodePropertiesHelper {
         }
     }
 
-    // ========== FILE SOURCE ==========
-    private static void addFileSourceProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
-        String imagePath = getString(props, "imagePath", "");
-        int fpsMode = getInt(props, "fpsMode", 1);
-        boolean loopVideo = getBool(props, "loopVideo", true);
-
-        TextField pathField = dialog.addTextField("Image/Video Path:", imagePath);
-        String[] fpsModes = {"Just Once", "Automatic", "1 fps", "5 fps", "10 fps", "15 fps", "24 fps", "30 fps", "60 fps"};
-        ComboBox<String> fpsCombo = dialog.addComboBox("FPS Mode:", fpsModes, fpsModes[fpsMode]);
-        CheckBox loopCheck = dialog.addCheckbox("Loop Video", loopVideo);
-
-        props.put("_imagePathField", pathField);
-        props.put("_fpsModeCombo", fpsCombo);
-        props.put("_loopVideoCheck", loopCheck);
-    }
-
-    private static void saveFileSourceProperties(Map<String, Object> props) {
-        if (props.containsKey("_imagePathField")) {
-            props.put("imagePath", ((TextField) props.get("_imagePathField")).getText());
-            @SuppressWarnings("unchecked")
-            ComboBox<String> combo = (ComboBox<String>) props.get("_fpsModeCombo");
-            props.put("fpsMode", combo.getSelectionModel().getSelectedIndex());
-            props.put("loopVideo", ((CheckBox) props.get("_loopVideoCheck")).isSelected());
-            cleanupControls(props, "_imagePathField", "_fpsModeCombo", "_loopVideoCheck");
-        }
-    }
+    // FileSource is handled directly in PipelineEditorApp.showPropertiesDialog()
 
     // ========== GAUSSIAN BLUR ==========
     private static void addGaussianBlurProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
@@ -1114,6 +1229,671 @@ public class FXNodePropertiesHelper {
         }
     }
 
+    // ========== FFT FILTER ==========
+    private static void addFFTFilterProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int radius = getInt(props, "radius", 100);
+        int smoothness = getInt(props, "smoothness", 0);
+
+        Slider radiusSlider = dialog.addSlider("Radius:", 0, 200, radius, "%.0f");
+        Slider smoothnessSlider = dialog.addSlider("Smoothness:", 0, 100, smoothness, "%.0f");
+        dialog.addDescription("Note: FFT processing is computationally expensive (it's slow!).");
+
+        props.put("_radiusSlider", radiusSlider);
+        props.put("_smoothnessSlider", smoothnessSlider);
+    }
+
+    private static void saveFFTFilterProperties(Map<String, Object> props) {
+        if (props.containsKey("_radiusSlider")) {
+            props.put("radius", (int) ((Slider) props.get("_radiusSlider")).getValue());
+            props.put("smoothness", (int) ((Slider) props.get("_smoothnessSlider")).getValue());
+            cleanupControls(props, "_radiusSlider", "_smoothnessSlider");
+        }
+    }
+
+    // ========== SOBEL ==========
+    private static void addSobelProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int dx = getInt(props, "dx", 1);
+        int dy = getInt(props, "dy", 0);
+        int kernelSizeIndex = getInt(props, "kernelSizeIndex", 1);
+
+        String[] derivOrders = {"0", "1", "2"};
+        ToggleGroup dxGroup = dialog.addRadioButtons("dx (X derivative):", derivOrders, dx);
+        ToggleGroup dyGroup = dialog.addRadioButtons("dy (Y derivative):", derivOrders, dy);
+        String[] kernelSizes = {"1", "3", "5", "7"};
+        ComboBox<String> kernelSizeCombo = dialog.addComboBox("Kernel Size:", kernelSizes, kernelSizes[kernelSizeIndex]);
+        dialog.addDescription("Note: dx + dy must be >= 1");
+
+        props.put("_dxGroup", dxGroup);
+        props.put("_dyGroup", dyGroup);
+        props.put("_kernelSizeCombo", kernelSizeCombo);
+    }
+
+    private static void saveSobelProperties(Map<String, Object> props) {
+        if (props.containsKey("_dxGroup")) {
+            ToggleGroup dxGroup = (ToggleGroup) props.get("_dxGroup");
+            ToggleGroup dyGroup = (ToggleGroup) props.get("_dyGroup");
+            @SuppressWarnings("unchecked")
+            ComboBox<String> kernelSizeCombo = (ComboBox<String>) props.get("_kernelSizeCombo");
+            int dxVal = dxGroup.getSelectedToggle() != null ? (Integer) dxGroup.getSelectedToggle().getUserData() : 1;
+            int dyVal = dyGroup.getSelectedToggle() != null ? (Integer) dyGroup.getSelectedToggle().getUserData() : 0;
+            props.put("dx", dxVal);
+            props.put("dy", dyVal);
+            props.put("kernelSizeIndex", kernelSizeCombo.getSelectionModel().getSelectedIndex());
+            cleanupControls(props, "_dxGroup", "_dyGroup", "_kernelSizeCombo");
+        }
+    }
+
+    // ========== SCHARR ==========
+    private static void addScharrProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int directionIndex = getInt(props, "directionIndex", 2);
+        int scalePercent = getInt(props, "scalePercent", 100);
+        int delta = getInt(props, "delta", 0);
+
+        String[] directions = {"X", "Y", "Both"};
+        ComboBox<String> dirCombo = dialog.addComboBox("Direction:", directions, directions[directionIndex]);
+        Slider scaleSlider = dialog.addSlider("Scale (%):", 10, 500, scalePercent, "%.0f%%");
+        Slider deltaSlider = dialog.addSlider("Delta:", 0, 255, delta, "%.0f");
+
+        props.put("_directionCombo", dirCombo);
+        props.put("_scaleSlider", scaleSlider);
+        props.put("_deltaSlider", deltaSlider);
+    }
+
+    private static void saveScharrProperties(Map<String, Object> props) {
+        if (props.containsKey("_directionCombo")) {
+            @SuppressWarnings("unchecked")
+            ComboBox<String> dirCombo = (ComboBox<String>) props.get("_directionCombo");
+            props.put("directionIndex", dirCombo.getSelectionModel().getSelectedIndex());
+            props.put("scalePercent", (int) ((Slider) props.get("_scaleSlider")).getValue());
+            props.put("delta", (int) ((Slider) props.get("_deltaSlider")).getValue());
+            cleanupControls(props, "_directionCombo", "_scaleSlider", "_deltaSlider");
+        }
+    }
+
+    // ========== LAPLACIAN ==========
+    private static void addLaplacianProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int kernelSizeIndex = getInt(props, "kernelSizeIndex", 1);
+        int scalePercent = getInt(props, "scalePercent", 100);
+        int delta = getInt(props, "delta", 0);
+        boolean useAbsolute = getBool(props, "useAbsolute", true);
+
+        String[] ksizes = {"1", "3", "5", "7"};
+        ComboBox<String> ksizeCombo = dialog.addComboBox("Kernel Size:", ksizes, ksizes[kernelSizeIndex]);
+        Slider scaleSlider = dialog.addSlider("Scale (%):", 10, 500, scalePercent, "%.0f%%");
+        Slider deltaSlider = dialog.addSlider("Delta:", 0, 255, delta, "%.0f");
+        CheckBox absCheckBox = dialog.addCheckbox("Use Absolute Value", useAbsolute);
+
+        props.put("_ksizeCombo", ksizeCombo);
+        props.put("_scaleSlider", scaleSlider);
+        props.put("_deltaSlider", deltaSlider);
+        props.put("_absCheckBox", absCheckBox);
+    }
+
+    private static void saveLaplacianProperties(Map<String, Object> props) {
+        if (props.containsKey("_ksizeCombo")) {
+            @SuppressWarnings("unchecked")
+            ComboBox<String> ksizeCombo = (ComboBox<String>) props.get("_ksizeCombo");
+            props.put("kernelSizeIndex", ksizeCombo.getSelectionModel().getSelectedIndex());
+            props.put("scalePercent", (int) ((Slider) props.get("_scaleSlider")).getValue());
+            props.put("delta", (int) ((Slider) props.get("_deltaSlider")).getValue());
+            props.put("useAbsolute", ((CheckBox) props.get("_absCheckBox")).isSelected());
+            cleanupControls(props, "_ksizeCombo", "_scaleSlider", "_deltaSlider", "_absCheckBox");
+        }
+    }
+
+    // ========== ADAPTIVE THRESHOLD ==========
+    private static void addAdaptiveThresholdProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int maxValue = getInt(props, "maxValue", 255);
+        int methodIndex = getInt(props, "methodIndex", 1);
+        int typeIndex = getInt(props, "typeIndex", 0);
+        int blockSize = getInt(props, "blockSize", 11);
+        int cValue = getInt(props, "cValue", 2);
+
+        Slider maxValueSlider = dialog.addSlider("Max Value:", 0, 255, maxValue, "%.0f");
+        String[] methods = {"Mean", "Gaussian"};
+        ComboBox<String> methodCombo = dialog.addComboBox("Method:", methods, methods[methodIndex]);
+        String[] types = {"Binary", "Binary Inv"};
+        ComboBox<String> typeCombo = dialog.addComboBox("Type:", types, types[typeIndex]);
+        Slider blockSizeSlider = dialog.addSlider("Block Size:", 3, 99, blockSize, "%.0f");
+        Slider cValueSlider = dialog.addSlider("C Value:", 0, 50, cValue, "%.0f");
+
+        props.put("_maxValueSlider", maxValueSlider);
+        props.put("_methodCombo", methodCombo);
+        props.put("_typeCombo", typeCombo);
+        props.put("_blockSizeSlider", blockSizeSlider);
+        props.put("_cValueSlider", cValueSlider);
+    }
+
+    private static void saveAdaptiveThresholdProperties(Map<String, Object> props) {
+        if (props.containsKey("_maxValueSlider")) {
+            props.put("maxValue", (int) ((Slider) props.get("_maxValueSlider")).getValue());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> methodCombo = (ComboBox<String>) props.get("_methodCombo");
+            props.put("methodIndex", methodCombo.getSelectionModel().getSelectedIndex());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> typeCombo = (ComboBox<String>) props.get("_typeCombo");
+            props.put("typeIndex", typeCombo.getSelectionModel().getSelectedIndex());
+            int blockSize = (int) ((Slider) props.get("_blockSizeSlider")).getValue();
+            if (blockSize % 2 == 0) blockSize++;
+            if (blockSize < 3) blockSize = 3;
+            props.put("blockSize", blockSize);
+            props.put("cValue", (int) ((Slider) props.get("_cValueSlider")).getValue());
+            cleanupControls(props, "_maxValueSlider", "_methodCombo", "_typeCombo", "_blockSizeSlider", "_cValueSlider");
+        }
+    }
+
+    // ========== ADD WEIGHTED ==========
+    private static void addAddWeightedProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        double alpha = getDouble(props, "alpha", 0.5);
+        double beta = getDouble(props, "beta", 0.5);
+        double gamma = getDouble(props, "gamma", 0.0);
+
+        Slider alphaSlider = dialog.addSlider("Alpha (Input 1 weight):", 0, 100, alpha * 100, "%.0f%%");
+        Slider betaSlider = dialog.addSlider("Beta (Input 2 weight):", 0, 100, beta * 100, "%.0f%%");
+        Slider gammaSlider = dialog.addSlider("Gamma (brightness):", 0, 255, gamma, "%.0f");
+
+        props.put("_alphaSlider", alphaSlider);
+        props.put("_betaSlider", betaSlider);
+        props.put("_gammaSlider", gammaSlider);
+    }
+
+    private static void saveAddWeightedProperties(Map<String, Object> props) {
+        if (props.containsKey("_alphaSlider")) {
+            props.put("alpha", ((Slider) props.get("_alphaSlider")).getValue() / 100.0);
+            props.put("beta", ((Slider) props.get("_betaSlider")).getValue() / 100.0);
+            props.put("gamma", ((Slider) props.get("_gammaSlider")).getValue());
+            cleanupControls(props, "_alphaSlider", "_betaSlider", "_gammaSlider");
+        }
+    }
+
+    // ========== BILATERAL FILTER ==========
+    private static void addBilateralFilterProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int diameter = getInt(props, "diameter", 9);
+        int sigmaColor = getInt(props, "sigmaColor", 75);
+        int sigmaSpace = getInt(props, "sigmaSpace", 75);
+
+        Slider diameterSlider = dialog.addSlider("Diameter:", 1, 25, diameter, "%.0f");
+        Slider sigmaColorSlider = dialog.addSlider("Sigma Color:", 1, 200, sigmaColor, "%.0f");
+        Slider sigmaSpaceSlider = dialog.addSlider("Sigma Space:", 1, 200, sigmaSpace, "%.0f");
+
+        props.put("_diameterSlider", diameterSlider);
+        props.put("_sigmaColorSlider", sigmaColorSlider);
+        props.put("_sigmaSpaceSlider", sigmaSpaceSlider);
+    }
+
+    private static void saveBilateralFilterProperties(Map<String, Object> props) {
+        if (props.containsKey("_diameterSlider")) {
+            props.put("diameter", (int) ((Slider) props.get("_diameterSlider")).getValue());
+            props.put("sigmaColor", (int) ((Slider) props.get("_sigmaColorSlider")).getValue());
+            props.put("sigmaSpace", (int) ((Slider) props.get("_sigmaSpaceSlider")).getValue());
+            cleanupControls(props, "_diameterSlider", "_sigmaColorSlider", "_sigmaSpaceSlider");
+        }
+    }
+
+    // ========== CLAHE ==========
+    private static void addCLAHEProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        double clipLimit = getDouble(props, "clipLimit", 2.0);
+        int tileSize = getInt(props, "tileSize", 8);
+        int colorModeIndex = getInt(props, "colorModeIndex", 0);
+
+        Slider clipLimitSlider = dialog.addSlider("Clip Limit:", 1.0, 40.0, clipLimit, "%.1f");
+        Slider tileSizeSlider = dialog.addSlider("Tile Size:", 2, 32, tileSize, "%.0f");
+        String[] colorModes = {"LAB", "HSV", "Grayscale"};
+        ComboBox<String> colorModeCombo = dialog.addComboBox("Color Mode:", colorModes, colorModes[colorModeIndex]);
+
+        props.put("_clipLimitSlider", clipLimitSlider);
+        props.put("_tileSizeSlider", tileSizeSlider);
+        props.put("_colorModeCombo", colorModeCombo);
+    }
+
+    private static void saveCLAHEProperties(Map<String, Object> props) {
+        if (props.containsKey("_clipLimitSlider")) {
+            props.put("clipLimit", ((Slider) props.get("_clipLimitSlider")).getValue());
+            props.put("tileSize", (int) ((Slider) props.get("_tileSizeSlider")).getValue());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> colorModeCombo = (ComboBox<String>) props.get("_colorModeCombo");
+            props.put("colorModeIndex", colorModeCombo.getSelectionModel().getSelectedIndex());
+            cleanupControls(props, "_clipLimitSlider", "_tileSizeSlider", "_colorModeCombo");
+        }
+    }
+
+    // ========== COLOR IN RANGE ==========
+    private static void addColorInRangeProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        boolean useHSV = getBool(props, "useHSV", true);
+        int hLow = getInt(props, "hLow", 0);
+        int hHigh = getInt(props, "hHigh", 179);
+        int sLow = getInt(props, "sLow", 0);
+        int sHigh = getInt(props, "sHigh", 255);
+        int vLow = getInt(props, "vLow", 0);
+        int vHigh = getInt(props, "vHigh", 255);
+        int outputMode = getInt(props, "outputMode", 0);
+
+        CheckBox useHSVCheckBox = dialog.addCheckbox("Use HSV (unchecked = BGR)", useHSV);
+        Slider hLowSlider = dialog.addSlider("H/B Low:", 0, 255, hLow, "%.0f");
+        Slider hHighSlider = dialog.addSlider("H/B High:", 0, 255, hHigh, "%.0f");
+        Slider sLowSlider = dialog.addSlider("S/G Low:", 0, 255, sLow, "%.0f");
+        Slider sHighSlider = dialog.addSlider("S/G High:", 0, 255, sHigh, "%.0f");
+        Slider vLowSlider = dialog.addSlider("V/R Low:", 0, 255, vLow, "%.0f");
+        Slider vHighSlider = dialog.addSlider("V/R High:", 0, 255, vHigh, "%.0f");
+        String[] outputModes = {"Mask Only", "Keep In-Range", "Keep Out-of-Range"};
+        ComboBox<String> outputModeCombo = dialog.addComboBox("Output Mode:", outputModes, outputModes[outputMode]);
+
+        props.put("_useHSVCheckBox", useHSVCheckBox);
+        props.put("_hLowSlider", hLowSlider);
+        props.put("_hHighSlider", hHighSlider);
+        props.put("_sLowSlider", sLowSlider);
+        props.put("_sHighSlider", sHighSlider);
+        props.put("_vLowSlider", vLowSlider);
+        props.put("_vHighSlider", vHighSlider);
+        props.put("_outputModeCombo", outputModeCombo);
+    }
+
+    private static void saveColorInRangeProperties(Map<String, Object> props) {
+        if (props.containsKey("_useHSVCheckBox")) {
+            props.put("useHSV", ((CheckBox) props.get("_useHSVCheckBox")).isSelected());
+            props.put("hLow", (int) ((Slider) props.get("_hLowSlider")).getValue());
+            props.put("hHigh", (int) ((Slider) props.get("_hHighSlider")).getValue());
+            props.put("sLow", (int) ((Slider) props.get("_sLowSlider")).getValue());
+            props.put("sHigh", (int) ((Slider) props.get("_sHighSlider")).getValue());
+            props.put("vLow", (int) ((Slider) props.get("_vLowSlider")).getValue());
+            props.put("vHigh", (int) ((Slider) props.get("_vHighSlider")).getValue());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> outputModeCombo = (ComboBox<String>) props.get("_outputModeCombo");
+            props.put("outputMode", outputModeCombo.getSelectionModel().getSelectedIndex());
+            cleanupControls(props, "_useHSVCheckBox", "_hLowSlider", "_hHighSlider", "_sLowSlider",
+                           "_sHighSlider", "_vLowSlider", "_vHighSlider", "_outputModeCombo");
+        }
+    }
+
+    // ========== CROP ==========
+    private static void addCropProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int cropX = getInt(props, "cropX", 0);
+        int cropY = getInt(props, "cropY", 0);
+        int cropWidth = getInt(props, "cropWidth", 100);
+        int cropHeight = getInt(props, "cropHeight", 100);
+
+        Spinner<Integer> xSpinner = dialog.addSpinner("X:", -4096, 4096, cropX);
+        Spinner<Integer> ySpinner = dialog.addSpinner("Y:", -4096, 4096, cropY);
+        Spinner<Integer> widthSpinner = dialog.addSpinner("Width:", 1, 4096, cropWidth);
+        Spinner<Integer> heightSpinner = dialog.addSpinner("Height:", 1, 4096, cropHeight);
+
+        props.put("_cropXSpinner", xSpinner);
+        props.put("_cropYSpinner", ySpinner);
+        props.put("_cropWidthSpinner", widthSpinner);
+        props.put("_cropHeightSpinner", heightSpinner);
+    }
+
+    private static void saveCropProperties(Map<String, Object> props) {
+        if (props.containsKey("_cropXSpinner")) {
+            props.put("cropX", ((Spinner<Integer>) props.get("_cropXSpinner")).getValue());
+            props.put("cropY", ((Spinner<Integer>) props.get("_cropYSpinner")).getValue());
+            props.put("cropWidth", ((Spinner<Integer>) props.get("_cropWidthSpinner")).getValue());
+            props.put("cropHeight", ((Spinner<Integer>) props.get("_cropHeightSpinner")).getValue());
+            cleanupControls(props, "_cropXSpinner", "_cropYSpinner", "_cropWidthSpinner", "_cropHeightSpinner");
+        }
+    }
+
+    // ========== BLANK SOURCE ==========
+    private static void addBlankSourceProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int currentWidth = getInt(props, "imageWidth", 640);
+        int currentHeight = getInt(props, "imageHeight", 480);
+        int currentColorIndex = getInt(props, "colorIndex", 0);
+        int currentFpsIndex = getInt(props, "fpsIndex", 2);
+
+        Spinner<Integer> widthSpinner = dialog.addSpinner("Width:", 1, 4096, currentWidth);
+        Spinner<Integer> heightSpinner = dialog.addSpinner("Height:", 1, 4096, currentHeight);
+        String[] colorOptions = {"Black", "White", "Red", "Green", "Blue", "Yellow"};
+        ComboBox<String> colorCombo = dialog.addComboBox("Color:", colorOptions,
+            colorOptions[Math.min(currentColorIndex, colorOptions.length - 1)]);
+        String[] fpsOptions = {"1", "15", "30", "60"};
+        ComboBox<String> fpsCombo = dialog.addComboBox("FPS:", fpsOptions,
+            fpsOptions[Math.min(currentFpsIndex, fpsOptions.length - 1)]);
+
+        props.put("_widthSpinner", widthSpinner);
+        props.put("_heightSpinner", heightSpinner);
+        props.put("_colorCombo", colorCombo);
+        props.put("_blankFpsCombo", fpsCombo);
+    }
+
+    private static void saveBlankSourceProperties(Map<String, Object> props) {
+        if (props.containsKey("_widthSpinner")) {
+            props.put("imageWidth", ((Spinner<Integer>) props.get("_widthSpinner")).getValue());
+            props.put("imageHeight", ((Spinner<Integer>) props.get("_heightSpinner")).getValue());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> colorCombo = (ComboBox<String>) props.get("_colorCombo");
+            props.put("colorIndex", colorCombo.getSelectionModel().getSelectedIndex());
+            @SuppressWarnings("unchecked")
+            ComboBox<String> fpsCombo = (ComboBox<String>) props.get("_blankFpsCombo");
+            props.put("fpsIndex", fpsCombo.getSelectionModel().getSelectedIndex());
+            cleanupControls(props, "_widthSpinner", "_heightSpinner", "_colorCombo", "_blankFpsCombo");
+        }
+    }
+
+    // ========== GAIN ==========
+    private static void addGainProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        double currentGain = getDouble(props, "gain", 1.0);
+        final double LOG_RANGE = Math.log10(20.0);  // ~1.301
+        double sliderVal = (Math.log10(currentGain) / LOG_RANGE) * 50 + 50;
+        sliderVal = Math.max(0, Math.min(100, sliderVal));
+
+        // Create converter that displays the actual gain value instead of slider position
+        // Values < 100% show as percentage, values >= 100% show as multiplier
+        java.util.function.Function<Double, String> gainConverter = (sliderValue) -> {
+            double logVal = (sliderValue - 50) / 50.0 * LOG_RANGE;
+            double gain = Math.pow(10, logVal);
+            if (gain >= 0.995) {  // >= ~100% shows as multiplier (accounts for rounding)
+                return String.format("%.1fx", gain);
+            } else {
+                return String.format("%.0f%%", gain * 100);  // Show as percentage for values < 100%
+            }
+        };
+
+        // Use addLogGainSlider which sets tick marks at nice gain values (5%, 1x, 20x)
+        Slider gainSlider = dialog.addLogGainSlider("Gain:", sliderVal, LOG_RANGE, gainConverter);
+        dialog.addDescription("Logarithmic scale: 5% to 20x");
+
+        props.put("_gainSlider", gainSlider);
+        props.put("_gainLogRange", LOG_RANGE);
+    }
+
+    private static void saveGainProperties(Map<String, Object> props) {
+        if (props.containsKey("_gainSlider")) {
+            Slider gainSlider = (Slider) props.get("_gainSlider");
+            double logRange = (Double) props.getOrDefault("_gainLogRange", Math.log10(20.0));
+            double logVal = (gainSlider.getValue() - 50) / 50.0 * logRange;
+            double gain = Math.pow(10, logVal);
+            props.put("gain", gain);
+            cleanupControls(props, "_gainSlider", "_gainLogRange");
+        }
+    }
+
+    // ========== MEDIAN BLUR ==========
+    private static void addMedianBlurProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int currentKsize = getInt(props, "ksize", 5);
+        Slider ksizeSlider = dialog.addOddKernelSlider("Kernel Size:", currentKsize);
+        props.put("_ksizeSlider", ksizeSlider);
+    }
+
+    private static void saveMedianBlurProperties(Map<String, Object> props) {
+        if (props.containsKey("_ksizeSlider")) {
+            int ksize = (int) ((Slider) props.get("_ksizeSlider")).getValue();
+            if (ksize % 2 == 0) ksize++;
+            props.put("ksize", ksize);
+            cleanupControls(props, "_ksizeSlider");
+        }
+    }
+
+    // ========== ERODE / DILATE ==========
+    private static void addErodeDilateProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int currentKsize = getInt(props, "kernelSize", 5);
+        int currentIter = getInt(props, "iterations", 1);
+
+        Slider ksizeSlider = dialog.addSlider("Kernel Size:", 1, 21, currentKsize, "%.0f");
+        Slider iterSlider = dialog.addSlider("Iterations:", 1, 10, currentIter, "%.0f");
+
+        props.put("_kernelSizeSlider", ksizeSlider);
+        props.put("_iterationsSlider", iterSlider);
+    }
+
+    private static void saveErodeDilateProperties(Map<String, Object> props) {
+        if (props.containsKey("_kernelSizeSlider")) {
+            props.put("kernelSize", (int) ((Slider) props.get("_kernelSizeSlider")).getValue());
+            props.put("iterations", (int) ((Slider) props.get("_iterationsSlider")).getValue());
+            cleanupControls(props, "_kernelSizeSlider", "_iterationsSlider");
+        }
+    }
+
+    // ========== MORPH OPEN / CLOSE ==========
+    private static void addMorphOpenCloseProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int currentKsize = getInt(props, "kernelSize", 5);
+        Slider ksizeSlider = dialog.addSlider("Kernel Size:", 1, 21, currentKsize, "%.0f");
+        props.put("_kernelSizeSlider", ksizeSlider);
+    }
+
+    private static void saveMorphOpenCloseProperties(Map<String, Object> props) {
+        if (props.containsKey("_kernelSizeSlider")) {
+            props.put("kernelSize", (int) ((Slider) props.get("_kernelSizeSlider")).getValue());
+            cleanupControls(props, "_kernelSizeSlider");
+        }
+    }
+
+    // ========== BIT PLANES GRAYSCALE ==========
+    private static void addBitPlanesGrayscaleProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        dialog.addDescription("Bit Planes Grayscale: Select and adjust bit planes");
+
+        boolean[] bitEnabled = new boolean[8];
+        double[] bitGain = new double[8];
+        for (int i = 0; i < 8; i++) {
+            bitEnabled[i] = true;
+            bitGain[i] = 1.0;
+        }
+        if (props.containsKey("bitEnabled")) {
+            boolean[] arr = (boolean[]) props.get("bitEnabled");
+            for (int i = 0; i < Math.min(arr.length, 8); i++) bitEnabled[i] = arr[i];
+        }
+        if (props.containsKey("bitGain")) {
+            double[] arr = (double[]) props.get("bitGain");
+            for (int i = 0; i < Math.min(arr.length, 8); i++) bitGain[i] = arr[i];
+        }
+
+        CheckBox[] checkBoxes = new CheckBox[8];
+        Slider[] gainSliders = new Slider[8];
+
+        for (int i = 0; i < 8; i++) {
+            final int bitIndex = i;
+            HBox row = new HBox(10);
+            Label bitLabel = new Label("Bit " + i + ":");
+            bitLabel.setMinWidth(50);
+            CheckBox cb = new CheckBox();
+            cb.setSelected(bitEnabled[i]);
+            double sliderVal = Math.log10(bitGain[i]) * 100 + 100;
+            Slider slider = new Slider(0, 200, Math.max(0, Math.min(200, sliderVal)));
+            slider.setPrefWidth(120);
+            Label gainLabel = new Label(String.format("%.2fx", bitGain[i]));
+            gainLabel.setMinWidth(50);
+            slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                double g = Math.pow(10, (newVal.doubleValue() - 100) / 100.0);
+                gainLabel.setText(String.format("%.2fx", g));
+            });
+            row.getChildren().addAll(bitLabel, cb, slider, gainLabel);
+            dialog.addCustomContent(row);
+            checkBoxes[bitIndex] = cb;
+            gainSliders[bitIndex] = slider;
+        }
+
+        props.put("_bitCheckBoxes", checkBoxes);
+        props.put("_bitGainSliders", gainSliders);
+    }
+
+    private static void saveBitPlanesGrayscaleProperties(Map<String, Object> props) {
+        if (props.containsKey("_bitCheckBoxes")) {
+            CheckBox[] checkBoxes = (CheckBox[]) props.get("_bitCheckBoxes");
+            Slider[] gainSliders = (Slider[]) props.get("_bitGainSliders");
+            boolean[] bitEnabled = new boolean[8];
+            double[] bitGain = new double[8];
+            for (int i = 0; i < 8; i++) {
+                bitEnabled[i] = checkBoxes[i].isSelected();
+                bitGain[i] = Math.pow(10, (gainSliders[i].getValue() - 100) / 100.0);
+            }
+            props.put("bitEnabled", bitEnabled);
+            props.put("bitGain", bitGain);
+            cleanupControls(props, "_bitCheckBoxes", "_bitGainSliders");
+        }
+    }
+
+    // ========== BIT PLANES COLOR ==========
+    private static void addBitPlanesColorProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        dialog.addDescription("Bit Planes Color: Select and adjust bit planes per channel");
+
+        String[] channelNames = {"Red", "Green", "Blue"};
+        String[] propNames = {"red", "green", "blue"};
+
+        CheckBox[][] checkBoxes = new CheckBox[3][8];
+        Slider[][] gainSliders = new Slider[3][8];
+
+        for (int c = 0; c < 3; c++) {
+            boolean[] bitEnabled = new boolean[8];
+            double[] bitGain = new double[8];
+            for (int i = 0; i < 8; i++) {
+                bitEnabled[i] = true;
+                bitGain[i] = 1.0;
+            }
+            if (props.containsKey(propNames[c] + "BitEnabled")) {
+                boolean[] arr = (boolean[]) props.get(propNames[c] + "BitEnabled");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) bitEnabled[i] = arr[i];
+            }
+            if (props.containsKey(propNames[c] + "BitGain")) {
+                double[] arr = (double[]) props.get(propNames[c] + "BitGain");
+                for (int i = 0; i < Math.min(arr.length, 8); i++) bitGain[i] = arr[i];
+            }
+
+            Label channelLabel = new Label(channelNames[c] + " Channel:");
+            channelLabel.setStyle("-fx-font-weight: bold;");
+            dialog.addCustomContent(channelLabel);
+
+            for (int i = 0; i < 8; i++) {
+                final int bitIndex = i;
+                final int channelIndex = c;
+                HBox row = new HBox(10);
+                Label bitLabel = new Label("Bit " + i + ":");
+                bitLabel.setMinWidth(50);
+                CheckBox cb = new CheckBox();
+                cb.setSelected(bitEnabled[i]);
+                double sliderVal = Math.log10(bitGain[i]) * 100 + 100;
+                Slider slider = new Slider(0, 200, Math.max(0, Math.min(200, sliderVal)));
+                slider.setPrefWidth(100);
+                Label gainLabel = new Label(String.format("%.2fx", bitGain[i]));
+                gainLabel.setMinWidth(50);
+                slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                    double g = Math.pow(10, (newVal.doubleValue() - 100) / 100.0);
+                    gainLabel.setText(String.format("%.2fx", g));
+                });
+                row.getChildren().addAll(bitLabel, cb, slider, gainLabel);
+                dialog.addCustomContent(row);
+                checkBoxes[channelIndex][bitIndex] = cb;
+                gainSliders[channelIndex][bitIndex] = slider;
+            }
+        }
+
+        props.put("_colorBitCheckBoxes", checkBoxes);
+        props.put("_colorBitGainSliders", gainSliders);
+    }
+
+    private static void saveBitPlanesColorProperties(Map<String, Object> props) {
+        if (props.containsKey("_colorBitCheckBoxes")) {
+            CheckBox[][] checkBoxes = (CheckBox[][]) props.get("_colorBitCheckBoxes");
+            Slider[][] gainSliders = (Slider[][]) props.get("_colorBitGainSliders");
+            String[] channelNames = {"red", "green", "blue"};
+            for (int c = 0; c < 3; c++) {
+                boolean[] bitEnabled = new boolean[8];
+                double[] bitGain = new double[8];
+                for (int i = 0; i < 8; i++) {
+                    bitEnabled[i] = checkBoxes[c][i].isSelected();
+                    bitGain[i] = Math.pow(10, (gainSliders[c][i].getValue() - 100) / 100.0);
+                }
+                props.put(channelNames[c] + "BitEnabled", bitEnabled);
+                props.put(channelNames[c] + "BitGain", bitGain);
+            }
+            cleanupControls(props, "_colorBitCheckBoxes", "_colorBitGainSliders");
+        }
+    }
+
+    // ========== RECTANGLE ==========
+    private static void addRectangleProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int x1 = getInt(props, "x1", 50);
+        int y1 = getInt(props, "y1", 50);
+        int x2 = getInt(props, "x2", 200);
+        int y2 = getInt(props, "y2", 150);
+        int colorR = getInt(props, "colorR", 0);
+        int colorG = getInt(props, "colorG", 255);
+        int colorB = getInt(props, "colorB", 0);
+        int thickness = getInt(props, "thickness", 2);
+        boolean filled = getBool(props, "filled", false);
+
+        Spinner<Integer> x1Spinner = dialog.addSpinner("X1:", -4096, 4096, x1);
+        Spinner<Integer> y1Spinner = dialog.addSpinner("Y1:", -4096, 4096, y1);
+        Spinner<Integer> x2Spinner = dialog.addSpinner("X2:", -4096, 4096, x2);
+        Spinner<Integer> y2Spinner = dialog.addSpinner("Y2:", -4096, 4096, y2);
+        Spinner<Integer> rSpinner = dialog.addSpinner("Color R:", 0, 255, colorR);
+        Spinner<Integer> gSpinner = dialog.addSpinner("Color G:", 0, 255, colorG);
+        Spinner<Integer> bSpinner = dialog.addSpinner("Color B:", 0, 255, colorB);
+        Spinner<Integer> thicknessSpinner = dialog.addSpinner("Thickness:", 1, 50, thickness);
+        CheckBox filledCheckBox = dialog.addCheckbox("Filled", filled);
+
+        props.put("_x1Spinner", x1Spinner);
+        props.put("_y1Spinner", y1Spinner);
+        props.put("_x2Spinner", x2Spinner);
+        props.put("_y2Spinner", y2Spinner);
+        props.put("_colorRSpinner", rSpinner);
+        props.put("_colorGSpinner", gSpinner);
+        props.put("_colorBSpinner", bSpinner);
+        props.put("_thicknessSpinner", thicknessSpinner);
+        props.put("_filledCheckBox", filledCheckBox);
+    }
+
+    private static void saveRectangleProperties(Map<String, Object> props) {
+        if (props.containsKey("_x1Spinner")) {
+            props.put("x1", ((Spinner<Integer>) props.get("_x1Spinner")).getValue());
+            props.put("y1", ((Spinner<Integer>) props.get("_y1Spinner")).getValue());
+            props.put("x2", ((Spinner<Integer>) props.get("_x2Spinner")).getValue());
+            props.put("y2", ((Spinner<Integer>) props.get("_y2Spinner")).getValue());
+            props.put("colorR", ((Spinner<Integer>) props.get("_colorRSpinner")).getValue());
+            props.put("colorG", ((Spinner<Integer>) props.get("_colorGSpinner")).getValue());
+            props.put("colorB", ((Spinner<Integer>) props.get("_colorBSpinner")).getValue());
+            props.put("thickness", ((Spinner<Integer>) props.get("_thicknessSpinner")).getValue());
+            props.put("filled", ((CheckBox) props.get("_filledCheckBox")).isSelected());
+            cleanupControls(props, "_x1Spinner", "_y1Spinner", "_x2Spinner", "_y2Spinner",
+                           "_colorRSpinner", "_colorGSpinner", "_colorBSpinner",
+                           "_thicknessSpinner", "_filledCheckBox");
+        }
+    }
+
+    // ========== CIRCLE ==========
+    private static void addCircleProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int centerX = getInt(props, "centerX", 100);
+        int centerY = getInt(props, "centerY", 100);
+        int radius = getInt(props, "radius", 50);
+        int colorR = getInt(props, "colorR", 0);
+        int colorG = getInt(props, "colorG", 255);
+        int colorB = getInt(props, "colorB", 0);
+        int thickness = getInt(props, "thickness", 2);
+        boolean filled = getBool(props, "filled", false);
+
+        Spinner<Integer> cxSpinner = dialog.addSpinner("Center X:", -4096, 4096, centerX);
+        Spinner<Integer> cySpinner = dialog.addSpinner("Center Y:", -4096, 4096, centerY);
+        Spinner<Integer> radiusSpinner = dialog.addSpinner("Radius:", 1, 2000, radius);
+        Spinner<Integer> rSpinner = dialog.addSpinner("Color R:", 0, 255, colorR);
+        Spinner<Integer> gSpinner = dialog.addSpinner("Color G:", 0, 255, colorG);
+        Spinner<Integer> bSpinner = dialog.addSpinner("Color B:", 0, 255, colorB);
+        Spinner<Integer> thicknessSpinner = dialog.addSpinner("Thickness:", 1, 50, thickness);
+        CheckBox filledCheckBox = dialog.addCheckbox("Filled", filled);
+
+        props.put("_centerXSpinner", cxSpinner);
+        props.put("_centerYSpinner", cySpinner);
+        props.put("_radiusSpinner", radiusSpinner);
+        props.put("_colorRSpinner", rSpinner);
+        props.put("_colorGSpinner", gSpinner);
+        props.put("_colorBSpinner", bSpinner);
+        props.put("_thicknessSpinner", thicknessSpinner);
+        props.put("_filledCheckBox", filledCheckBox);
+    }
+
+    private static void saveCircleProperties(Map<String, Object> props) {
+        if (props.containsKey("_centerXSpinner")) {
+            props.put("centerX", ((Spinner<Integer>) props.get("_centerXSpinner")).getValue());
+            props.put("centerY", ((Spinner<Integer>) props.get("_centerYSpinner")).getValue());
+            props.put("radius", ((Spinner<Integer>) props.get("_radiusSpinner")).getValue());
+            props.put("colorR", ((Spinner<Integer>) props.get("_colorRSpinner")).getValue());
+            props.put("colorG", ((Spinner<Integer>) props.get("_colorGSpinner")).getValue());
+            props.put("colorB", ((Spinner<Integer>) props.get("_colorBSpinner")).getValue());
+            props.put("thickness", ((Spinner<Integer>) props.get("_thicknessSpinner")).getValue());
+            props.put("filled", ((CheckBox) props.get("_filledCheckBox")).isSelected());
+            cleanupControls(props, "_centerXSpinner", "_centerYSpinner", "_radiusSpinner",
+                           "_colorRSpinner", "_colorGSpinner", "_colorBSpinner",
+                           "_thicknessSpinner", "_filledCheckBox");
+        }
+    }
+
     // ========== HELPER METHODS ==========
 
     private static int getInt(Map<String, Object> props, String key, int defaultVal) {
@@ -1155,5 +1935,312 @@ public class FXNodePropertiesHelper {
         for (String key : keys) {
             props.remove(key);
         }
+    }
+
+    // ===== Filter2D with complex kernel grid UI =====
+
+    private static void addFilter2DProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        // Get current kernel size and values
+        int kernelSize = getInt(props, "kernelSize", 3);
+
+        // Ensure kernelSize is valid (3, 5, 7, or 9)
+        if (kernelSize < 3) kernelSize = 3;
+        if (kernelSize > 9) kernelSize = 9;
+        if (kernelSize % 2 == 0) kernelSize++; // Must be odd
+
+        // Get kernel values or create identity kernel
+        int[] kernelValues;
+        Object kv = props.get("kernelValues");
+        if (kv instanceof int[]) {
+            kernelValues = (int[]) kv;
+        } else if (kv instanceof double[]) {
+            // Loaded from JSON (serializer loads number arrays as double[])
+            double[] darr = (double[]) kv;
+            kernelValues = new int[darr.length];
+            for (int i = 0; i < darr.length; i++) {
+                kernelValues[i] = (int) darr[i];
+            }
+        } else if (kv instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Number> list = (List<Number>) kv;
+            kernelValues = new int[list.size()];
+            for (int i = 0; i < list.size(); i++) {
+                kernelValues[i] = list.get(i).intValue();
+            }
+        } else {
+            // Create identity kernel
+            kernelValues = new int[kernelSize * kernelSize];
+            kernelValues[kernelSize * kernelSize / 2] = 1;
+        }
+
+        // Store working values in props for later retrieval
+        props.put("_kernelSize", kernelSize);
+        props.put("_kernelValues", kernelValues.clone());
+
+        // Kernel size selector
+        String[] sizes = {"3x3", "5x5", "7x7", "9x9"};
+        int sizeIndex = (kernelSize - 3) / 2;
+        if (sizeIndex < 0 || sizeIndex > 3) sizeIndex = 0;
+        ComboBox<String> sizeCombo = dialog.addComboBox("Kernel Size:", sizes, sizes[sizeIndex]);
+        props.put("_sizeCombo", sizeCombo);
+
+        // Create a VBox to hold the kernel grid (will be rebuilt when size changes)
+        VBox gridContainer = new VBox(5);
+        gridContainer.setPadding(new Insets(10));
+        dialog.addCustomContent(gridContainer);
+        props.put("_gridContainer", gridContainer);
+
+        // List to hold all kernel text fields
+        List<TextField> kernelFields = new ArrayList<>();
+        props.put("_kernelFields", kernelFields);
+
+        // Store dialog reference for resizing
+        props.put("_dialog", dialog);
+
+        // Build the initial grid
+        rebuildFilter2DGrid(props, kernelSize, kernelValues);
+
+        // Size change listener - rebuild grid when size changes
+        sizeCombo.setOnAction(e -> {
+            int newSize = 3 + sizeCombo.getSelectionModel().getSelectedIndex() * 2;
+
+            // Save current field values before rebuilding
+            @SuppressWarnings("unchecked")
+            List<TextField> fields = (List<TextField>) props.get("_kernelFields");
+            int oldSize = (int) props.get("_kernelSize");
+            int[] oldValues = new int[oldSize * oldSize];
+            for (int i = 0; i < fields.size() && i < oldValues.length; i++) {
+                try {
+                    oldValues[i] = Integer.parseInt(fields.get(i).getText());
+                } catch (NumberFormatException ex) {
+                    oldValues[i] = 0;
+                }
+            }
+
+            // Resize values array (centered copy)
+            int[] newValues = resizeKernel(oldValues, oldSize, newSize);
+
+            props.put("_kernelSize", newSize);
+            props.put("_kernelValues", newValues);
+            rebuildFilter2DGrid(props, newSize, newValues);
+
+            // Resize dialog to fit new grid
+            FXPropertiesDialog dlg = (FXPropertiesDialog) props.get("_dialog");
+            if (dlg != null) {
+                dlg.getDialogPane().getScene().getWindow().sizeToScene();
+            }
+        });
+
+        // Preset buttons
+        HBox presetBox = new HBox(10);
+        presetBox.setPadding(new Insets(5, 0, 0, 0));
+
+        Button identityBtn = new Button("Identity");
+        identityBtn.setOnAction(e -> applyFilter2DPreset(props, "identity"));
+
+        Button sharpenBtn = new Button("Sharpen/Edge");
+        sharpenBtn.setOnAction(e -> applyFilter2DPreset(props, "sharpen"));
+
+        Button boxBtn = new Button("Box Blur");
+        boxBtn.setOnAction(e -> applyFilter2DPreset(props, "box"));
+
+        presetBox.getChildren().addAll(new Label("Presets:"), identityBtn, sharpenBtn, boxBtn);
+        dialog.addCustomContent(presetBox);
+    }
+
+    private static void rebuildFilter2DGrid(Map<String, Object> props, int size, int[] values) {
+        VBox gridContainer = (VBox) props.get("_gridContainer");
+        @SuppressWarnings("unchecked")
+        List<TextField> kernelFields = (List<TextField>) props.get("_kernelFields");
+
+        gridContainer.getChildren().clear();
+        kernelFields.clear();
+
+        GridPane grid = new GridPane();
+        grid.setHgap(5);
+        grid.setVgap(5);
+
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                TextField field = new TextField();
+                field.setPrefWidth(50);
+                field.setStyle("-fx-alignment: center;");
+                int idx = i * size + j;
+                field.setText(idx < values.length ? String.valueOf(values[idx]) : "0");
+
+                // Validate integer input
+                field.textProperty().addListener((obs, oldVal, newVal) -> {
+                    if (!newVal.isEmpty() && !newVal.equals("-")) {
+                        try {
+                            Integer.parseInt(newVal);
+                        } catch (NumberFormatException ex) {
+                            field.setText(oldVal);
+                        }
+                    }
+                });
+
+                grid.add(field, j, i);
+                kernelFields.add(field);
+            }
+        }
+
+        gridContainer.getChildren().add(grid);
+    }
+
+    private static int[] resizeKernel(int[] oldValues, int oldSize, int newSize) {
+        int[] newValues = new int[newSize * newSize];
+
+        if (oldSize == newSize) {
+            System.arraycopy(oldValues, 0, newValues, 0, oldValues.length);
+            return newValues;
+        }
+
+        // Copy centered
+        int offset = (newSize - oldSize) / 2;
+        for (int i = 0; i < oldSize && i < newSize; i++) {
+            for (int j = 0; j < oldSize && j < newSize; j++) {
+                int newI = i + (offset > 0 ? offset : 0);
+                int newJ = j + (offset > 0 ? offset : 0);
+                int oldI = i + (offset < 0 ? -offset : 0);
+                int oldJ = j + (offset < 0 ? -offset : 0);
+                if (newI < newSize && newJ < newSize && oldI < oldSize && oldJ < oldSize) {
+                    newValues[newI * newSize + newJ] = oldValues[oldI * oldSize + oldJ];
+                }
+            }
+        }
+
+        return newValues;
+    }
+
+    private static void applyFilter2DPreset(Map<String, Object> props, String preset) {
+        int size = (int) props.get("_kernelSize");
+        @SuppressWarnings("unchecked")
+        List<TextField> fields = (List<TextField>) props.get("_kernelFields");
+
+        int center = size / 2;
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                int idx = i * size + j;
+                String value;
+                switch (preset) {
+                    case "identity":
+                        value = (i == center && j == center) ? "1" : "0";
+                        break;
+                    case "sharpen":
+                        int neighbors = (size - 1) * 2;
+                        if (i == center && j == center) {
+                            value = String.valueOf(neighbors + 1);
+                        } else if (i == center || j == center) {
+                            value = "-1";
+                        } else {
+                            value = "0";
+                        }
+                        break;
+                    case "box":
+                        value = "1";
+                        break;
+                    default:
+                        value = "0";
+                }
+                if (idx < fields.size()) {
+                    fields.get(idx).setText(value);
+                }
+            }
+        }
+    }
+
+    private static void saveFilter2DProperties(Map<String, Object> props) {
+        @SuppressWarnings("unchecked")
+        List<TextField> fields = (List<TextField>) props.get("_kernelFields");
+        int size = (int) props.get("_kernelSize");
+
+        if (fields != null && !fields.isEmpty()) {
+            int[] values = new int[size * size];
+            for (int i = 0; i < fields.size() && i < values.length; i++) {
+                try {
+                    values[i] = Integer.parseInt(fields.get(i).getText());
+                } catch (NumberFormatException e) {
+                    values[i] = 0;
+                }
+            }
+            props.put("kernelSize", size);
+            props.put("kernelValues", values);
+        }
+
+        // Cleanup temporary controls
+        cleanupControls(props, "_kernelSize", "_kernelValues", "_sizeCombo",
+                       "_gridContainer", "_kernelFields");
+    }
+
+    // ========== FileSource ==========
+
+    private static void addFileSourceProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        String imagePath = getString(props, "imagePath", "");
+        int fpsMode = getInt(props, "fpsMode", 1);
+        boolean loopVideo = getBool(props, "loopVideo", true);
+
+        // Image/Video File with Browse button
+        HBox pathRow = new HBox(10);
+        Label pathLabel = new Label("Image/Video File:");
+        TextField pathField = new TextField(imagePath);
+        pathField.setPrefWidth(200);
+        Button browseBtn = new Button("Browse...");
+        browseBtn.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Image or Video File");
+            fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("All Supported", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.tiff", "*.mp4", "*.avi", "*.mov", "*.mkv", "*.webm"),
+                new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.tiff"),
+                new FileChooser.ExtensionFilter("Videos", "*.mp4", "*.avi", "*.mov", "*.mkv", "*.webm"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+            );
+            // Set initial directory from current path if valid
+            String currentPath = pathField.getText();
+            if (currentPath != null && !currentPath.isEmpty()) {
+                File currentFile = new File(currentPath);
+                if (currentFile.getParentFile() != null && currentFile.getParentFile().exists()) {
+                    fileChooser.setInitialDirectory(currentFile.getParentFile());
+                }
+            }
+            Window window = dialog.getDialogPane().getScene().getWindow();
+            File selectedFile = fileChooser.showOpenDialog(window);
+            if (selectedFile != null) {
+                pathField.setText(selectedFile.getAbsolutePath());
+            }
+        });
+        pathRow.getChildren().addAll(pathLabel, pathField, browseBtn);
+        dialog.addCustomContent(pathRow);
+
+        // FPS Mode
+        String[] fpsModes = {"Just Once", "Automatic", "1 fps", "5 fps", "10 fps", "15 fps", "24 fps", "30 fps", "60 fps"};
+        ComboBox<String> fpsCombo = dialog.addComboBox("FPS Mode:", fpsModes, fpsModes[fpsMode]);
+
+        // Loop Video
+        CheckBox loopCheck = dialog.addCheckbox("Loop Video", loopVideo);
+
+        // Store references for saving
+        props.put("_imagePathField", pathField);
+        props.put("_fpsModeCombo", fpsCombo);
+        props.put("_loopVideoCheck", loopCheck);
+    }
+
+    private static void saveFileSourceProperties(FXNode node, Map<String, Object> props) {
+        TextField pathField = (TextField) props.get("_imagePathField");
+        @SuppressWarnings("unchecked")
+        ComboBox<String> fpsCombo = (ComboBox<String>) props.get("_fpsModeCombo");
+        CheckBox loopCheck = (CheckBox) props.get("_loopVideoCheck");
+
+        if (pathField != null) {
+            props.put("imagePath", pathField.getText());
+        }
+        if (fpsCombo != null) {
+            props.put("fpsMode", fpsCombo.getSelectionModel().getSelectedIndex());
+        }
+        if (loopCheck != null) {
+            props.put("loopVideo", loopCheck.isSelected());
+        }
+
+        // Cleanup temp controls
+        cleanupControls(props, "_imagePathField", "_fpsModeCombo", "_loopVideoCheck");
     }
 }

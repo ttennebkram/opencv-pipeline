@@ -88,6 +88,13 @@ public class ProcessorFactory {
                 return null;
             }
             tp = new DualInputProcessor(fxNode.label, dualProcessor);
+        } else if (isMultiOutputNode(fxNode.nodeType)) {
+            // Multi-output nodes (4 outputs) use MultiOutputProcessor
+            MultiOutputProcessor.MultiOutputImageProcessor multiProcessor = createMultiOutputProcessor(fxNode);
+            if (multiProcessor == null) {
+                return null;
+            }
+            tp = new MultiOutputProcessor(fxNode.label, multiProcessor, 4);
         } else {
             ImageProcessor processor = createImageProcessor(fxNode);
             if (processor == null) {
@@ -133,6 +140,14 @@ public class ProcessorFactory {
     }
 
     /**
+     * Check if a node type is a multi-output node (4 outputs).
+     */
+    private boolean isMultiOutputNode(String nodeType) {
+        return "FFTHighPass4".equals(nodeType) ||
+               "FFTLowPass4".equals(nodeType);
+    }
+
+    /**
      * Get the processor for an FXNode.
      */
     public ThreadedProcessor getProcessor(FXNode fxNode) {
@@ -154,12 +169,8 @@ public class ProcessorFactory {
         // Create queue for this connection
         BlockingQueue<Mat> queue = new java.util.concurrent.LinkedBlockingQueue<>();
 
-        // Set source output queue (support dual output)
-        if (sourceOutputIndex == 1) {
-            sourceProc.setOutputQueue2(queue);
-        } else {
-            sourceProc.setOutputQueue(queue);
-        }
+        // Set source output queue (support up to 4 outputs for multi-output nodes)
+        sourceProc.setOutputQueue(sourceOutputIndex, queue);
 
         // Set target input queue (support dual input)
         if (targetInputIndex == 1) {
@@ -206,9 +217,14 @@ public class ProcessorFactory {
     public void syncStats(FXNode fxNode) {
         ThreadedProcessor tp = processors.get(fxNode.id);
         if (tp != null) {
-            fxNode.inputCount = (int) tp.getInputReads1();
-            fxNode.outputCount1 = (int) tp.getOutputWrites1();
-            // Sync backpressure stats for display
+            // For source nodes, outputCount1 is set by the feeder thread directly on the FXNode,
+            // not by the SourceProcessor. Don't overwrite it here.
+            boolean isSource = tp instanceof SourceProcessor;
+            if (!isSource) {
+                fxNode.inputCount = (int) tp.getInputReads1();
+                fxNode.outputCount1 = (int) tp.getOutputWrites1();
+            }
+            // Sync backpressure stats for display (applies to all nodes including sources)
             fxNode.threadPriority = tp.getThreadPriority();
             fxNode.workUnitsCompleted = tp.getWorkUnitsCompleted();
             fxNode.effectiveFps = tp.getEffectiveFps();
@@ -673,15 +689,15 @@ public class ProcessorFactory {
                 };
 
             case "FFTHighPass":
-            case "FFTHighPass4":  // Multi-output variant - only primary output supported
                 return createFFTHighPassProcessor(fxNode);
+            // Note: FFTHighPass4 and FFTLowPass4 are handled separately via createMultiOutputProcessor
 
             case "BitPlanesColor":
                 return createBitPlanesColorProcessor(fxNode);
 
             case "FFTLowPass":
-            case "FFTLowPass4":  // Multi-output variant - only primary output supported
                 return createFFTLowPassProcessor(fxNode);
+            // Note: FFTLowPass4 is handled separately via createMultiOutputProcessor
 
             case "BitPlanesGrayscale":
                 return createBitPlanesGrayscaleProcessor(fxNode);
@@ -856,6 +872,367 @@ public class ProcessorFactory {
         Mat converted = new Mat();
         input2.convertTo(converted, input1.type());
         return converted;
+    }
+
+    // ====== Multi-Output Processor (FFT4) Implementation ======
+
+    /**
+     * Create a multi-output processor for FFT4 nodes.
+     * Returns 4 outputs:
+     * [0] = filtered image
+     * [1] = difference (input - filtered) - shows blocked frequencies
+     * [2] = spectrum visualization
+     * [3] = filter curve visualization
+     */
+    private MultiOutputProcessor.MultiOutputImageProcessor createMultiOutputProcessor(FXNode fxNode) {
+        String type = fxNode.nodeType;
+
+        if ("FFTHighPass4".equals(type)) {
+            return input -> processFFT4(input, fxNode, true);
+        } else if ("FFTLowPass4".equals(type)) {
+            return input -> processFFT4(input, fxNode, false);
+        }
+
+        return null;
+    }
+
+    /**
+     * Process FFT with 4 outputs (filtered, difference, spectrum, filter curve).
+     * @param isHighPass true for high-pass, false for low-pass
+     */
+    private Mat[] processFFT4(Mat input, FXNode fxNode, boolean isHighPass) {
+        if (input == null || input.empty()) {
+            return new Mat[] { input != null ? input.clone() : null, null, null, null };
+        }
+
+        // Read properties
+        int radius = 30;
+        int smoothness = 0;
+        if (fxNode.properties.containsKey("radius")) {
+            radius = ((Number) fxNode.properties.get("radius")).intValue();
+        }
+        if (fxNode.properties.containsKey("smoothness")) {
+            smoothness = ((Number) fxNode.properties.get("smoothness")).intValue();
+        }
+
+        int origRows = input.rows();
+        int origCols = input.cols();
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Create filter mask
+        Mat mask = isHighPass
+            ? createFFTMask(optRows, optCols, radius, smoothness)  // High-pass
+            : createFFTLowPassMask(optRows, optCols, radius, smoothness);  // Low-pass
+
+        // Create filter curve visualization
+        Mat filterVis = createFilterCurveVisualization(origCols, origRows, radius, smoothness, isHighPass);
+
+        Mat filtered;
+        Mat spectrum;
+
+        if (input.channels() > 1) {
+            // Process each BGR channel separately
+            List<Mat> channels = new ArrayList<>();
+            Core.split(input, channels);
+
+            List<Mat> filteredChannels = new ArrayList<>();
+            Mat spectrumAccum = null;
+
+            for (int c = 0; c < channels.size(); c++) {
+                Mat channel = channels.get(c);
+
+                // Pad to optimal size
+                Mat padded = new Mat();
+                Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+                    Core.BORDER_CONSTANT, Scalar.all(0));
+
+                // Convert to float
+                Mat floatChannel = new Mat();
+                padded.convertTo(floatChannel, CvType.CV_32F);
+                padded.release();
+
+                // Compute DFT
+                Mat dft = new Mat();
+                Core.dft(floatChannel, dft, Core.DFT_COMPLEX_OUTPUT);
+                floatChannel.release();
+
+                // Shift zero frequency to center
+                fftShift(dft);
+
+                // For spectrum visualization, use the first channel
+                if (c == 0) {
+                    spectrumAccum = createSpectrumVisualization(dft, origRows, origCols);
+                }
+
+                // Apply mask
+                List<Mat> dftPlanes = new ArrayList<>();
+                Core.split(dft, dftPlanes);
+                dft.release();
+
+                Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+                Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+                Mat maskedDft = new Mat();
+                Core.merge(dftPlanes, maskedDft);
+                for (Mat p : dftPlanes) p.release();
+
+                // Inverse shift
+                fftShift(maskedDft);
+
+                // Inverse DFT
+                Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+                // Get real part
+                List<Mat> idftPlanes = new ArrayList<>();
+                Core.split(maskedDft, idftPlanes);
+                maskedDft.release();
+
+                Mat magnitude = idftPlanes.get(0);
+                idftPlanes.get(1).release();
+
+                // Crop to original size
+                Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+                Mat result = cropped.clone();
+                magnitude.release();
+
+                // Clip and convert to 8-bit
+                Core.min(result, new Scalar(255), result);
+                Core.max(result, new Scalar(0), result);
+                Mat filteredChannel = new Mat();
+                result.convertTo(filteredChannel, CvType.CV_8U);
+                result.release();
+
+                filteredChannels.add(filteredChannel);
+            }
+
+            // Merge filtered channels back to BGR
+            filtered = new Mat();
+            Core.merge(filteredChannels, filtered);
+
+            spectrum = spectrumAccum;
+
+            // Release channel Mats
+            for (Mat ch : channels) ch.release();
+            for (Mat ch : filteredChannels) ch.release();
+        } else {
+            // Grayscale processing
+            Mat padded = new Mat();
+            Core.copyMakeBorder(input, padded, 0, optRows - origRows, 0, optCols - origCols,
+                Core.BORDER_CONSTANT, Scalar.all(0));
+
+            Mat floatInput = new Mat();
+            padded.convertTo(floatInput, CvType.CV_32F);
+            padded.release();
+
+            Mat dft = new Mat();
+            Core.dft(floatInput, dft, Core.DFT_COMPLEX_OUTPUT);
+            floatInput.release();
+
+            fftShift(dft);
+
+            spectrum = createSpectrumVisualization(dft, origRows, origCols);
+
+            List<Mat> dftPlanes = new ArrayList<>();
+            Core.split(dft, dftPlanes);
+            dft.release();
+
+            Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+            Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+            Mat maskedDft = new Mat();
+            Core.merge(dftPlanes, maskedDft);
+            for (Mat p : dftPlanes) p.release();
+
+            fftShift(maskedDft);
+
+            Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+            List<Mat> idftPlanes = new ArrayList<>();
+            Core.split(maskedDft, idftPlanes);
+            maskedDft.release();
+
+            Mat magnitude = idftPlanes.get(0);
+            idftPlanes.get(1).release();
+
+            Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+            Mat result = cropped.clone();
+            magnitude.release();
+
+            Core.min(result, new Scalar(255), result);
+            Core.max(result, new Scalar(0), result);
+            filtered = new Mat();
+            result.convertTo(filtered, CvType.CV_8U);
+            result.release();
+        }
+
+        // Calculate absolute difference (shows blocked frequencies)
+        Mat difference = new Mat();
+        Core.absdiff(input, filtered, difference);
+
+        mask.release();
+
+        return new Mat[] { filtered, difference, spectrum, filterVis };
+    }
+
+    /**
+     * Create spectrum visualization from DFT.
+     */
+    private Mat createSpectrumVisualization(Mat dftShift, int origRows, int origCols) {
+        List<Mat> planes = new ArrayList<>();
+        Core.split(dftShift, planes);
+
+        Mat magnitude = new Mat();
+        Core.magnitude(planes.get(0), planes.get(1), magnitude);
+
+        // Log scale for visualization
+        Mat logMag = new Mat();
+        Core.add(magnitude, new Scalar(1), logMag);
+        Core.log(logMag, logMag);
+
+        // Normalize to 0-255
+        Core.normalize(logMag, logMag, 0, 255, Core.NORM_MINMAX);
+
+        Mat spectrum = new Mat();
+        logMag.convertTo(spectrum, CvType.CV_8U);
+
+        // Crop to original size (center portion)
+        int padRows = spectrum.rows();
+        int padCols = spectrum.cols();
+        int startRow = (padRows - origRows) / 2;
+        int startCol = (padCols - origCols) / 2;
+        Mat cropped = new Mat(spectrum, new Rect(startCol, startRow, origCols, origRows));
+        Mat croppedClone = cropped.clone();
+
+        // Convert to BGR for display
+        Mat spectrumBGR = new Mat();
+        Imgproc.cvtColor(croppedClone, spectrumBGR, Imgproc.COLOR_GRAY2BGR);
+
+        // Cleanup
+        for (Mat p : planes) p.release();
+        magnitude.release();
+        logMag.release();
+        spectrum.release();
+        croppedClone.release();
+
+        return spectrumBGR;
+    }
+
+    /**
+     * Create filter curve visualization showing frequency response.
+     */
+    private Mat createFilterCurveVisualization(int width, int height, int radius, int smoothness, boolean isHighPass) {
+        // Create black background
+        Mat vis = new Mat(height, width, CvType.CV_8UC3, new Scalar(0, 0, 0));
+
+        int marginLeft = 50;
+        int marginRight = 20;
+        int marginTop = 30;
+        int marginBottom = 40;
+
+        int graphWidth = width - marginLeft - marginRight;
+        int graphHeight = height - marginTop - marginBottom;
+
+        if (graphWidth <= 0 || graphHeight <= 0) {
+            return vis;
+        }
+
+        // Draw grid lines (gray)
+        Scalar gridColor = new Scalar(60, 60, 60);
+        for (int i = 0; i <= 4; i++) {
+            int yPos = marginTop + (int) (graphHeight * (1.0 - i / 4.0));
+            Imgproc.line(vis, new Point(marginLeft, yPos), new Point(width - marginRight, yPos), gridColor, 1);
+        }
+        int maxDistance = 200;
+        for (int d = 0; d <= maxDistance; d += 50) {
+            int xPos = marginLeft + (int) (graphWidth * d / (double) maxDistance);
+            Imgproc.line(vis, new Point(xPos, marginTop), new Point(xPos, marginTop + graphHeight), gridColor, 1);
+        }
+
+        // Draw axes (white)
+        Scalar axisColor = new Scalar(255, 255, 255);
+        Imgproc.line(vis, new Point(marginLeft, marginTop), new Point(marginLeft, marginTop + graphHeight), axisColor, 2);
+        Imgproc.line(vis, new Point(marginLeft, marginTop + graphHeight), new Point(width - marginRight, marginTop + graphHeight), axisColor, 2);
+
+        // Draw the filter curve (blue for high-pass, red for low-pass)
+        Scalar curveColor = isHighPass ? new Scalar(255, 100, 100) : new Scalar(100, 100, 255);
+        Point prevPoint = null;
+        for (int i = 0; i <= graphWidth; i++) {
+            double distance = (i / (double) graphWidth) * maxDistance;
+            double filterValue = computeFilterValue(distance, radius, smoothness, isHighPass);
+
+            int xPos = marginLeft + i;
+            int yPos = marginTop + (int) (graphHeight * (1.0 - filterValue));
+
+            Point currentPoint = new Point(xPos, yPos);
+            if (prevPoint != null) {
+                Imgproc.line(vis, prevPoint, currentPoint, curveColor, 2);
+            }
+            prevPoint = currentPoint;
+        }
+
+        // Draw vertical line at radius (red/blue)
+        if (radius > 0 && radius <= maxDistance) {
+            int radiusX = marginLeft + (int) (graphWidth * radius / (double) maxDistance);
+            Scalar radiusColor = isHighPass ? new Scalar(0, 0, 255) : new Scalar(255, 0, 0);
+            Imgproc.line(vis, new Point(radiusX, marginTop), new Point(radiusX, marginTop + graphHeight), radiusColor, 1);
+        }
+
+        // Draw labels
+        Scalar textColor = new Scalar(200, 200, 200);
+        double fontScale = 0.4;
+        int fontFace = Imgproc.FONT_HERSHEY_SIMPLEX;
+
+        String title = isHighPass ? "High-Pass Filter Response" : "Low-Pass Filter Response";
+        Imgproc.putText(vis, title, new Point(marginLeft + 10, 20), fontFace, fontScale, textColor, 1);
+
+        Imgproc.putText(vis, "1.0", new Point(5, marginTop + 5), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "0.5", new Point(5, marginTop + graphHeight / 2 + 5), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "0.0", new Point(5, marginTop + graphHeight + 5), fontFace, fontScale, textColor, 1);
+
+        Imgproc.putText(vis, "0", new Point(marginLeft - 5, height - 10), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "100", new Point(marginLeft + graphWidth / 2 - 10, height - 10), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "200", new Point(width - marginRight - 15, height - 10), fontFace, fontScale, textColor, 1);
+
+        if (radius > 0) {
+            Imgproc.putText(vis, "R=" + radius, new Point(marginLeft + graphWidth - 40, marginTop + 15),
+                fontFace, fontScale, new Scalar(0, 0, 255), 1);
+        }
+
+        return vis;
+    }
+
+    /**
+     * Compute filter value for a given distance.
+     */
+    private double computeFilterValue(double distance, int radius, int smoothness, boolean isHighPass) {
+        if (radius == 0) {
+            return 1.0;
+        }
+
+        if (smoothness == 0) {
+            // Hard cutoff
+            if (isHighPass) {
+                return distance <= radius ? 0.0 : 1.0;
+            } else {
+                return distance <= radius ? 1.0 : 0.0;
+            }
+        } else {
+            // Butterworth filter
+            double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
+            if (order < BUTTERWORTH_ORDER_MIN) order = BUTTERWORTH_ORDER_MIN;
+
+            double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
+            double effectiveCutoff = radius * shiftFactor;
+
+            if (isHighPass) {
+                double ratio = effectiveCutoff / (distance + BUTTERWORTH_DIVISION_EPSILON);
+                return 1.0 / (1.0 + Math.pow(ratio, 2 * order));
+            } else {
+                double ratio = (distance + BUTTERWORTH_DIVISION_EPSILON) / effectiveCutoff;
+                return 1.0 / (1.0 + Math.pow(ratio, 2 * order));
+            }
+        }
     }
 
     // ====== FFT High-Pass Filter Implementation ======

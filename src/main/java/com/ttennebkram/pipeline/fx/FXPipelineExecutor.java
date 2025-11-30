@@ -666,6 +666,18 @@ public class FXPipelineExecutor {
     }
 
     /**
+     * Invalidate the cached image for a FileSource node.
+     * Call this when the file path changes while the pipeline is running.
+     */
+    public void invalidateFileSourceCache(int nodeId) {
+        Mat cached = fileSourceCache.remove(nodeId);
+        if (cached != null && !cached.empty()) {
+            cached.release();
+        }
+        fileSourceLastOutput.remove(nodeId);
+    }
+
+    /**
      * Sync stats from all processors back to their FXNodes.
      * Call this periodically from UI thread to update displayed stats.
      */
@@ -776,22 +788,44 @@ public class FXPipelineExecutor {
                         // Pass through from input if disabled
                         Mat input = getInputForNode(node, nodeOutputs);
                         if (input != null) {
-                            nodeOutputs.put(node.id, input.clone());
+                            // Store at output index 0 using compound key
+                            nodeOutputs.put(outputKey(node.id, 0), input.clone());
                         }
                         continue;
                     }
 
-                    Mat output = processNode(node, nodeOutputs);
-                    if (output != null) {
-                        nodeOutputs.put(node.id, output);
+                    // Check if this is a multi-output node
+                    if (isMultiOutputNode(node.nodeType)) {
+                        Mat[] outputs = processMultiOutputNode(node, nodeOutputs);
+                        if (outputs != null) {
+                            // Store each output with its compound key
+                            for (int i = 0; i < outputs.length; i++) {
+                                if (outputs[i] != null) {
+                                    nodeOutputs.put(outputKey(node.id, i), outputs[i]);
+                                }
+                            }
+                            // Notify output callback with primary output (filtered image)
+                            if (onNodeOutput != null && outputs[0] != null) {
+                                Mat outputCopy = outputs[0].clone();
+                                Platform.runLater(() -> {
+                                    onNodeOutput.accept(node, outputCopy);
+                                });
+                            }
+                        }
+                    } else {
+                        Mat output = processNode(node, nodeOutputs);
+                        if (output != null) {
+                            // Store at output index 0 using compound key
+                            nodeOutputs.put(outputKey(node.id, 0), output);
 
-                        // Notify output callback
-                        if (onNodeOutput != null) {
-                            Mat outputCopy = output.clone();
-                            Platform.runLater(() -> {
-                                onNodeOutput.accept(node, outputCopy);
-                                // Note: callback is responsible for releasing
-                            });
+                            // Notify output callback
+                            if (onNodeOutput != null) {
+                                Mat outputCopy = output.clone();
+                                Platform.runLater(() -> {
+                                    onNodeOutput.accept(node, outputCopy);
+                                    // Note: callback is responsible for releasing
+                                });
+                            }
                         }
                     }
                 }
@@ -881,6 +915,14 @@ public class FXPipelineExecutor {
     }
 
     /**
+     * Create a compound key for storing multiple outputs per node.
+     * Uses nodeId * 10 + outputIndex to allow up to 10 outputs per node.
+     */
+    private static int outputKey(int nodeId, int outputIndex) {
+        return nodeId * 10 + outputIndex;
+    }
+
+    /**
      * Get input frame for a node from a specific input index.
      * Used for dual-input nodes that have multiple input connections.
      * Also updates connection statistics when data flows through.
@@ -888,7 +930,8 @@ public class FXPipelineExecutor {
     private Mat getInputForNodeByIndex(FXNode node, Map<Integer, Mat> nodeOutputs, int inputIndex) {
         for (FXConnection conn : connections) {
             if (conn.target == node && conn.targetInputIndex == inputIndex && conn.source != null) {
-                Mat sourceOutput = nodeOutputs.get(conn.source.id);
+                // Look up source output using compound key (nodeId * 10 + outputIndex)
+                Mat sourceOutput = nodeOutputs.get(outputKey(conn.source.id, conn.sourceOutputIndex));
                 if (sourceOutput != null) {
                     // Update connection statistics
                     conn.totalFrames++;
@@ -904,6 +947,61 @@ public class FXPipelineExecutor {
             }
         }
         return null;
+    }
+
+    /**
+     * Process a multi-output node and return all outputs.
+     * Currently supports FFTHighPass4 and FFTLowPass4.
+     */
+    private Mat[] processMultiOutputNode(FXNode node, Map<Integer, Mat> nodeOutputs) {
+        String type = node.nodeType;
+
+        // Get input for processing nodes
+        Mat input = getInputForNode(node, nodeOutputs);
+        if (input == null) return null;
+
+        // Increment input counter
+        node.inputCount++;
+
+        // Get radius and smoothness from node properties
+        int radius = 30;  // Default
+        int smoothness = 0;  // Default (hard edge)
+
+        Object radiusProp = node.properties.get("radius");
+        if (radiusProp instanceof Number) {
+            radius = ((Number) radiusProp).intValue();
+        }
+
+        Object smoothnessProp = node.properties.get("smoothness");
+        if (smoothnessProp instanceof Number) {
+            smoothness = ((Number) smoothnessProp).intValue();
+        }
+
+        Mat[] outputs;
+        try {
+            if ("FFTHighPass4".equals(type)) {
+                outputs = processFFTHighPass4(input, radius, smoothness);
+            } else if ("FFTLowPass4".equals(type)) {
+                outputs = processFFTLowPass4(input, radius, smoothness);
+            } else {
+                // Fallback - shouldn't happen
+                outputs = new Mat[] { input.clone(), null, null, null };
+            }
+
+            // Update output counters
+            if (outputs != null) {
+                if (outputs[0] != null) node.outputCount1++;
+                if (outputs[1] != null) node.outputCount2++;
+                if (outputs[2] != null) node.outputCount3++;
+                if (outputs[3] != null) node.outputCount4++;
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing multi-output node " + type + ": " + e.getMessage());
+            outputs = new Mat[] { input.clone(), null, null, null };
+        }
+
+        input.release();
+        return outputs;
     }
 
     /**
@@ -1069,8 +1167,14 @@ public class FXPipelineExecutor {
                     break;
 
                 case "Gain":
-                    // Default gain of 1.5x for visibility
-                    input.convertTo(output, -1, 1.5, 0);
+                    double gainValue = 1.0;
+                    if (node.properties.containsKey("gain")) {
+                        Object gainObj = node.properties.get("gain");
+                        if (gainObj instanceof Number) {
+                            gainValue = ((Number) gainObj).doubleValue();
+                        }
+                    }
+                    input.convertTo(output, -1, gainValue, 0);
                     break;
 
                 case "CLAHE":
@@ -1338,13 +1442,42 @@ public class FXPipelineExecutor {
                     break;
 
                 // ===== Filter nodes =====
-                case "Filter2D":
-                    // Default 3x3 identity kernel (pass through)
-                    Mat kernel2D = Mat.eye(3, 3, org.opencv.core.CvType.CV_32F);
-                    kernel2D.put(1, 1, 1.0);
+                case "Filter2D": {
+                    // Get kernel size and values from properties
+                    int kSize = 3;
+                    int[] kValues = null;
+                    Object ksObj = node.properties.get("kernelSize");
+                    if (ksObj instanceof Number) {
+                        kSize = ((Number) ksObj).intValue();
+                    }
+                    Object kvObj = node.properties.get("kernelValues");
+                    if (kvObj instanceof int[]) {
+                        kValues = (int[]) kvObj;
+                    } else if (kvObj instanceof double[]) {
+                        double[] darr = (double[]) kvObj;
+                        kValues = new int[darr.length];
+                        for (int ki = 0; ki < darr.length; ki++) {
+                            kValues[ki] = (int) darr[ki];
+                        }
+                    }
+
+                    // Build the kernel matrix
+                    Mat kernel2D = new Mat(kSize, kSize, org.opencv.core.CvType.CV_32F);
+                    if (kValues != null && kValues.length == kSize * kSize) {
+                        for (int ki = 0; ki < kSize; ki++) {
+                            for (int kj = 0; kj < kSize; kj++) {
+                                kernel2D.put(ki, kj, (float) kValues[ki * kSize + kj]);
+                            }
+                        }
+                    } else {
+                        // Default identity kernel
+                        kernel2D.setTo(new Scalar(0));
+                        kernel2D.put(kSize / 2, kSize / 2, 1.0f);
+                    }
                     Imgproc.filter2D(input, output, -1, kernel2D);
                     kernel2D.release();
                     break;
+                }
 
                 // ===== Transform nodes =====
                 case "Crop":
@@ -2075,12 +2208,50 @@ public class FXPipelineExecutor {
                     break;
 
                 // ===== Filter nodes =====
-                case "Filter2D":
-                    Mat kernel2D = Mat.eye(3, 3, org.opencv.core.CvType.CV_32F);
-                    kernel2D.put(1, 1, 1.0);
+                case "Filter2D": {
+                    // Get kernel size and values from properties
+                    int kSize = 3;
+                    int[] kValues = null;
+                    Object ksObj = node.properties.get("kernelSize");
+                    if (ksObj instanceof Number) {
+                        kSize = ((Number) ksObj).intValue();
+                    }
+                    if (kSize < 3) kSize = 3;
+                    if (kSize > 9) kSize = 9;
+                    if (kSize % 2 == 0) kSize++;
+
+                    Object kvObj = node.properties.get("kernelValues");
+                    if (kvObj instanceof int[]) {
+                        kValues = (int[]) kvObj;
+                    } else if (kvObj instanceof java.util.List) {
+                        java.util.List<?> list = (java.util.List<?>) kvObj;
+                        kValues = new int[list.size()];
+                        for (int ki = 0; ki < list.size(); ki++) {
+                            Object v = list.get(ki);
+                            kValues[ki] = v instanceof Number ? ((Number) v).intValue() : 0;
+                        }
+                    }
+
+                    // Create kernel mat
+                    Mat kernel2D = new Mat(kSize, kSize, org.opencv.core.CvType.CV_32F);
+                    if (kValues != null && kValues.length == kSize * kSize) {
+                        for (int ki = 0; ki < kSize; ki++) {
+                            for (int kj = 0; kj < kSize; kj++) {
+                                kernel2D.put(ki, kj, (float) kValues[ki * kSize + kj]);
+                            }
+                        }
+                    } else {
+                        // Default identity kernel
+                        for (int ki = 0; ki < kSize; ki++) {
+                            for (int kj = 0; kj < kSize; kj++) {
+                                kernel2D.put(ki, kj, (ki == kSize/2 && kj == kSize/2) ? 1.0f : 0.0f);
+                            }
+                        }
+                    }
                     Imgproc.filter2D(input, output, -1, kernel2D);
                     kernel2D.release();
                     break;
+                }
 
                 // ===== Transform nodes =====
                 case "Crop":
@@ -2662,6 +2833,747 @@ public class FXPipelineExecutor {
         }
 
         return mask;
+    }
+
+    // ===== FFT4 Multi-Output Processing =====
+
+    /**
+     * Process FFT High-Pass with 4 outputs:
+     * [0] = filtered image (high-pass)
+     * [1] = absolute difference (blocked low frequencies)
+     * [2] = FFT spectrum visualization
+     * [3] = filter curve visualization
+     */
+    private Mat[] processFFTHighPass4(Mat input, int radius, int smoothness) {
+        if (input == null || input.empty()) {
+            return new Mat[] { input != null ? input.clone() : null, null, null, null };
+        }
+
+        int origRows = input.rows();
+        int origCols = input.cols();
+
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Create the HIGH-PASS filter mask at optimal size
+        Mat mask = createHighPassMask(optRows, optCols, radius, smoothness);
+
+        // Create radial filter visualization (for overlay on spectrum)
+        Mat radialVis = createRadialFilterVisualization(origCols, origRows, radius, smoothness, true);
+
+        // Create line graph filter visualization (for output 4)
+        Mat filterVis = createFilterCurveVisualization(origCols, origRows, radius, smoothness, true);
+
+        Mat filtered;
+        Mat spectrum;
+
+        if (input.channels() > 1) {
+            // Process each BGR channel separately
+            List<Mat> channels = new ArrayList<>();
+            Core.split(input, channels);
+
+            List<Mat> filteredChannels = new ArrayList<>();
+            Mat spectrumAccum = null;
+
+            for (int c = 0; c < channels.size(); c++) {
+                Mat channel = channels.get(c);
+
+                // Pad to optimal size
+                Mat padded = new Mat();
+                Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+                    Core.BORDER_CONSTANT, Scalar.all(0));
+
+                // Convert to float
+                Mat floatChannel = new Mat();
+                padded.convertTo(floatChannel, org.opencv.core.CvType.CV_32F);
+                padded.release();
+
+                // Create complex mat and compute DFT
+                Mat complexI = new Mat();
+                List<Mat> planes = new ArrayList<>();
+                planes.add(floatChannel);
+                planes.add(Mat.zeros(floatChannel.size(), org.opencv.core.CvType.CV_32F));
+                Core.merge(planes, complexI);
+                planes.get(1).release();
+                floatChannel.release();
+
+                Core.dft(complexI, complexI);
+                fftShift(complexI);
+
+                // For spectrum visualization, use the first channel
+                if (c == 0) {
+                    spectrumAccum = createSpectrumVisualization(complexI, origRows, origCols);
+                }
+
+                // Apply mask
+                List<Mat> dftPlanes = new ArrayList<>();
+                Core.split(complexI, dftPlanes);
+                complexI.release();
+
+                Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+                Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+                Mat maskedDft = new Mat();
+                Core.merge(dftPlanes, maskedDft);
+                for (Mat p : dftPlanes) p.release();
+
+                // Inverse shift and DFT
+                fftShift(maskedDft);
+                Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+                // Get real part
+                List<Mat> idftPlanes = new ArrayList<>();
+                Core.split(maskedDft, idftPlanes);
+                maskedDft.release();
+
+                Mat magnitude = idftPlanes.get(0);
+                idftPlanes.get(1).release();
+
+                // Crop to original size
+                Mat cropped = new Mat(magnitude, new org.opencv.core.Rect(0, 0, origCols, origRows));
+                Mat result = cropped.clone();
+                magnitude.release();
+
+                // Clip and convert to 8-bit
+                Core.min(result, new Scalar(255), result);
+                Core.max(result, new Scalar(0), result);
+                Mat filteredChannel = new Mat();
+                result.convertTo(filteredChannel, org.opencv.core.CvType.CV_8U);
+                result.release();
+
+                filteredChannels.add(filteredChannel);
+            }
+
+            // Merge filtered channels back to BGR
+            filtered = new Mat();
+            Core.merge(filteredChannels, filtered);
+
+            spectrum = spectrumAccum;
+
+            // Release channel Mats
+            for (Mat ch : channels) ch.release();
+            for (Mat ch : filteredChannels) ch.release();
+        } else {
+            // Single channel (grayscale) processing
+            Mat padded = new Mat();
+            Core.copyMakeBorder(input, padded, 0, optRows - origRows, 0, optCols - origCols,
+                Core.BORDER_CONSTANT, Scalar.all(0));
+
+            Mat floatInput = new Mat();
+            padded.convertTo(floatInput, org.opencv.core.CvType.CV_32F);
+            padded.release();
+
+            Mat complexI = new Mat();
+            List<Mat> planes = new ArrayList<>();
+            planes.add(floatInput);
+            planes.add(Mat.zeros(floatInput.size(), org.opencv.core.CvType.CV_32F));
+            Core.merge(planes, complexI);
+            planes.get(1).release();
+            floatInput.release();
+
+            Core.dft(complexI, complexI);
+            fftShift(complexI);
+
+            spectrum = createSpectrumVisualization(complexI, origRows, origCols);
+
+            // Apply mask
+            List<Mat> dftPlanes = new ArrayList<>();
+            Core.split(complexI, dftPlanes);
+            complexI.release();
+
+            Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+            Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+            Mat maskedDft = new Mat();
+            Core.merge(dftPlanes, maskedDft);
+            for (Mat p : dftPlanes) p.release();
+
+            fftShift(maskedDft);
+            Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+            List<Mat> idftPlanes = new ArrayList<>();
+            Core.split(maskedDft, idftPlanes);
+            maskedDft.release();
+
+            Mat magnitude = idftPlanes.get(0);
+            idftPlanes.get(1).release();
+
+            Mat cropped = new Mat(magnitude, new org.opencv.core.Rect(0, 0, origCols, origRows));
+            Mat result = cropped.clone();
+            magnitude.release();
+
+            Core.min(result, new Scalar(255), result);
+            Core.max(result, new Scalar(0), result);
+            filtered = new Mat();
+            result.convertTo(filtered, org.opencv.core.CvType.CV_8U);
+            result.release();
+
+            // Convert grayscale to BGR for consistency
+            Mat filteredBGR = new Mat();
+            Imgproc.cvtColor(filtered, filteredBGR, Imgproc.COLOR_GRAY2BGR);
+            filtered.release();
+            filtered = filteredBGR;
+        }
+
+        // Calculate absolute difference (shows blocked low frequencies)
+        Mat difference = new Mat();
+        Core.absdiff(input, filtered, difference);
+
+        // Overlay filter circle on spectrum (output 3 shows spectrum with filter radius)
+        // For high-pass: show blocked area (center) with red tint
+        if (spectrum != null && !spectrum.empty()) {
+            int centerX = spectrum.cols() / 2;
+            int centerY = spectrum.rows() / 2;
+
+            if (radius > 0) {
+                // Create a single-channel mask for the blocked region
+                Mat circleMask = Mat.zeros(spectrum.rows(), spectrum.cols(), org.opencv.core.CvType.CV_8U);
+                Imgproc.circle(circleMask, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(255), -1);  // White filled circle
+
+                // Split spectrum into channels
+                List<Mat> channels = new ArrayList<>();
+                Core.split(spectrum, channels);
+
+                // Create inverted mask (for keeping original values outside)
+                Mat inverseMask = new Mat();
+                Core.bitwise_not(circleMask, inverseMask);
+
+                // For each channel, blend: outside circle = original, inside = tinted
+                // Blue channel: darken inside circle (multiply by 0.3)
+                Mat blueInside = new Mat();
+                channels.get(0).copyTo(blueInside);
+                Core.multiply(blueInside, new Scalar(0.3), blueInside);
+
+                Mat blueResult = new Mat();
+                channels.get(0).copyTo(blueResult, inverseMask);  // Keep original outside
+                blueInside.copyTo(blueResult, circleMask);        // Use darkened inside
+                channels.set(0, blueResult);
+                blueInside.release();
+
+                // Green channel: darken inside circle (multiply by 0.3)
+                Mat greenInside = new Mat();
+                channels.get(1).copyTo(greenInside);
+                Core.multiply(greenInside, new Scalar(0.3), greenInside);
+
+                Mat greenResult = new Mat();
+                channels.get(1).copyTo(greenResult, inverseMask);
+                greenInside.copyTo(greenResult, circleMask);
+                channels.set(1, greenResult);
+                greenInside.release();
+
+                // Red channel: boost inside circle (add 100)
+                Mat redInside = new Mat();
+                channels.get(2).copyTo(redInside);
+                Core.add(redInside, new Scalar(100), redInside);
+
+                Mat redResult = new Mat();
+                channels.get(2).copyTo(redResult, inverseMask);
+                redInside.copyTo(redResult, circleMask);
+                channels.set(2, redResult);
+                redInside.release();
+
+                // Merge channels back
+                Core.merge(channels, spectrum);
+
+                // Cleanup
+                circleMask.release();
+                inverseMask.release();
+                for (Mat ch : channels) ch.release();
+
+                // Draw bright green outline at radius (the filter boundary)
+                Imgproc.circle(spectrum, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(0, 255, 0), 2);  // Green outline
+            }
+        }
+        radialVis.release();
+
+        mask.release();
+
+        return new Mat[] { filtered, difference, spectrum, filterVis };
+    }
+
+    /**
+     * Process FFT Low-Pass with 4 outputs.
+     */
+    private Mat[] processFFTLowPass4(Mat input, int radius, int smoothness) {
+        if (input == null || input.empty()) {
+            return new Mat[] { input != null ? input.clone() : null, null, null, null };
+        }
+
+        int origRows = input.rows();
+        int origCols = input.cols();
+
+        int optRows = getOptimalFFTSize(origRows);
+        int optCols = getOptimalFFTSize(origCols);
+
+        // Create the LOW-PASS filter mask
+        Mat mask = createLowPassMask(optRows, optCols, radius, smoothness);
+
+        // Create radial filter visualization (for overlay on spectrum)
+        Mat radialVis = createRadialFilterVisualization(origCols, origRows, radius, smoothness, false);
+
+        // Create line graph filter visualization (for output 4)
+        Mat filterVis = createFilterCurveVisualization(origCols, origRows, radius, smoothness, false);
+
+        Mat filtered;
+        Mat spectrum;
+
+        if (input.channels() > 1) {
+            List<Mat> channels = new ArrayList<>();
+            Core.split(input, channels);
+
+            List<Mat> filteredChannels = new ArrayList<>();
+            Mat spectrumAccum = null;
+
+            for (int c = 0; c < channels.size(); c++) {
+                Mat channel = channels.get(c);
+
+                Mat padded = new Mat();
+                Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+                    Core.BORDER_CONSTANT, Scalar.all(0));
+
+                Mat floatChannel = new Mat();
+                padded.convertTo(floatChannel, org.opencv.core.CvType.CV_32F);
+                padded.release();
+
+                Mat complexI = new Mat();
+                List<Mat> planes = new ArrayList<>();
+                planes.add(floatChannel);
+                planes.add(Mat.zeros(floatChannel.size(), org.opencv.core.CvType.CV_32F));
+                Core.merge(planes, complexI);
+                planes.get(1).release();
+                floatChannel.release();
+
+                Core.dft(complexI, complexI);
+                fftShift(complexI);
+
+                if (c == 0) {
+                    spectrumAccum = createSpectrumVisualization(complexI, origRows, origCols);
+                }
+
+                List<Mat> dftPlanes = new ArrayList<>();
+                Core.split(complexI, dftPlanes);
+                complexI.release();
+
+                Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+                Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+                Mat maskedDft = new Mat();
+                Core.merge(dftPlanes, maskedDft);
+                for (Mat p : dftPlanes) p.release();
+
+                fftShift(maskedDft);
+                Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+                List<Mat> idftPlanes = new ArrayList<>();
+                Core.split(maskedDft, idftPlanes);
+                maskedDft.release();
+
+                Mat magnitude = idftPlanes.get(0);
+                idftPlanes.get(1).release();
+
+                Mat cropped = new Mat(magnitude, new org.opencv.core.Rect(0, 0, origCols, origRows));
+                Mat result = cropped.clone();
+                magnitude.release();
+
+                Core.min(result, new Scalar(255), result);
+                Core.max(result, new Scalar(0), result);
+                Mat filteredChannel = new Mat();
+                result.convertTo(filteredChannel, org.opencv.core.CvType.CV_8U);
+                result.release();
+
+                filteredChannels.add(filteredChannel);
+            }
+
+            filtered = new Mat();
+            Core.merge(filteredChannels, filtered);
+            spectrum = spectrumAccum;
+
+            for (Mat ch : channels) ch.release();
+            for (Mat ch : filteredChannels) ch.release();
+        } else {
+            Mat padded = new Mat();
+            Core.copyMakeBorder(input, padded, 0, optRows - origRows, 0, optCols - origCols,
+                Core.BORDER_CONSTANT, Scalar.all(0));
+
+            Mat floatInput = new Mat();
+            padded.convertTo(floatInput, org.opencv.core.CvType.CV_32F);
+            padded.release();
+
+            Mat complexI = new Mat();
+            List<Mat> planes = new ArrayList<>();
+            planes.add(floatInput);
+            planes.add(Mat.zeros(floatInput.size(), org.opencv.core.CvType.CV_32F));
+            Core.merge(planes, complexI);
+            planes.get(1).release();
+            floatInput.release();
+
+            Core.dft(complexI, complexI);
+            fftShift(complexI);
+
+            spectrum = createSpectrumVisualization(complexI, origRows, origCols);
+
+            List<Mat> dftPlanes = new ArrayList<>();
+            Core.split(complexI, dftPlanes);
+            complexI.release();
+
+            Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+            Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+            Mat maskedDft = new Mat();
+            Core.merge(dftPlanes, maskedDft);
+            for (Mat p : dftPlanes) p.release();
+
+            fftShift(maskedDft);
+            Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+            List<Mat> idftPlanes = new ArrayList<>();
+            Core.split(maskedDft, idftPlanes);
+            maskedDft.release();
+
+            Mat magnitude = idftPlanes.get(0);
+            idftPlanes.get(1).release();
+
+            Mat cropped = new Mat(magnitude, new org.opencv.core.Rect(0, 0, origCols, origRows));
+            Mat result = cropped.clone();
+            magnitude.release();
+
+            Core.min(result, new Scalar(255), result);
+            Core.max(result, new Scalar(0), result);
+            filtered = new Mat();
+            result.convertTo(filtered, org.opencv.core.CvType.CV_8U);
+            result.release();
+
+            Mat filteredBGR = new Mat();
+            Imgproc.cvtColor(filtered, filteredBGR, Imgproc.COLOR_GRAY2BGR);
+            filtered.release();
+            filtered = filteredBGR;
+        }
+
+        Mat difference = new Mat();
+        Core.absdiff(input, filtered, difference);
+
+        // Overlay filter circle on spectrum (output 3 shows spectrum with filter radius)
+        // For low-pass: show blocked area (outside radius) with red tint
+        if (spectrum != null && !spectrum.empty()) {
+            int centerX = spectrum.cols() / 2;
+            int centerY = spectrum.rows() / 2;
+
+            if (radius > 0) {
+                // Tint outer area red by reducing green and blue channels outside the circle
+                // This makes the blocked area appear reddish
+                for (int y = 0; y < spectrum.rows(); y++) {
+                    for (int x = 0; x < spectrum.cols(); x++) {
+                        double dist = Math.sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+                        if (dist > radius) {
+                            byte[] pixel = new byte[3];
+                            spectrum.get(y, x, pixel);
+                            // Convert to unsigned and modify
+                            int b = pixel[0] & 0xFF;
+                            int g = pixel[1] & 0xFF;
+                            int r = pixel[2] & 0xFF;
+                            // Reduce blue and green, boost red
+                            b = (int)(b * 0.3);
+                            g = (int)(g * 0.3);
+                            r = Math.min(255, r + 50);  // Add some red
+                            pixel[0] = (byte)b;
+                            pixel[1] = (byte)g;
+                            pixel[2] = (byte)r;
+                            spectrum.put(y, x, pixel);
+                        }
+                    }
+                }
+
+                // Draw bright green outline at radius (the filter boundary)
+                Imgproc.circle(spectrum, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(0, 255, 0), 2);  // Green outline
+            }
+        }
+        radialVis.release();
+
+        mask.release();
+
+        return new Mat[] { filtered, difference, spectrum, filterVis };
+    }
+
+    /**
+     * Create FFT spectrum visualization from a shifted DFT.
+     */
+    private Mat createSpectrumVisualization(Mat dftShift, int origRows, int origCols) {
+        // Split into real and imaginary
+        List<Mat> planes = new ArrayList<>();
+        Core.split(dftShift, planes);
+
+        // Calculate magnitude
+        Mat magnitude = new Mat();
+        Core.magnitude(planes.get(0), planes.get(1), magnitude);
+
+        // Log scale for visualization
+        Mat logMag = new Mat();
+        Core.add(magnitude, new Scalar(1), logMag);
+        Core.log(logMag, logMag);
+
+        // Normalize to 0-255
+        Core.normalize(logMag, logMag, 0, 255, Core.NORM_MINMAX);
+
+        Mat spectrum8U = new Mat();
+        logMag.convertTo(spectrum8U, org.opencv.core.CvType.CV_8U);
+
+        // Crop to original size (center portion)
+        int padRows = spectrum8U.rows();
+        int padCols = spectrum8U.cols();
+        int startRow = (padRows - origRows) / 2;
+        int startCol = (padCols - origCols) / 2;
+        Mat cropped = new Mat(spectrum8U, new org.opencv.core.Rect(startCol, startRow, origCols, origRows));
+        Mat croppedClone = cropped.clone();
+
+        // Convert to BGR for display
+        Mat spectrumBGR = new Mat();
+        Imgproc.cvtColor(croppedClone, spectrumBGR, Imgproc.COLOR_GRAY2BGR);
+
+        // Cleanup
+        for (Mat p : planes) p.release();
+        magnitude.release();
+        logMag.release();
+        spectrum8U.release();
+        croppedClone.release();
+
+        return spectrumBGR;
+    }
+
+    /**
+     * Create a radial disk visualization of the filter showing blocked frequencies in red.
+     * Used for output 3 (spectrum with filter overlay).
+     * The visualization matches the actual FFT mask - radius is in pixel units relative to the image center.
+     * Creates pure red where blocked, pure black where passed (for clean addWeighted blending).
+     */
+    private Mat createRadialFilterVisualization(int width, int height, int radius, int smoothness, boolean highPass) {
+        // Create a black background image
+        Mat vis = new Mat(height, width, org.opencv.core.CvType.CV_8UC3, new Scalar(0, 0, 0));
+
+        // Center of the image
+        int centerX = width / 2;
+        int centerY = height / 2;
+
+        if (radius <= 0) {
+            return vis; // No filter to visualize
+        }
+
+        if (smoothness == 0) {
+            // Hard cutoff - use simple filled circle
+            if (highPass) {
+                // High-pass blocks center (inside radius) - draw red filled circle
+                Imgproc.circle(vis, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(0, 0, 255), -1);  // BGR: pure red, filled
+            } else {
+                // Low-pass blocks outside radius - draw red ring from radius to edge
+                // Fill entire image with red, then draw black circle in center
+                vis.setTo(new Scalar(0, 0, 255));  // Fill with red
+                Imgproc.circle(vis, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(0, 0, 0), -1);  // Black center, filled
+            }
+        } else {
+            // Butterworth smooth transition - draw multiple concentric circles with varying alpha
+            // For smoother effect, draw from outside in (or inside out)
+            int maxRadius = (int) Math.sqrt(centerX * centerX + centerY * centerY) + 1;
+
+            if (highPass) {
+                // High-pass: blocked in center, fading out towards radius
+                // Draw from center outward with decreasing intensity
+                for (int r = radius * 2; r >= 0; r--) {
+                    double filterValue = computeFilterValue(r, radius, smoothness, true);
+                    double blockValue = 1.0 - filterValue;
+                    if (blockValue > 0.01) {
+                        int redIntensity = (int) (blockValue * 255);
+                        Imgproc.circle(vis, new org.opencv.core.Point(centerX, centerY),
+                            r, new Scalar(0, 0, redIntensity), -1);  // BGR: pure red
+                    }
+                }
+            } else {
+                // Low-pass: blocked outside radius, fading in towards radius
+                // Draw from outside inward with decreasing intensity
+                for (int r = maxRadius; r >= 0; r--) {
+                    double filterValue = computeFilterValue(r, radius, smoothness, false);
+                    double blockValue = 1.0 - filterValue;
+                    if (blockValue > 0.01) {
+                        int redIntensity = (int) (blockValue * 255);
+                        Imgproc.circle(vis, new org.opencv.core.Point(centerX, centerY),
+                            r, new Scalar(0, 0, redIntensity), -1);  // BGR: pure red
+                    }
+                }
+            }
+        }
+
+        // Draw the filter radius boundary circle (bright cyan outline for visibility)
+        if (radius > 0 && radius < Math.min(width, height) / 2) {
+            Imgproc.circle(vis, new org.opencv.core.Point(centerX, centerY),
+                radius, new Scalar(255, 255, 0), 2);  // Cyan outline
+        }
+
+        return vis;
+    }
+
+    /**
+     * Compute filter value for a given distance.
+     */
+    private double computeFilterValue(double distance, int radius, int smoothness, boolean highPass) {
+        if (radius == 0) {
+            return highPass ? 1.0 : 0.0;
+        }
+
+        double lowPassValue;
+        if (smoothness == 0) {
+            // Hard cutoff
+            lowPassValue = distance <= radius ? 1.0 : 0.0;
+        } else {
+            // Butterworth filter
+            double order = BUTTERWORTH_ORDER_MAX - (smoothness / BUTTERWORTH_SMOOTHNESS_SCALE) * BUTTERWORTH_ORDER_RANGE;
+            if (order < BUTTERWORTH_ORDER_MIN) order = BUTTERWORTH_ORDER_MIN;
+
+            double shiftFactor = Math.pow(1.0 / BUTTERWORTH_TARGET_ATTENUATION - 1.0, 1.0 / (2.0 * order));
+            double effectiveCutoff = radius * shiftFactor;
+
+            double ratio = (distance + BUTTERWORTH_DIVISION_EPSILON) / effectiveCutoff;
+            lowPassValue = 1.0 / (1.0 + Math.pow(ratio, 2 * order));
+        }
+
+        return highPass ? (1.0 - lowPassValue) : lowPassValue;
+    }
+
+    /**
+     * Create a line graph visualization of the filter response curve.
+     * X-axis: Distance from center (frequency)
+     * Y-axis: Filter response (0=blocked, 1=passed)
+     * Used for output 4 (filter curve graph).
+     */
+    private Mat createFilterCurveVisualization(int width, int height, int radius, int smoothness, boolean highPass) {
+        // Create a black background image
+        Mat vis = new Mat(height, width, org.opencv.core.CvType.CV_8UC3, new Scalar(0, 0, 0));
+
+        // Graph margins
+        int marginLeft = 50;
+        int marginRight = 20;
+        int marginTop = 30;
+        int marginBottom = 40;
+
+        int graphWidth = width - marginLeft - marginRight;
+        int graphHeight = height - marginTop - marginBottom;
+
+        if (graphWidth <= 0 || graphHeight <= 0) {
+            return vis;
+        }
+
+        // Max distance for x-axis (2x the radius to show transition region)
+        int maxDistance = Math.max(200, radius * 3);
+
+        // Draw grid lines (gray)
+        Scalar gridColor = new Scalar(60, 60, 60);
+        // Horizontal grid lines at 0.0, 0.25, 0.5, 0.75, 1.0
+        for (int i = 0; i <= 4; i++) {
+            int yPos = marginTop + (int) (graphHeight * (1.0 - i / 4.0));
+            Imgproc.line(vis,
+                new org.opencv.core.Point(marginLeft, yPos),
+                new org.opencv.core.Point(width - marginRight, yPos),
+                gridColor, 3);
+        }
+        // Vertical grid lines
+        for (int d = 0; d <= maxDistance; d += 50) {
+            int xPos = marginLeft + (int) (graphWidth * d / (double) maxDistance);
+            Imgproc.line(vis,
+                new org.opencv.core.Point(xPos, marginTop),
+                new org.opencv.core.Point(xPos, marginTop + graphHeight),
+                gridColor, 3);
+        }
+
+        // Draw axes (white)
+        Scalar axisColor = new Scalar(255, 255, 255);
+        // Y-axis
+        Imgproc.line(vis,
+            new org.opencv.core.Point(marginLeft, marginTop),
+            new org.opencv.core.Point(marginLeft, marginTop + graphHeight),
+            axisColor, 6);
+        // X-axis
+        Imgproc.line(vis,
+            new org.opencv.core.Point(marginLeft, marginTop + graphHeight),
+            new org.opencv.core.Point(width - marginRight, marginTop + graphHeight),
+            axisColor, 6);
+
+        // Draw the filter curve (light blue)
+        Scalar curveColor = new Scalar(255, 100, 100); // BGR - light blue
+        org.opencv.core.Point prevPoint = null;
+        for (int i = 0; i <= graphWidth; i++) {
+            double distance = (i / (double) graphWidth) * maxDistance;
+            double filterValue = computeFilterValue(distance, radius, smoothness, highPass);
+
+            int xPos = marginLeft + i;
+            int yPos = marginTop + (int) (graphHeight * (1.0 - filterValue));
+
+            org.opencv.core.Point currentPoint = new org.opencv.core.Point(xPos, yPos);
+            if (prevPoint != null) {
+                Imgproc.line(vis, prevPoint, currentPoint, curveColor, 9);
+            }
+            prevPoint = currentPoint;
+        }
+
+        // Draw vertical line at cutoff radius (red)
+        if (radius > 0 && radius <= maxDistance) {
+            int radiusX = marginLeft + (int) (graphWidth * radius / (double) maxDistance);
+            Scalar radiusColor = new Scalar(0, 0, 255); // BGR - red
+            Imgproc.line(vis,
+                new org.opencv.core.Point(radiusX, marginTop),
+                new org.opencv.core.Point(radiusX, marginTop + graphHeight),
+                radiusColor, 6);
+        }
+
+        // Draw labels
+        Scalar textColor = new Scalar(200, 200, 200);
+        double fontScale = 0.4;
+        int fontFace = Imgproc.FONT_HERSHEY_SIMPLEX;
+
+        // Title
+        String title = highPass ? "High-Pass Filter Response" : "Low-Pass Filter Response";
+        Imgproc.putText(vis, title,
+            new org.opencv.core.Point(marginLeft + 10, 20), fontFace, fontScale, textColor, 1);
+
+        // Y-axis labels
+        Imgproc.putText(vis, "1.0",
+            new org.opencv.core.Point(5, marginTop + 5), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "0.5",
+            new org.opencv.core.Point(5, marginTop + graphHeight / 2 + 5), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, "0.0",
+            new org.opencv.core.Point(5, marginTop + graphHeight + 5), fontFace, fontScale, textColor, 1);
+
+        // X-axis labels
+        Imgproc.putText(vis, "0",
+            new org.opencv.core.Point(marginLeft - 5, height - 10), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, String.valueOf(maxDistance / 2),
+            new org.opencv.core.Point(marginLeft + graphWidth / 2 - 10, height - 10), fontFace, fontScale, textColor, 1);
+        Imgproc.putText(vis, String.valueOf(maxDistance),
+            new org.opencv.core.Point(width - marginRight - 20, height - 10), fontFace, fontScale, textColor, 1);
+
+        // Radius label
+        if (radius > 0) {
+            Imgproc.putText(vis, "R=" + radius,
+                new org.opencv.core.Point(width - marginRight - 40, marginTop + 15),
+                fontFace, fontScale, new Scalar(0, 0, 255), 1);
+        }
+
+        // Smoothness label
+        if (smoothness > 0) {
+            Imgproc.putText(vis, "S=" + smoothness,
+                new org.opencv.core.Point(width - marginRight - 40, marginTop + 30),
+                fontFace, fontScale, new Scalar(100, 100, 255), 1);
+        }
+
+        return vis;
+    }
+
+    /**
+     * Check if a node type is a multi-output node.
+     */
+    private boolean isMultiOutputNode(String nodeType) {
+        return "FFTHighPass4".equals(nodeType) || "FFTLowPass4".equals(nodeType);
     }
 
     // ===== BitPlanes Color Helper Methods =====

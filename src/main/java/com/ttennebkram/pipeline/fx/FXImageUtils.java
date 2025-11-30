@@ -173,11 +173,12 @@ public class FXImageUtils {
             return matToImage(mat);
         }
 
-        // Scale the image
+        // Scale the image using INTER_AREA for better quality when shrinking
         Mat scaled = new Mat();
         try {
             Imgproc.resize(mat, scaled,
-                new org.opencv.core.Size(mat.width() * scale, mat.height() * scale));
+                new org.opencv.core.Size(mat.width() * scale, mat.height() * scale),
+                0, 0, Imgproc.INTER_AREA);
             return matToImage(scaled);
         } finally {
             scaled.release();

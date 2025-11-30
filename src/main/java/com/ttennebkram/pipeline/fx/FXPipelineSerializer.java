@@ -38,9 +38,14 @@ public class FXPipelineSerializer {
 
     /**
      * Save a pipeline to a JSON file.
+     * Thumbnails are saved to a cache directory instead of being embedded in the JSON.
      */
     public static void save(String path, List<FXNode> nodes, List<FXConnection> connections) throws IOException {
         JsonObject root = new JsonObject();
+
+        // Get cache directory and pipeline name for thumbnail caching
+        String cacheDir = getCacheDirectory(path);
+        String pipelineName = getPipelineName(path);
 
         // Serialize nodes
         JsonArray nodesArray = new JsonArray();
@@ -113,12 +118,9 @@ public class FXPipelineSerializer {
                 }
             }
 
-            // Save thumbnail as Base64-encoded PNG
+            // Save thumbnail to cache file (not embedded in JSON)
             if (node.thumbnail != null) {
-                String thumbnailBase64 = imageToBase64(node.thumbnail);
-                if (thumbnailBase64 != null) {
-                    nodeJson.addProperty("thumbnail", thumbnailBase64);
-                }
+                saveThumbnailToCache(cacheDir, pipelineName, node, i);
             }
 
             nodesArray.add(nodeJson);
@@ -303,10 +305,30 @@ public class FXPipelineSerializer {
                 // Restore generic properties for processing nodes
                 loadNodeProperties(nodeJson, node);
 
-                // Restore thumbnail from Base64-encoded PNG
-                if (nodeJson.has("thumbnail")) {
-                    String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
-                    node.thumbnail = base64ToImage(thumbnailBase64);
+                // For FileSource: if filePath is empty but imagePath exists in properties, sync it
+                if ("FileSource".equals(type)) {
+                    if ((node.filePath == null || node.filePath.isEmpty()) && node.properties.containsKey("imagePath")) {
+                        Object imagePath = node.properties.get("imagePath");
+                        if (imagePath != null && !imagePath.toString().isEmpty()) {
+                            node.filePath = imagePath.toString();
+                        }
+                    }
+                }
+
+                // Try to load thumbnail from cache file first, fall back to embedded Base64 for backwards compatibility
+                String cacheDir = getCacheDirectory(path);
+                String pipelineName = getPipelineName(path);
+                int nodeIndex = nodes.size(); // Current index before adding this node
+                if (!loadThumbnailFromCache(cacheDir, pipelineName, node, nodeIndex)) {
+                    // Fall back to embedded Base64 for older files
+                    if (nodeJson.has("thumbnail")) {
+                        String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
+                        node.thumbnail = base64ToImage(thumbnailBase64);
+                        // Save to cache for next time (migration from embedded to cached)
+                        if (node.thumbnail != null) {
+                            saveThumbnailToCache(cacheDir, pipelineName, node, nodeIndex);
+                        }
+                    }
                 }
 
                 // Restore container-specific properties
@@ -475,6 +497,122 @@ public class FXPipelineSerializer {
     }
 
     /**
+     * Save a thumbnail to a cache file.
+     * Filename pattern: {pipelineName}_node_{nodeType}_{index}_thumb.png
+     *
+     * @param cacheDir Directory to save thumbnails
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param node The node whose thumbnail to save
+     * @param index Index of the node in the pipeline
+     */
+    public static void saveThumbnailToCache(String cacheDir, String pipelineName, FXNode node, int index) {
+        if (node.thumbnail == null) return;
+        try {
+            File cacheFolder = new File(cacheDir);
+            if (!cacheFolder.exists()) {
+                cacheFolder.mkdirs();
+            }
+            String thumbPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_thumb.png";
+            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(node.thumbnail, null);
+            if (bufferedImage != null) {
+                ImageIO.write(bufferedImage, "png", new File(thumbPath));
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to save thumbnail to cache: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Load a thumbnail from a cache file.
+     * Filename pattern: {pipelineName}_node_{nodeType}_{index}_thumb.png
+     *
+     * @param cacheDir Directory to load thumbnails from
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param node The node to load the thumbnail into
+     * @param index Index of the node in the pipeline
+     * @return true if thumbnail was loaded successfully
+     */
+    public static boolean loadThumbnailFromCache(String cacheDir, String pipelineName, FXNode node, int index) {
+        String thumbPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_thumb.png";
+        File thumbFile = new File(thumbPath);
+        if (thumbFile.exists()) {
+            try {
+                BufferedImage bufferedImage = ImageIO.read(thumbFile);
+                if (bufferedImage != null) {
+                    node.thumbnail = SwingFXUtils.toFXImage(bufferedImage, null);
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to load thumbnail from cache: " + e.getMessage());
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Save all node thumbnails to a cache directory.
+     *
+     * @param cacheDir Directory to save thumbnails
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param nodes List of nodes whose thumbnails to save
+     */
+    public static void saveAllThumbnailsToCache(String cacheDir, String pipelineName, List<FXNode> nodes) {
+        for (int i = 0; i < nodes.size(); i++) {
+            saveThumbnailToCache(cacheDir, pipelineName, nodes.get(i), i);
+        }
+    }
+
+    /**
+     * Load all node thumbnails from a cache directory.
+     *
+     * @param cacheDir Directory to load thumbnails from
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param nodes List of nodes to load thumbnails into
+     * @return Number of thumbnails successfully loaded
+     */
+    public static int loadAllThumbnailsFromCache(String cacheDir, String pipelineName, List<FXNode> nodes) {
+        int loaded = 0;
+        for (int i = 0; i < nodes.size(); i++) {
+            if (loadThumbnailFromCache(cacheDir, pipelineName, nodes.get(i), i)) {
+                loaded++;
+            }
+        }
+        return loaded;
+    }
+
+    /**
+     * Get the cache directory for a pipeline file.
+     * Creates a .cache subdirectory next to the pipeline file.
+     *
+     * @param pipelinePath Path to the pipeline JSON file
+     * @return Path to the cache directory
+     */
+    public static String getCacheDirectory(String pipelinePath) {
+        File pipelineFile = new File(pipelinePath);
+        File parentDir = pipelineFile.getParentFile();
+        String baseName = pipelineFile.getName();
+        if (baseName.endsWith(".json")) {
+            baseName = baseName.substring(0, baseName.length() - 5);
+        }
+        return new File(parentDir, "." + baseName + "_cache").getAbsolutePath();
+    }
+
+    /**
+     * Extract the pipeline name (base filename without .json extension) from a path.
+     *
+     * @param pipelinePath Path to the pipeline JSON file
+     * @return Base name without extension
+     */
+    public static String getPipelineName(String pipelinePath) {
+        File pipelineFile = new File(pipelinePath);
+        String baseName = pipelineFile.getName();
+        if (baseName.endsWith(".json")) {
+            baseName = baseName.substring(0, baseName.length() - 5);
+        }
+        return baseName;
+    }
+
+    /**
      * Check if a saved label is an old-style default that should be updated.
      * Old files might have short labels like "Webcam" instead of "Webcam Source".
      */
@@ -556,13 +694,7 @@ public class FXPipelineSerializer {
             // Save generic properties map (for processing nodes like Gain, FFT, BitPlanes, etc.)
             saveNodeProperties(nodeJson, node);
 
-            // Save thumbnail as Base64-encoded PNG (for inner nodes too)
-            if (node.thumbnail != null) {
-                String thumbnailBase64 = imageToBase64(node.thumbnail);
-                if (thumbnailBase64 != null) {
-                    nodeJson.addProperty("thumbnail", thumbnailBase64);
-                }
-            }
+            // Note: Thumbnails for inner nodes are not saved - they use the cache system at load time
 
             // Container-specific properties (for nested containers)
             nodeJson.addProperty("isContainer", node.isContainer);
@@ -705,7 +837,8 @@ public class FXPipelineSerializer {
             // Load generic properties for processing nodes
             loadNodeProperties(nodeJson, node);
 
-            // Restore thumbnail from Base64-encoded PNG (for inner nodes too)
+            // For backwards compatibility: load embedded Base64 thumbnail from old files
+            // New saves don't include embedded thumbnails
             if (nodeJson.has("thumbnail")) {
                 String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
                 node.thumbnail = base64ToImage(thumbnailBase64);
@@ -937,11 +1070,13 @@ public class FXPipelineSerializer {
     private static void loadNodeProperties(JsonObject nodeJson, FXNode node) {
         // List of known structural fields to skip (not processing properties)
         java.util.Set<String> skipFields = new java.util.HashSet<>(java.util.Arrays.asList(
-            "id", "type", "x", "y", "label", "enabled", "hasInput", "hasDualInput", "outputCount",
+            "id", "index", "type", "x", "y", "label", "enabled", "hasInput", "hasDualInput", "outputCount",
             "isBoundaryNode", "isContainer", "bgColorR", "bgColorG", "bgColorB", "thumbnail",
             "cameraIndex", "filePath", "fps", "pipelineFile", "innerNodes", "innerConnections",
             "threadPriority", "workUnitsCompleted", "inputReads1", "inputReads2", "name", "customName",
-            "numOutputs", "containerName", "boundaryInputY", "boundaryOutputY"
+            "numOutputs", "containerName", "boundaryInputY", "boundaryOutputY",
+            "inputCount", "inputCount2", "outputCount1", "outputCount2", "outputCount3", "outputCount4",
+            "queuesInSync"
         ));
 
         for (java.util.Map.Entry<String, JsonElement> entry : nodeJson.entrySet()) {
