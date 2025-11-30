@@ -955,6 +955,7 @@ public class FXPipelineExecutor {
      */
     private Mat[] processMultiOutputNode(FXNode node, Map<Integer, Mat> nodeOutputs) {
         String type = node.nodeType;
+        System.out.println("[FXPipelineExecutor] processMultiOutputNode called for type: " + type);
 
         // Get input for processing nodes
         Mat input = getInputForNode(node, nodeOutputs);
@@ -3261,29 +3262,68 @@ public class FXPipelineExecutor {
             int centerY = spectrum.rows() / 2;
 
             if (radius > 0) {
-                // Tint outer area red by reducing green and blue channels outside the circle
-                // This makes the blocked area appear reddish
-                for (int y = 0; y < spectrum.rows(); y++) {
-                    for (int x = 0; x < spectrum.cols(); x++) {
-                        double dist = Math.sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
-                        if (dist > radius) {
-                            byte[] pixel = new byte[3];
-                            spectrum.get(y, x, pixel);
-                            // Convert to unsigned and modify
-                            int b = pixel[0] & 0xFF;
-                            int g = pixel[1] & 0xFF;
-                            int r = pixel[2] & 0xFF;
-                            // Reduce blue and green, boost red
-                            b = (int)(b * 0.3);
-                            g = (int)(g * 0.3);
-                            r = Math.min(255, r + 50);  // Add some red
-                            pixel[0] = (byte)b;
-                            pixel[1] = (byte)g;
-                            pixel[2] = (byte)r;
-                            spectrum.put(y, x, pixel);
-                        }
-                    }
-                }
+                // Create a single-channel mask for the PASSED region (inside circle)
+                Mat circleMask = Mat.zeros(spectrum.rows(), spectrum.cols(), org.opencv.core.CvType.CV_8U);
+                Imgproc.circle(circleMask, new org.opencv.core.Point(centerX, centerY),
+                    radius, new Scalar(255), -1);  // White filled circle = passed frequencies
+
+                // Invert to get blocked region (outside circle)
+                Mat blockedMask = new Mat();
+                Core.bitwise_not(circleMask, blockedMask);
+
+                // Split spectrum into channels
+                List<Mat> channels = new ArrayList<>();
+                Core.split(spectrum, channels);
+
+                // Blue channel: darken outside circle (multiply by 0.3)
+                Mat blueInside = new Mat();
+                Mat blueOutside = new Mat();
+                channels.get(0).copyTo(blueInside);
+                channels.get(0).copyTo(blueOutside);
+                Core.multiply(blueOutside, new Scalar(0.3), blueOutside);
+
+                Mat blueResult = new Mat();
+                blueInside.copyTo(blueResult, circleMask);  // Keep original inside
+                blueOutside.copyTo(blueResult, blockedMask); // Use darkened outside
+                channels.set(0, blueResult);
+                blueInside.release();
+                blueOutside.release();
+
+                // Green channel: darken outside circle (multiply by 0.3)
+                Mat greenInside = new Mat();
+                Mat greenOutside = new Mat();
+                channels.get(1).copyTo(greenInside);
+                channels.get(1).copyTo(greenOutside);
+                Core.multiply(greenOutside, new Scalar(0.3), greenOutside);
+
+                Mat greenResult = new Mat();
+                greenInside.copyTo(greenResult, circleMask);
+                greenOutside.copyTo(greenResult, blockedMask);
+                channels.set(1, greenResult);
+                greenInside.release();
+                greenOutside.release();
+
+                // Red channel: boost outside circle (add 100)
+                Mat redInside = new Mat();
+                Mat redOutside = new Mat();
+                channels.get(2).copyTo(redInside);
+                channels.get(2).copyTo(redOutside);
+                Core.add(redOutside, new Scalar(100), redOutside);
+
+                Mat redResult = new Mat();
+                redInside.copyTo(redResult, circleMask);
+                redOutside.copyTo(redResult, blockedMask);
+                channels.set(2, redResult);
+                redInside.release();
+                redOutside.release();
+
+                // Merge channels back
+                Core.merge(channels, spectrum);
+
+                // Cleanup
+                circleMask.release();
+                blockedMask.release();
+                for (Mat ch : channels) ch.release();
 
                 // Draw bright green outline at radius (the filter boundary)
                 Imgproc.circle(spectrum, new org.opencv.core.Point(centerX, centerY),
@@ -3301,6 +3341,7 @@ public class FXPipelineExecutor {
      * Create FFT spectrum visualization from a shifted DFT.
      */
     private Mat createSpectrumVisualization(Mat dftShift, int origRows, int origCols) {
+        System.out.println("[FXPipelineExecutor] createSpectrumVisualization: origRows=" + origRows + ", origCols=" + origCols);
         // Split into real and imaginary
         List<Mat> planes = new ArrayList<>();
         Core.split(dftShift, planes);
@@ -3448,6 +3489,7 @@ public class FXPipelineExecutor {
      * Used for output 4 (filter curve graph).
      */
     private Mat createFilterCurveVisualization(int width, int height, int radius, int smoothness, boolean highPass) {
+        System.out.println("[FXPipelineExecutor] createFilterCurveVisualization: width=" + width + ", height=" + height + ", radius=" + radius + ", highPass=" + highPass);
         // Create a black background image
         Mat vis = new Mat(height, width, org.opencv.core.CvType.CV_8UC3, new Scalar(0, 0, 0));
 
@@ -3467,7 +3509,7 @@ public class FXPipelineExecutor {
         // Max distance for x-axis (2x the radius to show transition region)
         int maxDistance = Math.max(200, radius * 3);
 
-        // Draw grid lines (gray)
+        // Draw grid lines (gray) - thick lines for visibility when scaled down
         Scalar gridColor = new Scalar(60, 60, 60);
         // Horizontal grid lines at 0.0, 0.25, 0.5, 0.75, 1.0
         for (int i = 0; i <= 4; i++) {
@@ -3475,7 +3517,7 @@ public class FXPipelineExecutor {
             Imgproc.line(vis,
                 new org.opencv.core.Point(marginLeft, yPos),
                 new org.opencv.core.Point(width - marginRight, yPos),
-                gridColor, 3);
+                gridColor, 6);
         }
         // Vertical grid lines
         for (int d = 0; d <= maxDistance; d += 50) {
@@ -3483,7 +3525,7 @@ public class FXPipelineExecutor {
             Imgproc.line(vis,
                 new org.opencv.core.Point(xPos, marginTop),
                 new org.opencv.core.Point(xPos, marginTop + graphHeight),
-                gridColor, 3);
+                gridColor, 6);
         }
 
         // Draw axes (white)
@@ -3492,14 +3534,14 @@ public class FXPipelineExecutor {
         Imgproc.line(vis,
             new org.opencv.core.Point(marginLeft, marginTop),
             new org.opencv.core.Point(marginLeft, marginTop + graphHeight),
-            axisColor, 6);
+            axisColor, 12);
         // X-axis
         Imgproc.line(vis,
             new org.opencv.core.Point(marginLeft, marginTop + graphHeight),
             new org.opencv.core.Point(width - marginRight, marginTop + graphHeight),
-            axisColor, 6);
+            axisColor, 12);
 
-        // Draw the filter curve (light blue)
+        // Draw the filter curve (light blue) - extra thick for thumbnail visibility
         Scalar curveColor = new Scalar(255, 100, 100); // BGR - light blue
         org.opencv.core.Point prevPoint = null;
         for (int i = 0; i <= graphWidth; i++) {
@@ -3511,19 +3553,19 @@ public class FXPipelineExecutor {
 
             org.opencv.core.Point currentPoint = new org.opencv.core.Point(xPos, yPos);
             if (prevPoint != null) {
-                Imgproc.line(vis, prevPoint, currentPoint, curveColor, 9);
+                Imgproc.line(vis, prevPoint, currentPoint, curveColor, 18);
             }
             prevPoint = currentPoint;
         }
 
-        // Draw vertical line at cutoff radius (red)
+        // Draw vertical line at cutoff radius (red) - thick for thumbnail visibility
         if (radius > 0 && radius <= maxDistance) {
             int radiusX = marginLeft + (int) (graphWidth * radius / (double) maxDistance);
             Scalar radiusColor = new Scalar(0, 0, 255); // BGR - red
             Imgproc.line(vis,
                 new org.opencv.core.Point(radiusX, marginTop),
                 new org.opencv.core.Point(radiusX, marginTop + graphHeight),
-                radiusColor, 6);
+                radiusColor, 12);
         }
 
         // Draw labels

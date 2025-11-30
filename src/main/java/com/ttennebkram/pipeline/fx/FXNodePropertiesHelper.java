@@ -1,5 +1,6 @@
 package com.ttennebkram.pipeline.fx;
 
+import com.ttennebkram.pipeline.processing.ProcessorFactory;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
@@ -136,6 +137,9 @@ public class FXNodePropertiesHelper {
                 return true;
             case "Crop":
                 addCropProperties(dialog, props);
+                return true;
+            case "Resize":
+                addResizeProperties(dialog, props);
                 return true;
             case "BlankSource":
                 addBlankSourceProperties(dialog, props);
@@ -291,6 +295,9 @@ public class FXNodePropertiesHelper {
                 break;
             case "Crop":
                 saveCropProperties(props);
+                break;
+            case "Resize":
+                saveResizeProperties(props);
                 break;
             case "BlankSource":
                 saveBlankSourceProperties(props);
@@ -1530,6 +1537,26 @@ public class FXNodePropertiesHelper {
             props.put("cropWidth", ((Spinner<Integer>) props.get("_cropWidthSpinner")).getValue());
             props.put("cropHeight", ((Spinner<Integer>) props.get("_cropHeightSpinner")).getValue());
             cleanupControls(props, "_cropXSpinner", "_cropYSpinner", "_cropWidthSpinner", "_cropHeightSpinner");
+        }
+    }
+
+    // ========== RESIZE ==========
+    private static void addResizeProperties(FXPropertiesDialog dialog, Map<String, Object> props) {
+        int currentWidth = getInt(props, "width", ProcessorFactory.DEFAULT_RESIZE_WIDTH);
+        int currentHeight = getInt(props, "height", ProcessorFactory.DEFAULT_RESIZE_HEIGHT);
+
+        Spinner<Integer> widthSpinner = dialog.addSpinner("Width:", 1, 8192, currentWidth);
+        Spinner<Integer> heightSpinner = dialog.addSpinner("Height:", 1, 8192, currentHeight);
+
+        props.put("_resizeWidthSpinner", widthSpinner);
+        props.put("_resizeHeightSpinner", heightSpinner);
+    }
+
+    private static void saveResizeProperties(Map<String, Object> props) {
+        if (props.containsKey("_resizeWidthSpinner")) {
+            props.put("width", ((Spinner<Integer>) props.get("_resizeWidthSpinner")).getValue());
+            props.put("height", ((Spinner<Integer>) props.get("_resizeHeightSpinner")).getValue());
+            cleanupControls(props, "_resizeWidthSpinner", "_resizeHeightSpinner");
         }
     }
 

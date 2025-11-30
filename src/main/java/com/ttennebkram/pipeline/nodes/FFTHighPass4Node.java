@@ -386,6 +386,15 @@ public class FFTHighPass4Node extends MultiOutputNode {
         Mat spectrumBGR = new Mat();
         Imgproc.cvtColor(croppedClone, spectrumBGR, Imgproc.COLOR_GRAY2BGR);
 
+        // Draw red circle overlay showing the filter radius extent
+        if (radius > 0) {
+            int centerX = origCols / 2;
+            int centerY = origRows / 2;
+            System.out.println("[FFTHighPass4] Drawing red circle: center=(" + centerX + "," + centerY + "), radius=" + radius + ", imgSize=" + spectrumBGR.cols() + "x" + spectrumBGR.rows());
+            Scalar redColor = new Scalar(0, 0, 255); // BGR - red
+            Imgproc.circle(spectrumBGR, new org.opencv.core.Point(centerX, centerY), radius, redColor, 10);
+        }
+
         // Cleanup
         for (Mat p : planes) p.release();
         magnitude.release();
@@ -448,6 +457,7 @@ public class FFTHighPass4Node extends MultiOutputNode {
             axisColor, 2);
 
         // Draw the filter curve (blue)
+        System.out.println("[FFTHighPass4] Drawing filter curve: graphWidth=" + graphWidth + ", graphHeight=" + graphHeight + ", radius=" + radius);
         Scalar curveColor = new Scalar(255, 100, 100); // BGR - light blue
         org.opencv.core.Point prevPoint = null;
         for (int i = 0; i <= graphWidth; i++) {
@@ -459,7 +469,7 @@ public class FFTHighPass4Node extends MultiOutputNode {
 
             org.opencv.core.Point currentPoint = new org.opencv.core.Point(xPos, yPos);
             if (prevPoint != null) {
-                org.opencv.imgproc.Imgproc.line(vis, prevPoint, currentPoint, curveColor, 2);
+                org.opencv.imgproc.Imgproc.line(vis, prevPoint, currentPoint, curveColor, 10);
             }
             prevPoint = currentPoint;
         }

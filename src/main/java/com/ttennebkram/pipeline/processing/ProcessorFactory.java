@@ -19,6 +19,10 @@ import java.util.function.Consumer;
  */
 public class ProcessorFactory {
 
+    // Default resize dimensions
+    public static final int DEFAULT_RESIZE_WIDTH = 640;
+    public static final int DEFAULT_RESIZE_HEIGHT = 480;
+
     // Map from FXNode id to its ThreadedProcessor
     private final Map<Integer, ThreadedProcessor> processors = new HashMap<>();
 
@@ -724,6 +728,25 @@ public class ProcessorFactory {
             case "ContainerOutput":
                 return input -> input != null ? input.clone() : null;
 
+            // Transform
+            case "Resize":
+                return input -> {
+                    if (input == null || input.empty()) return input;
+                    int width = DEFAULT_RESIZE_WIDTH;
+                    int height = DEFAULT_RESIZE_HEIGHT;
+                    if (fxNode.properties.containsKey("width")) {
+                        width = ((Number) fxNode.properties.get("width")).intValue();
+                    }
+                    if (fxNode.properties.containsKey("height")) {
+                        height = ((Number) fxNode.properties.get("height")).intValue();
+                    }
+                    if (width <= 0) width = DEFAULT_RESIZE_WIDTH;
+                    if (height <= 0) height = DEFAULT_RESIZE_HEIGHT;
+                    Mat output = new Mat();
+                    Imgproc.resize(input, output, new Size(width, height));
+                    return output;
+                };
+
             // Source nodes - handled separately
             case "WebcamSource":
             case "FileSource":
@@ -925,7 +948,7 @@ public class ProcessorFactory {
             ? createFFTMask(optRows, optCols, radius, smoothness)  // High-pass
             : createFFTLowPassMask(optRows, optCols, radius, smoothness);  // Low-pass
 
-        // Create filter curve visualization
+        // Create filter curve visualization at original image size
         Mat filterVis = createFilterCurveVisualization(origCols, origRows, radius, smoothness, isHighPass);
 
         Mat filtered;
@@ -962,7 +985,7 @@ public class ProcessorFactory {
 
                 // For spectrum visualization, use the first channel
                 if (c == 0) {
-                    spectrumAccum = createSpectrumVisualization(dft, origRows, origCols);
+                    spectrumAccum = createSpectrumVisualization(dft, origRows, origCols, radius);
                 }
 
                 // Apply mask
@@ -1031,7 +1054,7 @@ public class ProcessorFactory {
 
             fftShift(dft);
 
-            spectrum = createSpectrumVisualization(dft, origRows, origCols);
+            spectrum = createSpectrumVisualization(dft, origRows, origCols, radius);
 
             List<Mat> dftPlanes = new ArrayList<>();
             Core.split(dft, dftPlanes);
@@ -1076,9 +1099,9 @@ public class ProcessorFactory {
     }
 
     /**
-     * Create spectrum visualization from DFT.
+     * Create spectrum visualization from DFT with red circle showing filter radius.
      */
-    private Mat createSpectrumVisualization(Mat dftShift, int origRows, int origCols) {
+    private Mat createSpectrumVisualization(Mat dftShift, int origRows, int origCols, int radius) {
         List<Mat> planes = new ArrayList<>();
         Core.split(dftShift, planes);
 
@@ -1107,6 +1130,18 @@ public class ProcessorFactory {
         // Convert to BGR for display
         Mat spectrumBGR = new Mat();
         Imgproc.cvtColor(croppedClone, spectrumBGR, Imgproc.COLOR_GRAY2BGR);
+
+        // Draw filled red circle with 50% transparency showing filter radius
+        if (radius > 0) {
+            int centerX = origCols / 2;
+            int centerY = origRows / 2;
+            // Create overlay with filled circle
+            Mat overlay = spectrumBGR.clone();
+            Imgproc.circle(overlay, new Point(centerX, centerY), radius, new Scalar(0, 0, 255), -1); // -1 = filled
+            // Blend with 50% transparency
+            Core.addWeighted(overlay, 0.5, spectrumBGR, 0.5, 0, spectrumBGR);
+            overlay.release();
+        }
 
         // Cleanup
         for (Mat p : planes) p.release();

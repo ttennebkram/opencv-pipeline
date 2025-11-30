@@ -108,6 +108,7 @@ public class FXNodeRegistry {
         // Transform
         register("WarpAffine", "Warp Affine", "Transform", "Affine transformation\nImgproc.warpAffine(src, dst, M, dsize)");
         register("Crop", "Crop", "Transform", "Crop region of interest\nMat.submat(roi)");
+        register("Resize", "Resize", "Transform", "Resize image\nImgproc.resize(src, dst, dsize)");
 
         // Detection
         register("BlobDetector", "Blob Detector", "Detection", "Blob detection\nSimpleBlobDetector.detect(image, keypoints)");
