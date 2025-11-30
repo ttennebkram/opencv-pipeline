@@ -1243,7 +1243,7 @@ public class FXNodePropertiesHelper {
 
         Slider radiusSlider = dialog.addSlider("Radius:", 0, 200, radius, "%.0f");
         Slider smoothnessSlider = dialog.addSlider("Smoothness:", 0, 100, smoothness, "%.0f");
-        dialog.addDescription("Note: FFT processing is computationally expensive (it's slow!).");
+        dialog.addDescription("Note: FFT processing is computationally expensive (it's slow!). Consider resizing the image before input to FFT.");
 
         props.put("_radiusSlider", radiusSlider);
         props.put("_smoothnessSlider", smoothnessSlider);

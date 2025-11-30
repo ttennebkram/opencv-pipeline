@@ -21,7 +21,7 @@ public class NodeRenderer {
 
     public static final int NODE_WIDTH = PROCESSING_NODE_THUMB_WIDTH + 80;  // Extra space for In:/Out: labels
     public static final int NODE_HEIGHT = PROCESSING_NODE_THUMB_HEIGHT + 50;
-    public static final int SOURCE_NODE_HEIGHT = SOURCE_NODE_THUMB_HEIGHT + 42;
+    public static final int SOURCE_NODE_HEIGHT = NODE_HEIGHT;  // Same height as processing nodes
 
     // Checkbox constants
     private static final int CHECKBOX_SIZE = 12;
