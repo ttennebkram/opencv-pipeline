@@ -1220,9 +1220,8 @@ public class FXContainerEditorWindow {
             smoothnessRow.getChildren().addAll(new Label("Smoothness:"), smoothnessSlider, smoothnessValueLabel);
             dialog.addCustomContent(smoothnessRow);
 
-            boolean isLowPass = node.nodeType.contains("LowPass");
-            String filterDesc = isLowPass ? "FFT Low-Pass Filter" : "FFT High-Pass Filter";
-            dialog.addDescription(filterDesc + "\nNote: FFT is computationally expensive.");
+            // Add a note about performance (filter type/method signature already shown from registry)
+            dialog.addDescription("Note: FFT processing is computationally expensive (it's slow!).");
 
             node.properties.put("_radiusSlider", radiusSlider);
             node.properties.put("_smoothnessSlider", smoothnessSlider);

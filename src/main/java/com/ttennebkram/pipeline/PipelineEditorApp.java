@@ -1370,11 +1370,8 @@ public class PipelineEditorApp extends Application {
             smoothnessRow.getChildren().addAll(new Label("Smoothness:"), smoothnessSlider, smoothnessValueLabel);
             dialog.addCustomContent(smoothnessRow);
 
-            // Determine the filter type for description
-            boolean isLowPass = node.nodeType.contains("LowPass");
-            String filterDesc = isLowPass ? "FFT Low-Pass Filter" : "FFT High-Pass Filter";
-            String methodSig = "Core.dft() / Core.idft()";
-            dialog.addDescription(filterDesc + "\n" + methodSig + "\n\nNote: FFT processing is computationally expensive (it's slow!).");
+            // Add a note about performance (filter type/method signature already shown from registry)
+            dialog.addDescription("Note: FFT processing is computationally expensive (it's slow!).");
 
             // Store slider references for OK handler
             node.properties.put("_radiusSlider", radiusSlider);
