@@ -62,9 +62,9 @@ mvn compile exec:exec
 
 1. **Add Nodes**: Click on node types in the toolbar to add them to the canvas
 2. **Connect Nodes**: Drag from an output port to an input port to create connections
-3. **Configure Nodes**: Double-click a node to open its properties dialog
+3. **Configure Nodes**: Double-click or right-click nodes to open properties dialog.  Container nodes use double-click to open the sub-pipeline, which is usually what users want; so use right-click to set the file property.
 4. **Run Pipeline**: Click "Start Pipeline" to begin processing
-5. **View Output**: Each node shows a live thumbnail of its output
+5. **View Output**: Each node shows a live thumbnail of its output.  Single-click on the thumbnail to see a larger version of that image in the Preview pane.
 
 ### Keyboard Shortcuts
 
@@ -90,7 +90,7 @@ mvn compile exec:exec
 - Bilateral Filter, Mean Shift Filter
 
 ### Edge Detection
-- Canny Edge, Sobel, Laplacian, Scharr
+- Canny Edges, Sobel, Laplacian, Scharr
 
 ### Morphological
 - Erode, Dilate, Morph Open, Morph Close
@@ -113,6 +113,7 @@ mvn compile exec:exec
 ### Transform
 - Warp Affine, Crop, Resize
 - Filter2D (custom convolution kernels)
+- Resize
 
 ### Drawing
 - Rectangle, Circle, Ellipse
@@ -137,6 +138,10 @@ Drawing nodes (shapes, text) support negative position values for coordinates re
 - Negative values: offset from right/bottom edge (e.g., `-1` = rightmost/bottom pixel, `-50` = 50 pixels from right/bottom)
 
 This allows positioning elements relative to image dimensions that may vary at runtime.
+
+## Performance Note
+- FFT takes over a second to filter a full resolution 12 megapixel image
+- If using FFT filters, we suggest you use the Resize node first to shrink the image donw
 
 ## Architecture
 
