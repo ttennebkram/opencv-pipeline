@@ -232,13 +232,6 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
-                    <!-- Temporarily exclude SWT-dependent files during JavaFX migration -->
-                    <!-- Only compiling the JavaFX launcher/app stubs for now -->
-                    <includes>
-                        <include>**/PipelineEditorApp.java</include>
-                        <include>**/PipelineEditorLauncher.java</include>
-                        <include>**/fx/**/*.java</include>
-                    </includes>
                 </configuration>
             </plugin>
             <plugin>

@@ -12,13 +12,17 @@ Legend:
 New bugs after SWT -> JavaFX conversoion
 ----------------------------------------
 
-completely remove SWT code
-    remove from POM
-    remove legacy code
+.completely remove SWT code
+    /remove from POM
+    /remove legacy code
     remove JavaFX "legacy" code, instanceof, case, if/then/else
         isContainer
         isSource
-    test unified .jar
+    .test unified .jar
+
+Refactor main PipelineEditor to use Container Editor even for main editor window
+Boundary:
+    Need IF NESTED node
 
 .Need examples directory, with an image
     large monitor image
@@ -27,9 +31,9 @@ completely remove SWT code
 .when I multi-highlight notes and use arrow keys to move, it moves the grid instead, not the nodes
     it shoiuld move by the equivalent of 1 pixel per keystroke when at 100%
 
+/the little dots on the Boundary Nodes shouldn't be round, may look like connection points
+    /maybe hexagonal
 Boundary nodes: change titles: Input -> Container Input, Output -> Container Output
-the little dots on the Boundary Nodes shouldn't be round, may look like connection points
-    maybe hexagonal
 
 IF node with dual input
     If in Subdiagram/Subpipeline

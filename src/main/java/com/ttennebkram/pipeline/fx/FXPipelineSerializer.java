@@ -281,6 +281,13 @@ public class FXPipelineSerializer {
                     node.isBoundaryNode = nodeJson.get("isBoundaryNode").getAsBoolean();
                 }
 
+                // Fix up legacy boundary node labels
+                if ("ContainerInput".equals(type) && "Input".equals(node.label)) {
+                    node.label = "Container Input";
+                } else if ("ContainerOutput".equals(type) && "Output".equals(node.label)) {
+                    node.label = "Container Output";
+                }
+
                 // Restore background color
                 if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {
                     node.backgroundColor = Color.color(
@@ -819,6 +826,13 @@ public class FXPipelineSerializer {
             }
             if (nodeJson.has("isBoundaryNode")) {
                 node.isBoundaryNode = nodeJson.get("isBoundaryNode").getAsBoolean();
+            }
+
+            // Fix up legacy boundary node labels
+            if ("ContainerInput".equals(type) && "Input".equals(node.label)) {
+                node.label = "Container Input";
+            } else if ("ContainerOutput".equals(type) && "Output".equals(node.label)) {
+                node.label = "Container Output";
             }
 
             if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {

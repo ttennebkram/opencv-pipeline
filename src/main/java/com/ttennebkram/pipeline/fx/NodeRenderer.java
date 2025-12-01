@@ -362,15 +362,11 @@ public class NodeRenderer {
         double thumbY = y + 28;
 
         if (thumbnail != null) {
-            double scale = Math.min(
-                (double) thumbMaxW / thumbnail.getWidth(),
-                (double) thumbMaxH / thumbnail.getHeight()
-            );
-            double thumbW = thumbnail.getWidth() * scale;
-            double thumbH = thumbnail.getHeight() * scale;
-            double drawX = thumbX + (thumbMaxW - thumbW) / 2;
-            double drawY = thumbY + (thumbMaxH - thumbH) / 2;
-            gc.drawImage(thumbnail, drawX, drawY, thumbW, thumbH);
+            // Center thumbnail in available space
+            double drawX = thumbX + (thumbMaxW - thumbnail.getWidth()) / 2;
+            double drawY = thumbY + (thumbMaxH - thumbnail.getHeight()) / 2;
+            // Draw at native size (thumbnail is already scaled by FXImageUtils)
+            gc.drawImage(thumbnail, drawX, drawY);
         } else {
             gc.setStroke(Color.LIGHTGRAY);
             gc.setLineWidth(1);
