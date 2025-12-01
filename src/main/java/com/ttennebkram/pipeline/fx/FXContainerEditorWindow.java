@@ -168,7 +168,11 @@ public class FXContainerEditorWindow {
 
     private void createWindow() {
         stage = new Stage();
-        stage.setTitle("Container: " + containerNode.label);
+        String title = "Container: " + containerNode.label;
+        if (containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
+            title += " - " + new java.io.File(containerNode.pipelineFilePath).getName();
+        }
+        stage.setTitle(title);
         // Don't set owner - allows windows to move independently
         // Non-modal so users can switch between windows
         stage.initModality(Modality.NONE);
