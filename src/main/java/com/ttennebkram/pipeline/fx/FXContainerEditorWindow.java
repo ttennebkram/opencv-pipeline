@@ -344,7 +344,7 @@ public class FXContainerEditorWindow {
 
         // Start/Stop pipeline button at top
         startStopBtn = new Button("Start Pipeline");
-        startStopBtn.setStyle("-fx-background-color: rgb(100, 180, 100); -fx-font-weight: bold;");
+        startStopBtn.setStyle("-fx-base: #90EE90;");  // Light green when not running
         startStopBtn.setOnAction(e -> togglePipeline());
         startStopBtn.setMaxWidth(Double.MAX_VALUE);
 
@@ -390,10 +390,10 @@ public class FXContainerEditorWindow {
             boolean running = isPipelineRunning.get();
             if (running) {
                 startStopBtn.setText("Stop Pipeline");
-                startStopBtn.setStyle("-fx-background-color: rgb(200, 100, 100); -fx-font-weight: bold;");
+                startStopBtn.setStyle("-fx-base: #F08080;");  // Light coral when running
             } else {
                 startStopBtn.setText("Start Pipeline");
-                startStopBtn.setStyle("-fx-background-color: rgb(100, 180, 100); -fx-font-weight: bold;");
+                startStopBtn.setStyle("-fx-base: #90EE90;");  // Light green when not running
             }
             // Update status bar label
             if (pipelineStatusLabel != null) {

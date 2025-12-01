@@ -1,6 +1,9 @@
 package com.ttennebkram.pipeline.processing;
 
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.fx.processors.FXDualInputProcessor;
+import com.ttennebkram.pipeline.fx.processors.FXProcessor;
+import com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry;
 import org.opencv.core.*;
 import org.opencv.features2d.*;
 import org.opencv.imgproc.CLAHE;
@@ -244,10 +247,21 @@ public class ProcessorFactory {
 
     /**
      * Create an ImageProcessor for the given node type.
+     * First checks the FXProcessorRegistry for modular processors,
+     * then falls back to the legacy switch statement.
      */
     private ImageProcessor createImageProcessor(FXNode fxNode) {
         String type = fxNode.nodeType;
 
+        // Try to use new modular processor from registry
+        if (FXProcessorRegistry.hasProcessor(type) && !FXProcessorRegistry.isDualInput(type)) {
+            FXProcessor processor = FXProcessorRegistry.createProcessor(fxNode);
+            if (processor != null) {
+                return processor.createImageProcessor();
+            }
+        }
+
+        // Legacy switch statement for processors not yet migrated
         switch (type) {
             // Basic processing
             case "Grayscale":
@@ -768,10 +782,21 @@ public class ProcessorFactory {
 
     /**
      * Create a DualImageProcessor for dual-input node types.
+     * First checks the FXProcessorRegistry for modular processors,
+     * then falls back to the legacy switch statement.
      */
     private DualImageProcessor createDualImageProcessor(FXNode fxNode) {
         String type = fxNode.nodeType;
 
+        // Try to use new modular processor from registry
+        if (FXProcessorRegistry.hasProcessor(type) && FXProcessorRegistry.isDualInput(type)) {
+            FXProcessor processor = FXProcessorRegistry.createProcessor(fxNode);
+            if (processor instanceof FXDualInputProcessor) {
+                return ((FXDualInputProcessor) processor).createDualImageProcessor();
+            }
+        }
+
+        // Legacy switch statement for processors not yet migrated
         switch (type) {
             case "AddClamp":
                 return (input1, input2) -> {

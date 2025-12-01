@@ -284,19 +284,36 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
      * @return The slider for later value retrieval
      */
     public Slider addOddKernelSlider(String label, int currentValue) {
+        return addOddKernelSlider(label, currentValue, 31);
+    }
+
+    /**
+     * Add a slider for kernel sizes that must be odd values with configurable max.
+     * Snaps to odd values and shows only odd tick labels.
+     * @param label The field label
+     * @param currentValue Current value (will be rounded to nearest odd)
+     * @param maxValue Maximum value (will be rounded down to odd if even)
+     * @return The slider for later value retrieval
+     */
+    public Slider addOddKernelSlider(String label, int currentValue, int maxValue) {
         HBox row = new HBox(10);
         row.getChildren().add(new Label(label));
 
-        // Ensure current value is odd
+        // Ensure max is odd
+        if (maxValue % 2 == 0) maxValue--;
+        if (maxValue < 1) maxValue = 1;
+
+        // Ensure current value is odd and in range
         if (currentValue % 2 == 0) currentValue++;
         if (currentValue < 1) currentValue = 1;
-        if (currentValue > 31) currentValue = 31;
+        if (currentValue > maxValue) currentValue = maxValue;
 
-        Slider slider = new Slider(1, 31, currentValue);
+        final int max = maxValue;
+        Slider slider = new Slider(1, max, currentValue);
         slider.setPrefWidth(200);
         slider.setShowTickMarks(true);
         slider.setShowTickLabels(true);
-        slider.setMajorTickUnit(10);
+        slider.setMajorTickUnit(Math.max(10, max / 5));
         slider.setMinorTickCount(4);
         slider.setSnapToTicks(true);
         slider.setBlockIncrement(2);  // Arrow keys move by 2
@@ -311,7 +328,7 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
                 // Snap to nearest odd
                 val = val < oldVal.intValue() ? val - 1 : val + 1;
                 if (val < 1) val = 1;
-                if (val > 31) val = 31;
+                if (val > max) val = max;
                 slider.setValue(val);
             }
             valueLabel.setText(String.valueOf((int) slider.getValue()));
@@ -443,6 +460,14 @@ public class FXPropertiesDialog extends Dialog<Boolean> {
      */
     public void setOnOk(Runnable onOk) {
         this.onOk = onOk;
+    }
+
+    /**
+     * Get the current onOk callback.
+     * @return The callback, or null if not set
+     */
+    public Runnable getOnOk() {
+        return this.onOk;
     }
 
     /**

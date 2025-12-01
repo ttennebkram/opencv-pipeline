@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.fx;
 
+import com.ttennebkram.pipeline.fx.processors.FXProcessor;
+import com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry;
 import com.ttennebkram.pipeline.processing.ProcessorFactory;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -16,94 +18,70 @@ import java.util.Map;
 /**
  * Helper class for populating FXPropertiesDialog with node-specific properties.
  * This centralizes the property dialog configuration for all node types.
+ *
+ * NOTE: This class is being migrated to modular processors in the
+ * com.ttennebkram.pipeline.fx.processors package. New node types should
+ * be added as FXProcessor implementations, not in this switch statement.
  */
 public class FXNodePropertiesHelper {
 
     /**
      * Add properties to dialog based on node type.
+     * First checks for modular processor implementations, then falls back
+     * to the legacy switch statement.
      * Returns true if properties were added, false if node type has no custom properties.
      */
     public static boolean addPropertiesForNode(FXPropertiesDialog dialog, FXNode node) {
         String nodeType = node.nodeType;
         Map<String, Object> props = node.properties;
 
+        // Try to use new modular processor from registry
+        if (FXProcessorRegistry.hasProcessor(nodeType)) {
+            FXProcessor processor = FXProcessorRegistry.createProcessor(node);
+            if (processor != null && processor.hasProperties()) {
+                processor.buildPropertiesDialog(dialog);
+                // Set up onOk to sync properties back to FXNode
+                Runnable originalOnOk = dialog.getOnOk();
+                dialog.setOnOk(() -> {
+                    if (originalOnOk != null) {
+                        originalOnOk.run();
+                    }
+                    processor.syncToFXNode(node);
+                });
+                return true;
+            }
+        }
+
+        // Legacy switch statement for processors not yet migrated
         switch (nodeType) {
-            case "Arrow":
-            case "Line":
-                addArrowProperties(dialog, props);
-                return true;
-            case "BlobDetector":
-                addBlobDetectorProperties(dialog, props);
-                return true;
-            case "BoxBlur":
-                addBoxBlurProperties(dialog, props);
-                return true;
-            case "CannyEdge":
-                addCannyEdgeProperties(dialog, props);
-                return true;
-            case "Clone":
-                addCloneProperties(dialog, props);
-                return true;
-            case "ConnectedComponents":
-                addConnectedComponentsProperties(dialog, props);
-                return true;
-            case "Contours":
-                addContoursProperties(dialog, props);
-                return true;
-            case "Ellipse":
-                addEllipseProperties(dialog, props);
-                return true;
-            case "FileSource":
-                addFileSourceProperties(dialog, props);
-                return true;
+            // Arrow is now handled by modular ArrowProcessor
+            // Line is now handled by modular LineProcessor
+            // BlobDetector is now handled by modular BlobDetectorProcessor
+            // BoxBlur is now handled by modular BoxBlurProcessor
+            // CannyEdge is now handled by modular CannyEdgeProcessor
+            // Clone is now handled by modular CloneProcessor
+            // ConnectedComponents is now handled by modular ConnectedComponentsProcessor
+            // Contours is now handled by modular ContoursProcessor
+            // Ellipse is now handled by modular EllipseProcessor
+            // FileSource is now handled by modular FileSourceProcessor
             case "Filter2D":
                 addFilter2DProperties(dialog, props);
                 return true;
-            case "GaussianBlur":
-                addGaussianBlurProperties(dialog, props);
-                return true;
-            case "HarrisCorners":
-                addHarrisCornersProperties(dialog, props);
-                return true;
-            case "Histogram":
-                addHistogramProperties(dialog, props);
-                return true;
-            case "HoughCircles":
-                addHoughCirclesProperties(dialog, props);
-                return true;
-            case "HoughLines":
-                addHoughLinesProperties(dialog, props);
-                return true;
-            case "MatchTemplate":
-                addMatchTemplateProperties(dialog, props);
-                return true;
-            case "MeanShift":
-                addMeanShiftProperties(dialog, props);
-                return true;
-            case "MorphologyEx":
-                addMorphologyExProperties(dialog, props);
-                return true;
-            case "ORBFeatures":
-                addORBFeaturesProperties(dialog, props);
-                return true;
-            case "SIFTFeatures":
-                addSIFTFeaturesProperties(dialog, props);
-                return true;
-            case "ShiTomasi":
-                addShiTomasiProperties(dialog, props);
-                return true;
-            case "Text":
-                addTextProperties(dialog, props);
-                return true;
-            case "Threshold":
-                addThresholdProperties(dialog, props);
-                return true;
-            case "WarpAffine":
-                addWarpAffineProperties(dialog, props);
-                return true;
-            case "WebcamSource":
-                addWebcamSourceProperties(dialog, props);
-                return true;
+            // GaussianBlur is now handled by modular GaussianBlurProcessor
+            // HarrisCorners is now handled by modular HarrisCornersProcessor
+            // Histogram is now handled by modular HistogramProcessor
+            // HoughCircles is now handled by modular HoughCirclesProcessor
+            // HoughLines is now handled by modular HoughLinesProcessor
+            // MatchTemplate is now handled by modular MatchTemplateProcessor
+            // MeanShift is now handled by modular MeanShiftProcessor
+            // MorphologyEx is now handled by modular MorphologyExProcessor
+            // ORBFeatures is now handled by modular ORBFeaturesProcessor
+            // SIFTFeatures is now handled by modular SIFTFeaturesProcessor
+            // ShiTomasi is now handled by modular ShiTomasiProcessor
+            // Text is now handled by modular TextProcessor
+            // Threshold is now handled by modular ThresholdProcessor
+            // WarpAffine is now handled by modular WarpAffineProcessor
+            // WebcamSource is now handled by modular WebcamSourceProcessor
             // New nodes migrated from editor files
             case "FFTLowPass":
             case "FFTHighPass":
@@ -111,65 +89,29 @@ public class FXNodePropertiesHelper {
             case "FFTHighPass4":
                 addFFTFilterProperties(dialog, props);
                 return true;
-            case "Sobel":
-                addSobelProperties(dialog, props);
-                return true;
-            case "Scharr":
-                addScharrProperties(dialog, props);
-                return true;
-            case "Laplacian":
-                addLaplacianProperties(dialog, props);
-                return true;
-            case "AdaptiveThreshold":
-                addAdaptiveThresholdProperties(dialog, props);
-                return true;
-            case "AddWeighted":
-                addAddWeightedProperties(dialog, props);
-                return true;
-            case "BilateralFilter":
-                addBilateralFilterProperties(dialog, props);
-                return true;
-            case "CLAHE":
-                addCLAHEProperties(dialog, props);
-                return true;
-            case "ColorInRange":
-                addColorInRangeProperties(dialog, props);
-                return true;
-            case "Crop":
-                addCropProperties(dialog, props);
-                return true;
-            case "Resize":
-                addResizeProperties(dialog, props);
-                return true;
-            case "BlankSource":
-                addBlankSourceProperties(dialog, props);
-                return true;
-            case "Gain":
-                addGainProperties(dialog, props);
-                return true;
-            case "MedianBlur":
-                addMedianBlurProperties(dialog, props);
-                return true;
-            case "Erode":
-            case "Dilate":
-                addErodeDilateProperties(dialog, props);
-                return true;
-            case "MorphOpen":
-            case "MorphClose":
-                addMorphOpenCloseProperties(dialog, props);
-                return true;
+            // Sobel is now handled by modular SobelProcessor
+            // Scharr is now handled by modular ScharrProcessor
+            // Laplacian is now handled by modular LaplacianProcessor
+            // AdaptiveThreshold is now handled by modular AdaptiveThresholdProcessor
+            // AddWeighted is now handled by modular AddWeightedProcessor
+            // BilateralFilter is now handled by modular BilateralFilterProcessor
+            // CLAHE is now handled by modular CLAHEProcessor
+            // ColorInRange is now handled by modular ColorInRangeProcessor
+            // Crop is now handled by modular CropProcessor
+            // Resize is now handled by modular ResizeProcessor
+            // BlankSource is now handled by modular BlankSourceProcessor
+            // Gain is now handled by modular GainProcessor
+            // MedianBlur is now handled by modular MedianBlurProcessor
+            // Erode/Dilate are now handled by modular processors
+            // MorphOpen/MorphClose are now handled by modular processors
             case "BitPlanesGrayscale":
                 addBitPlanesGrayscaleProperties(dialog, props);
                 return true;
             case "BitPlanesColor":
                 addBitPlanesColorProperties(dialog, props);
                 return true;
-            case "Rectangle":
-                addRectangleProperties(dialog, props);
-                return true;
-            case "Circle":
-                addCircleProperties(dialog, props);
-                return true;
+            // Rectangle is now handled by modular RectangleProcessor
+            // Circle is now handled by modular CircleProcessor
             default:
                 return false;
         }
@@ -179,89 +121,48 @@ public class FXNodePropertiesHelper {
      * Save properties from dialog controls back to node.
      */
     public static void savePropertiesForNode(FXNode node) {
-        Map<String, Object> props = node.properties;
         String nodeType = node.nodeType;
 
-        // Each node type has its controls stored with underscore prefix
-        // The calling code should call this after dialog closes with OK
+        // Modular processors handle their own saving via syncToFXNode in the onOk callback
+        // set up in addPropertiesForNode, so skip them here
+        if (FXProcessorRegistry.hasProcessor(nodeType)) {
+            return;
+        }
 
+        Map<String, Object> props = node.properties;
+
+        // Legacy switch statement for processors not yet migrated
         switch (nodeType) {
-            case "Arrow":
-            case "Line":
-                saveArrowProperties(props);
-                break;
-            case "BlobDetector":
-                saveBlobDetectorProperties(props);
-                break;
-            case "BoxBlur":
-                saveBoxBlurProperties(props);
-                break;
-            case "CannyEdge":
-                saveCannyEdgeProperties(props);
-                break;
-            case "Clone":
-                saveCloneProperties(props);
-                break;
-            case "ConnectedComponents":
-                saveConnectedComponentsProperties(props);
-                break;
-            case "Contours":
-                saveContoursProperties(props);
-                break;
-            case "Ellipse":
-                saveEllipseProperties(props);
-                break;
-            case "FileSource":
-                saveFileSourceProperties(node, props);
-                break;
+            // Arrow handled by modular ArrowProcessor
+            // Line handled by modular LineProcessor
+            // BlobDetector handled by modular BlobDetectorProcessor
+            // BoxBlur handled by modular processor
+            // CannyEdge handled by modular CannyEdgeProcessor
+            // Clone handled by modular CloneProcessor
+            // ConnectedComponents handled by modular ConnectedComponentsProcessor
+            // Contours handled by modular ContoursProcessor
+            // Ellipse handled by modular EllipseProcessor
+            // FileSource handled by modular FileSourceProcessor
             case "Filter2D":
                 saveFilter2DProperties(props);
                 break;
             case "GaussianBlur":
                 saveGaussianBlurProperties(props);
                 break;
-            case "HarrisCorners":
-                saveHarrisCornersProperties(props);
-                break;
-            case "Histogram":
-                saveHistogramProperties(props);
-                break;
-            case "HoughCircles":
-                saveHoughCirclesProperties(props);
-                break;
-            case "HoughLines":
-                saveHoughLinesProperties(props);
-                break;
-            case "MatchTemplate":
-                saveMatchTemplateProperties(props);
-                break;
-            case "MeanShift":
-                saveMeanShiftProperties(props);
-                break;
-            case "MorphologyEx":
-                saveMorphologyExProperties(props);
-                break;
-            case "ORBFeatures":
-                saveORBFeaturesProperties(props);
-                break;
-            case "SIFTFeatures":
-                saveSIFTFeaturesProperties(props);
-                break;
-            case "ShiTomasi":
-                saveShiTomasiProperties(props);
-                break;
-            case "Text":
-                saveTextProperties(props);
-                break;
-            case "Threshold":
-                saveThresholdProperties(props);
-                break;
-            case "WarpAffine":
-                saveWarpAffineProperties(props);
-                break;
-            case "WebcamSource":
-                saveWebcamSourceProperties(props);
-                break;
+            // HarrisCorners handled by modular processor
+            // Histogram handled by modular processor
+            // HoughCircles handled by modular processor
+            // HoughLines handled by modular processor
+            // MatchTemplate handled by modular MatchTemplateProcessor
+            // MeanShift handled by modular MeanShiftProcessor
+            // MorphologyEx handled by modular processor
+            // ORBFeatures handled by modular ORBFeaturesProcessor
+            // SIFTFeatures handled by modular SIFTFeaturesProcessor
+            // ShiTomasi handled by modular ShiTomasiProcessor
+            // Text handled by modular TextProcessor
+            // Threshold handled by modular ThresholdProcessor
+            // WarpAffine handled by modular WarpAffineProcessor
+            // WebcamSource handled by modular WebcamSourceProcessor
             // New nodes migrated from editor files
             case "FFTLowPass":
             case "FFTHighPass":
@@ -269,65 +170,31 @@ public class FXNodePropertiesHelper {
             case "FFTHighPass4":
                 saveFFTFilterProperties(props);
                 break;
-            case "Sobel":
-                saveSobelProperties(props);
-                break;
-            case "Scharr":
-                saveScharrProperties(props);
-                break;
-            case "Laplacian":
-                saveLaplacianProperties(props);
-                break;
-            case "AdaptiveThreshold":
-                saveAdaptiveThresholdProperties(props);
-                break;
+            // Sobel handled by modular processor
+            // Scharr handled by modular processor
+            // Laplacian handled by modular processor
+            // AdaptiveThreshold handled by modular processor
             case "AddWeighted":
                 saveAddWeightedProperties(props);
                 break;
-            case "BilateralFilter":
-                saveBilateralFilterProperties(props);
-                break;
-            case "CLAHE":
-                saveCLAHEProperties(props);
-                break;
-            case "ColorInRange":
-                saveColorInRangeProperties(props);
-                break;
-            case "Crop":
-                saveCropProperties(props);
-                break;
-            case "Resize":
-                saveResizeProperties(props);
-                break;
-            case "BlankSource":
-                saveBlankSourceProperties(props);
-                break;
-            case "Gain":
-                saveGainProperties(props);
-                break;
-            case "MedianBlur":
-                saveMedianBlurProperties(props);
-                break;
-            case "Erode":
-            case "Dilate":
-                saveErodeDilateProperties(props);
-                break;
-            case "MorphOpen":
-            case "MorphClose":
-                saveMorphOpenCloseProperties(props);
-                break;
+            // BilateralFilter handled by modular processor
+            // CLAHE handled by modular processor
+            // ColorInRange handled by modular processor
+            // Crop handled by modular processor
+            // Resize handled by modular processor
+            // BlankSource handled by modular BlankSourceProcessor
+            // Gain handled by modular processor
+            // MedianBlur handled by modular processor
+            // Erode/Dilate handled by modular processors
+            // MorphOpen/MorphClose handled by modular processors
             case "BitPlanesGrayscale":
                 saveBitPlanesGrayscaleProperties(props);
                 break;
             case "BitPlanesColor":
                 saveBitPlanesColorProperties(props);
                 break;
-            case "Rectangle":
-                saveRectangleProperties(props);
-                break;
-            case "Circle":
-                saveCircleProperties(props);
-                break;
+            // Rectangle handled by modular processor
+            // Circle handled by modular processor
         }
     }
 

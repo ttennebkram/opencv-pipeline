@@ -743,8 +743,8 @@ public class PipelineEditorApp extends Application {
             }
             selectedNodes.add(clickedNode);
 
-            // Immediately update preview with node's thumbnail
-            updatePreviewForSelectedNode();
+            // Don't update preview here - wait for the callback with full-res image
+            // The thumbnail is too low-res and causes a jarring "snap" effect
 
             // Start dragging
             dragNode = clickedNode;
@@ -868,7 +868,6 @@ public class PipelineEditorApp extends Application {
         double canvasY = e.getY() / zoomLevel;
 
         FXNode node = getNodeAt(canvasX, canvasY);
-        System.out.println("[DEBUG] handleDoubleClick: node = " + (node != null ? node.nodeType : "null"));
         if (node != null) {
             if (node.isContainer) {
                 openContainerEditor(node);
@@ -1165,7 +1164,6 @@ public class PipelineEditorApp extends Application {
     }
 
     private void showNodeProperties(FXNode node) {
-        System.out.println("[DEBUG] showNodeProperties called with nodeType: '" + node.nodeType + "'");
         FXPropertiesDialog dialog = new FXPropertiesDialog(
             primaryStage,
             node.label + " Properties",
@@ -1261,10 +1259,18 @@ public class PipelineEditorApp extends Application {
         }
 
         // Set OK handler to save values
+        // IMPORTANT: Get any existing onOk callback set by FXNodePropertiesHelper (for modular processors)
+        // and chain it with our own handler
         final Spinner<Integer> finalCameraSpinner = cameraSpinner;
         final TextField finalPipelineField = pipelineFileField;
         final CheckBox finalSyncCheckBox = syncCheckBox;
+        final Runnable existingOnOk = dialog.getOnOk();
         dialog.setOnOk(() -> {
+            // First run any callback set by FXNodePropertiesHelper (for modular processors)
+            if (existingOnOk != null) {
+                existingOnOk.run();
+            }
+
             node.label = dialog.getNameValue();
 
             // Save properties handled by the helper class (covers all nodes with main branch differences)
@@ -1581,9 +1587,10 @@ public class PipelineEditorApp extends Application {
         pipelineExecutor.setBasePath(currentFilePath);  // For resolving relative paths in nested containers
         pipelineExecutor.setOnNodeOutput((node, mat) -> {
             // Update node thumbnail
-            node.thumbnail = FXImageUtils.matToImage(mat,
+            javafx.scene.image.Image newThumb = FXImageUtils.matToImage(mat,
                 NodeRenderer.PROCESSING_NODE_THUMB_WIDTH,
                 NodeRenderer.PROCESSING_NODE_THUMB_HEIGHT);
+            node.thumbnail = newThumb;
 
             // Update preview if this node is selected
             if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
@@ -1724,6 +1731,7 @@ public class PipelineEditorApp extends Application {
 
                 // Update preview if this node is selected
                 if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                    System.out.println("[Preview] Webcam frame, updating preview for: " + node.label);
                     previewImageView.setImage(image);
                 }
 
@@ -1797,6 +1805,7 @@ public class PipelineEditorApp extends Application {
                 } else {
                     // Update preview if this node is selected
                     if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                        System.out.println("[Preview] FileSource progress complete, updating preview for: " + node.label);
                         previewImageView.setImage(image);
                     }
                     paintCanvas();
@@ -1899,25 +1908,6 @@ public class PipelineEditorApp extends Application {
 
     private void updateNodeCount() {
         nodeCountLabel.setText("Nodes: " + nodes.size() + " | Connections: " + connections.size());
-    }
-
-    /**
-     * Update the preview pane with the currently selected node's thumbnail.
-     * This provides immediate visual feedback when selecting a new node.
-     */
-    private void updatePreviewForSelectedNode() {
-        if (selectedNodes.size() == 1) {
-            FXNode selectedNode = selectedNodes.iterator().next();
-            if (selectedNode.thumbnail != null) {
-                previewImageView.setImage(selectedNode.thumbnail);
-            } else {
-                // Clear preview if node has no thumbnail
-                previewImageView.setImage(null);
-            }
-        } else {
-            // Clear preview if multiple or no nodes selected
-            previewImageView.setImage(null);
-        }
     }
 
     // ========================= Helper Methods =========================
