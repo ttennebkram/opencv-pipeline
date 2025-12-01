@@ -25,6 +25,7 @@ Top 5 longest Java files:
   | 1,903 | ProcessorFactory.java        |
   | 1,756 | FXContainerEditorWindow.java |
 
+Monitor shouldn't be able to be disabled
 
 .completely remove SWT code
     /remove from POM

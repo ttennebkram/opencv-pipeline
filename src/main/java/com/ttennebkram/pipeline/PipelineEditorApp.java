@@ -398,8 +398,8 @@ public class PipelineEditorApp extends Application {
         toolbarContent.setStyle("-fx-background-color: rgb(160, 200, 160);");
         scrollPane.setContent(toolbarContent);
 
-        // Populate node buttons from registry (exclude Container I/O which is only for container editor)
-        for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
+        // Populate node buttons from registry (all categories including Container I/O)
+        for (String category : FXNodeRegistry.getCategories()) {
             addToolbarCategory(category);
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 final String typeName = nodeType.name;
@@ -674,13 +674,17 @@ public class PipelineEditorApp extends Application {
             NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount, node.thumbnail,
-                node.isContainer, node.inputCount, node.inputCount2, outputCounters, node.nodeType);
+                node.isContainer, node.inputCount, node.inputCount2, outputCounters, node.nodeType,
+                node.isBoundaryNode);
 
             // Draw stats line (Pri/Work/FPS) below title - always show (including after load)
-            // Source nodes (no input) show FPS; processing nodes don't
+            // Source nodes (no input) show FPS; IsNested nodes show Is-Nested status; processing nodes show just Pri/Work
             if (!node.hasInput) {
                 NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
                     node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+            } else if ("IsNestedInput".equals(node.nodeType) || "IsNotNestedOutput".equals(node.nodeType)) {
+                NodeRenderer.drawIsNestedStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                    node.threadPriority, node.workUnitsCompleted, node.isEmbedded);
             } else {
                 NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
                     node.threadPriority, node.workUnitsCompleted);
@@ -1072,6 +1076,8 @@ public class PipelineEditorApp extends Application {
         editorWindow.setIsPipelineRunning(() -> pipelineRunning);
         editorWindow.setGetThreadCount(() -> pipelineExecutor != null ? pipelineExecutor.getThreadCount() + 1 : 1); // +1 for JavaFX thread
         editorWindow.setOnRequestGlobalSave(this::saveDiagram);
+        editorWindow.setOnQuit(Platform::exit);
+        editorWindow.setOnRestart(this::restartApplication);
 
         // Set base path for resolving relative pipeline file paths
         editorWindow.setBasePath(currentFilePath);
@@ -1584,7 +1590,32 @@ public class PipelineEditorApp extends Application {
             // Handle container properties
             if ("Container".equals(node.nodeType) && finalPipelineField != null) {
                 String newPath = finalPipelineField.getText().trim();
+                String oldPath = node.pipelineFilePath;
                 node.pipelineFilePath = newPath;
+
+                // If path changed and new path is not empty, load the pipeline file into inner nodes
+                if (!newPath.isEmpty() && !newPath.equals(oldPath)) {
+                    try {
+                        FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(newPath);
+                        node.innerNodes.clear();
+                        node.innerNodes.addAll(doc.nodes);
+                        node.innerConnections.clear();
+                        node.innerConnections.addAll(doc.connections);
+                        // Reassign IDs to avoid collisions with outer nodes
+                        FXPipelineSerializer.reassignInnerNodeIds(node.innerNodes);
+                        System.out.println("Loaded pipeline into container: " + newPath +
+                                           " (" + doc.nodes.size() + " nodes)");
+                    } catch (Exception e) {
+                        System.err.println("Failed to load pipeline file: " + newPath + " - " + e.getMessage());
+                        // Show error dialog
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                            javafx.scene.control.Alert.AlertType.ERROR);
+                        alert.setTitle("Load Error");
+                        alert.setHeaderText("Failed to load pipeline file");
+                        alert.setContentText(e.getMessage());
+                        alert.showAndWait();
+                    }
+                }
             }
 
             // Handle Grayscale/Color Convert properties
@@ -1741,6 +1772,8 @@ public class PipelineEditorApp extends Application {
     }
 
     private void saveDiagram() {
+        System.out.println("[DEBUG] saveDiagram called, currentFilePath=" + currentFilePath);
+        System.out.flush();
         if (currentFilePath != null) {
             saveDiagramToPath(currentFilePath);
         } else {
@@ -1764,6 +1797,8 @@ public class PipelineEditorApp extends Application {
     }
 
     private void saveDiagramToPath(String path) {
+        System.out.println("[DEBUG] saveDiagramToPath called with path=" + path);
+        System.out.flush();
         try {
             FXPipelineSerializer.save(path, nodes, connections);
             currentFilePath = path;
@@ -1937,13 +1972,24 @@ public class PipelineEditorApp extends Application {
         pipelineRunning = false;
         startStopBtn.setText("Start Pipeline");
         startStopBtn.setStyle("-fx-base: #90EE90;");  // Light green when not running
-        statusBar.setText("Pipeline stopped");
+        statusBar.setText("Stopping pipeline...");
         statusBar.setTextFill(COLOR_STATUS_STOPPED);
 
-        // Stop the pipeline executor
-        if (pipelineExecutor != null) {
-            pipelineExecutor.stop();
-            pipelineExecutor = null;
+        // Stop the pipeline executor in a background thread to avoid blocking the UI
+        // The stop() method contains blocking join() calls that can cause the beach ball
+        final FXPipelineExecutor executorToStop = pipelineExecutor;
+        pipelineExecutor = null;
+
+        if (executorToStop != null) {
+            new Thread(() -> {
+                executorToStop.stop();
+                // Update status on the JavaFX thread when done
+                Platform.runLater(() -> {
+                    statusBar.setText("Pipeline stopped");
+                });
+            }, "PipelineStopThread").start();
+        } else {
+            statusBar.setText("Pipeline stopped");
         }
     }
 
@@ -2007,6 +2053,22 @@ public class PipelineEditorApp extends Application {
     }
 
     private void addNodeAt(String nodeTypeName, int x, int y) {
+        // Check for duplicate boundary nodes - only one of each type allowed
+        if ("ContainerInput".equals(nodeTypeName) || "ContainerOutput".equals(nodeTypeName)) {
+            for (FXNode existing : nodes) {
+                if (nodeTypeName.equals(existing.nodeType)) {
+                    String displayName = "ContainerInput".equals(nodeTypeName) ? "Input" : "Output";
+                    javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR);
+                    alert.setTitle("Cannot Add Node");
+                    alert.setHeaderText("Duplicate Boundary Node");
+                    alert.setContentText("Only one " + displayName + " boundary node is allowed per diagram.");
+                    alert.showAndWait();
+                    return;
+                }
+            }
+        }
+
         // Use factory to create the FXNode with correct type information
         FXNode node = FXNodeFactory.createFXNode(nodeTypeName, x, y);
 
@@ -2222,7 +2284,7 @@ public class PipelineEditorApp extends Application {
 
         boolean hasMatches = false;
 
-        for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
+        for (String category : FXNodeRegistry.getCategories()) {
             List<FXNodeRegistry.NodeType> matchingNodes = new ArrayList<>();
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 if (filter.isEmpty() ||

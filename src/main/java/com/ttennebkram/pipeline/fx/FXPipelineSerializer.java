@@ -23,6 +23,11 @@ public class FXPipelineSerializer {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    // Maximum dimensions for saved preview images (to avoid huge file sizes)
+    // Full-resolution previews can be 4K+ which results in 30MB+ PNG files
+    public static final int MAX_PREVIEW_WIDTH = 640;
+    public static final int MAX_PREVIEW_HEIGHT = 480;
+
     /**
      * Result of loading a pipeline document.
      */
@@ -104,13 +109,17 @@ public class FXPipelineSerializer {
             // Container-specific properties - internal nodes and connections
             nodeJson.addProperty("isContainer", node.isContainer);
             if (node.isContainer) {
+                System.out.println("[Serializer] Main save: container " + node.label + " innerNodes.size=" +
+                                   (node.innerNodes != null ? node.innerNodes.size() : "null"));
                 // Save pipeline file path if set (external sub-diagram file)
                 if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
                     nodeJson.addProperty("pipelineFile", node.pipelineFilePath);
                 }
                 // Also save inline inner nodes if present
-                if (!node.innerNodes.isEmpty()) {
-                    JsonArray innerNodesArray = serializeNodes(node.innerNodes);
+                if (node.innerNodes != null && !node.innerNodes.isEmpty()) {
+                    String containerPrefix = "container_" + i;
+                    System.out.println("[Serializer] Main save: serializing inner nodes with prefix=" + containerPrefix);
+                    JsonArray innerNodesArray = serializeNodes(node.innerNodes, cacheDir, pipelineName, containerPrefix);
                     nodeJson.add("innerNodes", innerNodesArray);
 
                     JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
@@ -309,6 +318,24 @@ public class FXPipelineSerializer {
                     );
                 }
 
+                // Ensure boundary nodes have correct properties (fixes old files with wrong values)
+                // This MUST come after restoring hasInput, outputCount, isBoundaryNode, and bgColor from file
+                if ("ContainerInput".equals(type)) {
+                    node.isBoundaryNode = true;
+                    node.hasInput = false;
+                    node.outputCount = 1;
+                    node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                } else if ("ContainerOutput".equals(type)) {
+                    node.isBoundaryNode = true;
+                    node.hasInput = true;
+                    node.outputCount = 0;
+                    node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+                } else if ("IsNestedOutput".equals(type)) {
+                    // IsNestedOutput is a dual-output node (Out 1: nested, Out 2: root)
+                    // Fix old files that had outputCount=1
+                    node.outputCount = 2;
+                }
+
                 // Restore node-type specific properties
                 if ("WebcamSource".equals(type) && nodeJson.has("cameraIndex")) {
                     node.cameraIndex = nodeJson.get("cameraIndex").getAsInt();
@@ -375,7 +402,10 @@ public class FXPipelineSerializer {
 
                     // First try inline inner nodes - these may have thumbnails from a previous save
                     if (nodeJson.has("innerNodes")) {
-                        node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), path);
+                        // Pass cache info with container prefix for thumbnail loading
+                        String containerPrefix = "container_" + nodeIndex;
+                        node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), path,
+                                                           cacheDir, pipelineName, containerPrefix);
                         if (nodeJson.has("innerConnections")) {
                             node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
                         }
@@ -622,15 +652,36 @@ public class FXPipelineSerializer {
             String previewPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_preview.png";
             BufferedImage bufferedImage = SwingFXUtils.fromFXImage(node.previewImage, null);
             if (bufferedImage != null) {
+                // Scale down if larger than max dimensions to reduce file size
+                BufferedImage imageToSave = bufferedImage;
+                int width = bufferedImage.getWidth();
+                int height = bufferedImage.getHeight();
+                if (width > MAX_PREVIEW_WIDTH || height > MAX_PREVIEW_HEIGHT) {
+                    double scaleX = (double) MAX_PREVIEW_WIDTH / width;
+                    double scaleY = (double) MAX_PREVIEW_HEIGHT / height;
+                    double scale = Math.min(scaleX, scaleY);
+                    int newWidth = (int) (width * scale);
+                    int newHeight = (int) (height * scale);
+                    imageToSave = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D g2d = imageToSave.createGraphics();
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                                         java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    g2d.drawImage(bufferedImage, 0, 0, newWidth, newHeight, null);
+                    g2d.dispose();
+                }
+
                 // Use explicit stream to ensure proper resource cleanup
                 try (java.io.FileOutputStream fos = new java.io.FileOutputStream(previewPath);
                      javax.imageio.stream.ImageOutputStream ios = ImageIO.createImageOutputStream(fos)) {
                     if (ios != null) {
                         javax.imageio.ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
                         writer.setOutput(ios);
-                        writer.write(bufferedImage);
+                        writer.write(imageToSave);
                         writer.dispose();
                     }
+                }
+                if (imageToSave != bufferedImage) {
+                    imageToSave.flush();
                 }
                 bufferedImage.flush();
             }
@@ -800,6 +851,10 @@ public class FXPipelineSerializer {
      * Serialize a list of nodes to a JsonArray.
      */
     private static JsonArray serializeNodes(List<FXNode> nodes) {
+        return serializeNodes(nodes, null, null, null);
+    }
+
+    private static JsonArray serializeNodes(List<FXNode> nodes, String cacheDir, String pipelineName, String prefix) {
         JsonArray nodesArray = new JsonArray();
         for (int i = 0; i < nodes.size(); i++) {
             FXNode node = nodes.get(i);
@@ -836,7 +891,18 @@ public class FXPipelineSerializer {
             // Save generic properties map (for processing nodes like Gain, FFT, BitPlanes, etc.)
             saveNodeProperties(nodeJson, node);
 
-            // Note: Thumbnails for inner nodes are not saved - they use the cache system at load time
+            // Save thumbnails for inner nodes if cache info is available
+            if (cacheDir != null && pipelineName != null) {
+                String thumbPrefix = (prefix != null ? prefix + "_" : "") + "inner_" + i;
+                System.out.println("[Serializer] Saving inner node " + node.label + " thumbPrefix=" + thumbPrefix +
+                                   " hasThumbnail=" + (node.thumbnail != null) + " hasPreview=" + (node.previewImage != null));
+                if (node.thumbnail != null) {
+                    saveThumbnailToCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
+                }
+                if (node.previewImage != null) {
+                    savePreviewToCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
+                }
+            }
 
             // Container-specific properties (for nested containers)
             nodeJson.addProperty("isContainer", node.isContainer);
@@ -847,7 +913,8 @@ public class FXPipelineSerializer {
                 }
                 // Also save inline inner nodes if present (recursively)
                 if (!node.innerNodes.isEmpty()) {
-                    JsonArray innerNodesArray = serializeNodes(node.innerNodes);
+                    String nestedPrefix = (prefix != null ? prefix + "_" : "") + "container_" + i;
+                    JsonArray innerNodesArray = serializeNodes(node.innerNodes, cacheDir, pipelineName, nestedPrefix);
                     nodeJson.add("innerNodes", innerNodesArray);
 
                     JsonArray innerConnectionsArray = serializeConnections(node.innerConnections, node.innerNodes);
@@ -886,14 +953,23 @@ public class FXPipelineSerializer {
      * Deserialize a JsonArray into a list of nodes.
      */
     private static List<FXNode> deserializeNodes(JsonArray nodesArray) {
-        return deserializeNodes(nodesArray, null);
+        return deserializeNodes(nodesArray, null, null, null, null);
     }
 
     /**
      * Deserialize a JsonArray into a list of nodes with parent path for external file resolution.
      */
     private static List<FXNode> deserializeNodes(JsonArray nodesArray, String parentPath) {
+        return deserializeNodes(nodesArray, parentPath, null, null, null);
+    }
+
+    /**
+     * Deserialize a JsonArray into a list of nodes with full cache support for thumbnails.
+     */
+    private static List<FXNode> deserializeNodes(JsonArray nodesArray, String parentPath,
+                                                  String cacheDir, String pipelineName, String prefix) {
         List<FXNode> nodes = new ArrayList<>();
+        int nodeIndex = 0;
         for (JsonElement elem : nodesArray) {
             JsonObject nodeJson = elem.getAsJsonObject();
 
@@ -978,17 +1054,37 @@ public class FXPipelineSerializer {
                 );
             }
 
-            // Ensure boundary nodes use the standard container/boundary color
-            if (node.isBoundaryNode) {
+            // Ensure boundary nodes have correct properties (fixes old files and overwritten values)
+            if ("ContainerInput".equals(type)) {
+                node.isBoundaryNode = true;
+                node.hasInput = false;
+                node.outputCount = 1;
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            } else if ("ContainerOutput".equals(type)) {
+                node.isBoundaryNode = true;
+                node.hasInput = true;
+                node.outputCount = 0;
+                node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            } else if (node.isBoundaryNode) {
+                // For any other boundary node, ensure correct color
                 node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
             }
 
             // Load generic properties for processing nodes
             loadNodeProperties(nodeJson, node);
 
+            // Load thumbnails and preview images from cache if cache info is available
+            if (cacheDir != null && pipelineName != null) {
+                String thumbPrefix = (prefix != null ? prefix + "_" : "") + "inner_" + nodeIndex;
+                System.out.println("[Serializer] Loading inner node " + node.label + " thumbPrefix=" + thumbPrefix);
+                boolean loadedThumb = loadThumbnailFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
+                boolean loadedPreview = loadPreviewFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
+                System.out.println("[Serializer] Loaded thumbnail=" + loadedThumb + " preview=" + loadedPreview);
+            }
+
             // For backwards compatibility: load embedded Base64 thumbnail from old files
             // New saves don't include embedded thumbnails
-            if (nodeJson.has("thumbnail")) {
+            if (node.thumbnail == null && nodeJson.has("thumbnail")) {
                 String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
                 node.thumbnail = base64ToImage(thumbnailBase64);
             }
@@ -1011,7 +1107,10 @@ public class FXPipelineSerializer {
                 // Load inner nodes: prioritize inline data (which may have thumbnails) over external file
                 boolean loadedInline = false;
                 if (nodeJson.has("innerNodes")) {
-                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), parentPath);
+                    // Pass cache info with nested container prefix for thumbnail loading
+                    String nestedPrefix = (prefix != null ? prefix + "_" : "") + "container_" + nodeIndex;
+                    node.innerNodes = deserializeNodes(nodeJson.getAsJsonArray("innerNodes"), parentPath,
+                                                       cacheDir, pipelineName, nestedPrefix);
                     if (nodeJson.has("innerConnections")) {
                         node.innerConnections = deserializeConnections(nodeJson.getAsJsonArray("innerConnections"), node.innerNodes);
                     }
@@ -1053,6 +1152,7 @@ public class FXPipelineSerializer {
             }
 
             nodes.add(node);
+            nodeIndex++;
         }
         return nodes;
     }
@@ -1089,7 +1189,7 @@ public class FXPipelineSerializer {
      * @param innerNodes List of inner nodes to reassign IDs
      * @param existingNodes List of outer nodes to check for ID collisions (can be null)
      */
-    private static void reassignInnerNodeIds(List<FXNode> innerNodes) {
+    public static void reassignInnerNodeIds(List<FXNode> innerNodes) {
         for (FXNode node : innerNodes) {
             node.reassignId();
             // Recursively handle nested containers

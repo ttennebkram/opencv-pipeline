@@ -2,6 +2,7 @@ package com.ttennebkram.pipeline.processing;
 
 import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.processors.FXDualInputProcessor;
+import com.ttennebkram.pipeline.fx.processors.FXMultiOutputProcessor;
 import com.ttennebkram.pipeline.fx.processors.FXProcessor;
 import com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry;
 import org.opencv.core.*;
@@ -96,12 +97,22 @@ public class ProcessorFactory {
             }
             tp = new DualInputProcessor(fxNode.label, dualProcessor);
         } else if (isMultiOutputNode(fxNode.nodeType)) {
-            // Multi-output nodes (4 outputs) use MultiOutputProcessor
-            MultiOutputProcessor.MultiOutputImageProcessor multiProcessor = createMultiOutputProcessor(fxNode);
-            if (multiProcessor == null) {
-                return null;
+            // Multi-output nodes use MultiOutputProcessor
+            // First try to create from registry (for FXMultiOutputProcessor implementations)
+            FXMultiOutputProcessor fxMultiProc = FXProcessorRegistry.createMultiOutputProcessor(fxNode);
+            if (fxMultiProc != null) {
+                fxMultiProc.setFXNode(fxNode);
+                int outputCount = fxMultiProc.getOutputCount();
+                MultiOutputProcessor.MultiOutputImageProcessor multiProcessor = fxMultiProc::processMultiOutput;
+                tp = new MultiOutputProcessor(fxNode.label, multiProcessor, outputCount);
+            } else {
+                // Fall back to legacy createMultiOutputProcessor
+                MultiOutputProcessor.MultiOutputImageProcessor multiProcessor = createMultiOutputProcessor(fxNode);
+                if (multiProcessor == null) {
+                    return null;
+                }
+                tp = new MultiOutputProcessor(fxNode.label, multiProcessor, 4);
             }
-            tp = new MultiOutputProcessor(fxNode.label, multiProcessor, 4);
         } else {
             ImageProcessor processor = createImageProcessor(fxNode);
             if (processor == null) {
@@ -147,9 +158,15 @@ public class ProcessorFactory {
     }
 
     /**
-     * Check if a node type is a multi-output node (4 outputs).
+     * Check if a node type is a multi-output node.
+     * Checks both the legacy hard-coded list and the FXProcessorRegistry.
      */
     private boolean isMultiOutputNode(String nodeType) {
+        // Check registry first for FXMultiOutputProcessor implementations
+        if (FXProcessorRegistry.isMultiOutput(nodeType)) {
+            return true;
+        }
+        // Legacy check for hard-coded types (FFT4 nodes)
         return "FFTHighPass4".equals(nodeType) ||
                "FFTLowPass4".equals(nodeType);
     }

@@ -23,9 +23,10 @@ public class FXNodeRegistry {
         public final boolean isDualInput;
         public final boolean isContainer;
         public final int outputCount;
+        public final boolean canBeDisabled;  // Whether this node can be disabled (show checkbox)
 
         public NodeType(String name, String displayName, String buttonName, String category, String description,
-                        boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
+                        boolean isSource, boolean isDualInput, boolean isContainer, int outputCount, boolean canBeDisabled) {
             this.name = name;
             this.displayName = displayName;
             this.buttonName = buttonName;
@@ -35,15 +36,21 @@ public class FXNodeRegistry {
             this.isDualInput = isDualInput;
             this.isContainer = isContainer;
             this.outputCount = outputCount;
+            this.canBeDisabled = canBeDisabled;
+        }
+
+        public NodeType(String name, String displayName, String buttonName, String category, String description,
+                        boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
+            this(name, displayName, buttonName, category, description, isSource, isDualInput, isContainer, outputCount, true);
         }
 
         public NodeType(String name, String displayName, String category,
                         boolean isSource, boolean isDualInput, boolean isContainer, int outputCount) {
-            this(name, displayName, null, category, null, isSource, isDualInput, isContainer, outputCount);
+            this(name, displayName, null, category, null, isSource, isDualInput, isContainer, outputCount, true);
         }
 
         public NodeType(String name, String displayName, String category) {
-            this(name, displayName, null, category, null, false, false, false, 1);
+            this(name, displayName, null, category, null, false, false, false, 1, true);
         }
 
         /**
@@ -96,9 +103,10 @@ public class FXNodeRegistry {
             boolean isDualInput = info.dualInput();
             boolean isContainer = info.isContainer();
             int outputCount = info.outputCount();
+            boolean canBeDisabled = info.canBeDisabled();
 
             NodeType type = new NodeType(name, displayName, buttonName, category, description,
-                    isSource, isDualInput, isContainer, outputCount);
+                    isSource, isDualInput, isContainer, outputCount, canBeDisabled);
             nodeTypes.add(type);
             byCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(type);
         }
@@ -107,8 +115,8 @@ public class FXNodeRegistry {
         // Container (sub-diagram) - special handling, not a processor
         register("Container", "Container/Sub-diagram", "Utility", "Container sub-diagram\nEncapsulates a pipeline", false, false, true, 1);
 
-        // Container I/O nodes (only shown in container editor)
-        register("ContainerInput", "Input", "Container I/O", "Container input\nReceives data from parent pipeline", true, false, 1);
+        // Container I/O nodes - boundary nodes, not regular sources
+        register("ContainerInput", "Input", "Container I/O", "Container input\nReceives data from parent pipeline", false, false, 1);
         register("ContainerOutput", "Output", "Container I/O", "Container output\nSends data to parent pipeline");
 
         // Sort nodes within each category alphabetically by display name

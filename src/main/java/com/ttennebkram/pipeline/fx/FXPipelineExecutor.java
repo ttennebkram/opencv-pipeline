@@ -131,7 +131,10 @@ public class FXPipelineExecutor {
         List<FXNode> executionOrder = buildExecutionOrder();
 
         // Create processors for all nodes (including sources for backpressure signaling)
+        // Mark top-level nodes as NOT embedded (they're the root diagram)
         for (FXNode node : executionOrder) {
+            node.isEmbedded = false;  // Top-level/root diagram nodes are not embedded
+
             ThreadedProcessor tp = processorFactory.createProcessor(node);
             if (tp != null) {
                 tp.setEnabled(node.enabled);
@@ -220,12 +223,31 @@ public class FXPipelineExecutor {
 
     /**
      * Load a container's inner nodes from an external pipeline file if specified.
-     * ALWAYS reloads from the external file at execution time to ensure we have the
-     * complete pipeline (saved inline data may be incomplete/corrupted).
+     * Only loads from the external file if the container doesn't already have
+     * substantial inner nodes (more than just boundary nodes). This preserves
+     * user edits when running the pipeline from the container editor.
      */
     private void loadContainerFromExternalFile(FXNode containerNode) {
         if (containerNode.pipelineFilePath == null || containerNode.pipelineFilePath.isEmpty()) {
             return;
+        }
+
+        // If the container already has inner nodes beyond just boundary nodes,
+        // don't reload from external file - the user may have made edits that
+        // are only stored in the innerNodes list (saved to parent document).
+        // Count non-boundary nodes to determine if user has made edits.
+        if (containerNode.innerNodes != null && !containerNode.innerNodes.isEmpty()) {
+            int nonBoundaryCount = 0;
+            for (FXNode inner : containerNode.innerNodes) {
+                if (!inner.isBoundaryNode) {
+                    nonBoundaryCount++;
+                }
+            }
+            // If there are non-boundary nodes, the container was already populated
+            // (either from a previous load or from user edits in container editor)
+            if (nonBoundaryCount > 0) {
+                return;  // Don't reload from external file
+            }
         }
 
         try {
@@ -439,7 +461,10 @@ public class FXPipelineExecutor {
         }
 
         // Create processors for all inner nodes (including boundary nodes)
+        // Inner nodes keep isEmbedded=true (the default), since they're inside a container
         for (FXNode innerNode : containerNode.innerNodes) {
+            // isEmbedded defaults to true, so inner nodes are automatically marked as embedded
+
             ThreadedProcessor tp = processorFactory.createProcessor(innerNode);
             if (tp != null) {
                 tp.setEnabled(innerNode.enabled);

@@ -30,6 +30,8 @@ public class FXNode {
     public boolean queuesInSync;  // For dual-input nodes: require both inputs to have new data before processing
     public boolean isContainer;
     public boolean isBoundaryNode;  // Container I/O boundary nodes (Input/Output)
+    public boolean isEmbedded;      // True if this node is running inside a container (not at root level)
+    public boolean canBeDisabled;   // Whether this node can be disabled (show checkbox)
     public int outputCount;
 
     // Thumbnail image for displaying node output (small, shown in node box)
@@ -100,6 +102,8 @@ public class FXNode {
         this.hasDualInput = false;
         this.isContainer = false;
         this.isBoundaryNode = false;
+        this.isEmbedded = true;   // Default to embedded; root executor explicitly sets false for top-level nodes
+        this.canBeDisabled = true; // Most nodes can be disabled
         this.outputCount = 1;
     }
 

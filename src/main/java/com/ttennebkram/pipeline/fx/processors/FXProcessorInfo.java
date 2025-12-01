@@ -73,4 +73,11 @@ public @interface FXProcessorInfo {
      * Number of outputs this node produces.
      */
     int outputCount() default 1;
+
+    /**
+     * Whether this node can be disabled.
+     * If false, the enable/disable checkbox is not shown.
+     * Default is true (most nodes can be disabled).
+     */
+    boolean canBeDisabled() default true;
 }

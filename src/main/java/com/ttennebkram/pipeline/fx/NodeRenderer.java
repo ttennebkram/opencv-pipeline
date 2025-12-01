@@ -189,8 +189,8 @@ public class NodeRenderer {
             drawHexagon(gc, dotX, dotY3, hexRadius);
         }
 
-        // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
-        boolean skipCheckbox = isBoundaryNode || "Monitor".equals(nodeType);
+        // Draw enabled checkbox (not for boundary nodes or nodes that can't be disabled)
+        boolean skipCheckbox = isBoundaryNode || !canBeDisabled(nodeType);
         if (!skipCheckbox) {
             drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
         }
@@ -347,8 +347,8 @@ public class NodeRenderer {
             drawHexagon(gc, dotX, dotY3, hexRadius);
         }
 
-        // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
-        boolean skipCheckbox = isBoundaryNode || "Monitor".equals(nodeType);
+        // Draw enabled checkbox (not for boundary nodes or nodes that can't be disabled)
+        boolean skipCheckbox = isBoundaryNode || !canBeDisabled(nodeType);
         if (!skipCheckbox) {
             drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
         }
@@ -464,6 +464,18 @@ public class NodeRenderer {
         // Source nodes are similar but wider and have no input
         renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
                    false, false, 1);
+    }
+
+    /**
+     * Check if a node type can be disabled.
+     * Looks up the node type in the registry and returns its canBeDisabled flag.
+     * Defaults to true if the node type is not found.
+     */
+    private static boolean canBeDisabled(String nodeType) {
+        if (nodeType == null) return true;
+        FXNodeRegistry.NodeType type = FXNodeRegistry.getNodeType(nodeType);
+        if (type == null) return true;
+        return type.canBeDisabled;
     }
 
     /**
@@ -829,6 +841,24 @@ public class NodeRenderer {
         // Red text if priority is below 5, otherwise dark gray
         gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
         String statsLine = String.format("Pri: %d   Work: %,d   FPS: %.3f", priority, workUnits, effectiveFps);
+        gc.fillText(statsLine, x, y);
+    }
+
+    /**
+     * Draw the stats line for Is-Nested nodes: "Pri: N   Work: N   Is-Nested: true/false"
+     * @param gc Graphics context
+     * @param x X position to start drawing
+     * @param y Y position for baseline
+     * @param priority Current thread priority (1-10)
+     * @param workUnits Number of work units completed
+     * @param isNested Current Is-Nested status (true if embedded in container)
+     */
+    public static void drawIsNestedStatsLine(GraphicsContext gc, double x, double y,
+                                              int priority, long workUnits, boolean isNested) {
+        gc.setFont(STATS_LINE_FONT);
+        // Red text if priority is below 5, otherwise dark gray
+        gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
+        String statsLine = String.format("Pri: %d   Work: %,d   Is-Nested: %s", priority, workUnits, isNested);
         gc.fillText(statsLine, x, y);
     }
 }

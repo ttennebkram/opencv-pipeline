@@ -51,6 +51,10 @@ public class FXContainerEditorWindow {
     // Callback to trigger global save (parent pipeline)
     private Runnable onRequestGlobalSave;
 
+    // Callbacks for app-level operations
+    private Runnable onQuit;
+    private Runnable onRestart;
+
     private FXNode containerNode;
     private Stage parentStage;
     private Runnable onModified;
@@ -257,6 +261,28 @@ public class FXContainerEditorWindow {
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
 
+        // File menu
+        Menu fileMenu = new Menu("File");
+
+        MenuItem saveItem = new MenuItem("Save");
+        saveItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
+            javafx.scene.input.KeyCode.S, javafx.scene.input.KeyCombination.SHORTCUT_DOWN));
+        saveItem.setOnAction(e -> saveContainerContents());
+
+        MenuItem quitItem = new MenuItem("Quit");
+        quitItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
+            javafx.scene.input.KeyCode.Q, javafx.scene.input.KeyCombination.SHORTCUT_DOWN));
+        quitItem.setOnAction(e -> {
+            if (onQuit != null) onQuit.run();
+        });
+
+        MenuItem restartItem = new MenuItem("Restart");
+        restartItem.setOnAction(e -> {
+            if (onRestart != null) onRestart.run();
+        });
+
+        fileMenu.getItems().addAll(saveItem, new SeparatorMenuItem(), quitItem, restartItem);
+
         // Edit menu
         Menu editMenu = new Menu("Edit");
 
@@ -272,22 +298,29 @@ public class FXContainerEditorWindow {
 
         editMenu.getItems().addAll(deleteItem, selectAllItem);
 
-        // Window menu
-        Menu windowMenu = new Menu("Window");
+        // Help menu
+        Menu helpMenu = new Menu("Help");
+        MenuItem aboutItem = new MenuItem("About");
+        aboutItem.setOnAction(e -> showAbout());
+        helpMenu.getItems().add(aboutItem);
 
-        MenuItem closeItem = new MenuItem("Close");
-        closeItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
-            javafx.scene.input.KeyCode.W, javafx.scene.input.KeyCombination.SHORTCUT_DOWN));
-        closeItem.setOnAction(e -> stage.close());
-
-        windowMenu.getItems().add(closeItem);
-
-        menuBar.getMenus().addAll(editMenu, windowMenu);
+        menuBar.getMenus().addAll(fileMenu, editMenu, helpMenu);
 
         // macOS-specific menu bar integration
         menuBar.setUseSystemMenuBar(true);
 
         return menuBar;
+    }
+
+    private void showAbout() {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+            javafx.scene.control.Alert.AlertType.INFORMATION);
+        alert.setTitle("About");
+        alert.setHeaderText("OpenCV Pipeline Editor");
+        alert.setContentText("A visual node-based editor for creating OpenCV image processing pipelines.\n\n" +
+            "OpenCV Version: " + org.opencv.core.Core.VERSION + "\n" +
+            "JavaFX Version: " + System.getProperty("javafx.version"));
+        alert.showAndWait();
     }
 
     private VBox createToolbar() {
@@ -326,9 +359,8 @@ public class FXContainerEditorWindow {
         toolbarContent.setStyle("-fx-background-color: rgb(160, 200, 160);");
         scrollPane.setContent(toolbarContent);
 
-        // Populate with all node types
-        // Container I/O nodes are NOT shown in toolbar - they are auto-created via ensureBoundaryNodes()
-        for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
+        // Populate with all node types (including Container I/O for Is-Nested nodes and boundary nodes)
+        for (String category : FXNodeRegistry.getCategories()) {
             boolean hasNodes = false;
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 if (!hasNodes) {
@@ -406,11 +438,7 @@ public class FXContainerEditorWindow {
         Button saveButton = new Button("Save");
         saveButton.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(saveButton, Priority.ALWAYS);
-        saveButton.setOnAction(e -> {
-            if (onRequestGlobalSave != null) {
-                onRequestGlobalSave.run();
-            }
-        });
+        saveButton.setOnAction(e -> saveContainerContents());
 
         Button cancelButton = new Button("Cancel");
         cancelButton.setMaxWidth(Double.MAX_VALUE);
@@ -438,12 +466,14 @@ public class FXContainerEditorWindow {
 
         previewImageView = new ImageView();
         previewImageView.setPreserveRatio(true);
-        previewImageView.setFitWidth(200);
-        previewImageView.setFitHeight(200);
 
         StackPane imageContainer = new StackPane(previewImageView);
         imageContainer.setStyle("-fx-background-color: #cccccc; -fx-min-height: 150;");
         VBox.setVgrow(imageContainer, Priority.ALWAYS);
+
+        // Bind preview size to container so it expands to fill available space
+        previewImageView.fitWidthProperty().bind(imageContainer.widthProperty().subtract(10));
+        previewImageView.fitHeightProperty().bind(imageContainer.heightProperty().subtract(10));
 
         previewPane.getChildren().addAll(buttonPanel, startStopBtn, instructionsLabel, instructions, previewLabel, imageContainer);
 
@@ -508,6 +538,14 @@ public class FXContainerEditorWindow {
 
     public void setOnRequestGlobalSave(Runnable callback) {
         this.onRequestGlobalSave = callback;
+    }
+
+    public void setOnQuit(Runnable callback) {
+        this.onQuit = callback;
+    }
+
+    public void setOnRestart(Runnable callback) {
+        this.onRestart = callback;
     }
 
     /**
@@ -803,6 +841,7 @@ public class FXContainerEditorWindow {
                 selectedNodes.clear();
                 selectedConnections.clear();
                 selectedNodes.add(clickedNode);
+                updatePreviewForSelection();
             }
             dragNode = clickedNode;
             dragOffsetX = canvasX - clickedNode.x;
@@ -1165,6 +1204,8 @@ public class FXContainerEditorWindow {
         nestedEditor.setIsPipelineRunning(isPipelineRunning);
         nestedEditor.setGetThreadCount(getThreadCount);
         nestedEditor.setOnRequestGlobalSave(onRequestGlobalSave);
+        nestedEditor.setOnQuit(onQuit);
+        nestedEditor.setOnRestart(onRestart);
 
         nestedEditor.show();
         nestedEditor.updatePipelineButtonState();
@@ -1537,6 +1578,22 @@ public class FXContainerEditorWindow {
     }
 
     private void addNode(String nodeType) {
+        // Check for duplicate boundary nodes - only one of each type allowed
+        if ("ContainerInput".equals(nodeType) || "ContainerOutput".equals(nodeType)) {
+            for (FXNode existing : nodes) {
+                if (nodeType.equals(existing.nodeType)) {
+                    String displayName = "ContainerInput".equals(nodeType) ? "Input" : "Output";
+                    javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR);
+                    alert.setTitle("Cannot Add Node");
+                    alert.setHeaderText("Duplicate Boundary Node");
+                    alert.setContentText("Only one " + displayName + " boundary node is allowed per container.");
+                    alert.showAndWait();
+                    return;
+                }
+            }
+        }
+
         // Calculate position in visible area
         double x = 50 + (nodes.size() % 5) * 30;
         double y = 50 + (nodes.size() / 5) * 30;
@@ -1807,11 +1864,14 @@ public class FXContainerEditorWindow {
                 node.inputCount, node.inputCount2, outputCounters, node.nodeType, node.isBoundaryNode);
 
             // Draw stats line (Pri/Work/FPS) - always show (including after load)
-            // Source nodes (no input, not boundary) show FPS; boundary nodes and processing nodes don't
+            // Source nodes (no input, not boundary) show FPS; IsNested nodes show Is-Nested status; others show just Pri/Work
             boolean isSourceNode = !node.hasInput && !node.isBoundaryNode;
             if (isSourceNode) {
                 NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
                     node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+            } else if ("IsNestedInput".equals(node.nodeType) || "IsNotNestedOutput".equals(node.nodeType)) {
+                NodeRenderer.drawIsNestedStatsLine(gc, node.x + 22, node.y + node.height - 8,
+                    node.threadPriority, node.workUnitsCompleted, node.isEmbedded);
             } else {
                 NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
                     node.threadPriority, node.workUnitsCompleted);
@@ -1835,4 +1895,73 @@ public class FXContainerEditorWindow {
 
         gc.restore();
     }
+
+    /**
+     * Update the preview pane when node selection changes.
+     * Shows the preview image of the selected node if exactly one node is selected.
+     */
+    private void updatePreviewForSelection() {
+        if (selectedNodes.size() == 1) {
+            FXNode node = selectedNodes.iterator().next();
+            if (node.previewImage != null) {
+                previewImageView.setImage(node.previewImage);
+            } else if (node.thumbnail != null) {
+                // Fall back to thumbnail if no preview
+                previewImageView.setImage(node.thumbnail);
+            } else {
+                previewImageView.setImage(null);
+            }
+        } else {
+            previewImageView.setImage(null);
+        }
+    }
+
+    /**
+     * Save the container's contents. If the container has an external pipeline file,
+     * save to that file. Otherwise, trigger the global save (parent document).
+     */
+    private void saveContainerContents() {
+        System.out.println("[DEBUG] FXContainerEditorWindow.saveContainerContents() called");
+        System.out.println("[DEBUG] pipelineFilePath=" + containerNode.pipelineFilePath);
+        System.out.flush();
+        // Check if the container has an external pipeline file path
+        if (containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
+            // Resolve the path (handle relative paths)
+            String resolvedPath = resolvePipelinePath(containerNode.pipelineFilePath);
+
+            try {
+                // Save to the external file
+                FXPipelineSerializer.save(resolvedPath, nodes, connections);
+
+                // Show confirmation in status bar
+                statusLabel.setText("Saved to: " + new java.io.File(resolvedPath).getName());
+
+                // Also notify parent that we've modified (so parent knows container is updated)
+                notifyModified();
+
+            } catch (Exception e) {
+                // Show error dialog
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR);
+                alert.setTitle("Save Error");
+                alert.setHeaderText("Failed to save pipeline");
+                alert.setContentText("Error: " + e.getMessage() + "\n\nFile: " + resolvedPath);
+                alert.showAndWait();
+            }
+
+            // Also save parent document to persist inner node thumbnails
+            // (thumbnails are stored in parent's cache, not external file's cache)
+            if (onRequestGlobalSave != null) {
+                System.out.println("[DEBUG] Also triggering parent document save for thumbnails");
+                onRequestGlobalSave.run();
+            }
+        } else {
+            // No external file configured - save to parent document
+            if (onRequestGlobalSave != null) {
+                onRequestGlobalSave.run();
+                statusLabel.setText("Saved to parent document");
+            }
+        }
+    }
+
 }

@@ -165,11 +165,27 @@ public class FXNodeFactory {
             }
             // Set container flag and color
             node.isContainer = typeInfo.isContainer;
+            node.canBeDisabled = typeInfo.canBeDisabled;
             if (typeInfo.isContainer) {
                 node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
             }
         } else {
             node = new FXNode(nodeType, nodeType, x, y);
+        }
+
+        // Set boundary node properties for ContainerInput and ContainerOutput
+        if ("ContainerInput".equals(nodeType)) {
+            node.isBoundaryNode = true;
+            node.hasInput = false;  // Source node - no input
+            node.outputCount = 1;
+            node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            node.height = NodeRenderer.NODE_HEIGHT;
+        } else if ("ContainerOutput".equals(nodeType)) {
+            node.isBoundaryNode = true;
+            node.hasInput = true;   // Has input
+            node.outputCount = 0;   // No outputs - this is a sink node
+            node.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;
+            node.height = NodeRenderer.NODE_HEIGHT;
         }
 
         return node;
