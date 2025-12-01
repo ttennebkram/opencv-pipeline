@@ -15,6 +15,12 @@ Download `opencv-pipeline.jar` from the [releases page](https://github.com/ttenn
 java -jar opencv-pipeline.jar
 ```
 
+Or to automatically load and startup a pipeline when it first starts you'd do:
+
+```bash
+java -jar opencv-pipeline.jar --start
+```
+
 That's it! This one JAR works on all **supported** platforms:
 - **macOS** Apple Silicon (M1-M5)
 - **macOS** Intel (x86_64)
@@ -58,6 +64,12 @@ For development:
 mvn compile exec:exec
 ```
 
+To compile and auto-start the pipeline immediately after launch:
+
+```bash
+mvn compile exec:exec@start
+```
+
 ## Usage
 
 1. **Add Nodes**: Click on node types in the toolbar to add them to the canvas
@@ -65,6 +77,8 @@ mvn compile exec:exec
 3. **Configure Nodes**: Double-click or right-click nodes to open properties dialog.  Container nodes use double-click to open the sub-pipeline, which is usually what users want; so use right-click to set the file property.
 4. **Run Pipeline**: Click "Start Pipeline" to begin processing
 5. **View Output**: Each node shows a live thumbnail of its output.  Single-click on the thumbnail to see a larger version of that image in the Preview pane.
+
+**macOS Note**: macOS enforces a "Java" application menu which is mostly useless. You may find it simpler to just ignore it and use the **File** menu inside the window instead, just like on Windows or Linux.
 
 ### Keyboard Shortcuts
 

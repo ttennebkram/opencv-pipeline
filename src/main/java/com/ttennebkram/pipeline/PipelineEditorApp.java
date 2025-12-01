@@ -94,6 +94,8 @@ public class PipelineEditorApp extends Application {
     private int connectionOutputIndex = 0;
     private double connectionEndX, connectionEndY;
     private boolean isDrawingConnection = false;
+    private FXConnection yankingConnection = null;  // Connection being yanked (detached from one end)
+    private boolean yankingFromTarget = false;       // True if yanking from target end, false if from source end
 
     // Selection box state
     private double selectionBoxStartX, selectionBoxStartY;
@@ -119,8 +121,18 @@ public class PipelineEditorApp extends Application {
     // Pipeline executor
     private FXPipelineExecutor pipelineExecutor;
 
+    // Command line option to auto-start pipeline after loading
+    private boolean autoStartPipeline = false;
+
     @Override
     public void start(Stage primaryStage) {
+        // Parse command line arguments for --start flag
+        java.util.List<String> params = getParameters().getRaw();
+        for (String param : params) {
+            if ("--start".equals(param)) {
+                autoStartPipeline = true;
+            }
+        }
         this.primaryStage = primaryStage;
 
         // Initialize preferences
@@ -225,12 +237,19 @@ public class PipelineEditorApp extends Application {
 
         System.out.println("JavaFX Pipeline Editor started");
         System.out.println("OpenCV version: " + org.opencv.core.Core.VERSION);
+        if (autoStartPipeline) {
+            System.out.println("Auto-start pipeline requested via --start command line or exec:exec@start in pom.xml target");
+        }
     }
 
     private void loadLastFile() {
         String lastFile = prefs.get(LAST_FILE_KEY, null);
         if (lastFile != null && new File(lastFile).exists()) {
             loadDiagramFromPath(lastFile);
+            // Auto-start pipeline if --start was passed
+            if (autoStartPipeline && !pipelineRunning) {
+                startPipeline();
+            }
         }
     }
 
@@ -349,6 +368,10 @@ public class PipelineEditorApp extends Application {
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
                 final String typeName = nodeType.name;
                 addToolbarButton(nodeType.getButtonName(), () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
+            }
+            // Add Connector/Queue button to Utility category
+            if (category.equals("Utility")) {
+                addToolbarButton("Connector/Queue", () -> addConnectorQueue(getNextNodeX(), getNextNodeY()));
             }
         }
 
@@ -594,8 +617,9 @@ public class PipelineEditorApp extends Application {
             }
         }
 
-        // Draw connection being drawn
-        if (isDrawingConnection && connectionSource != null) {
+        // Draw connection being drawn (only for NEW connections, not when yanking existing ones)
+        // Yanked connections are already in the connections list and render via their free endpoints
+        if (isDrawingConnection && connectionSource != null && yankingConnection == null) {
             double[] start = connectionSource.getOutputPoint(connectionOutputIndex);
             if (start != null) {
                 NodeRenderer.renderConnection(gc, start[0], start[1], connectionEndX, connectionEndY, true);
@@ -669,28 +693,22 @@ public class PipelineEditorApp extends Application {
         for (FXNode node : nodes) {
             int outputIdx = node.getOutputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 3);
             if (outputIdx >= 0) {
-                // Check if there's an existing connection from this output - yank it
+                // Check if there's an existing connection from this output - yank its SOURCE end
                 FXConnection existingConn = findConnectionFromOutput(node, outputIdx);
                 if (existingConn != null) {
-                    // Yank: remove connection and start dragging from the source end toward the old target
-                    connections.remove(existingConn);
-                    // Start a new connection from the same source (so user can reconnect it)
-                    connectionSource = node;
-                    connectionOutputIndex = outputIdx;
-                    if (existingConn.target != null) {
-                        double[] targetPt = existingConn.target.getInputPoint(existingConn.targetInputIndex);
-                        if (targetPt != null) {
-                            connectionEndX = targetPt[0];
-                            connectionEndY = targetPt[1];
-                        } else {
-                            connectionEndX = canvasX;
-                            connectionEndY = canvasY;
-                        }
+                    // Yank the SOURCE end (the end at the output point we clicked on)
+                    double[] sourcePt = node.getOutputPoint(outputIdx);
+                    if (sourcePt != null) {
+                        existingConn.freeSourceX = sourcePt[0];
+                        existingConn.freeSourceY = sourcePt[1];
                     } else {
-                        connectionEndX = canvasX;
-                        connectionEndY = canvasY;
+                        existingConn.freeSourceX = canvasX;
+                        existingConn.freeSourceY = canvasY;
                     }
-                    isDrawingConnection = true;
+                    existingConn.source = null;  // Detach source end
+                    yankingConnection = existingConn;
+                    yankingFromTarget = false;  // Yanking source end
+                    isDrawingConnection = true;  // Enables drag tracking
                     markDirty();
                     paintCanvas();
                     return;
@@ -701,6 +719,7 @@ public class PipelineEditorApp extends Application {
                 connectionEndX = canvasX;
                 connectionEndY = canvasY;
                 isDrawingConnection = true;
+                yankingConnection = null;
                 paintCanvas();
                 return;
             }
@@ -710,19 +729,22 @@ public class PipelineEditorApp extends Application {
         for (FXNode node : nodes) {
             int inputIdx = node.getInputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 3);
             if (inputIdx >= 0) {
-                // Check if there's an existing connection to this input - yank it
+                // Check if there's an existing connection to this input - yank its TARGET end
                 FXConnection existingConn = findConnectionToInput(node, inputIdx);
                 if (existingConn != null) {
-                    // Yank: remove connection and start dragging from the source
-                    FXNode source = existingConn.source;
-                    int sourceOutputIdx = existingConn.sourceOutputIndex;
-                    connections.remove(existingConn);
-                    // Start a new connection from the original source
-                    connectionSource = source;
-                    connectionOutputIndex = sourceOutputIdx;
-                    connectionEndX = canvasX;
-                    connectionEndY = canvasY;
-                    isDrawingConnection = true;
+                    // Yank the TARGET end (the end at the input point we clicked on)
+                    double[] targetPt = node.getInputPoint(inputIdx);
+                    if (targetPt != null) {
+                        existingConn.freeTargetX = targetPt[0];
+                        existingConn.freeTargetY = targetPt[1];
+                    } else {
+                        existingConn.freeTargetX = canvasX;
+                        existingConn.freeTargetY = canvasY;
+                    }
+                    existingConn.target = null;  // Detach target end
+                    yankingConnection = existingConn;
+                    yankingFromTarget = true;  // Yanking target end
+                    isDrawingConnection = true;  // Enables drag tracking
                     markDirty();
                     paintCanvas();
                     return;
@@ -785,8 +807,20 @@ public class PipelineEditorApp extends Application {
         double canvasY = e.getY() / zoomLevel;
 
         if (isDrawingConnection) {
-            connectionEndX = canvasX;
-            connectionEndY = canvasY;
+            if (yankingConnection != null) {
+                // Dragging an existing connection - update its free endpoint
+                if (yankingFromTarget) {
+                    yankingConnection.freeTargetX = canvasX;
+                    yankingConnection.freeTargetY = canvasY;
+                } else {
+                    yankingConnection.freeSourceX = canvasX;
+                    yankingConnection.freeSourceY = canvasY;
+                }
+            } else {
+                // Drawing a new connection
+                connectionEndX = canvasX;
+                connectionEndY = canvasY;
+            }
             paintCanvas();
         } else if (isDragging && dragNode != null) {
             // Move the dragged node
@@ -815,29 +849,103 @@ public class PipelineEditorApp extends Application {
         double canvasY = e.getY() / zoomLevel;
 
         if (isDrawingConnection) {
-            // Check if we're over a node's input point
-            for (FXNode node : nodes) {
-                if (node != connectionSource) {
-                    int inputIdx = node.getInputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 5);
-                    if (inputIdx >= 0) {
-                        // Check if there's already a connection to this input - remove it first
-                        FXConnection existingConn = findConnectionToInput(node, inputIdx);
-                        if (existingConn != null) {
-                            connections.remove(existingConn);
+            boolean connected = false;
+
+            if (yankingConnection != null) {
+                // We're reconnecting a yanked connection (preserving queue data)
+                if (yankingFromTarget) {
+                    // Yanking from target end - try to reconnect target to a new input
+                    for (FXNode node : nodes) {
+                        if (node != yankingConnection.source) {
+                            int inputIdx = node.getInputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 5);
+                            if (inputIdx >= 0) {
+                                // Check if there's already a connection to this input - reject drop if occupied
+                                FXConnection existingConn = findConnectionToInput(node, inputIdx);
+                                if (existingConn != null && existingConn != yankingConnection) {
+                                    // Input occupied - leave yanked connection dangling
+                                    break;
+                                }
+                                // Reconnect the yanked connection
+                                yankingConnection.reconnectTarget(node, inputIdx);
+                                propagateInitialFrame(yankingConnection);
+                                connected = true;
+                                markDirty();
+                                break;
+                            }
                         }
-
-                        // Create connection
-                        FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, node, inputIdx);
-                        connections.add(conn);
-
-                        // Propagate initial frame to the newly connected node
-                        propagateInitialFrame(conn);
-
+                    }
+                    if (!connected) {
+                        // Leave connection with dangling target - push away from nearby connection points
+                        double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                        yankingConnection.freeTargetX = pushed[0];
+                        yankingConnection.freeTargetY = pushed[1];
                         markDirty();
-                        break;
+                    }
+                } else {
+                    // Yanking from source end - try to reconnect source to a new output
+                    for (FXNode node : nodes) {
+                        if (node != yankingConnection.target) {
+                            int outputIdx = node.getOutputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 5);
+                            if (outputIdx >= 0) {
+                                // Check if there's already a connection from this output - reject drop if occupied
+                                FXConnection existingConn = findConnectionFromOutput(node, outputIdx);
+                                if (existingConn != null && existingConn != yankingConnection) {
+                                    // Output occupied - leave yanked connection dangling
+                                    break;
+                                }
+                                // Reconnect the yanked connection
+                                yankingConnection.reconnectSource(node, outputIdx);
+                                connected = true;
+                                markDirty();
+                                break;
+                            }
+                        }
+                    }
+                    if (!connected) {
+                        // Leave connection with dangling source - push away from nearby connection points
+                        double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                        yankingConnection.freeSourceX = pushed[0];
+                        yankingConnection.freeSourceY = pushed[1];
+                        markDirty();
                     }
                 }
+                yankingConnection = null;
+            } else {
+                // Creating a new connection (not yanking)
+                for (FXNode node : nodes) {
+                    if (node != connectionSource) {
+                        int inputIdx = node.getInputPointAt(canvasX, canvasY, NodeRenderer.CONNECTION_RADIUS + 5);
+                        if (inputIdx >= 0) {
+                            // Check if there's already a connection to this input - reject the drop
+                            FXConnection existingConn = findConnectionToInput(node, inputIdx);
+                            if (existingConn != null) {
+                                // Input already occupied - create dangling connection instead
+                                break;
+                            }
+
+                            // Create connection
+                            FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, node, inputIdx);
+                            connections.add(conn);
+
+                            // Propagate initial frame to the newly connected node
+                            propagateInitialFrame(conn);
+
+                            connected = true;
+                            markDirty();
+                            break;
+                        }
+                    }
+                }
+                // New connections that don't connect anywhere are kept as dangling
+                if (!connected && connectionSource != null) {
+                    // Push away from nearby connection points
+                    double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                    FXConnection danglingConn = FXConnection.createFromSource(connectionSource, connectionOutputIndex, pushed[0], pushed[1]);
+                    connections.add(danglingConn);
+                    markDirty();
+                }
             }
+
             isDrawingConnection = false;
             connectionSource = null;
         }
@@ -949,6 +1057,13 @@ public class PipelineEditorApp extends Application {
         } else if (connectionPointNode != null) {
             // Show connection point tooltip
             tooltipText = getConnectionPointTooltip(connectionPointNode, isInputPoint, connectionPointIndex);
+            // Add occupancy info for input points
+            if (isInputPoint) {
+                FXConnection existingConn = findConnectionToInput(connectionPointNode, connectionPointIndex);
+                if (existingConn != null) {
+                    tooltipText += "\n(Connected - yank existing wire to replace)";
+                }
+            }
         }
 
         // Install or uninstall tooltip based on hover state
@@ -983,12 +1098,22 @@ public class PipelineEditorApp extends Application {
 
     /**
      * Find a connection from a specific output point.
-     * Returns the first connection found from that node's output index.
+     * Returns the first connection found from that node's output index,
+     * or a source-dangling connection whose free end is near the output point.
      */
     private FXConnection findConnectionFromOutput(FXNode node, int outputIndex) {
+        double[] outputPt = node.getOutputPoint(outputIndex);
         for (FXConnection conn : connections) {
+            // Check if source is connected to this output
             if (conn.source == node && conn.sourceOutputIndex == outputIndex) {
                 return conn;
+            }
+            // Also check if this is a source-dangling connection whose free end is at this output point
+            if (conn.source == null && outputPt != null) {
+                double dist = Math.sqrt(Math.pow(conn.freeSourceX - outputPt[0], 2) + Math.pow(conn.freeSourceY - outputPt[1], 2));
+                if (dist < 15) {  // Within 15 pixels of the output point
+                    return conn;
+                }
             }
         }
         return null;
@@ -999,12 +1124,77 @@ public class PipelineEditorApp extends Application {
      * Returns the first connection found to that node's input index.
      */
     private FXConnection findConnectionToInput(FXNode node, int inputIndex) {
+        double[] inputPt = node.getInputPoint(inputIndex);
         for (FXConnection conn : connections) {
+            // Check if target is connected to this input
             if (conn.target == node && conn.targetInputIndex == inputIndex) {
                 return conn;
             }
+            // Also check if this is a target-dangling connection whose free end is at this input point
+            if (conn.target == null && inputPt != null) {
+                double dist = Math.sqrt(Math.pow(conn.freeTargetX - inputPt[0], 2) + Math.pow(conn.freeTargetY - inputPt[1], 2));
+                if (dist < 15) {  // Within 15 pixels of the input point
+                    return conn;
+                }
+            }
         }
         return null;
+    }
+
+    /**
+     * Push a dangling endpoint away from nearby connection points so it's visually
+     * clear that the connection is not connected.
+     * @param x The current X position
+     * @param y The current Y position
+     * @param minDistance The minimum distance to maintain from connection points
+     * @return A 2-element array [newX, newY] with the pushed-away position
+     */
+    private double[] pushAwayFromConnectionPoints(double x, double y, double minDistance) {
+        double newX = x;
+        double newY = y;
+
+        for (FXNode node : nodes) {
+            // Check against input points
+            int inputCount = node.hasInput ? (node.hasDualInput ? 2 : 1) : 0;
+            for (int i = 0; i < inputCount; i++) {
+                double[] inputPt = node.getInputPoint(i);
+                if (inputPt != null) {
+                    double dx = x - inputPt[0];
+                    double dy = y - inputPt[1];
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDistance && dist > 0) {
+                        // Push away
+                        double scale = minDistance / dist;
+                        newX = inputPt[0] + dx * scale;
+                        newY = inputPt[1] + dy * scale;
+                    } else if (dist == 0) {
+                        // Directly on the point - push in a default direction
+                        newX = x + minDistance;
+                    }
+                }
+            }
+
+            // Check against output points
+            for (int i = 0; i < node.outputCount; i++) {
+                double[] outputPt = node.getOutputPoint(i);
+                if (outputPt != null) {
+                    double dx = x - outputPt[0];
+                    double dy = y - outputPt[1];
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDistance && dist > 0) {
+                        // Push away
+                        double scale = minDistance / dist;
+                        newX = outputPt[0] + dx * scale;
+                        newY = outputPt[1] + dy * scale;
+                    } else if (dist == 0) {
+                        // Directly on the point - push in a default direction
+                        newX = x + minDistance;
+                    }
+                }
+            }
+        }
+
+        return new double[] { newX, newY };
     }
 
     /**
@@ -1533,12 +1723,20 @@ public class PipelineEditorApp extends Application {
     }
 
     private void deleteSelected() {
-        // Remove selected connections
+        // Remove only explicitly selected connections (user chose to delete them)
         connections.removeAll(selectedConnections);
 
-        // Remove connections to/from selected nodes
+        // Detach (not remove) connections to/from selected nodes
+        // This preserves connections and any queued data they contain
         for (FXNode node : selectedNodes) {
-            connections.removeIf(conn -> conn.source == node || conn.target == node);
+            for (FXConnection conn : connections) {
+                if (conn.source == node) {
+                    conn.detachSource();
+                }
+                if (conn.target == node) {
+                    conn.detachTarget();
+                }
+            }
         }
 
         // Remove selected nodes
@@ -1701,6 +1899,24 @@ public class PipelineEditorApp extends Application {
         if ("WebcamSource".equals(nodeTypeName)) {
             startWebcamForNode(node);
         }
+
+        markDirty();
+        paintCanvas();
+    }
+
+    /**
+     * Add a standalone Connector/Queue (a dangling connection with both ends free).
+     * This creates a connection object that can be grabbed and connected to nodes later.
+     */
+    private void addConnectorQueue(int x, int y) {
+        // Create a fully dangling connection (both source and target are null)
+        FXConnection conn = FXConnection.createDangling(x, y, x + 100, y);
+        connections.add(conn);
+
+        // Select the new connection
+        selectedNodes.clear();
+        selectedConnections.clear();
+        selectedConnections.add(conn);
 
         markDirty();
         paintCanvas();

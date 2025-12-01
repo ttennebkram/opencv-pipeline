@@ -6,6 +6,8 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+import java.text.NumberFormat;
+
 /**
  * Utility class for rendering pipeline nodes on a JavaFX Canvas.
  * This provides a clean separation between node data and rendering,
@@ -33,6 +35,9 @@ public class NodeRenderer {
 
     // Connection point constants
     public static final int CONNECTION_RADIUS = 6;
+
+    // Number formatter for localized thousands separators
+    private static final NumberFormat NUMBER_FORMAT = NumberFormat.getIntegerInstance();
 
     // Line width constants
     private static final int LINE_WIDTH_NORMAL = 2;
@@ -381,16 +386,18 @@ public class NodeRenderer {
         if (hasInput) {
             double inputY = y + height / 2;
             drawConnectionPoint(gc, x, inputY, true);
-            // Draw input counter label - dark color for visibility
+            // Draw input counter label - dark color for visibility, two lines
             gc.setFill(Color.rgb(60, 60, 60));
             // For dual-input nodes, label as "In1:" instead of "In:"
-            String inLabel = hasDualInput ? "In1:" + inputCounter : "In:" + inputCounter;
-            gc.fillText(inLabel, x + 10, inputY + 4);
+            String inPrefix = hasDualInput ? "In1:" : "In:";
+            gc.fillText(inPrefix, x + 10, inputY - 3);
+            gc.fillText(NUMBER_FORMAT.format(inputCounter), x + 10, inputY + 7);
             if (hasDualInput) {
                 drawConnectionPoint(gc, x, inputY + 20, true);
                 // Draw second input counter label - reset fill color after drawing connection point
                 gc.setFill(Color.rgb(60, 60, 60));
-                gc.fillText("In2:" + inputCounter2, x + 10, inputY + 24);
+                gc.fillText("In2:", x + 10, inputY + 17);
+                gc.fillText(NUMBER_FORMAT.format(inputCounter2), x + 10, inputY + 27);
             }
         }
 
@@ -401,7 +408,8 @@ public class NodeRenderer {
             double inputY = y + height / 2;
             // Use outputCounter[0] as the "In:" value since that's what flows through
             int inVal = (outputCounters != null && outputCounters.length > 0) ? outputCounters[0] : 0;
-            gc.fillText("In:" + inVal, x + 14, inputY + 4);
+            gc.fillText("In:", x + 14, inputY - 3);
+            gc.fillText(NUMBER_FORMAT.format(inVal), x + 14, inputY + 7);
         }
 
         // Draw output connection point(s) with counters
@@ -409,13 +417,16 @@ public class NodeRenderer {
         for (int i = 0; i < outputCount; i++) {
             double outputY = y + outSpacing * (i + 1);
             drawConnectionPoint(gc, x + width, outputY, false);
-            // Draw output counter label - dark color for visibility
+            // Draw output counter label - dark color for visibility, two lines
             int outVal = (outputCounters != null && i < outputCounters.length) ? outputCounters[i] : 0;
-            String outLabel = outputCount > 1 ? "Out" + (i + 1) + ":" + outVal : "Out:" + outVal;
+            String outPrefix = outputCount > 1 ? "Out" + (i + 1) + ":" : "Out:";
+            String outNum = NUMBER_FORMAT.format(outVal);
             gc.setFill(Color.rgb(60, 60, 60));
             // Measure text width approximately and right-align
-            double textWidth = outLabel.length() * 5.5;
-            gc.fillText(outLabel, x + width - textWidth - 10, outputY + 4);
+            double prefixWidth = outPrefix.length() * 5.5;
+            double numWidth = outNum.length() * 5.5;
+            gc.fillText(outPrefix, x + width - prefixWidth - 10, outputY - 3);
+            gc.fillText(outNum, x + width - numWidth - 10, outputY + 7);
         }
 
         // For ContainerOutput boundary nodes: show "Out:" on right side (frames leaving container)
@@ -424,9 +435,11 @@ public class NodeRenderer {
             gc.setFill(Color.rgb(60, 60, 60));
             double outputY = y + height / 2;
             // Use inputCounter as the "Out:" value since that's what flows through
-            String outLabel = "Out:" + inputCounter;
-            double textWidth = outLabel.length() * 5.5;
-            gc.fillText(outLabel, x + width - textWidth - 14, outputY + 4);
+            String outNum = NUMBER_FORMAT.format(inputCounter);
+            double prefixWidth = "Out:".length() * 5.5;
+            double numWidth = outNum.length() * 5.5;
+            gc.fillText("Out:", x + width - prefixWidth - 14, outputY - 3);
+            gc.fillText(outNum, x + width - numWidth - 14, outputY + 7);
         }
     }
 
@@ -527,22 +540,39 @@ public class NodeRenderer {
         double ctrl2X = endX - ctrlOffset;
         double ctrl2Y = endY;
 
+        // Calculate tangent at start by sampling bezier slightly ahead (t=0.05)
+        double t1 = 0.05;
+        double sample1X = bezierPoint(startX, ctrl1X, ctrl2X, endX, t1);
+        double sample1Y = bezierPoint(startY, ctrl1Y, ctrl2Y, endY, t1);
+        double tailTangentX = sample1X - startX;
+        double tailTangentY = sample1Y - startY;
+
+        // Normalize the tangent and offset the line start by tail length (10 pixels)
+        double tailLength = 10;
+        double tailTangentLen = Math.sqrt(tailTangentX * tailTangentX + tailTangentY * tailTangentY);
+        double lineStartX = startX;
+        double lineStartY = startY;
+        if (tailTangentLen > 0.001) {
+            lineStartX = startX + (tailTangentX / tailTangentLen) * tailLength;
+            lineStartY = startY + (tailTangentY / tailTangentLen) * tailLength;
+        }
+
+        // Draw the bezier curve starting after the tail
         gc.beginPath();
-        gc.moveTo(startX, startY);
+        gc.moveTo(lineStartX, lineStartY);
         gc.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
         gc.stroke();
 
-        // Draw arrow at end - use the tangent direction at the end of the bezier
-        // For a cubic bezier, tangent at t=1 is proportional to (P3 - P2) = (end - ctrl2)
-        double tangentX = endX - ctrl2X;
-        double tangentY = endY - ctrl2Y;
-        // If tangentY is 0 (horizontal tangent), use a small value based on the line direction
-        // to ensure the arrow points in the direction the line approaches
-        if (Math.abs(tangentY) < 0.001 && Math.abs(tangentX) > 0) {
-            // Use the overall line direction to give a slight vertical hint
-            tangentY = (endY - startY) * 0.1;
-        }
-        drawArrowHead(gc, endX, endY, tangentX, tangentY, lineColor);
+        // Draw the tail at the original start point
+        drawOpenArrowTail(gc, startX, startY, tailTangentX, tailTangentY, lineColor, selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
+
+        // Calculate tangent at end by sampling bezier slightly before (t=0.95)
+        double t2 = 0.95;
+        double sample2X = bezierPoint(startX, ctrl1X, ctrl2X, endX, t2);
+        double sample2Y = bezierPoint(startY, ctrl1Y, ctrl2Y, endY, t2);
+        double tangentX = endX - sample2X;
+        double tangentY = endY - sample2Y;
+        drawOpenArrowHead(gc, endX, endY, tangentX, tangentY, lineColor, selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
     }
 
     /**
@@ -599,10 +629,21 @@ public class NodeRenderer {
     }
 
     /**
-     * Draw an arrow head at the end of a connection.
+     * Calculate a point on a cubic bezier curve at parameter t (0 to 1).
      */
-    private static void drawArrowHead(GraphicsContext gc, double tipX, double tipY,
-                                       double tangentX, double tangentY, Color color) {
+    private static double bezierPoint(double p0, double p1, double p2, double p3, double t) {
+        double oneMinusT = 1 - t;
+        return oneMinusT * oneMinusT * oneMinusT * p0
+             + 3 * oneMinusT * oneMinusT * t * p1
+             + 3 * oneMinusT * t * t * p2
+             + t * t * t * p3;
+    }
+
+    /**
+     * Draw an open arrow head (chevron) at the end of a connection.
+     */
+    private static void drawOpenArrowHead(GraphicsContext gc, double tipX, double tipY,
+                                           double tangentX, double tangentY, Color color, double lineWidth) {
         // Normalize tangent
         double len = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
         if (len < 0.001) {
@@ -614,8 +655,8 @@ public class NodeRenderer {
         double dirY = tangentY / len;
 
         // Arrow parameters
-        double arrowLength = 12;
-        double arrowWidth = 6;
+        double arrowLength = 10;
+        double arrowWidth = 5;
 
         // Calculate arrow base center (back from tip)
         double baseX = tipX - dirX * arrowLength;
@@ -631,8 +672,58 @@ public class NodeRenderer {
         double x2 = baseX - perpX * arrowWidth;
         double y2 = baseY - perpY * arrowWidth;
 
-        gc.setFill(color);
-        gc.fillPolygon(new double[]{tipX, x1, x2}, new double[]{tipY, y1, y2}, 3);
+        // Draw open chevron (two lines from wings to tip)
+        gc.setStroke(color);
+        gc.setLineWidth(lineWidth);
+        gc.beginPath();
+        gc.moveTo(x1, y1);
+        gc.lineTo(tipX, tipY);
+        gc.lineTo(x2, y2);
+        gc.stroke();
+    }
+
+    /**
+     * Draw an open arrow tail (chevron) at the start of a connection.
+     * The tail points backward (opposite to data flow direction).
+     */
+    private static void drawOpenArrowTail(GraphicsContext gc, double baseX, double baseY,
+                                           double tangentX, double tangentY, Color color, double lineWidth) {
+        // Normalize tangent (points in direction of flow)
+        double len = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
+        if (len < 0.001) {
+            tangentX = 1;
+            tangentY = 0;
+            len = 1;
+        }
+        double dirX = tangentX / len;
+        double dirY = tangentY / len;
+
+        // Tail parameters
+        double tailLength = 10;
+        double tailWidth = 5;
+
+        // The tail tip is ahead of the base point (in the direction of flow)
+        double tipX = baseX + dirX * tailLength;
+        double tipY = baseY + dirY * tailLength;
+
+        // Perpendicular direction
+        double perpX = -dirY;
+        double perpY = dirX;
+
+        // Tail wing points (at the base, flaring outward)
+        double x1 = baseX + perpX * tailWidth;
+        double y1 = baseY + perpY * tailWidth;
+        double x2 = baseX - perpX * tailWidth;
+        double y2 = baseY - perpY * tailWidth;
+
+        // Draw open chevron: wings at base converge to tip ahead
+        gc.setStroke(color);
+        gc.setLineWidth(lineWidth);
+        gc.beginPath();
+        gc.moveTo(x1, y1);
+        gc.lineTo(tipX, tipY);
+        gc.lineTo(x2, y2);
+        gc.stroke();
     }
 
     /**

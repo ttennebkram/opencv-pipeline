@@ -75,6 +75,8 @@ public class FXContainerEditorWindow {
     private int connectionOutputIndex = 0;
     private double connectionEndX, connectionEndY;
     private boolean isDrawingConnection = false;
+    private FXConnection yankingConnection = null;  // Connection being yanked (detached from one end)
+    private boolean yankingFromTarget = false;       // True if yanking from target end, false if from source end
 
     // Reverse connection drawing state (drag from input to output)
     private FXNode connectionTarget = null;
@@ -193,6 +195,18 @@ public class FXContainerEditorWindow {
             if (e.getCode() == javafx.scene.input.KeyCode.DELETE ||
                 e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
                 deleteSelected();
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.UP) {
+                moveSelectedNodes(0, -10);
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                moveSelectedNodes(0, 10);
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.LEFT) {
+                moveSelectedNodes(-10, 0);
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.RIGHT) {
+                moveSelectedNodes(10, 0);
                 e.consume();
             }
         });
@@ -313,6 +327,29 @@ public class FXContainerEditorWindow {
 
         canvasScrollPane = new ScrollPane(canvasContainer);
         canvasScrollPane.setPannable(false);  // Disable panning - we handle canvas interactions ourselves
+
+        // Intercept arrow keys before ScrollPane consumes them for scrolling
+        // Use event filter (capture phase) to get the event before ScrollPane
+        canvasScrollPane.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.UP ||
+                e.getCode() == javafx.scene.input.KeyCode.DOWN ||
+                e.getCode() == javafx.scene.input.KeyCode.LEFT ||
+                e.getCode() == javafx.scene.input.KeyCode.RIGHT) {
+                // Only consume if we have selected items to move
+                if (!selectedNodes.isEmpty() || !selectedConnections.isEmpty()) {
+                    if (e.getCode() == javafx.scene.input.KeyCode.UP) {
+                        moveSelectedNodes(0, -10);
+                    } else if (e.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                        moveSelectedNodes(0, 10);
+                    } else if (e.getCode() == javafx.scene.input.KeyCode.LEFT) {
+                        moveSelectedNodes(-10, 0);
+                    } else if (e.getCode() == javafx.scene.input.KeyCode.RIGHT) {
+                        moveSelectedNodes(10, 0);
+                    }
+                    e.consume();  // Prevent ScrollPane from scrolling
+                }
+            }
+        });
 
         return canvasScrollPane;
     }
@@ -608,34 +645,57 @@ public class FXContainerEditorWindow {
         double canvasX = e.getX() / zoomLevel;
         double canvasY = e.getY() / zoomLevel;
 
-        // First, check ALL nodes for connection point clicks (connection points are on edges,
-        // so the click might not be "inside" the node bounds)
         double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+
+        // First, check for clicks on free endpoints of dangling connections
+        for (FXConnection conn : connections) {
+            // Check free source endpoint (source-dangling connection)
+            if (conn.source == null) {
+                double dist = Math.sqrt(Math.pow(canvasX - conn.freeSourceX, 2) + Math.pow(canvasY - conn.freeSourceY, 2));
+                if (dist < tolerance) {
+                    // Grab the free source end
+                    yankingConnection = conn;
+                    yankingFromTarget = false;
+                    isDrawingConnection = true;
+                    paintCanvas();
+                    return;
+                }
+            }
+            // Check free target endpoint (target-dangling connection)
+            if (conn.target == null) {
+                double dist = Math.sqrt(Math.pow(canvasX - conn.freeTargetX, 2) + Math.pow(canvasY - conn.freeTargetY, 2));
+                if (dist < tolerance) {
+                    // Grab the free target end
+                    yankingConnection = conn;
+                    yankingFromTarget = true;
+                    isDrawingConnection = true;
+                    paintCanvas();
+                    return;
+                }
+            }
+        }
+
+        // Next, check ALL nodes for connection point clicks (connection points are on edges,
+        // so the click might not be "inside" the node bounds)
         for (FXNode node : nodes) {
             int outputIdx = node.getOutputPointAt(canvasX, canvasY, tolerance);
             if (outputIdx >= 0) {
-                // Check if there's an existing connection from this output - yank it
+                // Check if there's an existing connection from this output - yank its SOURCE end
                 FXConnection existingConn = findConnectionFromOutput(node, outputIdx);
                 if (existingConn != null) {
-                    // Yank: remove connection and start dragging from the source end toward the old target
-                    connections.remove(existingConn);
-                    // Start a new connection from the same source (so user can reconnect it)
-                    connectionSource = node;
-                    connectionOutputIndex = outputIdx;
-                    if (existingConn.target != null) {
-                        double[] targetPt = existingConn.target.getInputPoint(existingConn.targetInputIndex);
-                        if (targetPt != null) {
-                            connectionEndX = targetPt[0];
-                            connectionEndY = targetPt[1];
-                        } else {
-                            connectionEndX = canvasX;
-                            connectionEndY = canvasY;
-                        }
+                    // Yank the SOURCE end (the end at the output point we clicked on)
+                    double[] sourcePt = node.getOutputPoint(outputIdx);
+                    if (sourcePt != null) {
+                        existingConn.freeSourceX = sourcePt[0];
+                        existingConn.freeSourceY = sourcePt[1];
                     } else {
-                        connectionEndX = canvasX;
-                        connectionEndY = canvasY;
+                        existingConn.freeSourceX = canvasX;
+                        existingConn.freeSourceY = canvasY;
                     }
-                    isDrawingConnection = true;
+                    existingConn.source = null;  // Detach source end
+                    yankingConnection = existingConn;
+                    yankingFromTarget = false;  // Yanking source end
+                    isDrawingConnection = true;  // Enables drag tracking
                     notifyModified();
                     paintCanvas();
                     return;
@@ -646,24 +706,29 @@ public class FXContainerEditorWindow {
                 connectionEndX = canvasX;
                 connectionEndY = canvasY;
                 isDrawingConnection = true;
+                yankingConnection = null;
+                paintCanvas();
                 return;
             }
 
             int inputIdx = node.getInputPointAt(canvasX, canvasY, tolerance);
             if (inputIdx >= 0) {
-                // Check if there's an existing connection to this input - yank it
+                // Check if there's an existing connection to this input - yank its TARGET end
                 FXConnection existingConn = findConnectionToInput(node, inputIdx);
                 if (existingConn != null) {
-                    // Yank: remove connection and start dragging from the source
-                    FXNode source = existingConn.source;
-                    int sourceOutputIdx = existingConn.sourceOutputIndex;
-                    connections.remove(existingConn);
-                    // Start a new connection from the original source
-                    connectionSource = source;
-                    connectionOutputIndex = sourceOutputIdx;
-                    connectionEndX = canvasX;
-                    connectionEndY = canvasY;
-                    isDrawingConnection = true;
+                    // Yank the TARGET end (the end at the input point we clicked on)
+                    double[] targetPt = node.getInputPoint(inputIdx);
+                    if (targetPt != null) {
+                        existingConn.freeTargetX = targetPt[0];
+                        existingConn.freeTargetY = targetPt[1];
+                    } else {
+                        existingConn.freeTargetX = canvasX;
+                        existingConn.freeTargetY = canvasY;
+                    }
+                    existingConn.target = null;  // Detach target end
+                    yankingConnection = existingConn;
+                    yankingFromTarget = true;  // Yanking target end
+                    isDrawingConnection = true;  // Enables drag tracking
                     notifyModified();
                     paintCanvas();
                     return;
@@ -735,16 +800,49 @@ public class FXContainerEditorWindow {
         double canvasX = e.getX() / zoomLevel;
         double canvasY = e.getY() / zoomLevel;
 
-        if (isDrawingConnection || isDrawingReverseConnection) {
+        if (isDrawingConnection) {
+            if (yankingConnection != null) {
+                // Dragging an existing connection - update its free endpoint
+                if (yankingFromTarget) {
+                    yankingConnection.freeTargetX = canvasX;
+                    yankingConnection.freeTargetY = canvasY;
+                } else {
+                    yankingConnection.freeSourceX = canvasX;
+                    yankingConnection.freeSourceY = canvasY;
+                }
+            } else {
+                // Drawing a new connection
+                connectionEndX = canvasX;
+                connectionEndY = canvasY;
+            }
+            paintCanvas();
+        } else if (isDrawingReverseConnection) {
             connectionEndX = canvasX;
             connectionEndY = canvasY;
             paintCanvas();
         } else if (dragNode != null) {
             isDragging = true;
+            // Calculate delta from drag node's movement
+            double newDragNodeX = canvasX - dragOffsetX;
+            double newDragNodeY = canvasY - dragOffsetY;
+            double deltaX = newDragNodeX - dragNode.x;
+            double deltaY = newDragNodeY - dragNode.y;
+
+            // Move all selected nodes by the same delta
             for (FXNode node : selectedNodes) {
-                if (node == dragNode) {
-                    node.x = canvasX - dragOffsetX;
-                    node.y = canvasY - dragOffsetY;
+                node.x += deltaX;
+                node.y += deltaY;
+            }
+
+            // Also move free endpoints of selected dangling connections
+            for (FXConnection conn : selectedConnections) {
+                if (conn.source == null) {
+                    conn.freeSourceX += deltaX;
+                    conn.freeSourceY += deltaY;
+                }
+                if (conn.target == null) {
+                    conn.freeTargetX += deltaX;
+                    conn.freeTargetY += deltaY;
                 }
             }
             paintCanvas();
@@ -759,23 +857,100 @@ public class FXContainerEditorWindow {
         double canvasX = e.getX() / zoomLevel;
         double canvasY = e.getY() / zoomLevel;
 
-        if (isDrawingConnection && connectionSource != null) {
-            // Check ALL nodes for input point hit (connection points are on edges)
-            double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+        if (isDrawingConnection) {
             boolean connected = false;
-            for (FXNode targetNode : nodes) {
-                if (targetNode != connectionSource) {
-                    int inputIdx = targetNode.getInputPointAt(canvasX, canvasY, tolerance);
-                    if (inputIdx >= 0) {
-                        // Create connection
-                        FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, targetNode, inputIdx);
-                        connections.add(conn);
+            double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+
+            if (yankingConnection != null) {
+                // We're reconnecting a yanked connection (preserving queue data)
+                if (yankingFromTarget) {
+                    // Yanking from target end - try to reconnect target to a new input
+                    for (FXNode node : nodes) {
+                        if (node != yankingConnection.source) {
+                            int inputIdx = node.getInputPointAt(canvasX, canvasY, tolerance);
+                            if (inputIdx >= 0) {
+                                // Check if there's already a connection to this input - reject drop if occupied
+                                FXConnection existingConn = findConnectionToInput(node, inputIdx);
+                                if (existingConn != null && existingConn != yankingConnection) {
+                                    // Input occupied - leave yanked connection dangling
+                                    break;
+                                }
+                                // Reconnect the yanked connection
+                                yankingConnection.reconnectTarget(node, inputIdx);
+                                connected = true;
+                                notifyModified();
+                                break;
+                            }
+                        }
+                    }
+                    if (!connected) {
+                        // Leave connection with dangling target - push away from nearby connection points
+                        double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                        yankingConnection.freeTargetX = pushed[0];
+                        yankingConnection.freeTargetY = pushed[1];
                         notifyModified();
-                        connected = true;
-                        break;
+                    }
+                } else {
+                    // Yanking from source end - try to reconnect source to a new output
+                    for (FXNode node : nodes) {
+                        if (node != yankingConnection.target) {
+                            int outputIdx = node.getOutputPointAt(canvasX, canvasY, tolerance);
+                            if (outputIdx >= 0) {
+                                // Check if there's already a connection from this output - reject drop if occupied
+                                FXConnection existingConn = findConnectionFromOutput(node, outputIdx);
+                                if (existingConn != null && existingConn != yankingConnection) {
+                                    // Output occupied - leave yanked connection dangling
+                                    break;
+                                }
+                                // Reconnect the yanked connection
+                                yankingConnection.reconnectSource(node, outputIdx);
+                                connected = true;
+                                notifyModified();
+                                break;
+                            }
+                        }
+                    }
+                    if (!connected) {
+                        // Leave connection with dangling source - push away from nearby connection points
+                        double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                        yankingConnection.freeSourceX = pushed[0];
+                        yankingConnection.freeSourceY = pushed[1];
+                        notifyModified();
                     }
                 }
+                yankingConnection = null;
+            } else if (connectionSource != null) {
+                // Creating a new connection (not yanking)
+                for (FXNode targetNode : nodes) {
+                    if (targetNode != connectionSource) {
+                        int inputIdx = targetNode.getInputPointAt(canvasX, canvasY, tolerance);
+                        if (inputIdx >= 0) {
+                            // Check if there's already a connection to this input - reject the drop
+                            FXConnection existingConn = findConnectionToInput(targetNode, inputIdx);
+                            if (existingConn != null) {
+                                // Input already occupied - create dangling connection instead
+                                break;
+                            }
+
+                            // Create connection
+                            FXConnection conn = new FXConnection(connectionSource, connectionOutputIndex, targetNode, inputIdx);
+                            connections.add(conn);
+                            notifyModified();
+                            connected = true;
+                            break;
+                        }
+                    }
+                }
+                // New connections that don't connect anywhere are kept as dangling
+                if (!connected && connectionSource != null) {
+                    // Push away from nearby connection points
+                    double[] pushed = pushAwayFromConnectionPoints(canvasX, canvasY, 30);
+                    FXConnection danglingConn = FXConnection.createFromSource(connectionSource, connectionOutputIndex, pushed[0], pushed[1]);
+                    connections.add(danglingConn);
+                    notifyModified();
+                }
             }
+
             isDrawingConnection = false;
             connectionSource = null;
             paintCanvas();
@@ -1168,8 +1343,9 @@ public class FXContainerEditorWindow {
      */
     private FXConnection getConnectionAt(double px, double py, double tolerance) {
         for (FXConnection conn : connections) {
-            double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
-            double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
+            // Use getStartPoint/getEndPoint to handle dangling connections
+            double[] startPt = conn.getStartPoint();
+            double[] endPt = conn.getEndPoint();
             if (startPt != null && endPt != null) {
                 if (isPointNearBezier(px, py, startPt[0], startPt[1], endPt[0], endPt[1], tolerance)) {
                     return conn;
@@ -1181,12 +1357,22 @@ public class FXContainerEditorWindow {
 
     /**
      * Find a connection from a specific output point.
-     * Returns the first connection found from that node's output index.
+     * Returns the first connection found from that node's output index,
+     * or a source-dangling connection whose free end is near the output point.
      */
     private FXConnection findConnectionFromOutput(FXNode node, int outputIndex) {
+        double[] outputPt = node.getOutputPoint(outputIndex);
         for (FXConnection conn : connections) {
+            // Check if source is connected to this output
             if (conn.source == node && conn.sourceOutputIndex == outputIndex) {
                 return conn;
+            }
+            // Also check if this is a source-dangling connection whose free end is at this output point
+            if (conn.source == null && outputPt != null) {
+                double dist = Math.sqrt(Math.pow(conn.freeSourceX - outputPt[0], 2) + Math.pow(conn.freeSourceY - outputPt[1], 2));
+                if (dist < 15) {  // Within 15 pixels of the output point
+                    return conn;
+                }
             }
         }
         return null;
@@ -1194,12 +1380,22 @@ public class FXContainerEditorWindow {
 
     /**
      * Find a connection to a specific input point.
-     * Returns the first connection found to that node's input index.
+     * Returns the first connection found to that node's input index,
+     * or a target-dangling connection whose free end is near the input point.
      */
     private FXConnection findConnectionToInput(FXNode node, int inputIndex) {
+        double[] inputPt = node.getInputPoint(inputIndex);
         for (FXConnection conn : connections) {
+            // Check if target is connected to this input
             if (conn.target == node && conn.targetInputIndex == inputIndex) {
                 return conn;
+            }
+            // Also check if this is a target-dangling connection whose free end is at this input point
+            if (conn.target == null && inputPt != null) {
+                double dist = Math.sqrt(Math.pow(conn.freeTargetX - inputPt[0], 2) + Math.pow(conn.freeTargetY - inputPt[1], 2));
+                if (dist < 15) {  // Within 15 pixels of the input point
+                    return conn;
+                }
             }
         }
         return null;
@@ -1298,12 +1494,20 @@ public class FXContainerEditorWindow {
     }
 
     private void deleteSelected() {
-        // Remove selected connections
+        // Remove only explicitly selected connections (user chose to delete them)
         connections.removeAll(selectedConnections);
 
-        // Remove connections to/from selected nodes
+        // Detach (not remove) connections to/from selected nodes
+        // This preserves connections and any queued data they contain
         for (FXNode node : selectedNodes) {
-            connections.removeIf(c -> c.source == node || c.target == node);
+            for (FXConnection conn : connections) {
+                if (conn.source == node) {
+                    conn.detachSource();
+                }
+                if (conn.target == node) {
+                    conn.detachTarget();
+                }
+            }
         }
 
         // Remove selected nodes
@@ -1314,6 +1518,89 @@ public class FXContainerEditorWindow {
         paintCanvas();
         updateStatus();
         notifyModified();
+    }
+
+    private void moveSelectedNodes(double dx, double dy) {
+        if (selectedNodes.isEmpty() && selectedConnections.isEmpty()) {
+            return;
+        }
+
+        // Move selected nodes
+        for (FXNode node : selectedNodes) {
+            node.x += dx;
+            node.y += dy;
+        }
+
+        // Move free endpoints of selected connections (dangling connections)
+        for (FXConnection conn : selectedConnections) {
+            if (conn.source == null) {
+                conn.freeSourceX += dx;
+                conn.freeSourceY += dy;
+            }
+            if (conn.target == null) {
+                conn.freeTargetX += dx;
+                conn.freeTargetY += dy;
+            }
+        }
+
+        paintCanvas();
+        notifyModified();
+    }
+
+    /**
+     * Push a dangling endpoint away from nearby connection points so it's visually
+     * clear that the connection is not connected.
+     * @param x The current X position
+     * @param y The current Y position
+     * @param minDistance The minimum distance to maintain from connection points
+     * @return A 2-element array [newX, newY] with the pushed-away position
+     */
+    private double[] pushAwayFromConnectionPoints(double x, double y, double minDistance) {
+        double newX = x;
+        double newY = y;
+
+        for (FXNode node : nodes) {
+            // Check against input points
+            int inputCount = node.hasInput ? (node.hasDualInput ? 2 : 1) : 0;
+            for (int i = 0; i < inputCount; i++) {
+                double[] inputPt = node.getInputPoint(i);
+                if (inputPt != null) {
+                    double dx = x - inputPt[0];
+                    double dy = y - inputPt[1];
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDistance && dist > 0) {
+                        // Push away
+                        double scale = minDistance / dist;
+                        newX = inputPt[0] + dx * scale;
+                        newY = inputPt[1] + dy * scale;
+                    } else if (dist == 0) {
+                        // Directly on the point - push in a default direction
+                        newX = x + minDistance;
+                    }
+                }
+            }
+
+            // Check against output points
+            for (int i = 0; i < node.outputCount; i++) {
+                double[] outputPt = node.getOutputPoint(i);
+                if (outputPt != null) {
+                    double dx = x - outputPt[0];
+                    double dy = y - outputPt[1];
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDistance && dist > 0) {
+                        // Push away
+                        double scale = minDistance / dist;
+                        newX = outputPt[0] + dx * scale;
+                        newY = outputPt[1] + dy * scale;
+                    } else if (dist == 0) {
+                        // Directly on the point - push in a default direction
+                        newX = x + minDistance;
+                    }
+                }
+            }
+        }
+
+        return new double[] { newX, newY };
     }
 
     private void filterToolbarButtons() {
@@ -1336,7 +1623,34 @@ public class FXContainerEditorWindow {
                     addToolbarButton(nodeType.getButtonName(), () -> addNode(typeName));
                 }
             }
+            // Add Connector/Queue button to Utility category
+            if (category.equals("Utility")) {
+                if (filter.isEmpty() || "connector".contains(filter) || "queue".contains(filter)) {
+                    if (!categoryAdded) {
+                        addToolbarCategory(category);
+                    }
+                    addToolbarButton("Connector/Queue", this::addConnectorQueue);
+                }
+            }
         }
+    }
+
+    /**
+     * Add a standalone Connector/Queue (a dangling connection with both ends free).
+     */
+    private void addConnectorQueue() {
+        double x = 100;
+        double y = 100 + nodes.size() * 30;  // Offset based on node count
+
+        FXConnection conn = FXConnection.createDangling(x, y, x + 100, y);
+        connections.add(conn);
+
+        selectedNodes.clear();
+        selectedConnections.clear();
+        selectedConnections.add(conn);
+
+        paintCanvas();
+        notifyModified();
     }
 
     private void updateStatus() {
@@ -1370,28 +1684,24 @@ public class FXContainerEditorWindow {
             gc.strokeLine(0, y, canvas.getWidth() / zoomLevel, y);
         }
 
-        // Draw connections
+        // Draw connections (including dangling connections with free endpoints)
         for (FXConnection conn : connections) {
-            // Skip connections with null source or target (can happen with malformed data)
-            if (conn.source == null || conn.target == null) {
-                continue;
-            }
             boolean isSelected = selectedConnections.contains(conn);
-            double[] startPt = conn.source.getOutputPoint(conn.sourceOutputIndex);
-            double[] endPt = conn.target.getInputPoint(conn.targetInputIndex);
-            if (startPt != null && endPt != null) {
-                NodeRenderer.renderConnection(gc, startPt[0], startPt[1], endPt[0], endPt[1], isSelected,
+            double[] start = conn.getStartPoint();
+            double[] end = conn.getEndPoint();
+            if (start != null && end != null) {
+                NodeRenderer.renderConnection(gc, start[0], start[1], end[0], end[1], isSelected,
                     conn.queueSize, conn.totalFrames);
             }
         }
 
         // Draw in-progress connection (forward: from output)
-        if (isDrawingConnection && connectionSource != null) {
+        // Only for NEW connections, not when yanking existing ones
+        // Yanked connections are already in the connections list and render via their free endpoints
+        if (isDrawingConnection && connectionSource != null && yankingConnection == null) {
             double[] startPt = connectionSource.getOutputPoint(connectionOutputIndex);
             if (startPt != null) {
-                gc.setStroke(Color.BLUE);
-                gc.setLineWidth(2);
-                gc.strokeLine(startPt[0], startPt[1], connectionEndX, connectionEndY);
+                NodeRenderer.renderConnection(gc, startPt[0], startPt[1], connectionEndX, connectionEndY, true);
             }
         }
 
@@ -1399,9 +1709,7 @@ public class FXContainerEditorWindow {
         if (isDrawingReverseConnection && connectionTarget != null) {
             double[] endPt = connectionTarget.getInputPoint(connectionInputIndex);
             if (endPt != null) {
-                gc.setStroke(Color.BLUE);
-                gc.setLineWidth(2);
-                gc.strokeLine(connectionEndX, connectionEndY, endPt[0], endPt[1]);
+                NodeRenderer.renderConnection(gc, connectionEndX, connectionEndY, endPt[0], endPt[1], true);
             }
         }
 

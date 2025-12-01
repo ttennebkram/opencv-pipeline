@@ -67,6 +67,7 @@ public class FXNodeRegistry {
         register("CLAHE", "CLAHE Contrast", "Basic", "Contrast Limited AHE\nImgproc.createCLAHE().apply(src, dst)");
         register("BitPlanesGrayscale", "Bit Planes Gray", "Basic", "Bit plane decomposition (grayscale)\nBit masking with gain");
         register("BitPlanesColor", "Bit Planes Color", "Basic", "Bit plane decomposition (color)\nBit masking per channel with gain");
+        register("Monitor", "Monitor/Passthrough", "Basic", "Monitor (passthrough)\nPasses input unchanged for preview");
 
         // Blur
         register("GaussianBlur", "Gaussian Blur", "Blur", "Gaussian blur\nImgproc.GaussianBlur(src, dst, ksize, sigma)");
@@ -135,7 +136,6 @@ public class FXNodeRegistry {
 
         // Utility
         register("Clone", "Clone", "Utility", "Clone to multiple outputs\nMat.clone()", false, false, 2);
-        register("Monitor", "Monitor/Passthrough", "Utility", "Monitor (passthrough)\nPasses input unchanged for preview");
         register("Container", "Container/Sub-diagram", "Utility", "Container sub-diagram\nEncapsulates a pipeline", false, false, true, 1);
 
         // Container I/O nodes (only shown in container editor)

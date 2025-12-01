@@ -12,13 +12,17 @@ Legend:
 New bugs after SWT -> JavaFX conversoion
 ----------------------------------------
 
+Main Classes:
+    PipelineEditorLauncher - The entry point configured in pom.xml (used by both exec:exec and the shaded JAR)
+    PipelineEditorApp - The actual JavaFX Application class
+
 .completely remove SWT code
     /remove from POM
     /remove legacy code
     remove JavaFX "legacy" code, instanceof, case, if/then/else
         isContainer
         isSource
-    .test unified .jar
+    ,test unified .jar
 
 Refactor main PipelineEditor to use Container Editor even for main editor window
 Boundary:
@@ -27,6 +31,8 @@ Boundary:
 .Need examples directory, with an image
     large monitor image
     fft-ringing.json
+
+Clone node shouldn't be able to be disabled
 
 .when I multi-highlight notes and use arrow keys to move, it moves the grid instead, not the nodes
     it shoiuld move by the equivalent of 1 pixel per keystroke when at 100%
@@ -41,11 +47,8 @@ IF node with dual input
 
 connectors should not vanish just because node there were connected to is deleted
 
-Clone node shouldn't be able to be disabled
 
 image file paths should be resolved relative to the .json file that's referencing them
-
-.Thumbnails look jagged, how calculated?  How interpolated?
 
 Help menu...
 
@@ -198,6 +201,7 @@ Thresh:
 Done:
 -----
 
+/Thumbnails look jagged, how calculated?  How interpolated?
 /dual input nodes
     /require both queues fire
     /work on either firing and last state of other

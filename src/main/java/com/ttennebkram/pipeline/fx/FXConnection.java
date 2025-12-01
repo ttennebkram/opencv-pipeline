@@ -1,11 +1,21 @@
 package com.ttennebkram.pipeline.fx;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Lightweight connection data class for JavaFX rendering.
  * Represents a connection between two nodes (or with free endpoints).
+ * Connections can exist with one or both endpoints detached (dangling),
+ * preserving any queued data until reconnected or explicitly deleted.
  */
 public class FXConnection {
-    // Connected nodes (null if that end is free)
+    // Global ID counter for unique connection IDs
+    private static final AtomicInteger ID_COUNTER = new AtomicInteger(1);
+
+    // Unique identifier for this connection (persisted across save/load)
+    public int id;
+
+    // Connected nodes (null if that end is free/detached)
     public FXNode source;
     public FXNode target;
 
@@ -13,7 +23,7 @@ public class FXConnection {
     public int sourceOutputIndex;
     public int targetInputIndex;
 
-    // Free endpoint positions (used when corresponding node is null)
+    // Free endpoint positions (used when corresponding node is null/detached)
     public double freeSourceX, freeSourceY;
     public double freeTargetX, freeTargetY;
 
@@ -23,6 +33,13 @@ public class FXConnection {
     // Queue statistics for display on connection
     public int queueSize = 0;
     public long totalFrames = 0;
+
+    /**
+     * Generate a new unique connection ID.
+     */
+    public static int generateNewId() {
+        return ID_COUNTER.getAndIncrement();
+    }
 
     /**
      * Create a complete connection between two nodes.
@@ -35,6 +52,7 @@ public class FXConnection {
      * Create a complete connection with specified indices.
      */
     public FXConnection(FXNode source, int outputIndex, FXNode target, int inputIndex) {
+        this.id = generateNewId();
         this.source = source;
         this.target = target;
         this.sourceOutputIndex = outputIndex;
@@ -63,10 +81,76 @@ public class FXConnection {
     }
 
     /**
-     * Check if this is a complete connection.
+     * Create a fully dangling connection (both ends free, not connected to any node).
+     * This is a standalone connector/queue that can be grabbed and connected later.
+     */
+    public static FXConnection createDangling(double sourceX, double sourceY, double targetX, double targetY) {
+        FXConnection conn = new FXConnection(null, 0, null, 0);
+        conn.freeSourceX = sourceX;
+        conn.freeSourceY = sourceY;
+        conn.freeTargetX = targetX;
+        conn.freeTargetY = targetY;
+        return conn;
+    }
+
+    /**
+     * Check if this is a complete connection (both ends connected to nodes).
      */
     public boolean isComplete() {
         return source != null && target != null;
+    }
+
+    /**
+     * Check if this connection has any connected endpoint.
+     */
+    public boolean hasAnyEndpoint() {
+        return source != null || target != null;
+    }
+
+    /**
+     * Detach the source end of this connection.
+     * The free endpoint position is set to where the source output point was.
+     */
+    public void detachSource() {
+        if (source != null) {
+            double[] pt = source.getOutputPoint(sourceOutputIndex);
+            if (pt != null) {
+                freeSourceX = pt[0];
+                freeSourceY = pt[1];
+            }
+            source = null;
+        }
+    }
+
+    /**
+     * Detach the target end of this connection.
+     * The free endpoint position is set to where the target input point was.
+     */
+    public void detachTarget() {
+        if (target != null) {
+            double[] pt = target.getInputPoint(targetInputIndex);
+            if (pt != null) {
+                freeTargetX = pt[0];
+                freeTargetY = pt[1];
+            }
+            target = null;
+        }
+    }
+
+    /**
+     * Reconnect the source end to a node.
+     */
+    public void reconnectSource(FXNode newSource, int outputIndex) {
+        this.source = newSource;
+        this.sourceOutputIndex = outputIndex;
+    }
+
+    /**
+     * Reconnect the target end to a node.
+     */
+    public void reconnectTarget(FXNode newTarget, int inputIndex) {
+        this.target = newTarget;
+        this.targetInputIndex = inputIndex;
     }
 
     /**

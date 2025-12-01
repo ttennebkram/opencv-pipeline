@@ -247,23 +247,48 @@
                 </configuration>
             </plugin>
             <!-- exec:exec for running with proper classpath -->
+            <!-- Use: mvn exec:exec (normal) or mvn exec:exec@start (auto-start pipeline) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-classpath</argument>
-                        <classpath/>
-                        <argument>-Xms512m</argument>
-                        <argument>-Xmx4g</argument>
-                        <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
-                        <argument>-Dapple.awt.application.name=OpenCV</argument>
-                        <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
-                        <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
-                    </arguments>
-                </configuration>
+                <executions>
+                    <!-- Default execution: mvn exec:exec -->
+                    <execution>
+                        <id>default-cli</id>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>-Xms512m</argument>
+                                <argument>-Xmx4g</argument>
+                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
+                                <argument>-Dapple.awt.application.name=OpenCV</argument>
+                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
+                                <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Auto-start execution: mvn exec:exec@start -->
+                    <execution>
+                        <id>start</id>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>-Xms512m</argument>
+                                <argument>-Xmx4g</argument>
+                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
+                                <argument>-Dapple.awt.application.name=OpenCV</argument>
+                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
+                                <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
+                                <argument>--start</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <!-- Create executable uber-jar with all dependencies -->
             <plugin>

@@ -132,6 +132,9 @@ public class FXPipelineSerializer {
         for (FXConnection conn : connections) {
             JsonObject connJson = new JsonObject();
 
+            // Connection identity
+            connJson.addProperty("id", conn.id);
+
             // Source - use indexOf to find actual position, like main branch does
             int sourceIndex = conn.source != null ? nodes.indexOf(conn.source) : -1;
             connJson.addProperty("sourceIndex", sourceIndex);
@@ -151,6 +154,10 @@ public class FXPipelineSerializer {
                 connJson.addProperty("freeTargetX", conn.freeTargetX);
                 connJson.addProperty("freeTargetY", conn.freeTargetY);
             }
+
+            // Queue statistics (persisted across save/load)
+            connJson.addProperty("queueSize", conn.queueSize);
+            connJson.addProperty("totalFrames", conn.totalFrames);
 
             connectionsArray.add(connJson);
         }
@@ -471,16 +478,34 @@ public class FXPipelineSerializer {
                     double freeY = connJson.has("freeSourceY") ? connJson.get("freeSourceY").getAsDouble() : 0;
                     conn = FXConnection.createToTarget(targetNode, targetInputIndex, freeX, freeY);
                 } else {
-                    // Free connection - skip for now as this is rarely useful
-                    continue;
+                    // Both ends disconnected - still useful for preserving queued data
+                    conn = new FXConnection(null, sourceOutputIndex, null, targetInputIndex);
+                    conn.freeSourceX = connJson.has("freeSourceX") ? connJson.get("freeSourceX").getAsDouble() : 0;
+                    conn.freeSourceY = connJson.has("freeSourceY") ? connJson.get("freeSourceY").getAsDouble() : 0;
+                    conn.freeTargetX = connJson.has("freeTargetX") ? connJson.get("freeTargetX").getAsDouble() : 0;
+                    conn.freeTargetY = connJson.has("freeTargetY") ? connJson.get("freeTargetY").getAsDouble() : 0;
+                }
+
+                // Restore connection ID if present
+                if (connJson.has("id")) {
+                    conn.id = connJson.get("id").getAsInt();
+                }
+
+                // Restore queue statistics
+                if (connJson.has("queueSize")) {
+                    conn.queueSize = connJson.get("queueSize").getAsInt();
+                }
+                if (connJson.has("totalFrames")) {
+                    conn.totalFrames = connJson.get("totalFrames").getAsLong();
                 }
 
                 connections.add(conn);
             }
         }
 
-        // Ensure the global ID counter is past all existing IDs to prevent future collisions
+        // Ensure the global ID counters are past all existing IDs to prevent future collisions
         ensureUniqueIds(nodes);
+        ensureUniqueConnectionIds(connections);
 
         return new PipelineDocument(nodes, connections);
     }
@@ -971,6 +996,23 @@ public class FXPipelineSerializer {
         int maxId = findMaxId(nodes);
         // Advance the global counter past the maximum ID
         while (FXNode.generateNewId() <= maxId) {
+            // Keep generating until we're past the max
+        }
+    }
+
+    /**
+     * Ensure all connection IDs are unique by advancing the global ID counter past all existing IDs.
+     * Call this after loading a pipeline to prevent ID collisions.
+     */
+    public static void ensureUniqueConnectionIds(List<FXConnection> connections) {
+        int maxId = 0;
+        for (FXConnection conn : connections) {
+            if (conn.id > maxId) {
+                maxId = conn.id;
+            }
+        }
+        // Advance the global counter past the maximum ID
+        while (FXConnection.generateNewId() <= maxId) {
             // Keep generating until we're past the max
         }
     }
