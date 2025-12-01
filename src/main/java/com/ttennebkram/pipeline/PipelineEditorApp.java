@@ -1772,8 +1772,6 @@ public class PipelineEditorApp extends Application {
     }
 
     private void saveDiagram() {
-        System.out.println("[DEBUG] saveDiagram called, currentFilePath=" + currentFilePath);
-        System.out.flush();
         if (currentFilePath != null) {
             saveDiagramToPath(currentFilePath);
         } else {
@@ -1797,21 +1795,46 @@ public class PipelineEditorApp extends Application {
     }
 
     private void saveDiagramToPath(String path) {
-        System.out.println("[DEBUG] saveDiagramToPath called with path=" + path);
-        System.out.flush();
-        try {
-            FXPipelineSerializer.save(path, nodes, connections);
-            currentFilePath = path;
-            isDirty = false;
-            addToRecentFiles(path);
-            updateTitle();
-            System.out.println("Saved pipeline: " + path + " (" + nodes.size() + " nodes, " + connections.size() + " connections)");
-        } catch (Exception e) {
-            System.err.println("Failed to save pipeline: " + e.getMessage());
-            e.printStackTrace();
-            checkAndReportTooManyFiles(e);
-            showError("Save Failed", "Failed to save pipeline: " + e.getMessage());
-        }
+        // Show saving indicator in status bar
+        statusBar.setText("Saving...");
+        statusBar.setTextFill(javafx.scene.paint.Color.ORANGE);
+
+        // Create snapshot of data needed for save (avoid concurrent modification)
+        final List<FXNode> nodesCopy = new ArrayList<>(nodes);
+        final List<FXConnection> connectionsCopy = new ArrayList<>(connections);
+        final int nodeCount = nodes.size();
+        final int connCount = connections.size();
+
+        // Run save on background thread
+        Thread saveThread = new Thread(() -> {
+            try {
+                FXPipelineSerializer.save(path, nodesCopy, connectionsCopy);
+
+                // Update UI on JavaFX thread
+                Platform.runLater(() -> {
+                    currentFilePath = path;
+                    isDirty = false;
+                    addToRecentFiles(path);
+                    updateTitle();
+                    statusBar.setText("Saved: " + new java.io.File(path).getName());
+                    statusBar.setTextFill(COLOR_STATUS_STOPPED);
+                    System.out.println("Saved pipeline: " + path + " (" + nodeCount + " nodes, " + connCount + " connections)");
+                });
+            } catch (Exception e) {
+                System.err.println("Failed to save pipeline: " + e.getMessage());
+                e.printStackTrace();
+                checkAndReportTooManyFiles(e);
+
+                // Show error on JavaFX thread
+                Platform.runLater(() -> {
+                    statusBar.setText("Save failed");
+                    statusBar.setTextFill(javafx.scene.paint.Color.RED);
+                    showError("Save Failed", "Failed to save pipeline: " + e.getMessage());
+                });
+            }
+        }, "Pipeline-Save-Thread");
+        saveThread.setDaemon(true);
+        saveThread.start();
     }
 
     /**

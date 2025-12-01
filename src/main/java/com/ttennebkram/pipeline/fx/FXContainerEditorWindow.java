@@ -1921,40 +1921,49 @@ public class FXContainerEditorWindow {
      * save to that file. Otherwise, trigger the global save (parent document).
      */
     private void saveContainerContents() {
-        System.out.println("[DEBUG] FXContainerEditorWindow.saveContainerContents() called");
-        System.out.println("[DEBUG] pipelineFilePath=" + containerNode.pipelineFilePath);
-        System.out.flush();
         // Check if the container has an external pipeline file path
         if (containerNode.pipelineFilePath != null && !containerNode.pipelineFilePath.isEmpty()) {
             // Resolve the path (handle relative paths)
             String resolvedPath = resolvePipelinePath(containerNode.pipelineFilePath);
 
-            try {
-                // Save to the external file
-                FXPipelineSerializer.save(resolvedPath, nodes, connections);
+            // Show saving indicator
+            statusLabel.setText("Saving...");
 
-                // Show confirmation in status bar
-                statusLabel.setText("Saved to: " + new java.io.File(resolvedPath).getName());
+            // Create snapshot of data needed for save
+            final java.util.List<FXNode> nodesCopy = new java.util.ArrayList<>(nodes);
+            final java.util.List<FXConnection> connectionsCopy = new java.util.ArrayList<>(connections);
 
-                // Also notify parent that we've modified (so parent knows container is updated)
-                notifyModified();
+            // Run save on background thread
+            Thread saveThread = new Thread(() -> {
+                try {
+                    // Save to the external file
+                    FXPipelineSerializer.save(resolvedPath, nodesCopy, connectionsCopy);
 
-            } catch (Exception e) {
-                // Show error dialog
-                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
-                    javafx.scene.control.Alert.AlertType.ERROR);
-                alert.setTitle("Save Error");
-                alert.setHeaderText("Failed to save pipeline");
-                alert.setContentText("Error: " + e.getMessage() + "\n\nFile: " + resolvedPath);
-                alert.showAndWait();
-            }
+                    // Update UI on JavaFX thread
+                    javafx.application.Platform.runLater(() -> {
+                        statusLabel.setText("Saved to: " + new java.io.File(resolvedPath).getName());
+                        notifyModified();
 
-            // Also save parent document to persist inner node thumbnails
-            // (thumbnails are stored in parent's cache, not external file's cache)
-            if (onRequestGlobalSave != null) {
-                System.out.println("[DEBUG] Also triggering parent document save for thumbnails");
-                onRequestGlobalSave.run();
-            }
+                        // Also save parent document to persist inner node thumbnails
+                        if (onRequestGlobalSave != null) {
+                            onRequestGlobalSave.run();
+                        }
+                    });
+                } catch (Exception e) {
+                    // Show error on JavaFX thread
+                    javafx.application.Platform.runLater(() -> {
+                        statusLabel.setText("Save failed");
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                            javafx.scene.control.Alert.AlertType.ERROR);
+                        alert.setTitle("Save Error");
+                        alert.setHeaderText("Failed to save pipeline");
+                        alert.setContentText("Error: " + e.getMessage() + "\n\nFile: " + resolvedPath);
+                        alert.showAndWait();
+                    });
+                }
+            }, "Container-Save-Thread");
+            saveThread.setDaemon(true);
+            saveThread.start();
         } else {
             // No external file configured - save to parent document
             if (onRequestGlobalSave != null) {
