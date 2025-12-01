@@ -64,9 +64,7 @@ public class FXNodePropertiesHelper {
             // Contours is now handled by modular ContoursProcessor
             // Ellipse is now handled by modular EllipseProcessor
             // FileSource is now handled by modular FileSourceProcessor
-            case "Filter2D":
-                addFilter2DProperties(dialog, props);
-                return true;
+            // Filter2D is now handled by modular Filter2DProcessor
             // GaussianBlur is now handled by modular GaussianBlurProcessor
             // HarrisCorners is now handled by modular HarrisCornersProcessor
             // Histogram is now handled by modular HistogramProcessor
@@ -82,13 +80,10 @@ public class FXNodePropertiesHelper {
             // Threshold is now handled by modular ThresholdProcessor
             // WarpAffine is now handled by modular WarpAffineProcessor
             // WebcamSource is now handled by modular WebcamSourceProcessor
-            // New nodes migrated from editor files
-            case "FFTLowPass":
-            case "FFTHighPass":
-            case "FFTLowPass4":
-            case "FFTHighPass4":
-                addFFTFilterProperties(dialog, props);
-                return true;
+            // FFTLowPass is now handled by modular FFTLowPassProcessor
+            // FFTHighPass is now handled by modular FFTHighPassProcessor
+            // FFTLowPass4 is now handled by modular FFTLowPass4Processor
+            // FFTHighPass4 is now handled by modular FFTHighPass4Processor
             // Sobel is now handled by modular SobelProcessor
             // Scharr is now handled by modular ScharrProcessor
             // Laplacian is now handled by modular LaplacianProcessor
@@ -104,12 +99,8 @@ public class FXNodePropertiesHelper {
             // MedianBlur is now handled by modular MedianBlurProcessor
             // Erode/Dilate are now handled by modular processors
             // MorphOpen/MorphClose are now handled by modular processors
-            case "BitPlanesGrayscale":
-                addBitPlanesGrayscaleProperties(dialog, props);
-                return true;
-            case "BitPlanesColor":
-                addBitPlanesColorProperties(dialog, props);
-                return true;
+            // BitPlanesGrayscale is now handled by modular BitPlanesGrayscaleProcessor
+            // BitPlanesColor is now handled by modular BitPlanesColorProcessor
             // Rectangle is now handled by modular RectangleProcessor
             // Circle is now handled by modular CircleProcessor
             default:
@@ -143,12 +134,8 @@ public class FXNodePropertiesHelper {
             // Contours handled by modular ContoursProcessor
             // Ellipse handled by modular EllipseProcessor
             // FileSource handled by modular FileSourceProcessor
-            case "Filter2D":
-                saveFilter2DProperties(props);
-                break;
-            case "GaussianBlur":
-                saveGaussianBlurProperties(props);
-                break;
+            // Filter2D handled by modular Filter2DProcessor
+            // GaussianBlur handled by modular GaussianBlurProcessor
             // HarrisCorners handled by modular processor
             // Histogram handled by modular processor
             // HoughCircles handled by modular processor
@@ -163,20 +150,15 @@ public class FXNodePropertiesHelper {
             // Threshold handled by modular ThresholdProcessor
             // WarpAffine handled by modular WarpAffineProcessor
             // WebcamSource handled by modular WebcamSourceProcessor
-            // New nodes migrated from editor files
-            case "FFTLowPass":
-            case "FFTHighPass":
-            case "FFTLowPass4":
-            case "FFTHighPass4":
-                saveFFTFilterProperties(props);
-                break;
+            // FFTLowPass handled by modular FFTLowPassProcessor
+            // FFTHighPass handled by modular FFTHighPassProcessor
+            // FFTLowPass4 handled by modular FFTLowPass4Processor
+            // FFTHighPass4 handled by modular FFTHighPass4Processor
             // Sobel handled by modular processor
             // Scharr handled by modular processor
             // Laplacian handled by modular processor
             // AdaptiveThreshold handled by modular processor
-            case "AddWeighted":
-                saveAddWeightedProperties(props);
-                break;
+            // AddWeighted handled by modular AddWeightedProcessor
             // BilateralFilter handled by modular processor
             // CLAHE handled by modular processor
             // ColorInRange handled by modular processor
@@ -187,12 +169,8 @@ public class FXNodePropertiesHelper {
             // MedianBlur handled by modular processor
             // Erode/Dilate handled by modular processors
             // MorphOpen/MorphClose handled by modular processors
-            case "BitPlanesGrayscale":
-                saveBitPlanesGrayscaleProperties(props);
-                break;
-            case "BitPlanesColor":
-                saveBitPlanesColorProperties(props);
-                break;
+            // BitPlanesGrayscale handled by modular BitPlanesGrayscaleProcessor
+            // BitPlanesColor handled by modular BitPlanesColorProcessor
             // Rectangle handled by modular processor
             // Circle handled by modular processor
         }

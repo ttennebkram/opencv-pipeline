@@ -23,6 +23,9 @@ public class FXProcessorRegistry {
     // Map from node type to whether it's dual-input
     private static final Map<String, Boolean> dualInputTypes = new HashMap<>();
 
+    // Map from node type to whether it's multi-output
+    private static final Map<String, Boolean> multiOutputTypes = new HashMap<>();
+
     // Initialization flag
     private static boolean initialized = false;
 
@@ -41,9 +44,11 @@ public class FXProcessorRegistry {
 
             String nodeType = info.nodeType();
             boolean isDualInput = info.dualInput();
+            boolean isMultiOutput = FXMultiOutputProcessor.class.isAssignableFrom(processorClass);
 
             processorClasses.put(nodeType, processorClass);
             dualInputTypes.put(nodeType, isDualInput);
+            multiOutputTypes.put(nodeType, isMultiOutput);
         }
 
         initialized = true;
@@ -63,6 +68,26 @@ public class FXProcessorRegistry {
     public static boolean isDualInput(String nodeType) {
         initialize();
         return dualInputTypes.getOrDefault(nodeType, false);
+    }
+
+    /**
+     * Check if a node type is a multi-output processor.
+     */
+    public static boolean isMultiOutput(String nodeType) {
+        initialize();
+        return multiOutputTypes.getOrDefault(nodeType, false);
+    }
+
+    /**
+     * Create a multi-output processor for the given node type.
+     * Returns null if no processor or not a multi-output processor.
+     */
+    public static FXMultiOutputProcessor createMultiOutputProcessor(FXNode fxNode) {
+        FXProcessor processor = createProcessor(fxNode);
+        if (processor instanceof FXMultiOutputProcessor) {
+            return (FXMultiOutputProcessor) processor;
+        }
+        return null;
     }
 
     /**

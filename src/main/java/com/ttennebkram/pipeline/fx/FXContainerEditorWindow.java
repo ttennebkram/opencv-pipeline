@@ -141,7 +141,7 @@ public class FXContainerEditorWindow {
 
         if (inputNode == null) {
             // ContainerInput is a source node (no input, has output)
-            inputNode = new FXNode("Input", "ContainerInput", 50, 50);
+            inputNode = new FXNode("Container Input", "ContainerInput", 50, 50);
             inputNode.hasInput = false;  // Source node - no input
             inputNode.outputCount = 1;
             inputNode.isBoundaryNode = true;
@@ -151,7 +151,7 @@ public class FXContainerEditorWindow {
 
         if (outputNode == null) {
             // ContainerOutput has an input but no output
-            outputNode = new FXNode("Output", "ContainerOutput", 400, 50);
+            outputNode = new FXNode("Container Output", "ContainerOutput", 400, 50);
             outputNode.outputCount = 0;  // No outputs - this is a sink node
             outputNode.isBoundaryNode = true;
             outputNode.backgroundColor = NodeRenderer.COLOR_CONTAINER_NODE;

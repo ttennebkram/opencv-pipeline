@@ -157,12 +157,12 @@ public class NodeRenderer {
             gc.strokeRoundRect(x + 4, y + 4, width - 8, height - 8, 6, 6);
         }
 
-        // Draw 3 vertical "bolt" dots for boundary nodes (indicates "fixed" node)
-        // Input node: dots on left (where it attaches to container edge)
-        // Output node: dots on right (where it attaches to container edge)
+        // Draw 3 vertical hexagon "bolt" markers for boundary nodes (indicates "fixed" node)
+        // Input node: hexagons on left (where it attaches to container edge)
+        // Output node: hexagons on right (where it attaches to container edge)
         if (isBoundaryNode) {
             gc.setFill(Color.rgb(80, 90, 100));
-            double dotRadius = 4;
+            double hexRadius = 3.3;
             double dotX;
             if ("ContainerInput".equals(nodeType)) {
                 // Input node: bolts on left side
@@ -174,9 +174,9 @@ public class NodeRenderer {
             double dotY1 = y + 30;
             double dotY2 = y + height / 2;
             double dotY3 = y + height - 30;
-            gc.fillOval(dotX - dotRadius, dotY1 - dotRadius, dotRadius * 2, dotRadius * 2);
-            gc.fillOval(dotX - dotRadius, dotY2 - dotRadius, dotRadius * 2, dotRadius * 2);
-            gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
+            drawHexagon(gc, dotX, dotY1, hexRadius);
+            drawHexagon(gc, dotX, dotY2, hexRadius);
+            drawHexagon(gc, dotX, dotY3, hexRadius);
         }
 
         // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
@@ -315,12 +315,12 @@ public class NodeRenderer {
             gc.strokeRoundRect(x + 4, y + 4, width - 8, height - 8, 6, 6);
         }
 
-        // Draw 3 vertical "bolt" dots for boundary nodes (indicates "fixed" node)
-        // Input node: dots on left (where it attaches to container edge)
-        // Output node: dots on right (where it attaches to container edge)
+        // Draw 3 vertical hexagon "bolt" markers for boundary nodes (indicates "fixed" node)
+        // Input node: hexagons on left (where it attaches to container edge)
+        // Output node: hexagons on right (where it attaches to container edge)
         if (isBoundaryNode) {
             gc.setFill(Color.rgb(80, 90, 100));
-            double dotRadius = 4;
+            double hexRadius = 3.3;
             double dotX;
             if ("ContainerInput".equals(nodeType)) {
                 // Input node: bolts on left side
@@ -332,9 +332,9 @@ public class NodeRenderer {
             double dotY1 = y + 30;
             double dotY2 = y + height / 2;
             double dotY3 = y + height - 30;
-            gc.fillOval(dotX - dotRadius, dotY1 - dotRadius, dotRadius * 2, dotRadius * 2);
-            gc.fillOval(dotX - dotRadius, dotY2 - dotRadius, dotRadius * 2, dotRadius * 2);
-            gc.fillOval(dotX - dotRadius, dotY3 - dotRadius, dotRadius * 2, dotRadius * 2);
+            drawHexagon(gc, dotX, dotY1, hexRadius);
+            drawHexagon(gc, dotX, dotY2, hexRadius);
+            drawHexagon(gc, dotX, dotY3, hexRadius);
         }
 
         // Draw enabled checkbox (not for boundary nodes or Monitor nodes - they can't/shouldn't be disabled)
@@ -493,6 +493,22 @@ public class NodeRenderer {
         gc.setLineWidth(1);
         gc.strokeOval(x - CONNECTION_RADIUS, y - CONNECTION_RADIUS,
                       CONNECTION_RADIUS * 2, CONNECTION_RADIUS * 2);
+    }
+
+    /**
+     * Draw a filled hexagon centered at (cx, cy) with the given radius.
+     * Used for boundary node "bolt" markers to distinguish from connection points.
+     */
+    private static void drawHexagon(GraphicsContext gc, double cx, double cy, double radius) {
+        double[] xPoints = new double[6];
+        double[] yPoints = new double[6];
+        for (int i = 0; i < 6; i++) {
+            // Start from top point (angle -90 degrees = -PI/2)
+            double angle = Math.PI / 3 * i - Math.PI / 2;
+            xPoints[i] = cx + radius * Math.cos(angle);
+            yPoints[i] = cy + radius * Math.sin(angle);
+        }
+        gc.fillPolygon(xPoints, yPoints, 6);
     }
 
     /**

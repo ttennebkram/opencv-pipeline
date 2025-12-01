@@ -1,5 +1,7 @@
 package com.ttennebkram.pipeline.fx;
 
+import com.ttennebkram.pipeline.fx.processors.FXMultiOutputProcessor;
+import com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry;
 import com.ttennebkram.pipeline.processing.ContainerProcessor;
 import com.ttennebkram.pipeline.processing.ProcessorFactory;
 import com.ttennebkram.pipeline.processing.SourceProcessor;
@@ -973,11 +975,10 @@ public class FXPipelineExecutor {
 
     /**
      * Process a multi-output node and return all outputs.
-     * Currently supports FFTHighPass4 and FFTLowPass4.
+     * Uses modular FXMultiOutputProcessor implementations.
      */
     private Mat[] processMultiOutputNode(FXNode node, Map<Integer, Mat> nodeOutputs) {
         String type = node.nodeType;
-        System.out.println("[FXPipelineExecutor] processMultiOutputNode called for type: " + type);
 
         // Get input for processing nodes
         Mat input = getInputForNode(node, nodeOutputs);
@@ -986,41 +987,29 @@ public class FXPipelineExecutor {
         // Increment input counter
         node.inputCount++;
 
-        // Get radius and smoothness from node properties
-        int radius = 30;  // Default
-        int smoothness = 0;  // Default (hard edge)
-
-        Object radiusProp = node.properties.get("radius");
-        if (radiusProp instanceof Number) {
-            radius = ((Number) radiusProp).intValue();
-        }
-
-        Object smoothnessProp = node.properties.get("smoothness");
-        if (smoothnessProp instanceof Number) {
-            smoothness = ((Number) smoothnessProp).intValue();
-        }
-
         Mat[] outputs;
         try {
-            if ("FFTHighPass4".equals(type)) {
-                outputs = processFFTHighPass4(input, radius, smoothness);
-            } else if ("FFTLowPass4".equals(type)) {
-                outputs = processFFTLowPass4(input, radius, smoothness);
+            // Try modular processor first
+            FXMultiOutputProcessor processor = FXProcessorRegistry.createMultiOutputProcessor(node);
+            if (processor != null) {
+                outputs = processor.processMultiOutput(input);
             } else {
-                // Fallback - shouldn't happen
-                outputs = new Mat[] { input.clone(), null, null, null };
+                // Fallback - shouldn't happen for registered multi-output nodes
+                System.err.println("[FXPipelineExecutor] No multi-output processor found for: " + type);
+                outputs = new Mat[]{input.clone(), null, null, null};
             }
 
             // Update output counters
             if (outputs != null) {
-                if (outputs[0] != null) node.outputCount1++;
-                if (outputs[1] != null) node.outputCount2++;
-                if (outputs[2] != null) node.outputCount3++;
-                if (outputs[3] != null) node.outputCount4++;
+                if (outputs.length > 0 && outputs[0] != null) node.outputCount1++;
+                if (outputs.length > 1 && outputs[1] != null) node.outputCount2++;
+                if (outputs.length > 2 && outputs[2] != null) node.outputCount3++;
+                if (outputs.length > 3 && outputs[3] != null) node.outputCount4++;
             }
         } catch (Exception e) {
             System.err.println("Error processing multi-output node " + type + ": " + e.getMessage());
-            outputs = new Mat[] { input.clone(), null, null, null };
+            e.printStackTrace();
+            outputs = new Mat[]{input.clone(), null, null, null};
         }
 
         input.release();
@@ -3637,7 +3626,12 @@ public class FXPipelineExecutor {
      * Check if a node type is a multi-output node.
      */
     private boolean isMultiOutputNode(String nodeType) {
-        return "FFTHighPass4".equals(nodeType) || "FFTLowPass4".equals(nodeType);
+        // First check modular processors
+        if (FXProcessorRegistry.isMultiOutput(nodeType)) {
+            return true;
+        }
+        // Fallback for any legacy multi-output nodes
+        return false;
     }
 
     // ===== BitPlanes Color Helper Methods =====
