@@ -15,10 +15,10 @@ Download `opencv-pipeline.jar` from the [releases page](https://github.com/ttenn
 java -jar opencv-pipeline.jar
 ```
 
-Or to automatically load and startup a pipeline when it first starts you'd do:
+Or to automatically load and startup a pipeline when the program first runs you'd do:
 
 ```bash
-java -jar opencv-pipeline.jar --start
+java -jar opencv-pipeline.jar pipeline.json --start 
 ```
 
 That's it! This one JAR works on all **supported** platforms:
@@ -63,6 +63,16 @@ For development:
 ```bash
 mvn compile exec:exec
 ```
+
+Or any of:
+
+```bash
+mvn compile exec:exec@start
+mvn compile exec:exec@run -Dpipeline.args="--start"
+mvn compile exec:exec@run -Dpipeline.args="pipeline.json"
+mvn compile exec:exec@run -Dpipeline.args="pipeline.json --start"
+```
+
 
 To compile and auto-start the pipeline immediately after launch:
 

@@ -246,8 +246,10 @@
                     </options>
                 </configuration>
             </plugin>
-            <!-- exec:exec for running with proper classpath -->
-            <!-- Use: mvn exec:exec (normal) or mvn exec:exec@start (auto-start pipeline) -->
+            <!-- exec:exec for running with proper classpath
+                 Use: mvn exec:exec                     (normal, loads last file)
+                      mvn exec:exec@start               (auto-start pipeline with last file)
+                      mvn exec:exec@run -Dpipeline.args="file.json"  (custom file and/or flags) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -286,6 +288,14 @@
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                                 <argument>--start</argument>
                             </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Run with custom arguments: mvn exec:exec@run -Dpipeline.args="file.json" -->
+                    <execution>
+                        <id>run</id>
+                        <configuration>
+                            <executable>java</executable>
+                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g -Xdock:name=OpenCV\ Pipeline\ Editor -Dapple.awt.application.name=OpenCV com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
                         </configuration>
                     </execution>
                 </executions>

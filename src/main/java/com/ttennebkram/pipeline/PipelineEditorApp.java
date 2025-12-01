@@ -121,16 +121,20 @@ public class PipelineEditorApp extends Application {
     // Pipeline executor
     private FXPipelineExecutor pipelineExecutor;
 
-    // Command line option to auto-start pipeline after loading
+    // Command line options
     private boolean autoStartPipeline = false;
+    private String commandLinePipelineFile = null;
 
     @Override
     public void start(Stage primaryStage) {
-        // Parse command line arguments for --start flag
+        // Parse command line arguments
         java.util.List<String> params = getParameters().getRaw();
         for (String param : params) {
             if ("--start".equals(param)) {
                 autoStartPipeline = true;
+            } else if (!param.startsWith("--")) {
+                // Non-flag argument is the pipeline file path
+                commandLinePipelineFile = param;
             }
         }
         this.primaryStage = primaryStage;
@@ -243,9 +247,27 @@ public class PipelineEditorApp extends Application {
     }
 
     private void loadLastFile() {
-        String lastFile = prefs.get(LAST_FILE_KEY, null);
-        if (lastFile != null && new File(lastFile).exists()) {
-            loadDiagramFromPath(lastFile);
+        // Command line file takes precedence over last file
+        String fileToLoad = null;
+        if (commandLinePipelineFile != null) {
+            File cmdFile = new File(commandLinePipelineFile);
+            if (cmdFile.exists()) {
+                fileToLoad = cmdFile.getAbsolutePath();
+            } else {
+                System.err.println("Pipeline file not found: " + commandLinePipelineFile);
+            }
+        }
+
+        // Fall back to last file if no command line file
+        if (fileToLoad == null) {
+            String lastFile = prefs.get(LAST_FILE_KEY, null);
+            if (lastFile != null && new File(lastFile).exists()) {
+                fileToLoad = lastFile;
+            }
+        }
+
+        if (fileToLoad != null) {
+            loadDiagramFromPath(fileToLoad);
             // Auto-start pipeline if --start was passed
             if (autoStartPipeline && !pipelineRunning) {
                 startPipeline();
