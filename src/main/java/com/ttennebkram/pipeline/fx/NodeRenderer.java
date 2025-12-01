@@ -72,6 +72,11 @@ public class NodeRenderer {
     private static final Color COLOR_STATS_NORMAL = Color.rgb(40, 40, 40);  // Near-black for visibility
     private static final Color COLOR_STATS_SLOWED = Color.rgb(180, 0, 0);  // Red for priority < 5
 
+    // Connection state colors
+    private static final Color COLOR_CONNECTION_FULL = Color.rgb(0, 100, 0);         // Dark green - fully connected
+    private static final Color COLOR_CONNECTION_PARTIAL = Color.rgb(200, 120, 0);    // Medium orange - one end connected
+    private static final Color COLOR_CONNECTION_DISCONNECTED = Color.rgb(139, 0, 0); // Dark red - completely disconnected
+
     /**
      * Render a processing node at the given position.
      *
@@ -208,7 +213,7 @@ public class NodeRenderer {
         double thumbX = hasInput ? x + 40 : x + (width - thumbMaxW) / 2;
         double thumbY = y + 32;
 
-        if (thumbnail != null) {
+        if (thumbnail != null && thumbnail.getWidth() > 0 && thumbnail.getHeight() > 0) {
             // Draw the actual thumbnail image, scaling to fit
             double scale = Math.min(
                 (double) thumbMaxW / thumbnail.getWidth(),
@@ -222,7 +227,7 @@ public class NodeRenderer {
 
             // Draw scaled thumbnail
             gc.drawImage(thumbnail, drawX, drawY, thumbW, thumbH);
-        } else {
+        } else if (thumbnail == null) {
             // Draw placeholder
             gc.setStroke(Color.LIGHTGRAY);
             gc.setLineWidth(1);
@@ -366,13 +371,19 @@ public class NodeRenderer {
         double thumbX = x + (width - thumbMaxW) / 2;
         double thumbY = y + 28;
 
-        if (thumbnail != null) {
+        if (thumbnail != null && thumbnail.getWidth() > 0 && thumbnail.getHeight() > 0) {
+            // Scale thumbnail to fit within bounds
+            double scale = Math.min(
+                (double) thumbMaxW / thumbnail.getWidth(),
+                (double) thumbMaxH / thumbnail.getHeight()
+            );
+            double thumbW = thumbnail.getWidth() * scale;
+            double thumbH = thumbnail.getHeight() * scale;
             // Center thumbnail in available space
-            double drawX = thumbX + (thumbMaxW - thumbnail.getWidth()) / 2;
-            double drawY = thumbY + (thumbMaxH - thumbnail.getHeight()) / 2;
-            // Draw at native size (thumbnail is already scaled by FXImageUtils)
-            gc.drawImage(thumbnail, drawX, drawY);
-        } else {
+            double drawX = thumbX + (thumbMaxW - thumbW) / 2;
+            double drawY = thumbY + (thumbMaxH - thumbH) / 2;
+            gc.drawImage(thumbnail, drawX, drawY, thumbW, thumbH);
+        } else if (thumbnail == null) {
             gc.setStroke(Color.LIGHTGRAY);
             gc.setLineWidth(1);
             gc.strokeRect(thumbX, thumbY, thumbMaxW, thumbMaxH);
@@ -527,7 +538,31 @@ public class NodeRenderer {
                                          double startX, double startY,
                                          double endX, double endY,
                                          boolean selected) {
-        Color lineColor = selected ? COLOR_NODE_SELECTED : Color.rgb(80, 80, 80);
+        // Default to fully connected for backwards compatibility
+        renderConnection(gc, startX, startY, endX, endY, selected, true, true);
+    }
+
+    /**
+     * Render a connection line between two points with connection state coloring.
+     * @param hasSource true if the connection has a source node attached
+     * @param hasTarget true if the connection has a target node attached
+     */
+    public static void renderConnection(GraphicsContext gc,
+                                         double startX, double startY,
+                                         double endX, double endY,
+                                         boolean selected,
+                                         boolean hasSource, boolean hasTarget) {
+        // Determine color based on connection state
+        Color lineColor;
+        if (selected) {
+            lineColor = COLOR_NODE_SELECTED;
+        } else if (hasSource && hasTarget) {
+            lineColor = COLOR_CONNECTION_FULL;  // Dark green - fully connected
+        } else if (hasSource || hasTarget) {
+            lineColor = COLOR_CONNECTION_PARTIAL;  // Medium orange - one end connected
+        } else {
+            lineColor = COLOR_CONNECTION_DISCONNECTED;  // Dark red - completely disconnected
+        }
         gc.setStroke(lineColor);
         gc.setLineWidth(selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
 
@@ -583,8 +618,23 @@ public class NodeRenderer {
                                          double endX, double endY,
                                          boolean selected,
                                          int queueSize, long totalFrames) {
-        // Draw the basic connection first
-        renderConnection(gc, startX, startY, endX, endY, selected);
+        // Default to fully connected for backwards compatibility
+        renderConnection(gc, startX, startY, endX, endY, selected, queueSize, totalFrames, true, true);
+    }
+
+    /**
+     * Render a connection line with queue statistics and connection state coloring.
+     * @param hasSource true if the connection has a source node attached
+     * @param hasTarget true if the connection has a target node attached
+     */
+    public static void renderConnection(GraphicsContext gc,
+                                         double startX, double startY,
+                                         double endX, double endY,
+                                         boolean selected,
+                                         int queueSize, long totalFrames,
+                                         boolean hasSource, boolean hasTarget) {
+        // Draw the basic connection first with connection state
+        renderConnection(gc, startX, startY, endX, endY, selected, hasSource, hasTarget);
 
         // Draw queue stats at midpoint of the bezier curve
         // Approximate midpoint using simple average (good enough for display)

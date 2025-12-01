@@ -14,7 +14,13 @@ import org.opencv.imgproc.Imgproc;
  * Sobel edge detection processor.
  * Computes first-order derivatives for edge detection.
  */
-@FXProcessorInfo(nodeType = "Sobel", category = "Edge Detection")
+@FXProcessorInfo(
+    nodeType = "Sobel",
+    displayName = "Sobel Edges",
+    buttonName = "Sobel",
+    category = "Edges",
+    description = "Sobel derivatives\nImgproc.Sobel(src, dst, ddepth, dx, dy, ksize)"
+)
 public class SobelProcessor extends FXProcessorBase {
 
     // Properties with defaults

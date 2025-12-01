@@ -6,7 +6,12 @@ import org.opencv.core.Mat;
  * FFT Low Pass filter processor.
  * Removes high frequency details, creating a blur effect.
  */
-@FXProcessorInfo(nodeType = "FFTLowPass", category = "FFT")
+@FXProcessorInfo(
+    nodeType = "FFTLowPass",
+    displayName = "FFT Low-Pass",
+    category = "Filter",
+    description = "FFT Low-Pass Filter\nCore.dft() / Core.idft()"
+)
 public class FFTLowPassProcessor extends FFTFilterBase {
 
     @Override

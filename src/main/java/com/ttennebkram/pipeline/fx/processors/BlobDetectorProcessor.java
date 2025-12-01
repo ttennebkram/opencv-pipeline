@@ -16,7 +16,12 @@ import org.opencv.features2d.SimpleBlobDetector_Params;
  * Simple Blob Detector processor.
  * Detects blobs based on various filter criteria.
  */
-@FXProcessorInfo(nodeType = "BlobDetector", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "BlobDetector",
+    displayName = "Blob Detector",
+    category = "Detection",
+    description = "Blob detection\nSimpleBlobDetector.detect(image, keypoints)"
+)
 public class BlobDetectorProcessor extends FXProcessorBase {
 
     // Properties with defaults

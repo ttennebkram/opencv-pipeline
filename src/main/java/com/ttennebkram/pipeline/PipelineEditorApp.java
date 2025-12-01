@@ -28,6 +28,7 @@ import com.ttennebkram.pipeline.fx.FXNodeRegistry;
 import com.ttennebkram.pipeline.fx.FXPipelineExecutor;
 import com.ttennebkram.pipeline.fx.FXPipelineSerializer;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
+import com.ttennebkram.pipeline.util.MatTracker;
 import com.ttennebkram.pipeline.fx.FXWebcamSource;
 import com.ttennebkram.pipeline.fx.NodeRenderer;
 
@@ -169,6 +170,19 @@ public class PipelineEditorApp extends Application {
 
         // Add keyboard handler for delete key, arrow keys, and other shortcuts
         scene.setOnKeyPressed(e -> {
+            // Ctrl+M: Toggle Mat tracking
+            if (e.getCode() == KeyCode.M && e.isControlDown() && !e.isShiftDown()) {
+                MatTracker.setEnabled(!MatTracker.isEnabled());
+                e.consume();
+                return;
+            }
+            // Ctrl+Shift+M: Dump Mat leaks
+            if (e.getCode() == KeyCode.M && e.isControlDown() && e.isShiftDown()) {
+                MatTracker.printSummary();
+                MatTracker.dumpLeaksByLocation();
+                e.consume();
+                return;
+            }
             if (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE) {
                 deleteSelected();
                 e.consume();
@@ -458,6 +472,10 @@ public class PipelineEditorApp extends Application {
                     selectedNodes.clear();
                     selectedConnections.clear();
                     selectedNodes.add(clickedNode);
+                    // Show cached preview image if available
+                    if (clickedNode.previewImage != null) {
+                        previewImageView.setImage(clickedNode.previewImage);
+                    }
                     paintCanvas();
                 }
 
@@ -635,7 +653,8 @@ public class PipelineEditorApp extends Application {
             if (start != null && end != null) {
                 NodeRenderer.renderConnection(gc, start[0], start[1], end[0], end[1],
                     conn.selected || selectedConnections.contains(conn),
-                    conn.queueSize, conn.totalFrames);
+                    conn.queueSize, conn.totalFrames,
+                    conn.source != null, conn.target != null);
             }
         }
 
@@ -708,6 +727,35 @@ public class PipelineEditorApp extends Application {
             if (node.isOnHelpIcon(canvasX, canvasY)) {
                 FXHelpBrowser.openForNodeType(primaryStage, node.nodeType);
                 return;
+            }
+        }
+
+        // Check for clicks on free endpoints of dangling connections
+        double tolerance = NodeRenderer.CONNECTION_RADIUS + 9;
+        for (FXConnection conn : connections) {
+            // Check free source endpoint (source-dangling connection)
+            if (conn.source == null) {
+                double dist = Math.sqrt(Math.pow(canvasX - conn.freeSourceX, 2) + Math.pow(canvasY - conn.freeSourceY, 2));
+                if (dist < tolerance) {
+                    // Grab the free source end
+                    yankingConnection = conn;
+                    yankingFromTarget = false;
+                    isDrawingConnection = true;
+                    paintCanvas();
+                    return;
+                }
+            }
+            // Check free target endpoint (target-dangling connection)
+            if (conn.target == null) {
+                double dist = Math.sqrt(Math.pow(canvasX - conn.freeTargetX, 2) + Math.pow(canvasY - conn.freeTargetY, 2));
+                if (dist < tolerance) {
+                    // Grab the free target end
+                    yankingConnection = conn;
+                    yankingFromTarget = true;
+                    isDrawingConnection = true;
+                    paintCanvas();
+                    return;
+                }
             }
         }
 
@@ -787,8 +835,11 @@ public class PipelineEditorApp extends Application {
             }
             selectedNodes.add(clickedNode);
 
-            // Don't update preview here - wait for the callback with full-res image
-            // The thumbnail is too low-res and causes a jarring "snap" effect
+            // Show cached preview image if available (from previous run or loaded from disk)
+            // This gives immediate feedback before pipeline runs
+            if (selectedNodes.size() == 1 && clickedNode.previewImage != null) {
+                previewImageView.setImage(clickedNode.previewImage);
+            }
 
             // Start dragging
             dragNode = clickedNode;
@@ -1013,6 +1064,11 @@ public class PipelineEditorApp extends Application {
         // Wire up pipeline control callbacks
         editorWindow.setOnStartPipeline(this::startPipeline);
         editorWindow.setOnStopPipeline(this::stopPipeline);
+        editorWindow.setOnRefreshPipeline(() -> {
+            if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
+                pipelineExecutor.triggerRefresh();
+            }
+        });
         editorWindow.setIsPipelineRunning(() -> pipelineRunning);
         editorWindow.setGetThreadCount(() -> pipelineExecutor != null ? pipelineExecutor.getThreadCount() + 1 : 1); // +1 for JavaFX thread
         editorWindow.setOnRequestGlobalSave(this::saveDiagram);
@@ -1549,6 +1605,12 @@ public class PipelineEditorApp extends Application {
 
             markDirty();
             paintCanvas();
+
+            // Trigger pipeline refresh so parameter changes show immediately
+            // (especially important for static image sources with low/no FPS)
+            if (pipelineExecutor != null && pipelineExecutor.isRunning()) {
+                pipelineExecutor.triggerRefresh();
+            }
         });
 
         dialog.showAndWaitForResult();
@@ -1673,6 +1735,7 @@ public class PipelineEditorApp extends Application {
         } catch (Exception e) {
             System.err.println("Failed to load pipeline: " + e.getMessage());
             e.printStackTrace();
+            checkAndReportTooManyFiles(e);
             showError("Load Failed", "Failed to load pipeline: " + e.getMessage());
         }
     }
@@ -1711,7 +1774,28 @@ public class PipelineEditorApp extends Application {
         } catch (Exception e) {
             System.err.println("Failed to save pipeline: " + e.getMessage());
             e.printStackTrace();
+            checkAndReportTooManyFiles(e);
             showError("Save Failed", "Failed to save pipeline: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Check if an exception is a "too many open files" error and report Mat tracking info.
+     */
+    private void checkAndReportTooManyFiles(Throwable t) {
+        while (t != null) {
+            String msg = t.getMessage();
+            if (msg != null && (msg.contains("Too many open files") ||
+                               msg.contains("too many open files") ||
+                               msg.contains("EMFILE") ||
+                               msg.contains("ENFILE"))) {
+                System.err.println("\n!!! TOO MANY OPEN FILES ERROR DETECTED !!!");
+                System.err.println("Dumping Mat tracking information...\n");
+                com.ttennebkram.pipeline.util.MatTracker.printSummary(System.err);
+                com.ttennebkram.pipeline.util.MatTracker.dumpLeaksByLocation(System.err);
+                return;
+            }
+            t = t.getCause();
         }
     }
 
@@ -1813,22 +1897,28 @@ public class PipelineEditorApp extends Application {
         pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
         pipelineExecutor.setBasePath(currentFilePath);  // For resolving relative paths in nested containers
         pipelineExecutor.setOnNodeOutput((node, mat) -> {
-            // Update node thumbnail
-            javafx.scene.image.Image newThumb = FXImageUtils.matToImage(mat,
-                NodeRenderer.PROCESSING_NODE_THUMB_WIDTH,
-                NodeRenderer.PROCESSING_NODE_THUMB_HEIGHT);
-            node.thumbnail = newThumb;
+            try {
+                // Update node thumbnail (small, for node box display)
+                javafx.scene.image.Image newThumb = FXImageUtils.matToImage(mat,
+                    NodeRenderer.PROCESSING_NODE_THUMB_WIDTH,
+                    NodeRenderer.PROCESSING_NODE_THUMB_HEIGHT);
+                node.thumbnail = newThumb;
 
-            // Update preview if this node is selected
-            if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
-                previewImageView.setImage(FXImageUtils.matToImage(mat));
+                // Update preview image (full resolution, cached for later display)
+                javafx.scene.image.Image fullRes = FXImageUtils.matToImage(mat);
+                node.previewImage = fullRes;
+
+                // Update preview pane if this node is selected
+                if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                    previewImageView.setImage(fullRes);
+                }
+
+                // Repaint canvas
+                paintCanvas();
+            } finally {
+                // Always release the mat
+                mat.release();
             }
-
-            // Release the mat
-            mat.release();
-
-            // Repaint canvas
-            paintCanvas();
         });
         pipelineExecutor.start();
 
@@ -2130,6 +2220,8 @@ public class PipelineEditorApp extends Application {
         String filter = searchBox.getText().toLowerCase().trim();
         toolbarContent.getChildren().clear();
 
+        boolean hasMatches = false;
+
         for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
             List<FXNodeRegistry.NodeType> matchingNodes = new ArrayList<>();
             for (FXNodeRegistry.NodeType nodeType : FXNodeRegistry.getNodesInCategory(category)) {
@@ -2141,13 +2233,33 @@ public class PipelineEditorApp extends Application {
                 }
             }
 
-            if (!matchingNodes.isEmpty()) {
+            // Check if Connector/Queue matches for Utility category
+            boolean connectorMatches = category.equals("Utility") && (filter.isEmpty() ||
+                "connector".contains(filter) || "queue".contains(filter));
+
+            if (!matchingNodes.isEmpty() || connectorMatches) {
+                hasMatches = true;
                 addToolbarCategory(category);
                 for (FXNodeRegistry.NodeType nodeType : matchingNodes) {
                     final String typeName = nodeType.name;
                     addToolbarButton(nodeType.getButtonName(), () -> addNodeAt(typeName, getNextNodeX(), getNextNodeY()));
                 }
+                // Add Connector/Queue button to Utility category
+                if (connectorMatches) {
+                    addToolbarButton("Connector/Queue", () -> addConnectorQueue(getNextNodeX(), getNextNodeY()));
+                }
             }
+        }
+
+        // Show "No matches found" message when search yields no results
+        if (!hasMatches && !filter.isEmpty()) {
+            Label noMatchLabel = new Label("No matches found\n\nTry fewer letters or\nclear your search");
+            noMatchLabel.setFont(javafx.scene.text.Font.font("System", javafx.scene.text.FontPosture.ITALIC, 12));
+            noMatchLabel.setStyle("-fx-text-alignment: center; -fx-padding: 20 10 10 10;");
+            noMatchLabel.setWrapText(true);
+            noMatchLabel.setMaxWidth(Double.MAX_VALUE);
+            noMatchLabel.setAlignment(javafx.geometry.Pos.CENTER);
+            toolbarContent.getChildren().add(noMatchLabel);
         }
     }
 

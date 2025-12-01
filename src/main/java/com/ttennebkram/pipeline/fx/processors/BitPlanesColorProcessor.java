@@ -20,7 +20,12 @@ import java.util.List;
  * Bit Planes Color processor.
  * Select and adjust individual bit planes per color channel.
  */
-@FXProcessorInfo(nodeType = "BitPlanesColor", category = "Color")
+@FXProcessorInfo(
+    nodeType = "BitPlanesColor",
+    displayName = "Bit Planes Color",
+    category = "Basic",
+    description = "Bit plane decomposition (color)\nBit masking per channel with gain"
+)
 public class BitPlanesColorProcessor extends FXProcessorBase {
 
     // Properties with defaults - [channel][bit]

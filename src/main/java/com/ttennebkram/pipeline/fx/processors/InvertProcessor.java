@@ -11,7 +11,12 @@ import org.opencv.core.Mat;
  * Inverts (negates) all pixel values in the image.
  * This is a simple processor with no configurable properties.
  */
-@FXProcessorInfo(nodeType = "Invert", category = "Basic")
+@FXProcessorInfo(
+    nodeType = "Invert",
+    displayName = "Invert",
+    category = "Basic",
+    description = "Invert colors\nCore.bitwise_not(src, dst)"
+)
 public class InvertProcessor extends FXProcessorBase {
 
     @Override

@@ -40,13 +40,13 @@ public class FXImageUtils {
      * Uses WritableImage and PixelWriter directly.
      */
     private static Image matToImagePureJavaFX(Mat mat) {
-        try {
-            int width = mat.width();
-            int height = mat.height();
-            int channels = mat.channels();
+        int width = mat.width();
+        int height = mat.height();
+        int channels = mat.channels();
 
-            // Convert BGR to RGB for 3-channel images
-            Mat rgbMat;
+        // Convert BGR to RGB for 3-channel images
+        Mat rgbMat = null;
+        try {
             if (channels == 3) {
                 rgbMat = new Mat();
                 Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_BGR2RGB);
@@ -81,17 +81,17 @@ public class FXImageUtils {
                     buffer, 0, width * 4);
             }
 
-            // Release temp mat if we created one
-            if (rgbMat != mat) {
-                rgbMat.release();
-            }
-
             return image;
 
         } catch (Exception e) {
             System.err.println("matToImagePureJavaFX error: " + e.getMessage());
             e.printStackTrace();
             return null;
+        } finally {
+            // Always release temp mat if we created one
+            if (rgbMat != null) {
+                rgbMat.release();
+            }
         }
     }
 

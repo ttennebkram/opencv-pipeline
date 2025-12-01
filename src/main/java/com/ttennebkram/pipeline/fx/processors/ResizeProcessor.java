@@ -12,7 +12,12 @@ import org.opencv.imgproc.Imgproc;
  * Resize processor.
  * Resizes the image to specified dimensions.
  */
-@FXProcessorInfo(nodeType = "Resize", category = "Transform")
+@FXProcessorInfo(
+    nodeType = "Resize",
+    displayName = "Resize",
+    category = "Transform",
+    description = "Resize image\nImgproc.resize(src, dst, dsize)"
+)
 public class ResizeProcessor extends FXProcessorBase {
 
     // Properties with defaults

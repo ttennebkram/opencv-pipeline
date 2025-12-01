@@ -12,7 +12,12 @@ import org.opencv.imgproc.Imgproc;
  * Morphological Open processor.
  * Opening = erosion followed by dilation. Useful for removing small objects/noise.
  */
-@FXProcessorInfo(nodeType = "MorphOpen", category = "Morphology")
+@FXProcessorInfo(
+    nodeType = "MorphOpen",
+    displayName = "Morph Open",
+    category = "Morphology",
+    description = "Morphological opening (erode+dilate)\nImgproc.morphologyEx(src, dst, MORPH_OPEN, kernel)"
+)
 public class MorphOpenProcessor extends FXProcessorBase {
 
     // Properties with defaults

@@ -11,7 +11,12 @@ import org.opencv.imgproc.Imgproc;
  * Bilateral Filter processor.
  * Edge-preserving smoothing filter - reduces noise while keeping edges sharp.
  */
-@FXProcessorInfo(nodeType = "BilateralFilter", category = "Blur")
+@FXProcessorInfo(
+    nodeType = "BilateralFilter",
+    displayName = "Bilateral Blur",
+    category = "Blur",
+    description = "Bilateral filter (edge-preserving)\nImgproc.bilateralFilter(src, dst, d, sigmaColor, sigmaSpace)"
+)
 public class BilateralFilterProcessor extends FXProcessorBase {
 
     // Properties with defaults

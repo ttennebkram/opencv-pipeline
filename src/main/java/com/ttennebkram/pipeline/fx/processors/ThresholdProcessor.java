@@ -17,7 +17,12 @@ import org.opencv.imgproc.Imgproc;
  * - Sliders for numeric values
  * - Radio buttons for threshold type selection
  */
-@FXProcessorInfo(nodeType = "Threshold", category = "Basic")
+@FXProcessorInfo(
+    nodeType = "Threshold",
+    displayName = "Threshold",
+    category = "Basic",
+    description = "Binary threshold\nImgproc.threshold(src, dst, thresh, maxval, type)"
+)
 public class ThresholdProcessor extends FXProcessorBase {
 
     // Properties with defaults

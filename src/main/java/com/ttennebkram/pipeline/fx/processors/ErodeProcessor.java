@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * Erode processor.
  * Erodes away the boundaries of foreground objects.
  */
-@FXProcessorInfo(nodeType = "Erode", category = "Morphology")
+@FXProcessorInfo(
+    nodeType = "Erode",
+    displayName = "Erode",
+    category = "Morphology",
+    description = "Erosion\nImgproc.erode(src, dst, kernel, iterations)"
+)
 public class ErodeProcessor extends FXProcessorBase {
 
     // Properties with defaults

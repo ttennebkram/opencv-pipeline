@@ -12,7 +12,12 @@ import org.opencv.imgproc.Imgproc;
  * Adaptive Threshold processor.
  * Applies adaptive thresholding where the threshold value varies across the image.
  */
-@FXProcessorInfo(nodeType = "AdaptiveThreshold", category = "Threshold")
+@FXProcessorInfo(
+    nodeType = "AdaptiveThreshold",
+    displayName = "Adaptive Threshold",
+    category = "Basic",
+    description = "Adaptive threshold\nImgproc.adaptiveThreshold(...)"
+)
 public class AdaptiveThresholdProcessor extends FXProcessorBase {
 
     // Properties with defaults

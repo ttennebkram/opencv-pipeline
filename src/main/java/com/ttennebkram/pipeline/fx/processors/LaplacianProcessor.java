@@ -15,7 +15,13 @@ import org.opencv.imgproc.Imgproc;
  * Laplacian edge detection processor.
  * Computes second-order derivatives for edge detection.
  */
-@FXProcessorInfo(nodeType = "Laplacian", category = "Edge Detection")
+@FXProcessorInfo(
+    nodeType = "Laplacian",
+    displayName = "Laplacian Edges",
+    buttonName = "Laplacian",
+    category = "Edges",
+    description = "Laplacian operator\nImgproc.Laplacian(src, dst, ddepth)"
+)
 public class LaplacianProcessor extends FXProcessorBase {
 
     // Properties with defaults

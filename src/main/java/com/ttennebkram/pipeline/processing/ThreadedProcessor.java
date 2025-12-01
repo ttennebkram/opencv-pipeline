@@ -1,6 +1,7 @@
 package com.ttennebkram.pipeline.processing;
 
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.util.MatTracker;
 import org.opencv.core.Mat;
 
 import java.text.SimpleDateFormat;
@@ -117,6 +118,10 @@ public class ThreadedProcessor {
     }
 
     public boolean isEnabled() {
+        // Read from FXNode for live updates when available
+        if (fxNode != null) {
+            return fxNode.enabled;
+        }
         return enabled;
     }
 
@@ -541,12 +546,14 @@ public class ThreadedProcessor {
                 }
 
                 Mat output;
-                if (!enabled) {
+                if (!isEnabled()) {
                     // Bypass mode: pass through unchanged
                     output = input.clone();
+                    MatTracker.track(output);
                 } else {
                     // Process the frame
                     output = processor.process(input);
+                    MatTracker.track(output);
                 }
 
                 workUnitsCompleted++;
@@ -558,17 +565,22 @@ public class ThreadedProcessor {
                         if (now - lastCallbackTime >= MIN_CALLBACK_INTERVAL_MS) {
                             lastCallbackTime = now;
                             Mat callbackCopy = output.clone();
+                            MatTracker.track(callbackCopy);
                             onFrameCallback.accept(callbackCopy);
                         }
                     }
 
                     // Put on output queues (support dual output)
                     if (outputQueue != null) {
-                        outputQueue.put(output.clone());
+                        Mat queueCopy = output.clone();
+                        MatTracker.track(queueCopy);
+                        outputQueue.put(queueCopy);
                         outputWrites1++;
                     }
                     if (outputQueue2 != null) {
-                        outputQueue2.put(output.clone());
+                        Mat queueCopy2 = output.clone();
+                        MatTracker.track(queueCopy2);
+                        outputQueue2.put(queueCopy2);
                         outputWrites2++;
                     }
 
@@ -585,10 +597,10 @@ public class ThreadedProcessor {
                         fxNode.effectiveFps = getEffectiveFps();
                     }
 
-                    output.release();
+                    MatTracker.release(output);
                 }
 
-                input.release();
+                MatTracker.release(input);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -644,11 +656,11 @@ public class ThreadedProcessor {
                 onFrameCallback.accept(frame);
             } else {
                 // Throttled - release the frame since we're not using it
-                frame.release();
+                MatTracker.release(frame);
             }
         } else {
             // No callback - release the frame
-            frame.release();
+            MatTracker.release(frame);
         }
     }
 
@@ -676,13 +688,9 @@ public class ThreadedProcessor {
      * Drain all queues and release any remaining Mats.
      */
     private void drainQueues() {
-        // Drain input queue
-        if (inputQueue != null) {
-            Mat mat;
-            while ((mat = inputQueue.poll()) != null) {
-                mat.release();
-            }
-        }
+        // Drain input queues
+        drainQueue(inputQueue);
+        drainQueue(inputQueue2);
 
         // Drain output queues
         drainQueue(outputQueue);
@@ -695,7 +703,7 @@ public class ThreadedProcessor {
         if (queue != null) {
             Mat mat;
             while ((mat = queue.poll()) != null) {
-                mat.release();
+                MatTracker.release(mat);
             }
         }
     }

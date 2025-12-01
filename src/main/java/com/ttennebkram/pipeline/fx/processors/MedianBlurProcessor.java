@@ -11,7 +11,12 @@ import org.opencv.imgproc.Imgproc;
  * Median Blur processor.
  * Applies a median filter - effective for salt-and-pepper noise removal.
  */
-@FXProcessorInfo(nodeType = "MedianBlur", category = "Blur")
+@FXProcessorInfo(
+    nodeType = "MedianBlur",
+    displayName = "Median Blur",
+    category = "Blur",
+    description = "Median blur\nImgproc.medianBlur(src, dst, ksize)"
+)
 public class MedianBlurProcessor extends FXProcessorBase {
 
     // Properties with defaults

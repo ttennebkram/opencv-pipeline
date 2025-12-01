@@ -51,6 +51,22 @@ public interface FXProcessor {
     }
 
     /**
+     * Set the FXNode reference for live property updates.
+     * When set, the processor will re-read properties from node.properties
+     * on each process() call, enabling real-time parameter changes.
+     */
+    default void setFXNode(FXNode node) {
+        // Default: no-op. Subclasses override to store reference
+    }
+
+    /**
+     * Get the FXNode reference.
+     */
+    default FXNode getFXNode() {
+        return null;
+    }
+
+    /**
      * Build the properties dialog UI.
      * Add controls to the dialog using its helper methods.
      * Set the onOk callback to save values back to this processor.

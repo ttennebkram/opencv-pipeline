@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * Line drawing processor.
  * Draws a line on the image.
  */
-@FXProcessorInfo(nodeType = "Line", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Line",
+    displayName = "Line",
+    category = "Content",
+    description = "Draw line\nImgproc.line(img, pt1, pt2, color, thickness)"
+)
 public class LineProcessor extends FXProcessorBase {
 
     // Properties with defaults

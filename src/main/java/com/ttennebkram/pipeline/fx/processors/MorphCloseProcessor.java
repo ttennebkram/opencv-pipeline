@@ -12,7 +12,12 @@ import org.opencv.imgproc.Imgproc;
  * Morphological Close processor.
  * Closing = dilation followed by erosion. Useful for closing small holes.
  */
-@FXProcessorInfo(nodeType = "MorphClose", category = "Morphology")
+@FXProcessorInfo(
+    nodeType = "MorphClose",
+    displayName = "Morph Close",
+    category = "Morphology",
+    description = "Morphological closing (dilate+erode)\nImgproc.morphologyEx(src, dst, MORPH_CLOSE, kernel)"
+)
 public class MorphCloseProcessor extends FXProcessorBase {
 
     // Properties with defaults

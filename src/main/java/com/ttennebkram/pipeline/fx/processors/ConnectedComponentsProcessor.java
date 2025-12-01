@@ -17,7 +17,12 @@ import java.util.Random;
  * Connected Components labeling processor.
  * Labels connected regions with distinct colors.
  */
-@FXProcessorInfo(nodeType = "ConnectedComponents", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "ConnectedComponents",
+    displayName = "Connected Components",
+    category = "Detection",
+    description = "Connected component labeling\nImgproc.connectedComponentsWithStats(...)"
+)
 public class ConnectedComponentsProcessor extends FXProcessorBase {
 
     // Properties with defaults

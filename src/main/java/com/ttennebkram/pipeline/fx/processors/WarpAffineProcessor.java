@@ -15,7 +15,12 @@ import org.opencv.imgproc.Imgproc;
  * Warp Affine (geometric transformation) processor.
  * Applies translation, rotation, and scaling.
  */
-@FXProcessorInfo(nodeType = "WarpAffine", category = "Transform")
+@FXProcessorInfo(
+    nodeType = "WarpAffine",
+    displayName = "Warp Affine",
+    category = "Transform",
+    description = "Affine transformation\nImgproc.warpAffine(src, dst, M, dsize)"
+)
 public class WarpAffineProcessor extends FXProcessorBase {
 
     // Properties with defaults

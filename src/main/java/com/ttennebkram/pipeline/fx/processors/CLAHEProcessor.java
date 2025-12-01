@@ -18,7 +18,12 @@ import java.util.List;
  * CLAHE (Contrast Limited Adaptive Histogram Equalization) processor.
  * Enhances local contrast while limiting noise amplification.
  */
-@FXProcessorInfo(nodeType = "CLAHE", category = "Enhancement")
+@FXProcessorInfo(
+    nodeType = "CLAHE",
+    displayName = "CLAHE Contrast",
+    category = "Basic",
+    description = "Contrast Limited AHE\nImgproc.createCLAHE().apply(src, dst)"
+)
 public class CLAHEProcessor extends FXProcessorBase {
 
     // Properties with defaults

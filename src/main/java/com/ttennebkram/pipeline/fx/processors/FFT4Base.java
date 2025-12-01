@@ -77,54 +77,132 @@ public abstract class FFT4Base extends FXProcessorBase implements FXMultiOutputP
         int optRows = getOptimalFFTSize(origRows);
         int optCols = getOptimalFFTSize(origCols);
 
-        // Create the filter mask at optimal size
-        Mat mask = isHighPass() ?
-            createHighPassMask(optRows, optCols) :
-            createLowPassMask(optRows, optCols);
+        // Track all Mats for cleanup on exception
+        Mat mask = null;
+        Mat filterVis = null;
+        Mat filtered = null;
+        Mat spectrum = null;
+        Mat difference = null;
+        List<Mat> channels = new ArrayList<>();
+        List<Mat> filteredChannels = new ArrayList<>();
 
-        // Create filter curve visualization (for output 4)
-        Mat filterVis = createFilterCurveVisualization(origCols, origRows);
+        try {
+            // Create the filter mask at optimal size
+            mask = isHighPass() ?
+                createHighPassMask(optRows, optCols) :
+                createLowPassMask(optRows, optCols);
 
-        Mat filtered;
-        Mat spectrum;
+            // Create filter curve visualization (for output 4)
+            filterVis = createFilterCurveVisualization(origCols, origRows);
 
-        if (input.channels() > 1) {
-            // Process each BGR channel separately
-            List<Mat> channels = new ArrayList<>();
-            Core.split(input, channels);
+            if (input.channels() > 1) {
+                // Process each BGR channel separately
+                Core.split(input, channels);
 
-            List<Mat> filteredChannels = new ArrayList<>();
-            Mat spectrumAccum = null;
+                Mat spectrumAccum = null;
 
-            for (int c = 0; c < channels.size(); c++) {
-                Mat channel = channels.get(c);
+                for (int c = 0; c < channels.size(); c++) {
+                    Mat channel = channels.get(c);
 
-                // Pad to optimal size
+                    // Pad to optimal size
+                    Mat padded = new Mat();
+                    Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+                        Core.BORDER_CONSTANT, Scalar.all(0));
+
+                    // Convert to float and create complex mat
+                    Mat floatChannel = new Mat();
+                    padded.convertTo(floatChannel, CvType.CV_32F);
+                    padded.release();
+
+                    Mat complexI = new Mat();
+                    List<Mat> planes = new ArrayList<>();
+                    planes.add(floatChannel);
+                    planes.add(Mat.zeros(floatChannel.size(), CvType.CV_32F));
+                    Core.merge(planes, complexI);
+                    planes.get(1).release();
+                    floatChannel.release();
+
+                    // Compute DFT and shift
+                    Core.dft(complexI, complexI);
+                    fftShift(complexI);
+
+                    // For spectrum visualization, use the first channel
+                    if (c == 0) {
+                        spectrumAccum = createSpectrumVisualization(complexI, origRows, origCols);
+                    }
+
+                    // Apply mask
+                    List<Mat> dftPlanes = new ArrayList<>();
+                    Core.split(complexI, dftPlanes);
+                    complexI.release();
+
+                    Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
+                    Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
+
+                    Mat maskedDft = new Mat();
+                    Core.merge(dftPlanes, maskedDft);
+                    for (Mat p : dftPlanes) p.release();
+
+                    // Inverse shift and DFT
+                    fftShift(maskedDft);
+                    Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
+
+                    // Get real part
+                    List<Mat> idftPlanes = new ArrayList<>();
+                    Core.split(maskedDft, idftPlanes);
+                    maskedDft.release();
+
+                    Mat magnitude = idftPlanes.get(0);
+                    idftPlanes.get(1).release();
+
+                    // Crop to original size
+                    Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
+                    Mat result = cropped.clone();
+                    magnitude.release();
+
+                    // Clip and convert to 8-bit
+                    Core.min(result, new Scalar(255), result);
+                    Core.max(result, new Scalar(0), result);
+                    Mat filteredChannel = new Mat();
+                    result.convertTo(filteredChannel, CvType.CV_8U);
+                    result.release();
+
+                    filteredChannels.add(filteredChannel);
+                }
+
+                // Merge filtered channels back to BGR
+                filtered = new Mat();
+                Core.merge(filteredChannels, filtered);
+
+                spectrum = spectrumAccum;
+
+                // Release channel Mats
+                for (Mat ch : channels) ch.release();
+                channels.clear();
+                for (Mat ch : filteredChannels) ch.release();
+                filteredChannels.clear();
+            } else {
+                // Single channel (grayscale) processing
                 Mat padded = new Mat();
-                Core.copyMakeBorder(channel, padded, 0, optRows - origRows, 0, optCols - origCols,
+                Core.copyMakeBorder(input, padded, 0, optRows - origRows, 0, optCols - origCols,
                     Core.BORDER_CONSTANT, Scalar.all(0));
 
-                // Convert to float and create complex mat
-                Mat floatChannel = new Mat();
-                padded.convertTo(floatChannel, CvType.CV_32F);
+                Mat floatInput = new Mat();
+                padded.convertTo(floatInput, CvType.CV_32F);
                 padded.release();
 
                 Mat complexI = new Mat();
                 List<Mat> planes = new ArrayList<>();
-                planes.add(floatChannel);
-                planes.add(Mat.zeros(floatChannel.size(), CvType.CV_32F));
+                planes.add(floatInput);
+                planes.add(Mat.zeros(floatInput.size(), CvType.CV_32F));
                 Core.merge(planes, complexI);
                 planes.get(1).release();
-                floatChannel.release();
+                floatInput.release();
 
-                // Compute DFT and shift
                 Core.dft(complexI, complexI);
                 fftShift(complexI);
 
-                // For spectrum visualization, use the first channel
-                if (c == 0) {
-                    spectrumAccum = createSpectrumVisualization(complexI, origRows, origCols);
-                }
+                spectrum = createSpectrumVisualization(complexI, origRows, origCols);
 
                 // Apply mask
                 List<Mat> dftPlanes = new ArrayList<>();
@@ -138,11 +216,9 @@ public abstract class FFT4Base extends FXProcessorBase implements FXMultiOutputP
                 Core.merge(dftPlanes, maskedDft);
                 for (Mat p : dftPlanes) p.release();
 
-                // Inverse shift and DFT
                 fftShift(maskedDft);
                 Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
 
-                // Get real part
                 List<Mat> idftPlanes = new ArrayList<>();
                 Core.split(maskedDft, idftPlanes);
                 maskedDft.release();
@@ -150,102 +226,49 @@ public abstract class FFT4Base extends FXProcessorBase implements FXMultiOutputP
                 Mat magnitude = idftPlanes.get(0);
                 idftPlanes.get(1).release();
 
-                // Crop to original size
                 Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
                 Mat result = cropped.clone();
                 magnitude.release();
 
-                // Clip and convert to 8-bit
                 Core.min(result, new Scalar(255), result);
                 Core.max(result, new Scalar(0), result);
-                Mat filteredChannel = new Mat();
-                result.convertTo(filteredChannel, CvType.CV_8U);
+                filtered = new Mat();
+                result.convertTo(filtered, CvType.CV_8U);
                 result.release();
 
-                filteredChannels.add(filteredChannel);
+                // Convert grayscale to BGR for consistency
+                Mat filteredBGR = new Mat();
+                Imgproc.cvtColor(filtered, filteredBGR, Imgproc.COLOR_GRAY2BGR);
+                filtered.release();
+                filtered = filteredBGR;
             }
 
-            // Merge filtered channels back to BGR
-            filtered = new Mat();
-            Core.merge(filteredChannels, filtered);
+            // Calculate absolute difference
+            difference = new Mat();
+            Core.absdiff(input, filtered, difference);
 
-            spectrum = spectrumAccum;
+            // Add filter overlay to spectrum
+            addFilterOverlayToSpectrum(spectrum);
 
-            // Release channel Mats
+            // Release mask (no longer needed)
+            mask.release();
+            mask = null;
+
+            return new Mat[]{filtered, difference, spectrum, filterVis};
+
+        } catch (Exception e) {
+            // On exception, release all output Mats we created
+            if (filtered != null) filtered.release();
+            if (difference != null) difference.release();
+            if (spectrum != null) spectrum.release();
+            if (filterVis != null) filterVis.release();
+            throw e;
+        } finally {
+            // Always release temporary Mats
+            if (mask != null) mask.release();
             for (Mat ch : channels) ch.release();
             for (Mat ch : filteredChannels) ch.release();
-        } else {
-            // Single channel (grayscale) processing
-            Mat padded = new Mat();
-            Core.copyMakeBorder(input, padded, 0, optRows - origRows, 0, optCols - origCols,
-                Core.BORDER_CONSTANT, Scalar.all(0));
-
-            Mat floatInput = new Mat();
-            padded.convertTo(floatInput, CvType.CV_32F);
-            padded.release();
-
-            Mat complexI = new Mat();
-            List<Mat> planes = new ArrayList<>();
-            planes.add(floatInput);
-            planes.add(Mat.zeros(floatInput.size(), CvType.CV_32F));
-            Core.merge(planes, complexI);
-            planes.get(1).release();
-            floatInput.release();
-
-            Core.dft(complexI, complexI);
-            fftShift(complexI);
-
-            spectrum = createSpectrumVisualization(complexI, origRows, origCols);
-
-            // Apply mask
-            List<Mat> dftPlanes = new ArrayList<>();
-            Core.split(complexI, dftPlanes);
-            complexI.release();
-
-            Core.multiply(dftPlanes.get(0), mask, dftPlanes.get(0));
-            Core.multiply(dftPlanes.get(1), mask, dftPlanes.get(1));
-
-            Mat maskedDft = new Mat();
-            Core.merge(dftPlanes, maskedDft);
-            for (Mat p : dftPlanes) p.release();
-
-            fftShift(maskedDft);
-            Core.idft(maskedDft, maskedDft, Core.DFT_SCALE);
-
-            List<Mat> idftPlanes = new ArrayList<>();
-            Core.split(maskedDft, idftPlanes);
-            maskedDft.release();
-
-            Mat magnitude = idftPlanes.get(0);
-            idftPlanes.get(1).release();
-
-            Mat cropped = new Mat(magnitude, new Rect(0, 0, origCols, origRows));
-            Mat result = cropped.clone();
-            magnitude.release();
-
-            Core.min(result, new Scalar(255), result);
-            Core.max(result, new Scalar(0), result);
-            filtered = new Mat();
-            result.convertTo(filtered, CvType.CV_8U);
-            result.release();
-
-            // Convert grayscale to BGR for consistency
-            Mat filteredBGR = new Mat();
-            Imgproc.cvtColor(filtered, filteredBGR, Imgproc.COLOR_GRAY2BGR);
-            filtered.release();
-            filtered = filteredBGR;
         }
-
-        // Calculate absolute difference
-        Mat difference = new Mat();
-        Core.absdiff(input, filtered, difference);
-
-        // Add filter overlay to spectrum
-        addFilterOverlayToSpectrum(spectrum);
-
-        mask.release();
-
-        return new Mat[]{filtered, difference, spectrum, filterVis};
     }
 
     /**

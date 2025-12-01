@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * Dilate processor.
  * Expands the boundaries of foreground objects.
  */
-@FXProcessorInfo(nodeType = "Dilate", category = "Morphology")
+@FXProcessorInfo(
+    nodeType = "Dilate",
+    displayName = "Dilate",
+    category = "Morphology",
+    description = "Dilation\nImgproc.dilate(src, dst, kernel, iterations)"
+)
 public class DilateProcessor extends FXProcessorBase {
 
     // Properties with defaults

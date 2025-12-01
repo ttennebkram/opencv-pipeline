@@ -257,6 +257,8 @@ public class ProcessorFactory {
         if (FXProcessorRegistry.hasProcessor(type) && !FXProcessorRegistry.isDualInput(type)) {
             FXProcessor processor = FXProcessorRegistry.createProcessor(fxNode);
             if (processor != null) {
+                // Set the FXNode reference for live property updates
+                processor.setFXNode(fxNode);
                 return processor.createImageProcessor();
             }
         }

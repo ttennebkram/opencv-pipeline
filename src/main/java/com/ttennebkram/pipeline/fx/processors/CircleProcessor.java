@@ -14,7 +14,12 @@ import org.opencv.imgproc.Imgproc;
  * Circle drawing processor.
  * Draws a circle on the image.
  */
-@FXProcessorInfo(nodeType = "Circle", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Circle",
+    displayName = "Circle",
+    category = "Content",
+    description = "Draw circle\nImgproc.circle(img, center, radius, color, thickness)"
+)
 public class CircleProcessor extends FXProcessorBase {
 
     // Properties with defaults

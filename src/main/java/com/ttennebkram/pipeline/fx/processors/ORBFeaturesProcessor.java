@@ -15,7 +15,12 @@ import org.opencv.features2d.ORB;
  * ORB (Oriented FAST and Rotated BRIEF) feature detection processor.
  * Detects and visualizes ORB keypoints.
  */
-@FXProcessorInfo(nodeType = "ORBFeatures", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "ORBFeatures",
+    displayName = "ORB Features",
+    category = "Detection",
+    description = "ORB feature detection\nORB.detectAndCompute(image, mask, keypoints, descriptors)"
+)
 public class ORBFeaturesProcessor extends FXProcessorBase {
 
     // Properties with defaults

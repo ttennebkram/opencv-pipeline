@@ -18,7 +18,13 @@ import org.opencv.imgproc.Imgproc;
  * - ComboBox for aperture size
  * - CheckBox for L2 gradient
  */
-@FXProcessorInfo(nodeType = "CannyEdge", category = "Edges")
+@FXProcessorInfo(
+    nodeType = "CannyEdge",
+    displayName = "Canny Edges",
+    buttonName = "Canny",
+    category = "Edges",
+    description = "Canny edge detection\nImgproc.Canny(src, dst, threshold1, threshold2)"
+)
 public class CannyEdgeProcessor extends FXProcessorBase {
 
     // Properties with defaults

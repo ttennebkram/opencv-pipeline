@@ -13,7 +13,13 @@ import org.opencv.core.Scalar;
  * Blank Source processor.
  * Generates a solid color image.
  */
-@FXProcessorInfo(nodeType = "BlankSource", category = "Source")
+@FXProcessorInfo(
+    nodeType = "BlankSource",
+    displayName = "Blank Source",
+    category = "Sources",
+    description = "Solid color image generator",
+    isSource = true
+)
 public class BlankSourceProcessor extends FXProcessorBase {
 
     // Properties with defaults

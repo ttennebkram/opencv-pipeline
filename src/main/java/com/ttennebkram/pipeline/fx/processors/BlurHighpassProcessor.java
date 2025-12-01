@@ -4,21 +4,28 @@ import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
 import javafx.scene.control.Slider;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 /**
- * Gaussian Blur processor.
- * Applies a Gaussian blur filter to smooth/blur the image.
+ * Highpass filter using Gaussian blur subtraction.
+ * Extracts high-frequency details by:
+ * 1. Apply Gaussian blur to get low-frequency (background)
+ * 2. Subtract blur from original: diff = input - blur
+ * 3. Take absolute value: output = |diff|
+ *
+ * The result shows edges and fine details while removing smooth areas.
  */
 @FXProcessorInfo(
-    nodeType = "GaussianBlur",
-    displayName = "Gaussian Blur",
-    category = "Blur",
-    description = "Gaussian blur\nImgproc.GaussianBlur(src, dst, ksize, sigma)"
+    nodeType = "BlurHighpass",
+    displayName = "Blur Highpass",
+    category = "Filter",
+    description = "Highpass filter via blur subtraction\nout = |input - GaussianBlur(input)|"
 )
-public class GaussianBlurProcessor extends FXProcessorBase {
+public class BlurHighpassProcessor extends FXProcessorBase {
 
     // Properties with defaults
     private int kernelSizeX = 15;
@@ -27,17 +34,17 @@ public class GaussianBlurProcessor extends FXProcessorBase {
 
     @Override
     public String getNodeType() {
-        return "GaussianBlur";
+        return "BlurHighpass";
     }
 
     @Override
     public String getCategory() {
-        return "Blur";
+        return "Filter";
     }
 
     @Override
     public String getDescription() {
-        return "Gaussian Blur\nImgproc.GaussianBlur(src, dst, ksize, sigmaX)";
+        return "Highpass Filter (Blur Subtraction)\nout = |input - GaussianBlur(input)|";
     }
 
     @Override
@@ -55,9 +62,40 @@ public class GaussianBlurProcessor extends FXProcessorBase {
         if (ksizeY % 2 == 0) ksizeY++;
         if (ksizeY < 1) ksizeY = 1;
 
-        Mat output = new Mat();
-        Imgproc.GaussianBlur(input, output, new Size(ksizeX, ksizeY), sigmaX);
-        return output;
+        Mat blurred = null;
+        Mat diff = null;
+        Mat output = null;
+
+        try {
+            // Step 1: Apply Gaussian blur to get low-frequency component
+            blurred = new Mat();
+            Imgproc.GaussianBlur(input, blurred, new Size(ksizeX, ksizeY), sigmaX);
+
+            // Step 2: Subtract blur from original (need signed type for negative values)
+            // Convert to signed 16-bit for subtraction
+            Mat inputS16 = new Mat();
+            Mat blurredS16 = new Mat();
+            input.convertTo(inputS16, CvType.CV_16S);
+            blurred.convertTo(blurredS16, CvType.CV_16S);
+
+            diff = new Mat();
+            Core.subtract(inputS16, blurredS16, diff);
+
+            // Release intermediate S16 mats
+            inputS16.release();
+            blurredS16.release();
+
+            // Step 3: Take absolute value and convert back to 8-bit
+            output = new Mat();
+            Core.convertScaleAbs(diff, output);
+
+            return output;
+
+        } finally {
+            // Clean up temporary mats
+            if (blurred != null) blurred.release();
+            if (diff != null) diff.release();
+        }
     }
 
     @Override
@@ -94,29 +132,15 @@ public class GaussianBlurProcessor extends FXProcessorBase {
 
     @Override
     public void deserializeProperties(JsonObject json) {
-        // Support legacy "kernelSize" property for backwards compatibility
-        if (json.has("kernelSize") && !json.has("kernelSizeX")) {
-            int legacySize = getJsonInt(json, "kernelSize", 15);
-            kernelSizeX = legacySize;
-            kernelSizeY = legacySize;
-        } else {
-            kernelSizeX = getJsonInt(json, "kernelSizeX", 15);
-            kernelSizeY = getJsonInt(json, "kernelSizeY", 15);
-        }
+        kernelSizeX = getJsonInt(json, "kernelSizeX", 15);
+        kernelSizeY = getJsonInt(json, "kernelSizeY", 15);
         sigmaX = getJsonDouble(json, "sigmaX", 0.0);
     }
 
     @Override
     public void syncFromFXNode(FXNode node) {
-        // Support legacy "kernelSize" property for backwards compatibility
-        if (node.properties.containsKey("kernelSize") && !node.properties.containsKey("kernelSizeX")) {
-            int legacySize = getInt(node.properties, "kernelSize", 15);
-            kernelSizeX = legacySize;
-            kernelSizeY = legacySize;
-        } else {
-            kernelSizeX = getInt(node.properties, "kernelSizeX", 15);
-            kernelSizeY = getInt(node.properties, "kernelSizeY", 15);
-        }
+        kernelSizeX = getInt(node.properties, "kernelSizeX", 15);
+        kernelSizeY = getInt(node.properties, "kernelSizeY", 15);
         sigmaX = getDouble(node.properties, "sigmaX", 0.0);
     }
 
@@ -125,8 +149,6 @@ public class GaussianBlurProcessor extends FXProcessorBase {
         node.properties.put("kernelSizeX", kernelSizeX);
         node.properties.put("kernelSizeY", kernelSizeY);
         node.properties.put("sigmaX", sigmaX);
-        // Remove legacy property if present
-        node.properties.remove("kernelSize");
     }
 
     // Getters/setters for direct access

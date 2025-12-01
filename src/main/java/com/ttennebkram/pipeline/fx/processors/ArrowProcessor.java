@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * Arrow drawing processor.
  * Draws an arrow on the image.
  */
-@FXProcessorInfo(nodeType = "Arrow", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Arrow",
+    displayName = "Arrow",
+    category = "Content",
+    description = "Draw arrow\nImgproc.arrowedLine(img, pt1, pt2, color, thickness)"
+)
 public class ArrowProcessor extends FXProcessorBase {
 
     // Properties with defaults

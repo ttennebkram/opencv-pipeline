@@ -10,4 +10,5 @@
 #mvn clean compile && mvn exec:exec -Dexec.args="--start"
 
 #mvn compile exec:exec       # regular startup
-mvn compile exec:exec@start  # with --start
+mvn clean compile exec:exec       # regular startup
+#mvn compile exec:exec@start  # with --start

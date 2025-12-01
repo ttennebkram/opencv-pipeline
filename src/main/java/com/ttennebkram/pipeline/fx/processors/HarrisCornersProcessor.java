@@ -14,7 +14,12 @@ import org.opencv.imgproc.Imgproc;
  * Harris Corner detection processor.
  * Detects corners using the Harris corner detection algorithm.
  */
-@FXProcessorInfo(nodeType = "HarrisCorners", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "HarrisCorners",
+    displayName = "Harris Corners",
+    category = "Detection",
+    description = "Harris corner detection\nImgproc.cornerHarris(src, dst, blockSize, ksize, k)"
+)
 public class HarrisCornersProcessor extends FXProcessorBase {
 
     // Properties with defaults

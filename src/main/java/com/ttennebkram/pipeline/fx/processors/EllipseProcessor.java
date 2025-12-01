@@ -16,7 +16,12 @@ import org.opencv.imgproc.Imgproc;
  * Ellipse drawing processor.
  * Draws an ellipse on the image.
  */
-@FXProcessorInfo(nodeType = "Ellipse", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Ellipse",
+    displayName = "Ellipse",
+    category = "Content",
+    description = "Draw ellipse\nImgproc.ellipse(img, center, axes, angle, ...)"
+)
 public class EllipseProcessor extends FXProcessorBase {
 
     // Properties with defaults

@@ -16,7 +16,12 @@ import org.opencv.imgproc.Imgproc;
  * Bit Planes Grayscale processor.
  * Select and adjust individual bit planes in a grayscale representation.
  */
-@FXProcessorInfo(nodeType = "BitPlanesGrayscale", category = "Color")
+@FXProcessorInfo(
+    nodeType = "BitPlanesGrayscale",
+    displayName = "Bit Planes Gray",
+    category = "Basic",
+    description = "Bit plane decomposition (grayscale)\nBit masking with gain"
+)
 public class BitPlanesGrayscaleProcessor extends FXProcessorBase {
 
     // Properties with defaults

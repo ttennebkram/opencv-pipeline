@@ -260,13 +260,10 @@ public class FXHelpBrowser {
 
     /**
      * Check if help is available for a node type.
+     * Simply checks if there's a mapping in getDocPathForNodeType().
      */
     public static boolean hasHelp(String nodeType) {
-        String docPath = getDocPathForNodeType(nodeType);
-        if (docPath == null) {
-            return false;
-        }
-        return FXHelpBrowser.class.getResourceAsStream("/" + docPath) != null;
+        return getDocPathForNodeType(nodeType) != null;
     }
 
     private FXHelpBrowser(Stage parent) {

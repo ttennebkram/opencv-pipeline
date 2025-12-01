@@ -1,6 +1,7 @@
 package com.ttennebkram.pipeline.processing;
 
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.util.MatTracker;
 import org.opencv.core.Mat;
 
 import java.util.concurrent.BlockingQueue;
@@ -72,14 +73,16 @@ public class DualInputProcessor extends ThreadedProcessor {
 
                     // Track reads
                     if (input1 != null) {
-                        if (lastInput1 != null) lastInput1.release();
+                        if (lastInput1 != null) MatTracker.release(lastInput1);
                         lastInput1 = input1;
+                        MatTracker.track(lastInput1);
                         gotInput1 = true;
                         incrementInputReads1();
                     }
                     if (input2 != null) {
-                        if (lastInput2 != null) lastInput2.release();
+                        if (lastInput2 != null) MatTracker.release(lastInput2);
                         lastInput2 = input2;
+                        MatTracker.track(lastInput2);
                         gotInput2 = true;
                         incrementInputReads2();
                     }
@@ -88,8 +91,9 @@ public class DualInputProcessor extends ThreadedProcessor {
                     if (inputQueue != null) {
                         Mat newInput1 = inputQueue.poll(50, TimeUnit.MILLISECONDS);
                         if (newInput1 != null) {
-                            if (lastInput1 != null) lastInput1.release();
+                            if (lastInput1 != null) MatTracker.release(lastInput1);
                             lastInput1 = newInput1;
+                            MatTracker.track(lastInput1);
                             gotInput1 = true;
                             incrementInputReads1();
                         }
@@ -98,8 +102,9 @@ public class DualInputProcessor extends ThreadedProcessor {
                     if (inputQueue2 != null) {
                         Mat newInput2 = inputQueue2.poll(50, TimeUnit.MILLISECONDS);
                         if (newInput2 != null) {
-                            if (lastInput2 != null) lastInput2.release();
+                            if (lastInput2 != null) MatTracker.release(lastInput2);
                             lastInput2 = newInput2;
+                            MatTracker.track(lastInput2);
                             gotInput2 = true;
                             incrementInputReads2();
                         }
@@ -118,28 +123,34 @@ public class DualInputProcessor extends ThreadedProcessor {
                     if (!isEnabled()) {
                         // Bypass mode: pass through input1 unchanged
                         output = lastInput1 != null ? lastInput1.clone() : null;
+                        if (output != null) MatTracker.track(output);
                     } else {
                         // Process the frames
                         output = dualProcessor.process(lastInput1, lastInput2);
+                        if (output != null) MatTracker.track(output);
                     }
 
                     incrementWorkUnitsCompleted();
 
                     if (output != null) {
                         // Notify callback with a clone
-                        notifyCallback(output.clone());
+                        Mat callbackCopy = output.clone();
+                        MatTracker.track(callbackCopy);
+                        notifyCallback(callbackCopy);
 
                         // Put on output queue
                         BlockingQueue<Mat> outputQueue = getOutputQueue();
                         if (outputQueue != null) {
-                            outputQueue.put(output.clone());
+                            Mat queueCopy = output.clone();
+                            MatTracker.track(queueCopy);
+                            outputQueue.put(queueCopy);
                             incrementOutputWrites1();
                         }
 
                         // Check backpressure AFTER putting on output queue
                         checkBackpressure();
 
-                        output.release();
+                        MatTracker.release(output);
                     }
                 }
 
@@ -151,11 +162,11 @@ public class DualInputProcessor extends ThreadedProcessor {
 
         // Cleanup cached frames
         if (lastInput1 != null) {
-            lastInput1.release();
+            MatTracker.release(lastInput1);
             lastInput1 = null;
         }
         if (lastInput2 != null) {
-            lastInput2.release();
+            MatTracker.release(lastInput2);
             lastInput2 = null;
         }
     }

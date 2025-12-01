@@ -32,8 +32,11 @@ public class FXNode {
     public boolean isBoundaryNode;  // Container I/O boundary nodes (Input/Output)
     public int outputCount;
 
-    // Thumbnail image for displaying node output
+    // Thumbnail image for displaying node output (small, shown in node box)
     public Image thumbnail;
+
+    // Preview image (larger, full-resolution cached from last run, shown in preview pane)
+    public Image previewImage;
 
     // Counter for input/output frames processed
     public int inputCount = 0;

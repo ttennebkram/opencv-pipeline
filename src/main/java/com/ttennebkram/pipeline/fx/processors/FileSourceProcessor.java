@@ -20,7 +20,13 @@ import java.io.File;
  * Configures image/video file input source properties.
  * Note: The actual file loading is handled by the pipeline executor.
  */
-@FXProcessorInfo(nodeType = "FileSource", category = "Source")
+@FXProcessorInfo(
+    nodeType = "FileSource",
+    displayName = "File Source",
+    category = "Sources",
+    description = "Image/Video file source\nImgcodecs.imread() / VideoCapture",
+    isSource = true
+)
 public class FileSourceProcessor extends FXProcessorBase {
 
     // Properties with defaults

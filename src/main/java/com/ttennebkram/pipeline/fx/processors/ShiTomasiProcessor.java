@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * Shi-Tomasi corner detection processor.
  * Detects corners using the Shi-Tomasi method (Good Features to Track).
  */
-@FXProcessorInfo(nodeType = "ShiTomasi", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "ShiTomasi",
+    displayName = "Shi-Tomasi Corners",
+    category = "Detection",
+    description = "Shi-Tomasi corner detection\nImgproc.goodFeaturesToTrack(src, corners, maxCorners, ...)"
+)
 public class ShiTomasiProcessor extends FXProcessorBase {
 
     // Properties with defaults

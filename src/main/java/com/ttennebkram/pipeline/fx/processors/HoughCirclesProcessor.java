@@ -16,7 +16,12 @@ import org.opencv.imgproc.Imgproc;
  * Hough Circles detection processor.
  * Detects circles in the image using the Hough transform.
  */
-@FXProcessorInfo(nodeType = "HoughCircles", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "HoughCircles",
+    displayName = "Hough Circles",
+    category = "Detection",
+    description = "Hough circle detection\nImgproc.HoughCircles(src, circles, method, dp, minDist, ...)"
+)
 public class HoughCirclesProcessor extends FXProcessorBase {
 
     // Properties with defaults

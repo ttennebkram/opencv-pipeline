@@ -44,6 +44,7 @@ public class FXContainerEditorWindow {
     // Pipeline control callbacks
     private Runnable onStartPipeline;
     private Runnable onStopPipeline;
+    private Runnable onRefreshPipeline;
     private java.util.function.Supplier<Boolean> isPipelineRunning;
     private java.util.function.Supplier<Integer> getThreadCount;
 
@@ -491,6 +492,10 @@ public class FXContainerEditorWindow {
 
     public void setOnStopPipeline(Runnable callback) {
         this.onStopPipeline = callback;
+    }
+
+    public void setOnRefreshPipeline(Runnable callback) {
+        this.onRefreshPipeline = callback;
     }
 
     public void setIsPipelineRunning(java.util.function.Supplier<Boolean> supplier) {
@@ -1156,6 +1161,7 @@ public class FXContainerEditorWindow {
             if (onStopPipeline != null) onStopPipeline.run();
             javafx.application.Platform.runLater(this::updatePipelineButtonState);
         });
+        nestedEditor.setOnRefreshPipeline(onRefreshPipeline);
         nestedEditor.setIsPipelineRunning(isPipelineRunning);
         nestedEditor.setGetThreadCount(getThreadCount);
         nestedEditor.setOnRequestGlobalSave(onRequestGlobalSave);
@@ -1335,6 +1341,11 @@ public class FXContainerEditorWindow {
 
             paintCanvas();
             notifyModified();
+
+            // Trigger pipeline refresh so parameter changes show immediately
+            if (onRefreshPipeline != null && isPipelineRunning != null && isPipelineRunning.get()) {
+                onRefreshPipeline.run();
+            }
         });
 
         dialog.showAndWaitForResult();
@@ -1663,6 +1674,8 @@ public class FXContainerEditorWindow {
 
         toolbarContent.getChildren().clear();
 
+        boolean hasMatches = false;
+
         // Container I/O nodes are NOT shown in toolbar - they are auto-created via ensureBoundaryNodes()
         // Only show other categories
         for (String category : FXNodeRegistry.getCategoriesExcluding("Container I/O")) {
@@ -1673,6 +1686,7 @@ public class FXContainerEditorWindow {
                     if (!categoryAdded) {
                         addToolbarCategory(category);
                         categoryAdded = true;
+                        hasMatches = true;
                     }
                     final String typeName = nodeType.name;
                     addToolbarButton(nodeType.getButtonName(), () -> addNode(typeName));
@@ -1683,10 +1697,22 @@ public class FXContainerEditorWindow {
                 if (filter.isEmpty() || "connector".contains(filter) || "queue".contains(filter)) {
                     if (!categoryAdded) {
                         addToolbarCategory(category);
+                        hasMatches = true;
                     }
                     addToolbarButton("Connector/Queue", this::addConnectorQueue);
                 }
             }
+        }
+
+        // Show "No matches found" message when search yields no results
+        if (!hasMatches && !filter.isEmpty()) {
+            Label noMatchLabel = new Label("No matches found\n\nTry fewer letters or\nclear your search");
+            noMatchLabel.setFont(javafx.scene.text.Font.font("System", javafx.scene.text.FontPosture.ITALIC, 12));
+            noMatchLabel.setStyle("-fx-text-alignment: center; -fx-padding: 20 10 10 10;");
+            noMatchLabel.setWrapText(true);
+            noMatchLabel.setMaxWidth(Double.MAX_VALUE);
+            noMatchLabel.setAlignment(javafx.geometry.Pos.CENTER);
+            toolbarContent.getChildren().add(noMatchLabel);
         }
     }
 
@@ -1746,7 +1772,8 @@ public class FXContainerEditorWindow {
             double[] end = conn.getEndPoint();
             if (start != null && end != null) {
                 NodeRenderer.renderConnection(gc, start[0], start[1], end[0], end[1], isSelected,
-                    conn.queueSize, conn.totalFrames);
+                    conn.queueSize, conn.totalFrames,
+                    conn.source != null, conn.target != null);
             }
         }
 

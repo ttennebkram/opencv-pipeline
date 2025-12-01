@@ -14,7 +14,13 @@ import org.opencv.imgproc.Imgproc;
  * Scharr edge detection processor.
  * Computes first-order derivatives using Scharr operator (more accurate than Sobel for 3x3).
  */
-@FXProcessorInfo(nodeType = "Scharr", category = "Edge Detection")
+@FXProcessorInfo(
+    nodeType = "Scharr",
+    displayName = "Scharr Edges",
+    buttonName = "Scharr",
+    category = "Edges",
+    description = "Scharr derivatives\nImgproc.Scharr(src, dst, ddepth, dx, dy)"
+)
 public class ScharrProcessor extends FXProcessorBase {
 
     // Properties with defaults

@@ -10,7 +10,13 @@ import org.opencv.core.Mat;
  * Clone processor.
  * Clones/duplicates the input image (useful for multiple outputs).
  */
-@FXProcessorInfo(nodeType = "Clone", category = "Utility")
+@FXProcessorInfo(
+    nodeType = "Clone",
+    displayName = "Clone",
+    category = "Utility",
+    description = "Clone to multiple outputs\nMat.clone()",
+    outputCount = 2
+)
 public class CloneProcessor extends FXProcessorBase {
 
     // Properties with defaults

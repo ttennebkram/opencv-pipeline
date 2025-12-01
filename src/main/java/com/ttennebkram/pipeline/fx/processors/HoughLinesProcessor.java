@@ -14,7 +14,12 @@ import org.opencv.imgproc.Imgproc;
  * Hough Lines detection processor.
  * Detects line segments using the probabilistic Hough transform.
  */
-@FXProcessorInfo(nodeType = "HoughLines", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "HoughLines",
+    displayName = "Hough Lines",
+    category = "Detection",
+    description = "Hough line detection\nImgproc.HoughLinesP(src, lines, rho, theta, threshold, ...)"
+)
 public class HoughLinesProcessor extends FXProcessorBase {
 
     // Properties with defaults

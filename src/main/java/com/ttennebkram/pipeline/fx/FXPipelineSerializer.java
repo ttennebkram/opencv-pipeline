@@ -123,6 +123,11 @@ public class FXPipelineSerializer {
                 saveThumbnailToCache(cacheDir, pipelineName, node, i);
             }
 
+            // Save preview image to cache file (larger full-resolution preview)
+            if (node.previewImage != null) {
+                savePreviewToCache(cacheDir, pipelineName, node, i);
+            }
+
             nodesArray.add(nodeJson);
         }
         root.add("nodes", nodesArray);
@@ -345,6 +350,9 @@ public class FXPipelineSerializer {
                     }
                 }
 
+                // Also load preview image from cache (full-resolution preview)
+                loadPreviewFromCache(cacheDir, pipelineName, node, nodeIndex);
+
                 // Restore container-specific properties
                 if (nodeJson.has("isContainer")) {
                     node.isContainer = nodeJson.get("isContainer").getAsBoolean();
@@ -401,6 +409,7 @@ public class FXPipelineSerializer {
                                 System.out.println("Loaded external pipeline for container: " + resolvedPath);
                             } catch (IOException e) {
                                 System.err.println("Failed to load external pipeline " + resolvedPath + ": " + e.getMessage());
+                                checkAndReportTooManyFiles(e);
                             }
                         } else {
                             System.err.println("External pipeline file not found: " + resolvedPath +
@@ -547,10 +556,21 @@ public class FXPipelineSerializer {
             String thumbPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_thumb.png";
             BufferedImage bufferedImage = SwingFXUtils.fromFXImage(node.thumbnail, null);
             if (bufferedImage != null) {
-                ImageIO.write(bufferedImage, "png", new File(thumbPath));
+                // Use explicit stream to ensure proper resource cleanup
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(thumbPath);
+                     javax.imageio.stream.ImageOutputStream ios = ImageIO.createImageOutputStream(fos)) {
+                    if (ios != null) {
+                        javax.imageio.ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+                        writer.setOutput(ios);
+                        writer.write(bufferedImage);
+                        writer.dispose();
+                    }
+                }
+                bufferedImage.flush();
             }
         } catch (Exception e) {
             System.err.println("Failed to save thumbnail to cache: " + e.getMessage());
+            checkAndReportTooManyFiles(e);
         }
     }
 
@@ -568,17 +588,107 @@ public class FXPipelineSerializer {
         String thumbPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_thumb.png";
         File thumbFile = new File(thumbPath);
         if (thumbFile.exists()) {
-            try {
-                BufferedImage bufferedImage = ImageIO.read(thumbFile);
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(thumbFile)) {
+                BufferedImage bufferedImage = ImageIO.read(fis);
                 if (bufferedImage != null) {
                     node.thumbnail = SwingFXUtils.toFXImage(bufferedImage, null);
+                    bufferedImage.flush();
                     return true;
                 }
             } catch (Exception e) {
                 System.err.println("Failed to load thumbnail from cache: " + e.getMessage());
+                checkAndReportTooManyFiles(e);
             }
         }
         return false;
+    }
+
+    /**
+     * Save a preview image to a cache file.
+     * Filename pattern: {pipelineName}_node_{nodeType}_{index}_preview.png
+     *
+     * @param cacheDir Directory to save previews
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param node The node whose preview to save
+     * @param index Index of the node in the pipeline
+     */
+    public static void savePreviewToCache(String cacheDir, String pipelineName, FXNode node, int index) {
+        if (node.previewImage == null) return;
+        try {
+            File cacheFolder = new File(cacheDir);
+            if (!cacheFolder.exists()) {
+                cacheFolder.mkdirs();
+            }
+            String previewPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_preview.png";
+            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(node.previewImage, null);
+            if (bufferedImage != null) {
+                // Use explicit stream to ensure proper resource cleanup
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(previewPath);
+                     javax.imageio.stream.ImageOutputStream ios = ImageIO.createImageOutputStream(fos)) {
+                    if (ios != null) {
+                        javax.imageio.ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+                        writer.setOutput(ios);
+                        writer.write(bufferedImage);
+                        writer.dispose();
+                    }
+                }
+                bufferedImage.flush();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to save preview to cache: " + e.getMessage());
+            checkAndReportTooManyFiles(e);
+        }
+    }
+
+    /**
+     * Load a preview image from a cache file.
+     * Filename pattern: {pipelineName}_node_{nodeType}_{index}_preview.png
+     *
+     * @param cacheDir Directory to load previews from
+     * @param pipelineName Base name of the pipeline file (without .json extension)
+     * @param node The node to load the preview into
+     * @param index Index of the node in the pipeline
+     * @return true if preview was loaded successfully
+     */
+    public static boolean loadPreviewFromCache(String cacheDir, String pipelineName, FXNode node, int index) {
+        String previewPath = cacheDir + File.separator + pipelineName + "_node_" + node.nodeType + "_" + index + "_preview.png";
+        File previewFile = new File(previewPath);
+        if (previewFile.exists()) {
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(previewFile)) {
+                BufferedImage bufferedImage = ImageIO.read(fis);
+                if (bufferedImage != null) {
+                    node.previewImage = SwingFXUtils.toFXImage(bufferedImage, null);
+                    bufferedImage.flush();
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to load preview from cache: " + e.getMessage());
+                checkAndReportTooManyFiles(e);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if an exception is a "too many open files" error and report Mat tracking info.
+     */
+    private static void checkAndReportTooManyFiles(Throwable t) {
+        while (t != null) {
+            String msg = t.getMessage();
+            if (msg != null && (msg.contains("Too many open files") ||
+                               msg.contains("too many open files") ||
+                               msg.contains("EMFILE") ||
+                               msg.contains("ENFILE"))) {
+                System.err.println("\n!!! TOO MANY OPEN FILES ERROR DETECTED !!!");
+                System.err.println("Dumping Mat tracking information...\n");
+                com.ttennebkram.pipeline.util.MatTracker.printSummary(System.err);
+                com.ttennebkram.pipeline.util.MatTracker.dumpLeaksByLocation(System.err);
+                System.err.println("\nOriginal stack trace:");
+                t.printStackTrace(System.err);
+                return;
+            }
+            t = t.getCause();
+        }
     }
 
     /**
@@ -933,6 +1043,7 @@ public class FXPipelineSerializer {
                             System.out.println("Loaded external pipeline for nested container: " + resolvedPath);
                         } catch (IOException e) {
                             System.err.println("Failed to load external pipeline " + resolvedPath + ": " + e.getMessage());
+                            checkAndReportTooManyFiles(e);
                         }
                     } else {
                         System.err.println("External pipeline file not found: " + resolvedPath +

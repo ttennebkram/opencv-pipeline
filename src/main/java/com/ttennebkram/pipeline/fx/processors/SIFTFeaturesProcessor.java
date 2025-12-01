@@ -17,7 +17,12 @@ import org.opencv.features2d.SIFT;
  * SIFT (Scale-Invariant Feature Transform) feature detection processor.
  * Detects and visualizes SIFT keypoints.
  */
-@FXProcessorInfo(nodeType = "SIFTFeatures", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "SIFTFeatures",
+    displayName = "SIFT Features",
+    category = "Detection",
+    description = "SIFT feature detection\nSIFT.detectAndCompute(image, mask, keypoints, descriptors)"
+)
 public class SIFTFeaturesProcessor extends FXProcessorBase {
 
     // Properties with defaults

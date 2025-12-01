@@ -11,7 +11,12 @@ import org.opencv.core.Rect;
  * Crop processor.
  * Crops a rectangular region from the image.
  */
-@FXProcessorInfo(nodeType = "Crop", category = "Transform")
+@FXProcessorInfo(
+    nodeType = "Crop",
+    displayName = "Crop",
+    category = "Transform",
+    description = "Crop region of interest\nMat.submat(roi)"
+)
 public class CropProcessor extends FXProcessorBase {
 
     // Properties with defaults

@@ -562,8 +562,14 @@ public class FXPipelineExecutor {
                         outputQueue.put(frame);
                     }
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
+                    // Interrupted during frame processing/queue put - check if still running
+                    if (!running.get()) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    // Otherwise continue (triggered refresh)
+                    Thread.interrupted(); // Clear interrupt flag
+                    continue;
                 } catch (Exception e) {
                     System.err.println("Source feeder error for " + sourceNode.label + ": " + e.getMessage());
                 }
@@ -575,8 +581,13 @@ public class FXPipelineExecutor {
                     try {
                         Thread.sleep(sleepTime);
                     } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
+                        // Interrupted during sleep - this is a refresh trigger
+                        // Clear interrupt flag and continue loop to emit new frame
+                        Thread.interrupted();
+                        if (!running.get()) {
+                            break;
+                        }
+                        // Continue immediately to process with new parameters
                     }
                 }
             }
@@ -699,6 +710,21 @@ public class FXPipelineExecutor {
             cached.release();
         }
         fileSourceLastOutput.remove(nodeId);
+    }
+
+    /**
+     * Trigger a pipeline refresh by interrupting source feeder sleep.
+     * Call this when parameters change on any node so the new settings
+     * are applied immediately (especially useful for static image sources).
+     */
+    public void triggerRefresh() {
+        // Interrupt all source feeder threads to wake them from sleep
+        // This causes them to immediately emit a new frame with updated parameters
+        for (Thread feederThread : sourceFeederThreads.values()) {
+            if (feederThread != null && feederThread.isAlive()) {
+                feederThread.interrupt();
+            }
+        }
     }
 
     /**

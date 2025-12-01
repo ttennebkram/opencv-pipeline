@@ -14,7 +14,12 @@ import org.opencv.imgproc.Imgproc;
  * Rectangle drawing processor.
  * Draws a rectangle on the image.
  */
-@FXProcessorInfo(nodeType = "Rectangle", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Rectangle",
+    displayName = "Rectangle",
+    category = "Content",
+    description = "Draw rectangle\nImgproc.rectangle(img, pt1, pt2, color, thickness)"
+)
 public class RectangleProcessor extends FXProcessorBase {
 
     // Properties with defaults

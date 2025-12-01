@@ -6,7 +6,12 @@ import org.opencv.core.Mat;
  * FFT High Pass filter processor.
  * Removes low frequency content, enhancing edges.
  */
-@FXProcessorInfo(nodeType = "FFTHighPass", category = "FFT")
+@FXProcessorInfo(
+    nodeType = "FFTHighPass",
+    displayName = "FFT High-Pass",
+    category = "Filter",
+    description = "FFT High-Pass Filter\nCore.dft() / Core.idft()"
+)
 public class FFTHighPassProcessor extends FFTFilterBase {
 
     @Override

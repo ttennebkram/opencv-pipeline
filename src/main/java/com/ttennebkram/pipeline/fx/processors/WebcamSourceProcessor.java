@@ -13,7 +13,13 @@ import org.opencv.core.Mat;
  * Configures webcam/camera input source properties.
  * Note: The actual camera capture is handled by the pipeline executor.
  */
-@FXProcessorInfo(nodeType = "WebcamSource", category = "Source")
+@FXProcessorInfo(
+    nodeType = "WebcamSource",
+    displayName = "Webcam Source",
+    category = "Sources",
+    description = "Webcam capture\nVideoCapture.read()",
+    isSource = true
+)
 public class WebcamSourceProcessor extends FXProcessorBase {
 
     // Properties with defaults

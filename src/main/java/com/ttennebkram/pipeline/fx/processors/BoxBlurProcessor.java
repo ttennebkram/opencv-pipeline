@@ -12,7 +12,12 @@ import org.opencv.imgproc.Imgproc;
  * Box Blur processor.
  * Applies a normalized box filter (averaging blur) to the image.
  */
-@FXProcessorInfo(nodeType = "BoxBlur", category = "Blur")
+@FXProcessorInfo(
+    nodeType = "BoxBlur",
+    displayName = "Box Blur",
+    category = "Blur",
+    description = "Box blur (average)\nImgproc.blur(src, dst, ksize)"
+)
 public class BoxBlurProcessor extends FXProcessorBase {
 
     // Properties with defaults

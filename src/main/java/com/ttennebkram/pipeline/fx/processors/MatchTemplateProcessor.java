@@ -14,7 +14,13 @@ import org.opencv.imgproc.Imgproc;
  * Input 2: Template image
  * Output: Result matrix showing correlation/matching scores at each location
  */
-@FXProcessorInfo(nodeType = "MatchTemplate", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "MatchTemplate",
+    displayName = "Match Template",
+    category = "Detection",
+    description = "Template matching\nImgproc.matchTemplate(image, templ, result, method)",
+    dualInput = true
+)
 public class MatchTemplateProcessor extends FXDualInputProcessor {
 
     // Properties with defaults

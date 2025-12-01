@@ -15,7 +15,12 @@ import org.opencv.imgproc.Imgproc;
  * ColorInRange processor.
  * Filters pixels based on color range in HSV or BGR color space.
  */
-@FXProcessorInfo(nodeType = "ColorInRange", category = "Color")
+@FXProcessorInfo(
+    nodeType = "ColorInRange",
+    displayName = "Color In Range",
+    category = "Filter",
+    description = "Color range mask\nCore.inRange(src, lowerb, upperb, dst)"
+)
 public class ColorInRangeProcessor extends FXProcessorBase {
 
     // Properties with defaults

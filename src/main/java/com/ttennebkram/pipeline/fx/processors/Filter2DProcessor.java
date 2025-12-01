@@ -24,7 +24,12 @@ import java.util.List;
  * Filter2D processor with custom convolution kernel.
  * Allows defining arbitrary convolution kernels via a grid UI.
  */
-@FXProcessorInfo(nodeType = "Filter2D", category = "Filter")
+@FXProcessorInfo(
+    nodeType = "Filter2D",
+    displayName = "Filter 2D",
+    category = "Filter",
+    description = "2D convolution\nImgproc.filter2D(src, dst, ddepth, kernel)"
+)
 public class Filter2DProcessor extends FXProcessorBase {
 
     // Properties with defaults

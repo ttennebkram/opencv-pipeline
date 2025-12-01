@@ -16,7 +16,12 @@ import java.util.List;
  * Contours detection and drawing processor.
  * Finds and draws contours in the image.
  */
-@FXProcessorInfo(nodeType = "Contours", category = "Feature Detection")
+@FXProcessorInfo(
+    nodeType = "Contours",
+    displayName = "Contours",
+    category = "Detection",
+    description = "Contour detection\nImgproc.findContours(src, contours, hierarchy, mode, method)"
+)
 public class ContoursProcessor extends FXProcessorBase {
 
     // Properties with defaults

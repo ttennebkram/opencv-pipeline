@@ -16,7 +16,13 @@ import java.util.List;
  * [2] = FFT spectrum with filter overlay
  * [3] = Filter response curve graph
  */
-@FXProcessorInfo(nodeType = "FFTLowPass4", category = "FFT")
+@FXProcessorInfo(
+    nodeType = "FFTLowPass4",
+    displayName = "FFT Low-Pass 4",
+    category = "Filter",
+    description = "FFT Low-Pass (4 outputs)\nCore.dft() / Core.idft()",
+    outputCount = 4
+)
 public class FFTLowPass4Processor extends FFT4Base {
 
     @Override

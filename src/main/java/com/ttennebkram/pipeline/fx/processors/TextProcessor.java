@@ -16,7 +16,12 @@ import org.opencv.imgproc.Imgproc;
  * Text drawing processor.
  * Draws text on the image.
  */
-@FXProcessorInfo(nodeType = "Text", category = "Drawing")
+@FXProcessorInfo(
+    nodeType = "Text",
+    displayName = "Text",
+    category = "Content",
+    description = "Draw text\nImgproc.putText(img, text, org, font, scale, color)"
+)
 public class TextProcessor extends FXProcessorBase {
 
     // Properties with defaults

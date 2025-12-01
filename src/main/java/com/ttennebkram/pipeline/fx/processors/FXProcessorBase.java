@@ -2,6 +2,7 @@ package com.ttennebkram.pipeline.fx.processors;
 
 import com.google.gson.JsonObject;
 import com.ttennebkram.pipeline.fx.FXNode;
+import com.ttennebkram.pipeline.processing.ImageProcessor;
 import org.opencv.core.Mat;
 
 import java.util.Map;
@@ -11,6 +12,42 @@ import java.util.Map;
  * Provides common functionality and helper methods.
  */
 public abstract class FXProcessorBase implements FXProcessor {
+
+    /** Reference to the FXNode for live property updates */
+    protected FXNode fxNode;
+
+    @Override
+    public void setFXNode(FXNode node) {
+        this.fxNode = node;
+    }
+
+    @Override
+    public FXNode getFXNode() {
+        return fxNode;
+    }
+
+    /**
+     * Refresh internal properties from the FXNode's properties map.
+     * Call this at the start of process() to pick up live parameter changes.
+     * This calls syncFromFXNode if fxNode is set.
+     */
+    protected void refreshProperties() {
+        if (fxNode != null) {
+            syncFromFXNode(fxNode);
+        }
+    }
+
+    /**
+     * Override createImageProcessor to automatically refresh properties before each process() call.
+     * This enables real-time parameter updates without modifying individual processors.
+     */
+    @Override
+    public ImageProcessor createImageProcessor() {
+        return input -> {
+            refreshProperties();  // Re-read from node.properties before processing
+            return process(input);
+        };
+    }
 
     /**
      * Standard null/empty check for input validation.

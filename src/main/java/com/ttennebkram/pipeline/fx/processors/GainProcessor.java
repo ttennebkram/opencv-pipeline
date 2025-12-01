@@ -10,7 +10,12 @@ import org.opencv.core.Mat;
  * Gain processor.
  * Multiplies pixel values by a gain factor (logarithmic scale from 5% to 20x).
  */
-@FXProcessorInfo(nodeType = "Gain", category = "Enhancement")
+@FXProcessorInfo(
+    nodeType = "Gain",
+    displayName = "Gain",
+    category = "Basic",
+    description = "Brightness/Gain adjustment\nCore.multiply(src, gain, dst)"
+)
 public class GainProcessor extends FXProcessorBase {
 
     // Properties with defaults

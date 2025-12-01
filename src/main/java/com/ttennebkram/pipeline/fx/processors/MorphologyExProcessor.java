@@ -13,7 +13,12 @@ import org.opencv.imgproc.Imgproc;
  * MorphologyEx processor.
  * Performs advanced morphological operations (erode, dilate, open, close, gradient, top hat, black hat).
  */
-@FXProcessorInfo(nodeType = "MorphologyEx", category = "Morphology")
+@FXProcessorInfo(
+    nodeType = "MorphologyEx",
+    displayName = "Morphology Ex",
+    category = "Morphology",
+    description = "Extended morphology operations\nImgproc.morphologyEx(src, dst, op, kernel)"
+)
 public class MorphologyExProcessor extends FXProcessorBase {
 
     // Properties with defaults

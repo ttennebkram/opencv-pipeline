@@ -11,7 +11,12 @@ import org.opencv.imgproc.Imgproc;
  * Mean Shift Filtering processor.
  * Applies mean shift filtering for image segmentation/smoothing.
  */
-@FXProcessorInfo(nodeType = "MeanShift", category = "Filter")
+@FXProcessorInfo(
+    nodeType = "MeanShift",
+    displayName = "Mean Shift Blur",
+    category = "Blur",
+    description = "Mean shift filtering\nImgproc.pyrMeanShiftFiltering(src, dst, sp, sr)"
+)
 public class MeanShiftProcessor extends FXProcessorBase {
 
     // Properties with defaults

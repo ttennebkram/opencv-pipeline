@@ -13,7 +13,13 @@ import org.opencv.core.Mat;
  *
  * Demonstrates dual-input processing with multiple sliders.
  */
-@FXProcessorInfo(nodeType = "AddWeighted", category = "Dual Input", dualInput = true)
+@FXProcessorInfo(
+    nodeType = "AddWeighted",
+    displayName = "Add Weighted",
+    category = "Dual Input",
+    description = "Weighted addition (blend)\nCore.addWeighted(src1, alpha, src2, beta, gamma, dst)",
+    dualInput = true
+)
 public class AddWeightedProcessor extends FXDualInputProcessor {
 
     // Properties with defaults
