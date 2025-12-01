@@ -100,7 +100,7 @@ mvn compile exec:exec@start
 
 ### Save Warning
 
-The "unsaved changes" warning triggers when you add, delete, move, or edit properties of nodes and connections. However, some runtime state (like preview selections) is not tracked and won't prompt a save warning.
+The "unsaved changes" warning triggers when you add, delete, move, or edit properties of nodes and connections. However, some runtime state (like preview selections and stats updates) are not tracked and won't prompt a save warning.
 
 ## Node Categories
 
