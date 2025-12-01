@@ -170,6 +170,9 @@ public class FXContainerEditorWindow {
 
         BorderPane root = new BorderPane();
 
+        // Top - menu bar
+        root.setTop(createMenuBar());
+
         // Left - toolbar with node palette
         root.setLeft(createToolbar());
 
@@ -248,6 +251,42 @@ public class FXContainerEditorWindow {
     public void show() {
         stage.show();
         stage.toFront();
+    }
+
+    private MenuBar createMenuBar() {
+        MenuBar menuBar = new MenuBar();
+
+        // Edit menu
+        Menu editMenu = new Menu("Edit");
+
+        MenuItem deleteItem = new MenuItem("Delete");
+        deleteItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
+            javafx.scene.input.KeyCode.BACK_SPACE));
+        deleteItem.setOnAction(e -> deleteSelected());
+
+        MenuItem selectAllItem = new MenuItem("Select All");
+        selectAllItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
+            javafx.scene.input.KeyCode.A, javafx.scene.input.KeyCombination.SHORTCUT_DOWN));
+        selectAllItem.setOnAction(e -> selectAll());
+
+        editMenu.getItems().addAll(deleteItem, selectAllItem);
+
+        // Window menu
+        Menu windowMenu = new Menu("Window");
+
+        MenuItem closeItem = new MenuItem("Close");
+        closeItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(
+            javafx.scene.input.KeyCode.W, javafx.scene.input.KeyCombination.SHORTCUT_DOWN));
+        closeItem.setOnAction(e -> stage.close());
+
+        windowMenu.getItems().add(closeItem);
+
+        menuBar.getMenus().addAll(editMenu, windowMenu);
+
+        // macOS-specific menu bar integration
+        menuBar.setUseSystemMenuBar(true);
+
+        return menuBar;
     }
 
     private VBox createToolbar() {
@@ -1139,9 +1178,19 @@ public class FXContainerEditorWindow {
             dialog.addDescription(typeInfo.description);
         }
 
-        // Use FXNodePropertiesHelper to add comprehensive properties for supported node types
-        // This helper covers all nodes with properties that differ from the main branch
-        FXNodePropertiesHelper.addPropertiesForNode(dialog, node);
+        // Use modular processor from registry if available
+        if (com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry.hasProcessor(node.nodeType)) {
+            com.ttennebkram.pipeline.fx.processors.FXProcessor processor =
+                com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry.createProcessor(node);
+            if (processor != null && processor.hasProperties()) {
+                processor.buildPropertiesDialog(dialog);
+                Runnable originalOnOk = dialog.getOnOk();
+                dialog.setOnOk(() -> {
+                    if (originalOnOk != null) originalOnOk.run();
+                    processor.syncToFXNode(node);
+                });
+            }
+        }
 
         // Add pipeline file path for container nodes
         TextField pipelineFileField = null;
@@ -1239,9 +1288,6 @@ public class FXContainerEditorWindow {
         final TextField finalPipelineFileField = pipelineFileField;
         dialog.setOnOk(() -> {
             node.label = dialog.getNameValue();
-
-            // Save properties handled by the helper class (covers all nodes with main branch differences)
-            FXNodePropertiesHelper.savePropertiesForNode(node);
 
             // Handle container pipeline file path
             if (node.isContainer && finalPipelineFileField != null) {
@@ -1518,6 +1564,15 @@ public class FXContainerEditorWindow {
         paintCanvas();
         updateStatus();
         notifyModified();
+    }
+
+    private void selectAll() {
+        selectedNodes.clear();
+        selectedConnections.clear();
+        selectedNodes.addAll(nodes);
+        selectedConnections.addAll(connections);
+        paintCanvas();
+        updateStatus();
     }
 
     private void moveSelectedNodes(double dx, double dy) {

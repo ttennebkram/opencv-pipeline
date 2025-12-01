@@ -13,8 +13,7 @@ import org.opencv.core.Mat;
  * - Properties dialog UI (JavaFX controls)
  * - Serialization/deserialization (JSON)
  *
- * This replaces the monolithic ProcessorFactory and FXNodePropertiesHelper
- * with individual processor classes.
+ * This replaces the monolithic ProcessorFactory with individual processor classes.
  */
 public interface FXProcessor {
 

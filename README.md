@@ -58,7 +58,7 @@ mvn clean package
 
 The uber-jar is created at `target/opencv-pipeline.jar`.
 
-For development:
+For development (automatically reopens the last saved file):
 
 ```bash
 mvn compile exec:exec
@@ -74,9 +74,10 @@ mvn compile exec:exec@run -Dpipeline.args="pipeline.json --start"
 ```
 
 
-To compile and auto-start the pipeline immediately after launch:
+To compile and run the app use either of:
 
 ```bash
+mvn compile exec:exec
 mvn compile exec:exec@start
 ```
 
@@ -96,6 +97,10 @@ mvn compile exec:exec@start
 - **Ctrl+S / Cmd+S**: Save pipeline
 - **Ctrl+O / Cmd+O**: Open pipeline
 - **Ctrl+N / Cmd+N**: New pipeline
+
+### Save Warning
+
+The "unsaved changes" warning triggers when you add, delete, move, or edit properties of nodes and connections. However, some runtime state (like preview selections) is not tracked and won't prompt a save warning.
 
 ## Node Categories
 

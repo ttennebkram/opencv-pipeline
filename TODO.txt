@@ -15,6 +15,16 @@ New bugs after SWT -> JavaFX conversoion
 Main Classes:
     PipelineEditorLauncher - The entry point configured in pom.xml (used by both exec:exec and the shaded JAR)
     PipelineEditorApp - The actual JavaFX Application class
+Top 5 longest Java files:
+  | Lines | File                         |
+  |-------|------------------------------|
+  | 3,715 | FXPipelineExecutor.java      |
+  | 2,259 | PipelineEditorApp.java       |
+  | 2,118 | FXNodePropertiesHelper.java  |
+  |   ^   | ^-- removing FXNodePropertiesHelper.java
+  | 1,903 | ProcessorFactory.java        |
+  | 1,756 | FXContainerEditorWindow.java |
+
 
 .completely remove SWT code
     /remove from POM

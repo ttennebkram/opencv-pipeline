@@ -1394,9 +1394,19 @@ public class PipelineEditorApp extends Application {
             node.properties.put("imagePath", node.filePath != null ? node.filePath : "");
         }
 
-        // Use FXNodePropertiesHelper to add comprehensive properties for supported node types
-        // This helper covers all nodes with properties that differ from the main branch
-        com.ttennebkram.pipeline.fx.FXNodePropertiesHelper.addPropertiesForNode(dialog, node);
+        // Use modular processor from registry if available
+        if (com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry.hasProcessor(node.nodeType)) {
+            com.ttennebkram.pipeline.fx.processors.FXProcessor processor =
+                com.ttennebkram.pipeline.fx.processors.FXProcessorRegistry.createProcessor(node);
+            if (processor != null && processor.hasProperties()) {
+                processor.buildPropertiesDialog(dialog);
+                Runnable originalOnOk = dialog.getOnOk();
+                dialog.setOnOk(() -> {
+                    if (originalOnOk != null) originalOnOk.run();
+                    processor.syncToFXNode(node);
+                });
+            }
+        }
 
         // Add node-type-specific properties
         Spinner<Integer> cameraSpinner = null;
@@ -1484,9 +1494,6 @@ public class PipelineEditorApp extends Application {
             }
 
             node.label = dialog.getNameValue();
-
-            // Save properties handled by the helper class (covers all nodes with main branch differences)
-            com.ttennebkram.pipeline.fx.FXNodePropertiesHelper.savePropertiesForNode(node);
 
             // Handle webcam-specific properties
             if ("WebcamSource".equals(node.nodeType) && finalCameraSpinner != null) {
