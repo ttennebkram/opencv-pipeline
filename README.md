@@ -15,7 +15,15 @@ Download `opencv-pipeline.jar` from the [releases page](https://github.com/ttenn
 java -jar opencv-pipeline.jar
 ```
 
-That's it! One JAR works on **all platforms**: macOS (Intel & Apple Silicon), Linux (x64 & ARM64), and Windows.
+That's it! This one JAR works on all **supported** platforms:
+- **macOS** Apple Silicon (M1-M5)
+- **macOS** Intel (x86_64)
+- **Linux** x86_64
+- **Linux** ARM64 (Raspberry Pi 4 & 5)
+- **Windows** x86_64 (Intel/AMD)
+- *No Windows ARM64*
+
+Sorry, no Windows on ARM support. This project uses **OpenCV** which relies on **JNI** (Java Native Interface) for high-performance image processing, and OpenCV doesn't provide Windows ARM64 native libraries. We wanted to support it, but it's out of our control.
 
 Requires Java 17+.
 
@@ -30,16 +38,6 @@ Requires Java 17+.
 - **Save/Load Pipelines**: Save your pipelines to JSON files and reload them later
 - **Cross-Platform**: Single JAR runs on macOS, Linux, and Windows
 
-## Platform Support
-
-A single unified JAR runs on all platforms:
-- **macOS** Apple Silicon (M1/M2/M3)
-- **macOS** Intel (x86_64)
-- **Linux** x86_64
-- **Linux** ARM64 (Raspberry Pi 4/5)
-- **Windows** x86_64
-
-The JAR bundles JavaFX and OpenCV natives for all supported platforms (~220 MB).
 
 ## Requirements
 
