@@ -377,6 +377,11 @@ public class FXPipelineSerializer {
                     }
                 }
 
+                // For FileSource nodes without a cached thumbnail, try to load directly from the source file
+                if (node.thumbnail == null && "FileSource".equals(type) && node.filePath != null && !node.filePath.isEmpty()) {
+                    loadFileSourceThumbnail(node);
+                }
+
                 // Also load preview image from cache (full-resolution preview)
                 loadPreviewFromCache(cacheDir, pipelineName, node, nodeIndex);
 
@@ -631,6 +636,34 @@ public class FXPipelineSerializer {
             }
         }
         return false;
+    }
+
+    /**
+     * Load thumbnail directly from a FileSource's source file.
+     * This is used when there's no cached thumbnail available.
+     * Uses JavaFX Image with background loading for efficiency.
+     *
+     * @param node The FileSource node whose thumbnail to load
+     */
+    private static void loadFileSourceThumbnail(FXNode node) {
+        if (node.filePath == null || node.filePath.isEmpty()) {
+            return;
+        }
+        File sourceFile = new File(node.filePath);
+        if (!sourceFile.exists()) {
+            return;
+        }
+        try {
+            // Load the image using JavaFX Image (supports common formats)
+            // Use background loading to avoid blocking the UI
+            javafx.scene.image.Image image = new javafx.scene.image.Image(
+                sourceFile.toURI().toString(),
+                true  // backgroundLoading = true
+            );
+            node.thumbnail = image;
+        } catch (Exception e) {
+            System.err.println("Failed to load FileSource thumbnail from: " + node.filePath + " - " + e.getMessage());
+        }
     }
 
     /**
@@ -1073,6 +1106,29 @@ public class FXPipelineSerializer {
             // Load generic properties for processing nodes
             loadNodeProperties(nodeJson, node);
 
+            // Handle FileSource node-specific properties (filePath and imagePath)
+            if ("FileSource".equals(type)) {
+                // Try filePath first (newer format)
+                if (nodeJson.has("filePath")) {
+                    node.filePath = nodeJson.get("filePath").getAsString();
+                }
+                // Fall back to imagePath in JSON (older format for inner nodes)
+                if ((node.filePath == null || node.filePath.isEmpty()) && nodeJson.has("imagePath")) {
+                    node.filePath = nodeJson.get("imagePath").getAsString();
+                }
+                // Also check properties map (set by loadNodeProperties)
+                if ((node.filePath == null || node.filePath.isEmpty()) && node.properties.containsKey("imagePath")) {
+                    Object imagePath = node.properties.get("imagePath");
+                    if (imagePath != null && !imagePath.toString().isEmpty()) {
+                        node.filePath = imagePath.toString();
+                    }
+                }
+                if (nodeJson.has("fps")) {
+                    node.fps = nodeJson.get("fps").getAsDouble();
+                }
+                System.out.println("[Serializer] FileSource inner node loaded: filePath=" + node.filePath);
+            }
+
             // Load thumbnails and preview images from cache if cache info is available
             if (cacheDir != null && pipelineName != null) {
                 String thumbPrefix = (prefix != null ? prefix + "_" : "") + "inner_" + nodeIndex;
@@ -1087,6 +1143,11 @@ public class FXPipelineSerializer {
             if (node.thumbnail == null && nodeJson.has("thumbnail")) {
                 String thumbnailBase64 = nodeJson.get("thumbnail").getAsString();
                 node.thumbnail = base64ToImage(thumbnailBase64);
+            }
+
+            // For FileSource nodes without a cached thumbnail, try to load directly from the source file
+            if (node.thumbnail == null && "FileSource".equals(type) && node.filePath != null && !node.filePath.isEmpty()) {
+                loadFileSourceThumbnail(node);
             }
 
             // Load container-specific properties (for nested containers)

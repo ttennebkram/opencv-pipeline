@@ -127,14 +127,21 @@ public class FileSourceProcessor extends FXProcessorBase {
 
     @Override
     public void syncFromFXNode(FXNode node) {
-        Object pathObj = node.properties.get("imagePath");
-        imagePath = pathObj != null ? pathObj.toString() : "";
+        // Prefer node.filePath (used by executor), fall back to properties map
+        if (node.filePath != null && !node.filePath.isEmpty()) {
+            imagePath = node.filePath;
+        } else {
+            Object pathObj = node.properties.get("imagePath");
+            imagePath = pathObj != null ? pathObj.toString() : "";
+        }
         fpsMode = getInt(node.properties, "fpsMode", 1);
         loopVideo = getBool(node.properties, "loopVideo", true);
     }
 
     @Override
     public void syncToFXNode(FXNode node) {
+        // Set both node.filePath (used by executor) and properties map (for serialization)
+        node.filePath = imagePath;
         node.properties.put("imagePath", imagePath);
         node.properties.put("fpsMode", fpsMode);
         node.properties.put("loopVideo", loopVideo);

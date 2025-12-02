@@ -148,6 +148,11 @@ public class ProcessorFactory {
      * Check if a node type is a dual-input node.
      */
     private boolean isDualInputNode(String nodeType) {
+        // Check registry first for FXDualInputProcessor implementations
+        if (FXProcessorRegistry.isDualInput(nodeType)) {
+            return true;
+        }
+        // Legacy check for hard-coded types
         return "AddClamp".equals(nodeType) ||
                "SubtractClamp".equals(nodeType) ||
                "AddWeighted".equals(nodeType) ||

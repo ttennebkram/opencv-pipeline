@@ -1390,7 +1390,14 @@ public class FXPipelineEditor {
 
         final CheckBox finalSyncCheckBox = syncCheckBox;
         final TextField finalPipelineFileField = pipelineFileField;
+        final String oldFilePath = node.filePath;  // Track original path to detect changes
+        final Runnable processorOnOk = dialog.getOnOk();  // Preserve processor's onOk callback
         dialog.setOnOk(() -> {
+            // Call processor's onOk first (this syncs processor properties to node)
+            if (processorOnOk != null) {
+                processorOnOk.run();
+            }
+
             node.label = dialog.getNameValue();
 
             if (node.isContainer && finalPipelineFileField != null) {
@@ -1400,6 +1407,15 @@ public class FXPipelineEditor {
 
             if (isDualInput && finalSyncCheckBox != null) {
                 node.queuesInSync = finalSyncCheckBox.isSelected();
+            }
+
+            // For FileSource nodes, load the image thumbnail if path changed
+            if ("FileSource".equals(node.nodeType)) {
+                String newPath = node.filePath != null ? node.filePath : "";
+                String oldPath = oldFilePath != null ? oldFilePath : "";
+                if (!newPath.equals(oldPath)) {
+                    loadFileImageForNode(node);
+                }
             }
 
             paintCanvas();
@@ -1420,6 +1436,57 @@ public class FXPipelineEditor {
                "BitwiseAnd".equals(nodeType) ||
                "BitwiseOr".equals(nodeType) ||
                "BitwiseXor".equals(nodeType);
+    }
+
+    /**
+     * Load an image file for a FileSource node and set its thumbnail.
+     * Uses JavaFX Image loading with background loading support.
+     */
+    private void loadFileImageForNode(FXNode node) {
+        if (node.filePath == null || node.filePath.isEmpty()) {
+            node.thumbnail = null;
+            return;
+        }
+
+        java.io.File file = new java.io.File(node.filePath);
+        if (!file.exists()) {
+            node.thumbnail = null;
+            return;
+        }
+
+        // Load image in background to avoid blocking UI
+        javafx.scene.image.Image image = new javafx.scene.image.Image(
+            file.toURI().toString(),
+            true  // backgroundLoading = true
+        );
+
+        // Store reference immediately to prevent GC before load completes
+        node.thumbnail = image;
+        paintCanvas();  // Trigger initial repaint (image will update as it loads)
+
+        // Set up progress listener to handle when loading completes
+        image.progressProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.doubleValue() >= 1.0) {
+                if (image.isError()) {
+                    node.thumbnail = null;
+                } else {
+                    // Update preview if this node is selected
+                    if (selectedNodes.contains(node) && selectedNodes.size() == 1) {
+                        previewImageView.setImage(image);
+                    }
+                    paintCanvas();
+                }
+            }
+        });
+
+        // Also handle errors
+        image.errorProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                System.err.println("Error loading image: " + node.filePath);
+                node.thumbnail = null;
+                paintCanvas();
+            }
+        });
     }
 
     // ========================= NESTED CONTAINER =========================

@@ -437,12 +437,19 @@ public class FXPipelineExecutor {
 
         // Create processors for all inner nodes (including boundary nodes)
         // Inner nodes keep isEmbedded=true (the default), since they're inside a container
+        // Also track source nodes inside the container that need feeder threads
+        List<FXNode> innerSourceNodes = new ArrayList<>();
         for (FXNode innerNode : containerNode.innerNodes) {
             // isEmbedded defaults to true, so inner nodes are automatically marked as embedded
 
             ThreadedProcessor tp = processorFactory.createProcessor(innerNode);
             if (tp != null) {
                 tp.setEnabled(innerNode.enabled);
+            }
+
+            // Track source nodes inside container for later feeder thread setup
+            if (isSourceNode(innerNode)) {
+                innerSourceNodes.add(innerNode);
             }
 
             // Recursively set up nested containers
@@ -457,13 +464,41 @@ public class FXPipelineExecutor {
         }
 
         // Wire internal connections between inner nodes
+        // Source nodes inside containers need special handling - they need output queues and feeder threads
         if (containerNode.innerConnections != null) {
             for (FXConnection conn : containerNode.innerConnections) {
                 if (conn.source != null && conn.target != null) {
-                    processorFactory.wireConnection(conn.source, conn.target,
-                        conn.sourceOutputIndex, conn.targetInputIndex);
+                    if (isSourceNode(conn.source)) {
+                        // Source -> Processing inside container: create source output queue
+                        BlockingQueue<Mat> queue = sourceOutputQueues.computeIfAbsent(
+                            conn.source.id, k -> new LinkedBlockingQueue<>());
+                        ThreadedProcessor targetProc = processorFactory.getProcessor(conn.target);
+                        ThreadedProcessor sourceProc = processorFactory.getProcessor(conn.source);
+                        if (targetProc != null) {
+                            if (conn.targetInputIndex == 1) {
+                                targetProc.setInputQueue2(queue);
+                                if (sourceProc != null) {
+                                    targetProc.setInputNode2(sourceProc);
+                                }
+                            } else {
+                                targetProc.setInputQueue(queue);
+                                if (sourceProc != null) {
+                                    targetProc.setInputNode(sourceProc);
+                                }
+                            }
+                        }
+                    } else {
+                        // Processing -> Processing: wire via ProcessorFactory
+                        processorFactory.wireConnection(conn.source, conn.target,
+                            conn.sourceOutputIndex, conn.targetInputIndex);
+                    }
                 }
             }
+        }
+
+        // Start feeder threads for source nodes inside this container
+        for (FXNode sourceNode : innerSourceNodes) {
+            startSourceFeeder(sourceNode);
         }
 
         // Get the container's processor and boundary processors
