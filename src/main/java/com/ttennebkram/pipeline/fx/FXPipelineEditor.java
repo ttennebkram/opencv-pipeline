@@ -564,6 +564,7 @@ public class FXPipelineEditor {
         VBox previewPane = new VBox(5);
         previewPane.setPadding(new Insets(10));
         previewPane.setStyle("-fx-background-color: #f0f0f0;");
+        previewPane.setMinWidth(100);  // Allow shrinking to a small width
 
         // Save and Cancel buttons
         HBox buttonPanel = new HBox(5);
@@ -594,6 +595,7 @@ public class FXPipelineEditor {
         Label instructions = new Label(NodeRenderer.INSTRUCTIONS_TEXT);
         instructions.setStyle("-fx-font-size: 11px;");
         instructions.setWrapText(true);
+        instructions.setMinWidth(0);  // Allow label to shrink
 
         Label previewLabel = new Label("Preview");
         previewLabel.setStyle("-fx-font-weight: bold; -fx-padding: 10 0 0 0;");
