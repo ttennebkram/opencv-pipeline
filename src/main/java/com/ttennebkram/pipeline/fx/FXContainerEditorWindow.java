@@ -90,6 +90,13 @@ public class FXContainerEditorWindow {
                 editor.selectAll();
                 e.consume();
             }
+            // Arrow keys move selected nodes (prevents scroll pane from stealing the event)
+            if (e.getCode() == KeyCode.UP || e.getCode() == KeyCode.DOWN ||
+                e.getCode() == KeyCode.LEFT || e.getCode() == KeyCode.RIGHT) {
+                if (editor.handleArrowKey(e.getCode())) {
+                    e.consume();
+                }
+            }
         });
 
         stage.setScene(scene);
@@ -158,6 +165,24 @@ public class FXContainerEditorWindow {
 
     public void updatePipelineButtonState() {
         editor.updatePipelineButtonState();
+    }
+
+    /**
+     * Close this container editor window.
+     */
+    public void close() {
+        stage.close();
+    }
+
+    /**
+     * Set a callback for when the window is hidden/closed.
+     */
+    public void setOnHidden(Runnable onHidden) {
+        stage.setOnHidden(e -> {
+            if (onHidden != null) {
+                onHidden.run();
+            }
+        });
     }
 
     // ========================= MENU BAR =========================

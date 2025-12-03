@@ -22,22 +22,16 @@ Monitor shouldn't be able to be disabled
         isSource
     ,test unified .jar
 
-Refactor main PipelineEditor to use Container Editor even for main editor window
-Boundary:
-    Need IF NESTED node
 
 .Need examples directory, with an image
     large monitor image
     fft-ringing.json
 
-Clone node shouldn't be able to be disabled
+.Clone node shouldn't be able to be disabled
 
-.when I multi-highlight notes and use arrow keys to move, it moves the grid instead, not the nodes
+.when I multi-highlight nodes and use arrow keys to move, it moves the grid instead, not the nodes
     it shoiuld move by the equivalent of 1 pixel per keystroke when at 100%
 
-/the little dots on the Boundary Nodes shouldn't be round, may look like connection points
-    /maybe hexagonal
-Boundary nodes: change titles: Input -> Container Input, Output -> Container Output
 
 IF node with dual input
     If in Subdiagram/Subpipeline
@@ -45,26 +39,18 @@ IF node with dual input
 
 connectors should not vanish just because node there were connected to is deleted
 
-
-image file paths should be resolved relative to the .json file that's referencing them
-
 Help menu...
+finish help pages
+    missing OpenCV
+    custom nodes
+    About...
+        tip jar in About doc
 
-tip jar in About doc
-
-if nothing matches search box, then it should display "No matches found, please change or clear your search term" in itallics where the buttons would normally appear, on the green background
+.image file paths should be resolved relative to the .json file that's referencing them
 
 .we're not showing the method signatures any more in Properties
 
 .When doing File New, the Container windows from the previous drawing should close
-
-File Source: while running the pipeline, you select a new image with the file source,
-    it doesn't send the new image through the pipeline
-    the image goes through, but is not processed by each node
-    maybe just get rid of that feature if too complex
-
-
-.Still see old Preview image when have created a new file
 
 .connection points shouldn't accept connector drops or start connection gestures if they already have a connection there
 
@@ -199,6 +185,20 @@ Thresh:
 Done:
 -----
 
+/Still see old Preview image when have created a new file
+/File Source: while running the pipeline, you select a new image with the file source,
+    ?it doesn't send the new image through the pipeline
+    x the image goes through, but is not processed by each node
+    /maybe just get rid of that feature if too complex
+/if nothing matches search box, then it should display
+    /"No matches found, please change or clear your search term" in itallics
+    /where the buttons would normally appear, on the green background
+/Boundary nodes: change titles: Input -> Container Input, Output -> Container Output
+/the little dots on the Boundary Nodes shouldn't be round, may look like connection points
+    /maybe hexagonal
+/Refactor main PipelineEditor to use Container Editor even for main editor window
+?Boundary:
+    ?Need IF NESTED node
 /Thumbnails look jagged, how calculated?  How interpolated?
 /dual input nodes
     /require both queues fire

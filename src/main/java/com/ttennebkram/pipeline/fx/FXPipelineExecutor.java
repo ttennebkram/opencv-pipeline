@@ -648,7 +648,9 @@ public class FXPipelineExecutor {
             if (sourceNode.filePath != null && !sourceNode.filePath.isEmpty()) {
                 Mat cached = fileSourceCache.get(sourceNode.id);
                 if (cached == null || cached.empty()) {
-                    cached = org.opencv.imgcodecs.Imgcodecs.imread(sourceNode.filePath);
+                    // Resolve relative paths against basePath (pipeline file directory)
+                    String resolvedPath = resolvePipelinePath(sourceNode.filePath);
+                    cached = org.opencv.imgcodecs.Imgcodecs.imread(resolvedPath);
                     if (!cached.empty()) {
                         fileSourceCache.put(sourceNode.id, cached);
                     }

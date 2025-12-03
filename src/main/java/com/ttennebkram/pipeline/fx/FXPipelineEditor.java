@@ -84,6 +84,9 @@ public class FXPipelineEditor {
     // Base path for resolving relative file paths
     private String basePath;
 
+    // Open container editor windows (so we can close them all on File New/Open)
+    private final Set<FXContainerEditorWindow> openContainerWindows = new HashSet<>();
+
     // ========================= CALLBACKS =========================
     // These callbacks allow the parent to control pipeline-specific behavior
 
@@ -182,6 +185,56 @@ public class FXPipelineEditor {
      */
     public Set<FXConnection> getSelectedConnections() {
         return selectedConnections;
+    }
+
+    /**
+     * Handle arrow key press to move selected nodes.
+     * Returns true if the key was handled (nodes were moved).
+     */
+    public boolean handleArrowKey(KeyCode keyCode) {
+        if (selectedNodes.isEmpty()) {
+            return false;
+        }
+        double delta = 1.0 / zoomLevel;
+        boolean moved = false;
+        switch (keyCode) {
+            case UP:
+                for (FXNode node : selectedNodes) { node.y -= delta; }
+                moved = true;
+                break;
+            case DOWN:
+                for (FXNode node : selectedNodes) { node.y += delta; }
+                moved = true;
+                break;
+            case LEFT:
+                for (FXNode node : selectedNodes) { node.x -= delta; }
+                moved = true;
+                break;
+            case RIGHT:
+                for (FXNode node : selectedNodes) { node.x += delta; }
+                moved = true;
+                break;
+            default:
+                break;
+        }
+        if (moved) {
+            notifyModified();
+            paintCanvas();
+        }
+        return moved;
+    }
+
+    /**
+     * Close all open container editor windows.
+     * Called when creating a new diagram or loading a different file.
+     */
+    public void closeAllContainerWindows() {
+        // Make a copy to avoid concurrent modification
+        Set<FXContainerEditorWindow> windowsCopy = new HashSet<>(openContainerWindows);
+        for (FXContainerEditorWindow window : windowsCopy) {
+            window.close();
+        }
+        openContainerWindows.clear();
     }
 
     /**
@@ -1565,6 +1618,10 @@ public class FXPipelineEditor {
         nestedEditor.setOnRequestGlobalSave(onRequestGlobalSave);
         nestedEditor.setOnQuit(onQuit);
         nestedEditor.setOnRestart(onRestart);
+
+        // Track this window so we can close it on File New/Open
+        openContainerWindows.add(nestedEditor);
+        nestedEditor.setOnHidden(() -> openContainerWindows.remove(nestedEditor));
 
         nestedEditor.show();
         nestedEditor.updatePipelineButtonState();

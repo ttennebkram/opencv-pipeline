@@ -137,6 +137,13 @@ public class PipelineEditorApp extends Application {
                 editor.deleteSelected();
                 e.consume();
             }
+            // Arrow keys move selected nodes (prevents scroll pane from stealing the event)
+            if (e.getCode() == KeyCode.UP || e.getCode() == KeyCode.DOWN ||
+                e.getCode() == KeyCode.LEFT || e.getCode() == KeyCode.RIGHT) {
+                if (editor.handleArrowKey(e.getCode())) {
+                    e.consume();
+                }
+            }
         });
 
         primaryStage.setTitle("OpenCV Pipeline Editor - (untitled)");
@@ -277,6 +284,9 @@ public class PipelineEditorApp extends Application {
         stopPipeline();
         stopAllWebcams();
 
+        // Close all open container editor windows
+        editor.closeAllContainerWindows();
+
         nodes.clear();
         connections.clear();
         currentFilePath = null;
@@ -305,6 +315,9 @@ public class PipelineEditorApp extends Application {
         // Stop pipeline first
         stopPipeline();
         stopAllWebcams();
+
+        // Close all open container editor windows
+        editor.closeAllContainerWindows();
 
         try {
             FXPipelineSerializer.PipelineDocument doc = FXPipelineSerializer.load(path);
@@ -453,6 +466,9 @@ public class PipelineEditorApp extends Application {
                 if (editor.getSelectedNodes().contains(node) && editor.getSelectedNodes().size() == 1) {
                     editor.getPreviewImageView().setImage(fullRes);
                 }
+
+                // Sync queue and processor stats before repainting
+                pipelineExecutor.syncAllStats();
 
                 // Repaint canvas
                 editor.paintCanvas();

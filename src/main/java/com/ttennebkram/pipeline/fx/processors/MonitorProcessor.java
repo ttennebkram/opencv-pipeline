@@ -15,7 +15,8 @@ import org.opencv.core.Mat;
     displayName = "Monitor/Passthrough",
     buttonName = "Monitor/Passthrough",
     category = "Utility",
-    description = "Passthrough\nMat.clone()"
+    description = "Passthrough\nMat.clone()",
+    canBeDisabled = false
 )
 public class MonitorProcessor extends FXProcessorBase {
 

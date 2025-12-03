@@ -109,8 +109,6 @@ public class FXPipelineSerializer {
             // Container-specific properties - internal nodes and connections
             nodeJson.addProperty("isContainer", node.isContainer);
             if (node.isContainer) {
-                System.out.println("[Serializer] Main save: container " + node.label + " innerNodes.size=" +
-                                   (node.innerNodes != null ? node.innerNodes.size() : "null"));
                 // Save pipeline file path if set (external sub-diagram file)
                 if (node.pipelineFilePath != null && !node.pipelineFilePath.isEmpty()) {
                     nodeJson.addProperty("pipelineFile", node.pipelineFilePath);
@@ -118,7 +116,6 @@ public class FXPipelineSerializer {
                 // Also save inline inner nodes if present
                 if (node.innerNodes != null && !node.innerNodes.isEmpty()) {
                     String containerPrefix = "container_" + i;
-                    System.out.println("[Serializer] Main save: serializing inner nodes with prefix=" + containerPrefix);
                     JsonArray innerNodesArray = serializeNodes(node.innerNodes, cacheDir, pipelineName, containerPrefix);
                     nodeJson.add("innerNodes", innerNodesArray);
 
@@ -927,8 +924,6 @@ public class FXPipelineSerializer {
             // Save thumbnails for inner nodes if cache info is available
             if (cacheDir != null && pipelineName != null) {
                 String thumbPrefix = (prefix != null ? prefix + "_" : "") + "inner_" + i;
-                System.out.println("[Serializer] Saving inner node " + node.label + " thumbPrefix=" + thumbPrefix +
-                                   " hasThumbnail=" + (node.thumbnail != null) + " hasPreview=" + (node.previewImage != null));
                 if (node.thumbnail != null) {
                     saveThumbnailToCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
                 }
@@ -1126,16 +1121,13 @@ public class FXPipelineSerializer {
                 if (nodeJson.has("fps")) {
                     node.fps = nodeJson.get("fps").getAsDouble();
                 }
-                System.out.println("[Serializer] FileSource inner node loaded: filePath=" + node.filePath);
             }
 
             // Load thumbnails and preview images from cache if cache info is available
             if (cacheDir != null && pipelineName != null) {
                 String thumbPrefix = (prefix != null ? prefix + "_" : "") + "inner_" + nodeIndex;
-                System.out.println("[Serializer] Loading inner node " + node.label + " thumbPrefix=" + thumbPrefix);
-                boolean loadedThumb = loadThumbnailFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
-                boolean loadedPreview = loadPreviewFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
-                System.out.println("[Serializer] Loaded thumbnail=" + loadedThumb + " preview=" + loadedPreview);
+                loadThumbnailFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
+                loadPreviewFromCache(cacheDir, pipelineName + "_" + thumbPrefix, node, 0);
             }
 
             // For backwards compatibility: load embedded Base64 thumbnail from old files

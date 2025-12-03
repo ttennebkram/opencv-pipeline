@@ -15,7 +15,8 @@ import org.opencv.core.Mat;
     displayName = "Clone",
     category = "Utility",
     description = "Clone to multiple outputs\nMat.clone()",
-    outputCount = 2
+    outputCount = 2,
+    canBeDisabled = false
 )
 public class CloneProcessor extends FXProcessorBase {
 
