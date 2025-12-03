@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Divide By Background Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Divide By Background Node</h1>
+
+    <p>Corrects for uneven illumination by estimating the background using a heavy blur and dividing the image by it.</p>
+
+    <h2>Algorithm</h2>
+    <pre>background = GaussianBlur(input, large_kernel)
+output = normalize(input / (background + epsilon))</pre>
+
+    <h2>Properties</h2>
+    <ul>
+        <li><strong>Kernel Size</strong> - Size of blur kernel for background estimation (should be large)</li>
+        <li><strong>Epsilon</strong> - Small value to prevent division by zero</li>
+    </ul>
+
+    <h2>How It Works</h2>
+    <p>In images with uneven lighting (e.g., microscopy, scanned documents), dividing by the estimated background normalizes the brightness across the image. Dark regions become brighter and bright regions become normalized.</p>
+
+    <h2>Applications</h2>
+    <ul>
+        <li>Microscopy image correction</li>
+        <li>Document scanning cleanup</li>
+        <li>Compensating for vignetting</li>
+        <li>Flat-field correction</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> Use a kernel size large enough that the blur represents the background illumination, not the actual image content. Typically 20-100+ pixels depending on image size.
+    </div>
+
+    <div class="note">
+        <strong>Note:</strong> The output is normalized to use the full dynamic range. Very bright or dark regions in the original may clip.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - Background estimation method</li>
+        <li><a href="doc/opencv/CLAHE.html">CLAHE</a> - Another contrast enhancement method</li>
+    </ul>
+</body>
+</html>

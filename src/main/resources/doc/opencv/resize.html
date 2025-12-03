@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>resize</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .param { margin: 10px 0; }
+        .param-name { font-weight: bold; color: #2980b9; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .source { margin-top: 25px; font-size: 0.95em; }
+        .attribution { margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>resize</h1>
+
+    <p>Resizes an image to the specified dimensions using various interpolation methods.</p>
+
+    <h2>Signature</h2>
+    <p><code>Imgproc.resize(Mat src, Mat dst, Size dsize, double fx, double fy, int interpolation)</code></p>
+
+    <h2>Parameters</h2>
+    <ul>
+        <li><a href="doc/types/Mat.html">Mat</a> src - Input image.</li>
+        <li><a href="doc/types/Mat.html">Mat</a> dst - Output image; it has the size dsize or the size computed from src.size(), fx, and fy.</li>
+        <li><a href="doc/types/Size.html">Size</a> dsize - Output image size. If it equals zero, it is computed as: dsize = Size(round(fx*src.cols), round(fy*src.rows)).</li>
+        <li>double fx - Scale factor along the horizontal axis. If 0, computed from dsize.</li>
+        <li>double fy - Scale factor along the vertical axis. If 0, computed from dsize.</li>
+        <li>int interpolation - Interpolation method (see below).</li>
+    </ul>
+
+    <h2>Interpolation Methods</h2>
+    <ul>
+        <li><strong>INTER_NEAREST</strong> - Nearest-neighbor interpolation (fastest, pixelated)</li>
+        <li><strong>INTER_LINEAR</strong> - Bilinear interpolation (good balance, default)</li>
+        <li><strong>INTER_AREA</strong> - Resampling using pixel area relation (best for shrinking)</li>
+        <li><strong>INTER_CUBIC</strong> - Bicubic interpolation over 4x4 neighborhood (smoother)</li>
+        <li><strong>INTER_LANCZOS4</strong> - Lanczos interpolation over 8x8 neighborhood (high quality)</li>
+    </ul>
+
+    <h2>Description</h2>
+    <p>The function resize resizes the image src down to or up to the specified size. When shrinking an image, INTER_AREA is generally best. When enlarging, INTER_CUBIC or INTER_LINEAR are recommended.</p>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/warpAffine.html">warpAffine()</a> - Affine transformation (includes rotation, scaling)</li>
+        <li><a href="doc/opencv/Mat_submat.html">Mat.submat()</a> - Crop a region of interest</li>
+    </ul>
+
+    <p class="source"><strong>Source:</strong> <a href="https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#ga47a974309e9102f5f08231edc7e7529d" target="_blank">OpenCV resize Documentation</a></p>
+
+    <div class="attribution">
+        Documentation derived from OpenCV, licensed under Apache 2.0
+    </div>
+</body>
+</html>

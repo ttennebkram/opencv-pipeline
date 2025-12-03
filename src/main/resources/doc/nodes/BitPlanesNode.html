@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bit Planes Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Bit Planes Node</h1>
+
+    <p>Decomposes an image into its bit planes, revealing the contribution of each bit position to the overall image.</p>
+
+    <h2>Variants</h2>
+    <ul>
+        <li><strong>Bit Planes (Grayscale)</strong> - Works on single-channel grayscale images</li>
+        <li><strong>Bit Planes (Color)</strong> - Processes each color channel independently</li>
+    </ul>
+
+    <h2>How It Works</h2>
+    <p>Each pixel in an 8-bit image has values from 0-255, which can be represented as 8 binary bits. This node extracts individual bit planes by masking each bit position:</p>
+    <ul>
+        <li><strong>Bit 7 (MSB)</strong> - Most significant bit, contains most visual information</li>
+        <li><strong>Bit 6-4</strong> - High-order bits, significant image detail</li>
+        <li><strong>Bit 3-1</strong> - Low-order bits, fine detail and noise</li>
+        <li><strong>Bit 0 (LSB)</strong> - Least significant bit, mostly noise</li>
+    </ul>
+
+    <h2>Properties</h2>
+    <ul>
+        <li><strong>Bit</strong> - Which bit plane to extract (0-7)</li>
+        <li><strong>Gain</strong> - Multiplier to make the result visible (since single bits are 0 or 1)</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> Higher bit planes (7, 6, 5) contain the main image structure. Lower bit planes (0, 1, 2) often reveal hidden patterns, watermarks, or noise.
+    </div>
+
+    <h2>Applications</h2>
+    <ul>
+        <li>Image analysis and forensics</li>
+        <li>Steganography detection</li>
+        <li>Understanding image compression artifacts</li>
+        <li>Educational visualization of digital images</li>
+    </ul>
+
+    <div class="note">
+        <strong>Note:</strong> The output is scaled by the gain factor. A gain of 255 makes the binary plane fully visible (0 or 255 output values).
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/bitwise_and.html">bitwise_and()</a> - Bitwise AND operation</li>
+        <li><a href="doc/opencv/threshold.html">threshold()</a> - Binary thresholding</li>
+    </ul>
+</body>
+</html>

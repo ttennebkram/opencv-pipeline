@@ -395,20 +395,30 @@ public class NodeRenderer {
         // Draw input connection point(s) with counter
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 9));
         if (hasInput) {
-            double inputY = y + height / 2;
-            drawConnectionPoint(gc, x, inputY, true);
-            // Draw input counter label - dark color for visibility, two lines
-            gc.setFill(Color.rgb(60, 60, 60));
-            // For dual-input nodes, label as "In1:" instead of "In:"
-            String inPrefix = hasDualInput ? "In1:" : "In:";
-            gc.fillText(inPrefix, x + 10, inputY - 3);
-            gc.fillText(NUMBER_FORMAT.format(inputCounter), x + 10, inputY + 7);
             if (hasDualInput) {
-                drawConnectionPoint(gc, x, inputY + 20, true);
-                // Draw second input counter label - reset fill color after drawing connection point
+                // Dual input: spread ports vertically with more spacing
+                double inputSpacing = 40;  // 40 pixels between ports
+                double inputY1 = y + height / 2 - inputSpacing / 2;
+                double inputY2 = y + height / 2 + inputSpacing / 2;
+
+                // First input
+                drawConnectionPoint(gc, x, inputY1, true);
                 gc.setFill(Color.rgb(60, 60, 60));
-                gc.fillText("In2:", x + 10, inputY + 17);
-                gc.fillText(NUMBER_FORMAT.format(inputCounter2), x + 10, inputY + 27);
+                gc.fillText("In1:", x + 10, inputY1 - 3);
+                gc.fillText(NUMBER_FORMAT.format(inputCounter), x + 10, inputY1 + 7);
+
+                // Second input
+                drawConnectionPoint(gc, x, inputY2, true);
+                gc.setFill(Color.rgb(60, 60, 60));
+                gc.fillText("In2:", x + 10, inputY2 - 3);
+                gc.fillText(NUMBER_FORMAT.format(inputCounter2), x + 10, inputY2 + 7);
+            } else {
+                // Single input: center vertically
+                double inputY = y + height / 2;
+                drawConnectionPoint(gc, x, inputY, true);
+                gc.setFill(Color.rgb(60, 60, 60));
+                gc.fillText("In:", x + 10, inputY - 3);
+                gc.fillText(NUMBER_FORMAT.format(inputCounter), x + 10, inputY + 7);
             }
         }
 
@@ -790,11 +800,15 @@ public class NodeRenderer {
 
     /**
      * Get the input connection point position for a node.
+     * For dual-input nodes, ports are spread 40px apart centered on the node.
      */
     public static double[] getInputPoint(double nodeX, double nodeY, double nodeHeight, int inputIndex) {
-        double y = nodeY + nodeHeight / 2;
-        if (inputIndex == 1) {
-            y += 20; // Second input offset
+        double spacing = 40;  // Dual input port spacing
+        double y;
+        if (inputIndex == 0) {
+            y = nodeY + nodeHeight / 2 - spacing / 2;
+        } else {
+            y = nodeY + nodeHeight / 2 + spacing / 2;
         }
         return new double[]{nodeX, y};
     }

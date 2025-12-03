@@ -24,7 +24,7 @@ import org.opencv.core.Mat;
 @FXProcessorInfo(
     nodeType = "IsNestedOutput",
     displayName = "Is-Nested Output",
-    category = "Container I/O",
+    category = "Nested Pipelines",
     description = "Routes based on context\nOut 1: if nested\nOut 2: if root",
     outputCount = 2,
     canBeDisabled = false
@@ -40,7 +40,7 @@ public class IsNestedOutputProcessor extends FXProcessorBase implements FXMultiO
 
     @Override
     public String getCategory() {
-        return "Container I/O";
+        return "Nested Pipelines";
     }
 
     @Override
@@ -100,12 +100,16 @@ public class IsNestedOutputProcessor extends FXProcessorBase implements FXMultiO
 
     @Override
     public void buildPropertiesDialog(FXPropertiesDialog dialog) {
-        dialog.addDescription(getDescription());
-        dialog.addDescription("\nNo configurable properties.\n\n" +
-            "Use this to conditionally route frames:\n" +
-            "- Out 1 receives frames when running inside a Container\n" +
-            "- Out 2 receives frames when running as standalone diagram\n\n" +
-            "If an output is not connected, frames are simply dropped.");
+        dialog.addDescription("Allows a pipeline to work both as a nested\n" +
+            "sub-pipeline and as a standalone root pipeline.\n\n" +
+            "Output 1 (Nested): Connect to Nested Pipeline Output.\n" +
+            "  Used when this pipeline runs inside a Container,\n" +
+            "  sending frames back to the parent pipeline.\n\n" +
+            "Output 2 (Root): Connect to a Monitor or endpoint.\n" +
+            "  Used when this pipeline runs standalone,\n" +
+            "  for viewing/testing the results directly.\n\n" +
+            "The node automatically routes to the correct output\n" +
+            "based on execution context.");
     }
 
     @Override

@@ -46,6 +46,8 @@ finish help pages
     About...
         tip jar in About doc
 
+.Should only be able to add 1 each: Container Input and Container Output nodes
+
 .image file paths should be resolved relative to the .json file that's referencing them
 
 .we're not showing the method signatures any more in Properties

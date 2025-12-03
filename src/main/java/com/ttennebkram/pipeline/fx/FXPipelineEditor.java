@@ -1435,10 +1435,11 @@ public class FXPipelineEditor {
             dialog.addDescription("External pipeline JSON file for this container.\nDouble-click the container to open its subdiagram.");
         }
 
-        // Add "Queues in Sync" checkbox for dual-input nodes
+        // Add "Queues in Sync" checkbox for dual-input nodes (except IsNestedInput which doesn't need sync)
         CheckBox syncCheckBox = null;
         boolean isDualInput = node.hasDualInput || isDualInputNodeType(node.nodeType);
-        if (isDualInput) {
+        boolean showQueueSync = isDualInput && !"IsNestedInput".equals(node.nodeType);
+        if (showQueueSync) {
             syncCheckBox = dialog.addCheckbox("Queues in Sync", node.queuesInSync);
             dialog.addDescription("When enabled, wait for new data on both\ninputs before processing (synchronized mode).");
         }

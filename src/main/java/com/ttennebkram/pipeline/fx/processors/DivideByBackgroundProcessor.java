@@ -28,7 +28,7 @@ import java.util.List;
 @FXProcessorInfo(
     nodeType = "DivideByBackground",
     displayName = "Divide by Background",
-    category = "Basic",
+    category = "Filter",
     description = "Divide by blurred background\nout = normalize(input / (blur(input) + eps))"
 )
 public class DivideByBackgroundProcessor extends FXProcessorBase {
@@ -44,7 +44,7 @@ public class DivideByBackgroundProcessor extends FXProcessorBase {
 
     @Override
     public String getCategory() {
-        return "Basic";
+        return "Filter";
     }
 
     @Override

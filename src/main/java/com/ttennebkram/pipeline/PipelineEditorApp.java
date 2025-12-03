@@ -14,6 +14,7 @@ import javafx.stage.Stage;
 
 import com.ttennebkram.pipeline.fx.FXConnection;
 import com.ttennebkram.pipeline.fx.FXContainerEditorWindow;
+import com.ttennebkram.pipeline.fx.FXHelpBrowser;
 import com.ttennebkram.pipeline.fx.FXImageUtils;
 import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.FXPipelineEditor;
@@ -261,9 +262,11 @@ public class PipelineEditorApp extends Application {
 
         // Help menu
         Menu helpMenu = new Menu("Help");
+        MenuItem searchHelpItem = new MenuItem("Search OpenCV Pipeline Help...");
+        searchHelpItem.setOnAction(e -> FXHelpBrowser.openSearch(primaryStage));
         MenuItem aboutItem = new MenuItem("About");
-        aboutItem.setOnAction(e -> showAbout());
-        helpMenu.getItems().add(aboutItem);
+        aboutItem.setOnAction(e -> FXHelpBrowser.openAbout(primaryStage));
+        helpMenu.getItems().addAll(searchHelpItem, new SeparatorMenuItem(), aboutItem);
 
         menuBar.getMenus().addAll(fileMenu, editMenu, helpMenu);
 
@@ -698,14 +701,6 @@ public class PipelineEditorApp extends Application {
     }
 
     // ========================= DIALOGS =========================
-
-    private void showAbout() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("About");
-        alert.setHeaderText("OpenCV Pipeline Editor");
-        alert.setContentText("A visual pipeline editor for OpenCV image processing.\n\nOpenCV Version: " + org.opencv.core.Core.VERSION);
-        alert.showAndWait();
-    }
 
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

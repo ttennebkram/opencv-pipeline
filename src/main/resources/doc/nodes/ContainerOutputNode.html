@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sub-pipeline Boundary Output Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #e74c3c; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        .warning { background: #fdedec; padding: 15px; border-left: 4px solid #e74c3c; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Sub-pipeline Boundary Output Node</h1>
+
+    <p>The exit point for frames leaving a Container's sub-pipeline. This node sends processed frames back to the parent pipeline.</p>
+
+    <h2>Location</h2>
+    <p>Sub-pipeline Boundary Output nodes only appear <strong>inside</strong> Container sub-pipelines. They are automatically created when you create a new Container and cannot be deleted.</p>
+
+    <h2>Behavior</h2>
+    <ul>
+        <li>Has one input that receives frames from your processing chain</li>
+        <li>Sends the received frames to the Container node's output in the parent pipeline</li>
+        <li>Acts as a passthrough - no modifications to the frame</li>
+    </ul>
+
+    <div class="warning">
+        <strong>Important:</strong> Only one Sub-pipeline Boundary Output node is allowed per container. Attempting to add a second will show an error.
+    </div>
+
+    <div class="tip">
+        <strong>Tip:</strong> Position the Sub-pipeline Boundary Output on the right side of your sub-pipeline canvas. Connect your final processing node's output to it.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/nodes/ContainerInputNode.html">Sub-pipeline Boundary Input</a> - Entry point into container</li>
+        <li><a href="doc/nodes/ContainerNode.html">Container Node</a> - The parent container</li>
+        <li><a href="doc/nodes/IsNestedOutputNode.html">Is-Nested Output</a> - Conditional routing based on context</li>
+    </ul>
+</body>
+</html>

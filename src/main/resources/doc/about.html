@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>About OpenCV Pipeline Editor</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 25px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        a { color: #3498db; cursor: pointer; text-decoration: underline; }
+        .version-info { background: #e8f4fc; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .company { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        ul { padding-left: 25px; }
+        li { margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <h1>OpenCV Pipeline Editor</h1>
+
+    <p>A visual node-based editor for building and testing OpenCV image processing pipelines in real-time.</p>
+
+    <div class="version-info">
+        <strong>OpenCV Version:</strong> {{OPENCV_VERSION}}
+    </div>
+
+    <h2>What is the OpenCV Pipeline Editor?</h2>
+
+    <p>The OpenCV Pipeline Editor provides a graphical interface for constructing image processing workflows without writing code. It allows you to:</p>
+
+    <ul>
+        <li><strong>Build pipelines visually</strong> - Drag and connect processing nodes to create complex image transformations</li>
+        <li><strong>See results in real-time</strong> - Monitor nodes display live output as frames flow through the pipeline</li>
+        <li><strong>Process multiple sources</strong> - Work with webcams, image files, video files, or generated patterns</li>
+        <li><strong>Experiment interactively</strong> - Adjust parameters with sliders and see immediate effects</li>
+        <li><strong>Save and share pipelines</strong> - Export your work as JSON files for later use or sharing</li>
+        <li><strong>Create nested pipelines</strong> - Encapsulate complex processing into reusable container nodes</li>
+    </ul>
+
+    <h2>Getting Started</h2>
+
+    <ul>
+        <li><strong>Add nodes</strong> - Click buttons in the toolbar to add processing nodes to the canvas</li>
+        <li><strong>Connect nodes</strong> - Drag from an output port (right side) to an input port (left side)</li>
+        <li><strong>Configure nodes</strong> - Double-click a node to open its properties dialog</li>
+        <li><strong>Run the pipeline</strong> - Click the Start button or press Ctrl+R to begin processing</li>
+        <li><strong>View results</strong> - Add Monitor nodes to see the output at any point in the pipeline</li>
+    </ul>
+
+    <h2>Node Categories</h2>
+
+    <ul>
+        <li><strong>Sources</strong> - Input nodes: webcam, files, generated images</li>
+        <li><strong>Basic</strong> - Fundamental operations: grayscale, threshold, gain</li>
+        <li><strong>Blur</strong> - Smoothing filters: Gaussian, median, bilateral</li>
+        <li><strong>Edges</strong> - Edge detection: Canny, Sobel, Laplacian</li>
+        <li><strong>Filter</strong> - Custom filtering and frequency domain operations</li>
+        <li><strong>Morphology</strong> - Erosion, dilation, opening, closing</li>
+        <li><strong>Transform</strong> - Geometric transformations: resize, crop, warp</li>
+        <li><strong>Visualization</strong> - Histograms, bit planes, color analysis</li>
+        <li><strong>Detection</strong> - Feature detection: contours, corners, circles</li>
+        <li><strong>Dual Input</strong> - Operations requiring two inputs: blend, mask, compare</li>
+        <li><strong>Nested Pipelines</strong> - Container nodes for modular pipeline design</li>
+    </ul>
+
+    <h2>Keyboard Shortcuts</h2>
+
+    <ul>
+        <li><code>Ctrl+R</code> - Start/Stop pipeline</li>
+        <li><code>Ctrl+S</code> - Save pipeline</li>
+        <li><code>Ctrl+O</code> - Open pipeline</li>
+        <li><code>Ctrl+A</code> - Select all nodes</li>
+        <li><code>Delete</code> or <code>Backspace</code> - Delete selected nodes</li>
+    </ul>
+
+    <h2>Technology</h2>
+
+    <p>Built with Java, JavaFX, Eclipse GEF, and OpenCV. The application uses the <a href="https://opencv.org/" target="_blank">OpenCV</a> computer vision library for image processing operations.</p>
+
+    <div class="company">
+        <p><strong>Developed by <a href="http://www.ideaeng.com" target="_blank">New Idea Engineering, Inc.</a></strong></p>
+        <p>Copyright New Idea Engineering, Inc. All rights reserved.</p>
+    </div>
+</body>
+</html>

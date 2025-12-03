@@ -185,9 +185,18 @@ public class FXNode {
      */
     public double[] getInputPoint(int index) {
         if (!hasInput) return null;
-        double iy = y + height / 2;
-        if (index == 1 && hasDualInput) {
-            iy += 20;
+        double iy;
+        if (hasDualInput) {
+            // Dual input: spread ports vertically around center with 40px spacing
+            double spacing = 40;
+            if (index == 0) {
+                iy = y + height / 2 - spacing / 2;
+            } else {
+                iy = y + height / 2 + spacing / 2;
+            }
+        } else {
+            // Single input: centered
+            iy = y + height / 2;
         }
         return new double[]{x, iy};
     }

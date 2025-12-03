@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Blur Highpass Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Blur Highpass Node</h1>
+
+    <p>A spatial-domain highpass filter that extracts high-frequency details (edges, textures) by subtracting a blurred version of the image from the original.</p>
+
+    <h2>Algorithm</h2>
+    <pre>output = |input - GaussianBlur(input)|</pre>
+    <p>The absolute difference ensures positive values in the output.</p>
+
+    <h2>Properties</h2>
+    <ul>
+        <li><strong>Kernel Size</strong> - Size of the Gaussian blur kernel (larger = more detail extracted)</li>
+    </ul>
+
+    <h2>How It Works</h2>
+    <p>Low-pass filtering (blur) removes high frequencies. By subtracting the blurred image from the original, we isolate what the blur removed: the high-frequency content.</p>
+
+    <h2>Applications</h2>
+    <ul>
+        <li>Edge enhancement</li>
+        <li>Texture analysis</li>
+        <li>Feature extraction</li>
+        <li>Image sharpening (when added back to original)</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> A larger kernel size extracts coarser details. A smaller kernel size extracts finer details and edges.
+    </div>
+
+    <div class="note">
+        <strong>Note:</strong> This is a simple spatial highpass filter. For more precise frequency control, use the FFT-based highpass filters.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/opencv/GaussianBlur.html">GaussianBlur()</a> - The lowpass component</li>
+        <li><a href="doc/opencv/dft.html">FFT Filters</a> - Frequency-domain filtering</li>
+        <li><a href="doc/opencv/Laplacian.html">Laplacian()</a> - Another highpass operator</li>
+    </ul>
+</body>
+</html>

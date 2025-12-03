@@ -4,8 +4,12 @@ import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.scene.web.WebView;
 import javafx.scene.web.WebEngine;
 import javafx.stage.Modality;
@@ -18,7 +22,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -93,6 +99,20 @@ public class FXHelpBrowser {
     }
 
     /**
+     * Open the About page with version information substituted.
+     * @param parent Parent stage (for positioning)
+     */
+    public static void openAbout(Stage parent) {
+        try {
+            FXHelpBrowser helpBrowser = new FXHelpBrowser(parent);
+            helpBrowser.navigateAbout();
+            helpBrowser.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Open help for a specific node type.
      * @param parent Parent stage
      * @param nodeType The node type name to show help for
@@ -104,6 +124,180 @@ public class FXHelpBrowser {
         } else {
             open(parent, "doc/no-help.html");
         }
+    }
+
+    /**
+     * Open a searchable help browser showing all documented node types.
+     * @param parent Parent stage
+     */
+    public static void openSearch(Stage parent) {
+        Stage searchStage = new Stage();
+        searchStage.setTitle("Search OpenCV Pipeline Help");
+        searchStage.initOwner(parent);
+        searchStage.initModality(Modality.NONE);
+
+        BorderPane root = new BorderPane();
+        root.setPadding(new Insets(10));
+
+        // Search field
+        TextField searchField = new TextField();
+        searchField.setPromptText("Type to search nodes...");
+
+        // Get all documented node types
+        Map<String, String> allNodes = getAllDocumentedNodes();
+        List<String> allNodeNames = new ArrayList<>(allNodes.keySet());
+
+        // Results list
+        ListView<String> resultsList = new ListView<>();
+        resultsList.getItems().addAll(allNodeNames);
+        VBox.setVgrow(resultsList, Priority.ALWAYS);
+
+        // Filter as user types
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            resultsList.getItems().clear();
+            String filter = newVal.toLowerCase();
+            for (String name : allNodeNames) {
+                if (name.toLowerCase().contains(filter)) {
+                    resultsList.getItems().add(name);
+                }
+            }
+        });
+
+        // Open help on single click (more intuitive)
+        resultsList.setOnMouseClicked(e -> {
+            String selected = resultsList.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                String docPath = allNodes.get(selected);
+                if (docPath != null) {
+                    open(parent, docPath);
+                }
+            }
+        });
+
+        resultsList.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                String selected = resultsList.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    String docPath = allNodes.get(selected);
+                    if (docPath != null) {
+                        open(parent, docPath);
+                    }
+                }
+            }
+        });
+
+        VBox content = new VBox(10);
+        content.getChildren().addAll(searchField, resultsList);
+
+        root.setCenter(content);
+
+        Scene scene = new Scene(root, 350, 400);
+        searchStage.setScene(scene);
+
+        // Position relative to parent
+        if (parent != null) {
+            searchStage.setX(parent.getX() + 50);
+            searchStage.setY(parent.getY() + 50);
+        }
+
+        searchStage.show();
+        searchField.requestFocus();
+    }
+
+    /**
+     * Get a map of display names to doc paths for all documented nodes.
+     */
+    private static Map<String, String> getAllDocumentedNodes() {
+        Map<String, String> nodes = new LinkedHashMap<>();
+        // Blur nodes
+        nodes.put("Gaussian Blur", "doc/opencv/GaussianBlur.html");
+        nodes.put("Box Blur", "doc/opencv/blur.html");
+        nodes.put("Median Blur", "doc/opencv/medianBlur.html");
+        nodes.put("Bilateral Blur", "doc/opencv/bilateralFilter.html");
+
+        // Edge detection
+        nodes.put("Canny Edge", "doc/opencv/Canny.html");
+        nodes.put("Sobel", "doc/opencv/Sobel.html");
+        nodes.put("Laplacian", "doc/opencv/Laplacian.html");
+        nodes.put("Scharr", "doc/opencv/Scharr.html");
+
+        // Threshold
+        nodes.put("Threshold", "doc/opencv/threshold.html");
+        nodes.put("Adaptive Threshold", "doc/opencv/adaptiveThreshold.html");
+
+        // Morphology
+        nodes.put("Dilate", "doc/opencv/dilate.html");
+        nodes.put("Erode", "doc/opencv/erode.html");
+        nodes.put("Morphology Ex", "doc/opencv/morphologyEx.html");
+
+        // Color/conversion
+        nodes.put("Grayscale", "doc/opencv/cvtColor.html");
+        nodes.put("Color In Range", "doc/opencv/inRange.html");
+
+        // Bitwise
+        nodes.put("Bitwise And", "doc/opencv/bitwise_and.html");
+        nodes.put("Bitwise Or", "doc/opencv/bitwise_or.html");
+        nodes.put("Bitwise Xor", "doc/opencv/bitwise_xor.html");
+        nodes.put("Bitwise Not / Invert", "doc/opencv/bitwise_not.html");
+
+        // Arithmetic
+        nodes.put("Add (Clamp)", "doc/opencv/add.html");
+        nodes.put("Subtract (Clamp)", "doc/opencv/subtract.html");
+        nodes.put("Add Weighted", "doc/opencv/addWeighted.html");
+
+        // Features
+        nodes.put("Hough Lines", "doc/opencv/HoughLines.html");
+        nodes.put("Hough Circles", "doc/opencv/HoughCircles.html");
+        nodes.put("Contours", "doc/opencv/findContours.html");
+        nodes.put("Harris Corners", "doc/opencv/cornerHarris.html");
+        nodes.put("Shi-Tomasi Corners", "doc/opencv/goodFeaturesToTrack.html");
+        nodes.put("ORB Features", "doc/opencv/ORB.html");
+        nodes.put("SIFT Features", "doc/opencv/SIFT.html");
+        nodes.put("Blob Detector", "doc/opencv/SimpleBlobDetector.html");
+
+        // Drawing
+        nodes.put("Circle", "doc/opencv/circle.html");
+        nodes.put("Ellipse", "doc/opencv/ellipse.html");
+        nodes.put("Line", "doc/opencv/line.html");
+        nodes.put("Arrow", "doc/opencv/arrowedLine.html");
+        nodes.put("Rectangle", "doc/opencv/rectangle.html");
+        nodes.put("Text", "doc/opencv/putText.html");
+
+        // Other OpenCV
+        nodes.put("Histogram", "doc/opencv/calcHist.html");
+        nodes.put("CLAHE", "doc/opencv/CLAHE.html");
+        nodes.put("Warp Affine", "doc/opencv/warpAffine.html");
+        nodes.put("Crop", "doc/opencv/Mat_submat.html");
+        nodes.put("Gain", "doc/opencv/convertTo.html");
+        nodes.put("Match Template", "doc/opencv/matchTemplate.html");
+        nodes.put("Connected Components", "doc/opencv/connectedComponents.html");
+        nodes.put("Filter 2D", "doc/opencv/filter2D.html");
+        nodes.put("Mean Shift Blur", "doc/opencv/pyrMeanShiftFiltering.html");
+        nodes.put("Resize", "doc/opencv/resize.html");
+
+        // FFT nodes
+        nodes.put("FFT Filters (Low/High Pass)", "doc/opencv/dft.html");
+
+        // Custom nodes
+        nodes.put("Bit Planes", "doc/nodes/BitPlanesNode.html");
+        nodes.put("Blur Highpass", "doc/nodes/BlurHighpassNode.html");
+        nodes.put("Divide By Background", "doc/nodes/DivideByBackgroundNode.html");
+        nodes.put("Clone", "doc/nodes/CloneNode.html");
+        nodes.put("Container", "doc/nodes/ContainerNode.html");
+        nodes.put("Monitor", "doc/nodes/MonitorNode.html");
+
+        // Source nodes
+        nodes.put("File Source", "doc/nodes/FileSourceNode.html");
+        nodes.put("Webcam Source", "doc/nodes/WebcamSourceNode.html");
+        nodes.put("Blank Source", "doc/nodes/BlankSourceNode.html");
+
+        // Container I/O
+        nodes.put("Sub-pipeline Boundary Input", "doc/nodes/ContainerInputNode.html");
+        nodes.put("Sub-pipeline Boundary Output", "doc/nodes/ContainerOutputNode.html");
+        nodes.put("Is-Nested Input", "doc/nodes/IsNestedInputNode.html");
+        nodes.put("Is-Nested Output", "doc/nodes/IsNestedOutputNode.html");
+
+        return nodes;
     }
 
     /**
@@ -252,6 +446,28 @@ public class FXHelpBrowser {
                 return "doc/nodes/WebcamSourceNode.html";
             case "BlankSource":
                 return "doc/nodes/BlankSourceNode.html";
+
+            // Container boundary nodes
+            case "ContainerInput":
+                return "doc/nodes/ContainerInputNode.html";
+            case "ContainerOutput":
+                return "doc/nodes/ContainerOutputNode.html";
+
+            // Is-Nested routing nodes
+            case "IsNestedInput":
+                return "doc/nodes/IsNestedInputNode.html";
+            case "IsNestedOutput":
+                return "doc/nodes/IsNestedOutputNode.html";
+
+            // Transform nodes
+            case "Resize":
+                return "doc/opencv/resize.html";
+
+            // Other custom nodes
+            case "BlurHighpass":
+                return "doc/nodes/BlurHighpassNode.html";
+            case "DivideByBackground":
+                return "doc/nodes/DivideByBackgroundNode.html";
 
             default:
                 return null;
@@ -406,6 +622,31 @@ public class FXHelpBrowser {
             }
         } else {
             webEngine.loadContent(getNotFoundHtml(docPath));
+        }
+    }
+
+    /**
+     * Navigate to the About page with version info substituted.
+     */
+    private void navigateAbout() {
+        String html = loadResource("doc/about.html");
+        if (html != null) {
+            // Substitute the OpenCV version
+            html = html.replace("{{OPENCV_VERSION}}", org.opencv.core.Core.VERSION);
+
+            if (!navigatingFromHistory) {
+                while (history.size() > historyIndex + 1) {
+                    history.remove(history.size() - 1);
+                }
+                history.add("doc/about.html");
+                historyIndex = history.size() - 1;
+            }
+            updateBackButton();
+
+            webEngine.loadContent(html);
+            stage.setTitle("About OpenCV Pipeline Editor");
+        } else {
+            webEngine.loadContent(getNotFoundHtml("doc/about.html"));
         }
     }
 

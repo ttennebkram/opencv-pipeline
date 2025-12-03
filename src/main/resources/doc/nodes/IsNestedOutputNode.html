@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Is-Nested Output Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #9b59b6; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>Is-Nested Output Node</h1>
+
+    <p>Allows a pipeline to work both as a nested sub-pipeline inside a Container, and as a standalone root/primary pipeline.</p>
+
+    <h2>Purpose</h2>
+    <p>When building reusable processing pipelines, you often want to:</p>
+    <ul>
+        <li><strong>Test the pipeline standalone</strong> - sending output to a Monitor for viewing</li>
+        <li><strong>Embed it inside a Container</strong> - sending output back to the parent pipeline</li>
+    </ul>
+    <p>The Is-Nested Output node automatically routes to the correct output based on how the pipeline is being executed.</p>
+
+    <h2>Outputs</h2>
+    <ul>
+        <li><strong>Output 1 (Nested)</strong> - Connect to Container Output. Used when this pipeline runs inside a Container, sending frames back to the parent pipeline.</li>
+        <li><strong>Output 2 (Root)</strong> - Connect to a Monitor or other endpoint. Used when this pipeline runs as the primary/root pipeline for viewing/testing results.</li>
+    </ul>
+
+    <h2>Example Setup</h2>
+    <pre>
+                              ┌──► Container Output
+... ──► Processing ──► Is-Nested Output
+                              └──► Monitor (for standalone testing)
+    </pre>
+
+    <div class="tip">
+        <strong>Tip:</strong> Use Is-Nested Output at the end of reusable sub-pipelines. Connect Output 1 to Container Output and Output 2 to a Monitor or other endpoint for standalone testing.
+    </div>
+
+    <div class="note">
+        <strong>Note:</strong> When nested, only Output 1 receives frames. When running as root, only Output 2 receives frames. The inactive output receives nothing.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/nodes/IsNestedInputNode.html">Is-Nested Input</a> - Dual-input routing by context</li>
+        <li><a href="doc/nodes/ContainerOutputNode.html">Container Output</a> - Exit point for containers</li>
+        <li><a href="doc/nodes/ContainerNode.html">Container Node</a> - Encapsulate sub-pipelines</li>
+    </ul>
+</body>
+</html>

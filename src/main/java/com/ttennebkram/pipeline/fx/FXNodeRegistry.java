@@ -75,11 +75,11 @@ public class FXNodeRegistry {
         "Filter",
         "Morphology",
         "Transform",
+        "Visualization",
         "Detection",
         "Dual Input",
-        "Utility",
-        "Visualization",
-        "Container I/O"
+        "Nested Pipelines",
+        "Utility"
     );
 
     /**
@@ -112,12 +112,12 @@ public class FXNodeRegistry {
         }
 
         // Add non-processor node types (special nodes without processors)
-        // Container (sub-diagram) - special handling, not a processor
-        register("Container", "Container/Sub-diagram", "Utility", "Container sub-diagram\nEncapsulates a pipeline", false, false, true, 1);
+        // Container (sub-pipeline) - special handling, not a processor
+        register("Container", "Container/Sub-pipeline", "Nested Pipelines", "Container sub-pipeline\nEncapsulates a pipeline", false, false, true, 1);
 
-        // Container I/O nodes - boundary nodes, not regular sources
-        register("ContainerInput", "Input", "Container I/O", "Container input\nReceives data from parent pipeline", false, false, 1);
-        register("ContainerOutput", "Output", "Container I/O", "Container output\nSends data to parent pipeline");
+        // Container I/O nodes - boundary nodes for containers
+        register("ContainerInput", "Nested Pipeline Input", "Nested Pipelines", "Nested pipeline input\nReceives data from parent pipeline", false, false, 1);
+        register("ContainerOutput", "Nested Pipeline Output", "Nested Pipelines", "Nested pipeline output\nSends data to parent pipeline");
 
         // Sort nodes within each category alphabetically by display name
         for (List<NodeType> nodes : byCategory.values()) {

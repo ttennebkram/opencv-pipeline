@@ -300,10 +300,10 @@ public class FXPipelineSerializer {
                 }
 
                 // Fix up legacy boundary node labels
-                if ("ContainerInput".equals(type) && "Input".equals(node.label)) {
-                    node.label = "Container Input";
-                } else if ("ContainerOutput".equals(type) && "Output".equals(node.label)) {
-                    node.label = "Container Output";
+                if ("ContainerInput".equals(type) && ("Input".equals(node.label) || "Container Input".equals(node.label) || "Sub-pipeline Input".equals(node.label))) {
+                    node.label = "Nested Pipeline Input";
+                } else if ("ContainerOutput".equals(type) && ("Output".equals(node.label) || "Container Output".equals(node.label) || "Sub-pipeline Output".equals(node.label))) {
+                    node.label = "Nested Pipeline Output";
                 }
 
                 // Restore background color
@@ -1068,10 +1068,10 @@ public class FXPipelineSerializer {
             }
 
             // Fix up legacy boundary node labels
-            if ("ContainerInput".equals(type) && "Input".equals(node.label)) {
-                node.label = "Container Input";
-            } else if ("ContainerOutput".equals(type) && "Output".equals(node.label)) {
-                node.label = "Container Output";
+            if ("ContainerInput".equals(type) && ("Input".equals(node.label) || "Container Input".equals(node.label) || "Sub-pipeline Input".equals(node.label))) {
+                node.label = "Nested Pipeline Input";
+            } else if ("ContainerOutput".equals(type) && ("Output".equals(node.label) || "Container Output".equals(node.label) || "Sub-pipeline Output".equals(node.label))) {
+                node.label = "Nested Pipeline Output";
             }
 
             if (nodeJson.has("bgColorR") && nodeJson.has("bgColorG") && nodeJson.has("bgColorB")) {

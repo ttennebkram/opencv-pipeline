@@ -14,7 +14,7 @@ import org.opencv.core.Mat;
     nodeType = "Monitor",
     displayName = "Monitor/Passthrough",
     buttonName = "Monitor/Passthrough",
-    category = "Utility",
+    category = "Basic",
     description = "Passthrough\nMat.clone()",
     canBeDisabled = false
 )
@@ -27,7 +27,7 @@ public class MonitorProcessor extends FXProcessorBase {
 
     @Override
     public String getCategory() {
-        return "Utility";
+        return "Basic";
     }
 
     @Override

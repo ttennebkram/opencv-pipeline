@@ -21,7 +21,7 @@ import org.opencv.core.Mat;
 @FXProcessorInfo(
     nodeType = "IsNestedInput",
     displayName = "Is-Nested Input",
-    category = "Container I/O",
+    category = "Nested Pipelines",
     description = "Route by execution context\nNested: Input1 -> Out\nRoot: Input2 -> Out",
     dualInput = true,
     canBeDisabled = false
@@ -35,7 +35,7 @@ public class IsNestedInputProcessor extends FXDualInputProcessor {
 
     @Override
     public String getCategory() {
-        return "Container I/O";
+        return "Nested Pipelines";
     }
 
     @Override
@@ -70,10 +70,16 @@ public class IsNestedInputProcessor extends FXDualInputProcessor {
 
     @Override
     public void buildPropertiesDialog(FXPropertiesDialog dialog) {
-        dialog.addDescription(getDescription());
-        dialog.addDescription("\nNo configurable properties.\n\n" +
-            "Input 1: Used when running nested inside a Container\n" +
-            "Input 2: Used when running as root/standalone diagram");
+        dialog.addDescription("Allows a pipeline to work both as a nested\n" +
+            "sub-pipeline and as a standalone root pipeline.\n\n" +
+            "Input 1 (Nested): Connect to Nested Pipeline Input.\n" +
+            "  Used when this pipeline runs inside a Container,\n" +
+            "  receiving frames from the parent pipeline.\n\n" +
+            "Input 2 (Root): Connect to a source (File, Webcam).\n" +
+            "  Used when this pipeline runs standalone,\n" +
+            "  getting frames directly from the source.\n\n" +
+            "The node automatically selects the correct input\n" +
+            "based on execution context.");
     }
 
     @Override

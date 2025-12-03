@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>File Source Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; line-height: 1.5; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #27ae60; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .note { background: #fef9e7; padding: 15px; border-left: 4px solid #f1c40f; margin: 15px 0; }
+        .tip { background: #e8f8f5; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>File Source Node</h1>
+
+    <p>Loads images or video from files on disk. This is typically the starting point for file-based pipelines.</p>
+
+    <h2>Supported Formats</h2>
+    <h3>Images</h3>
+    <ul>
+        <li>JPEG (<code>.jpg</code>, <code>.jpeg</code>)</li>
+        <li>PNG (<code>.png</code>)</li>
+        <li>BMP (<code>.bmp</code>)</li>
+        <li>TIFF (<code>.tif</code>, <code>.tiff</code>)</li>
+        <li>WebP (<code>.webp</code>)</li>
+    </ul>
+
+    <h3>Video</h3>
+    <ul>
+        <li>MP4 (<code>.mp4</code>)</li>
+        <li>AVI (<code>.avi</code>)</li>
+        <li>MOV (<code>.mov</code>)</li>
+        <li>Other formats supported by OpenCV's VideoCapture</li>
+    </ul>
+
+    <h2>Properties</h2>
+    <ul>
+        <li><strong>File Path</strong> - Absolute or relative path to the image/video file</li>
+        <li><strong>Loop</strong> - For videos, restart from beginning when finished</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> Use relative paths (relative to the pipeline file location) to make pipelines portable between machines.
+    </div>
+
+    <h2>Behavior</h2>
+    <ul>
+        <li><strong>Images:</strong> Outputs the same frame repeatedly</li>
+        <li><strong>Videos:</strong> Outputs frames sequentially at the capture rate</li>
+    </ul>
+
+    <div class="note">
+        <strong>Note:</strong> If the file cannot be found or read, an error message is displayed in the node's status area.
+    </div>
+
+    <h2>See Also</h2>
+    <ul>
+        <li><a href="doc/nodes/WebcamSourceNode.html">Webcam Source</a> - Capture from camera</li>
+        <li><a href="doc/nodes/BlankSourceNode.html">Blank Source</a> - Generate solid color frames</li>
+    </ul>
+</body>
+</html>
