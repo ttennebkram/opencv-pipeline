@@ -1,200 +1,184 @@
 # OpenCV Pipeline Editor
 
-A visual node-based editor for creating OpenCV image processing pipelines. Built with OpenCV, Java, SWT, and Eclipse GEF.
+A visual node-based editor for creating OpenCV image processing pipelines. Built with Java, JavaFX, and OpenCV.
+
+Not just a drawing program - **it's live!** Each node you see is **an actual thread**, and each connection between them is a queue. It even supports sub-pipeline diagrams (containers).
 
 ![Screenshot](screenshots/pipeline.png)
 
+
 ## Quick Start
 
-Download the JAR for your platform from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases) and run:
+Download `opencv-pipeline.jar` from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases) and run:
 
 ```bash
-# macOS (Apple Silicon)
-java -XstartOnFirstThread -jar opencv-pipeline-macos-aarch64.jar
-
-# Linux
-java -jar opencv-pipeline-linux-x86_64.jar
-
-# Windows
-java -jar opencv-pipeline-windows-x86_64.jar
+java -jar opencv-pipeline.jar
 ```
+
+Or to automatically load and startup a pipeline when the program first runs you'd do:
+
+```bash
+java -jar opencv-pipeline.jar pipeline.json --start 
+```
+
+That's it! This one JAR works on all **supported** platforms:
+- **macOS** Apple Silicon (M1-M5)
+- **macOS** Intel (x86_64)
+- **Linux** x86_64
+- **Linux** ARM64 (Raspberry Pi 4 & 5)
+- **Windows** x86_64 (Intel/AMD)
+- *No Windows ARM64*
+
+Sorry, no Windows on ARM support. This project uses **OpenCV** which relies on **JNI** (Java Native Interface) for high-performance image processing, and OpenCV doesn't provide Windows ARM64 native libraries. We wanted to support it, but it's out of our control.
 
 Requires Java 17+.
 
 ## Features
 
 - **Visual Pipeline Editor**: Drag-and-drop nodes on a canvas to build image processing pipelines
-- **Multiple Source Types**: Webcam capture, image files, video files
-- **Processing Nodes**: Blur, edge detection, color conversion, morphological operations, and more
-- **Real-time Preview**: See the output of selected nodes as the pipeline runs
+- **Multiple Source Types**: Webcam capture, image files, video files, blank canvas
+- **60+ Processing Nodes**: Blur, edge detection, FFT filters, morphological operations, feature detection, and more
+- **Real-time Preview**: See the output of each node as the pipeline runs
 - **Threaded Execution**: Each node runs in its own thread with queue-based communication
+- **Container Nodes**: Create reusable sub-pipelines that can be nested
 - **Save/Load Pipelines**: Save your pipelines to JSON files and reload them later
+- **Cross-Platform**: Single JAR runs on macOS, Linux, and Windows
 
-## Platform Support
-
-Pre-built JARs are available for:
-- **macOS** (Apple Silicon and Intel)
-- **Linux** (x86_64 and ARM64/Raspberry Pi)
-- **Windows** (x86_64)
-
-**Why separate JARs per platform?** The GUI uses SWT (Standard Widget Toolkit), which provides native OS widgets but requires platform-specific native libraries. Each JAR bundles the correct SWT natives for that platform.
-
-### Native Library Support
-
-This application uses OpenCV via JNI for high-performance image processing. The [org.openpnp:opencv](https://github.com/openpnp/opencv) library bundles native libraries for:
-
-| Platform | Architecture | Supported |
-|----------|-------------|-----------|
-| macOS | Apple Silicon (ARM64) | ✅ |
-| macOS | Intel (x86_64) | ✅ |
-| Linux | x86_64 | ✅ |
-| Linux | ARM64 (Raspberry Pi 64-bit) | ✅ |
-| Linux | ARMv7 (Raspberry Pi 32-bit) | ✅ |
-| Windows | x86_64 | ✅ |
-| Windows | x86 (32-bit) | ✅ |
-| Windows | ARM64 | ❌ Not available |
-
-**Note:** Windows on ARM (e.g., Surface Pro X, Snapdragon laptops) is not currently supported due to missing OpenCV native binaries.
 
 ## Requirements
 
 - Java 17 or higher
-- Maven (for building from source)
+- A webcam (optional, for webcam source nodes)
 
-## Building
-
-Build for your current platform (defaults to macOS ARM64):
+## Building from Source
 
 ```bash
 mvn clean package
 ```
 
-Build for a specific platform:
+The uber-jar is created at `target/opencv-pipeline.jar`.
+
+For development (automatically reopens the last saved file):
 
 ```bash
-mvn clean package -P linux-aarch64   # Raspberry Pi 64-bit
-mvn clean package -P linux-x86_64    # Linux desktop
-mvn clean package -P macos-aarch64   # Apple Silicon (default)
-mvn clean package -P macos-x86_64    # Intel Mac
-mvn clean package -P windows-x86_64  # Windows
+mvn compile exec:exec
 ```
 
-Build all platforms at once:
+Or any of:
 
 ```bash
-./build-all-platforms.sh
+mvn compile exec:exec@start
+mvn compile exec:exec@run -Dpipeline.args="--start"
+mvn compile exec:exec@run -Dpipeline.args="pipeline.json"
+mvn compile exec:exec@run -Dpipeline.args="pipeline.json --start"
 ```
 
-Output JARs are created in `target/` with platform-specific names.
 
-## Running
-
-### macOS
+To compile and run the app use either of:
 
 ```bash
-# Apple Silicon
-java -XstartOnFirstThread -jar opencv-pipeline-macos-aarch64.jar
-
-# Intel Mac
-java -XstartOnFirstThread -jar opencv-pipeline-macos-x86_64.jar
-```
-
-Note: The `-XstartOnFirstThread` flag is required on macOS for SWT applications.
-
-### Linux
-
-```bash
-# x86_64
-java -jar opencv-pipeline-linux-x86_64.jar
-
-# ARM64 (Raspberry Pi 64-bit)
-java -jar opencv-pipeline-linux-aarch64.jar
-```
-
-If you encounter display issues on Wayland, try: `GDK_BACKEND=x11 java -jar ...`
-
-### Windows
-
-```bash
-java -jar opencv-pipeline-windows-x86_64.jar
-```
-
-### For development (macOS)
-
-```bash
-mvn exec:exec
+mvn compile exec:exec
+mvn compile exec:exec@start
 ```
 
 ## Usage
 
-1. **Add Nodes**: Click on node names in the left panel to create new nodes
-2. **Connect Nodes**: Drag from one node to another to create connections
-3. **Configure Nodes**: Double-click a node to open its properties dialog
+1. **Add Nodes**: Click on node types in the toolbar to add them to the canvas
+2. **Connect Nodes**: Drag from an output port to an input port to create connections
+3. **Configure Nodes**: Double-click or right-click nodes to open properties dialog.  Container nodes use double-click to open the sub-pipeline, which is usually what users want; so use right-click to set the file property.
 4. **Run Pipeline**: Click "Start Pipeline" to begin processing
-5. **Preview Output**: Select a node to see its output in the preview panel
+5. **View Output**: Each node shows a live thumbnail of its output.  Single-click on the thumbnail to see a larger version of that image in the Preview pane.
+
+**macOS Note**: macOS enforces a "Java" application menu which is mostly useless. You may find it simpler to just ignore it and use the **File** menu inside the window instead, just like on Windows or Linux.
+
+### Keyboard Shortcuts
+
+- **Delete/Backspace**: Delete selected nodes or connections
+- **Ctrl+S / Cmd+S**: Save pipeline
+- **Ctrl+O / Cmd+O**: Open pipeline
+- **Ctrl+N / Cmd+N**: New pipeline
+
+### Save Warning
+
+The "unsaved changes" warning triggers when you add, delete, move, or edit properties of nodes and connections. However, some runtime state (like preview selections and stats updates) are not tracked and won't prompt a save warning.
 
 ## Node Categories
 
 ### Source
-- Webcam
-- File (image/video)
-- Blank (solid color image)
+- **Webcam** - Live camera capture
+- **File** - Load image or video files
+- **Blank** - Solid color canvas
 
-### Basic
-- Grayscale
-- Invert
-- Threshold
-- Adaptive Threshold
-- Gain
-- CLAHE
-- Color In Range
-- Bit Planes Grayscale
-- Bit Planes Color
+### Color
+- Grayscale, Invert, Gain, CLAHE
+- Color In Range (HSV filtering)
+- Bit Planes (Grayscale & Color)
 
 ### Blur
-- Gaussian Blur
-- Median Blur
-- Bilateral Blur
-- Box Blur
-- Mean Shift Blur
+- Gaussian Blur, Median Blur, Box Blur
+- Bilateral Filter, Mean Shift Filter
 
 ### Edge Detection
-- Canny Edge
-- Sobel
-- Laplacian
-- Scharr
+- Canny Edges, Sobel, Laplacian, Scharr
 
 ### Morphological
-- Erode
-- Dilate
-- Morph Open
-- Morph Close
+- Erode, Dilate, Morph Open, Morph Close
+- Morphology Ex (advanced operations)
+
+### Threshold
+- Threshold, Adaptive Threshold
+
+### FFT (Frequency Domain)
+- FFT Low Pass, FFT High Pass
+- FFT Low Pass 4, FFT High Pass 4 (with spectrum visualization)
 
 ### Detection
-- Blob Detector
-- Connected Components
-- Hough Circles
-- Hough Lines
-- Harris Corners
-- Shi-Tomasi Corners
-- Contours
-- SIFT Features
+- Blob Detector, Connected Components
+- Contours, Histogram
+- Hough Circles, Hough Lines
+- Harris Corners, Shi-Tomasi Corners
+- SIFT Features, ORB Features
 
 ### Transform
-- Warp Affine
-- FFT Filter
+- Warp Affine, Crop, Resize
+- Filter2D (custom convolution kernels)
+- Resize
 
-### Content
-- Shapes (rectangle, circle, ellipse, line, arrow)
-- Text
+### Drawing
+- Rectangle, Circle, Ellipse
+- Line, Arrow, Text
+
+### Combine
+- Add Weighted (blend two images)
+- Match Template
+- Clone (duplicate stream)
+
+### Bitwise
+- Bitwise AND, OR, XOR, NOT
+
+### Flow
+- Container (sub-pipeline)
+- Monitor (display output)
 
 ## Position Coordinates
 
-Content nodes (Shapes, Text) support negative position values for coordinates relative to image edges:
+Drawing nodes (shapes, text) support negative position values for coordinates relative to image edges:
 - Positive values: offset from left/top edge (e.g., `50` = 50 pixels from left)
 - Negative values: offset from right/bottom edge (e.g., `-1` = rightmost/bottom pixel, `-50` = 50 pixels from right/bottom)
 
 This allows positioning elements relative to image dimensions that may vary at runtime.
+
+## Performance Note
+- FFT takes over a second to filter a full resolution 12 megapixel image
+- If using FFT filters, we suggest you use the Resize node first to shrink the image donw
+
+## Architecture
+
+The application uses a modular processor architecture:
+- Each node type is implemented as a self-contained `FXProcessor` class
+- Processors handle their own UI (properties dialog), serialization, and image processing
+- New node types can be added by creating a new processor class with the `@FXProcessorInfo` annotation
+- Runtime discovery automatically registers all processors
 
 ## License
 

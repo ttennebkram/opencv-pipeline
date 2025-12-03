@@ -6,25 +6,112 @@ Legend:
     ? = question                  X or x = No/dismissed  = = dupe
 
 .Too many open files
-Exception in thread "Thread-0" java.lang.RuntimeException: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss368pdpc0000gp/T/opencv_openpnp1887031657301443306: Too many open files
-	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:170)
-	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:175)
-	at nu.pattern.OpenCV$TemporaryDirectory$1.run(OpenCV.java:142)
-Caused by: java.nio.file.FileSystemException: /var/folders/y3/rxnq666x3cq3c76ss368pdpc0000gp/T/opencv_openpnp1887031657301443306: Too many open files
-	at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:100)
-	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106)
-	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111)
-	at java.base/sun.nio.fs.UnixFileSystemProvider.newDirectoryStream(UnixFileSystemProvider.java:461)
-	at java.base/java.nio.file.Files.newDirectoryStream(Files.java:481)
-	at java.base/java.nio.file.FileTreeWalker.visit(FileTreeWalker.java:301)
-	at java.base/java.nio.file.FileTreeWalker.walk(FileTreeWalker.java:323)
-	at java.base/java.nio.file.Files.walkFileTree(Files.java:2779)
-	at java.base/java.nio.file.Files.walkFileTree(Files.java:2857)
-	at nu.pattern.OpenCV$TemporaryDirectory.delete(OpenCV.java:155)
-	... 2 more
+
+-----------------------------------------------------
+
+New bugs after SWT -> JavaFX conversoion
+----------------------------------------
+
+Main Classes:
+    PipelineEditorLauncher - The entry point configured in pom.xml (used by both exec:exec and the shaded JAR)
+    PipelineEditorApp - The actual JavaFX Application class
+Top 5 longest Java files:
+  | Lines | File                         |
+  |-------|------------------------------|
+  | 3,715 | FXPipelineExecutor.java      |
+  | 2,259 | PipelineEditorApp.java       |
+  | 2,118 | FXNodePropertiesHelper.java  |
+  |   ^   | ^-- removing FXNodePropertiesHelper.java
+  | 1,903 | ProcessorFactory.java        |
+  | 1,756 | FXContainerEditorWindow.java |
+
+Monitor shouldn't be able to be disabled
+
+.completely remove SWT code
+    /remove from POM
+    /remove legacy code
+    remove JavaFX "legacy" code, instanceof, case, if/then/else
+        isContainer
+        isSource
+    ,test unified .jar
+
+Refactor main PipelineEditor to use Container Editor even for main editor window
+Boundary:
+    Need IF NESTED node
+
+.Need examples directory, with an image
+    large monitor image
+    fft-ringing.json
+
+Clone node shouldn't be able to be disabled
+
+.when I multi-highlight notes and use arrow keys to move, it moves the grid instead, not the nodes
+    it shoiuld move by the equivalent of 1 pixel per keystroke when at 100%
+
+/the little dots on the Boundary Nodes shouldn't be round, may look like connection points
+    /maybe hexagonal
+Boundary nodes: change titles: Input -> Container Input, Output -> Container Output
+
+IF node with dual input
+    If in Subdiagram/Subpipeline
+    If NOT in Sub, then Boundary nodes grayed out
+
+connectors should not vanish just because node there were connected to is deleted
 
 
-/add to .gitignore files like .TODO.txt.swp
+image file paths should be resolved relative to the .json file that's referencing them
+
+Help menu...
+
+tip jar in About doc
+
+if nothing matches search box, then it should display "No matches found, please change or clear your search term" in itallics where the buttons would normally appear, on the green background
+
+.we're not showing the method signatures any more in Properties
+
+.When doing File New, the Container windows from the previous drawing should close
+
+File Source: while running the pipeline, you select a new image with the file source,
+    it doesn't send the new image through the pipeline
+    the image goes through, but is not processed by each node
+    maybe just get rid of that feature if too complex
+
+
+.Still see old Preview image when have created a new file
+
+.connection points shouldn't accept connector drops or start connection gestures if they already have a connection there
+
+.Enabled Checkmark for all nodes, upper left next to the name
+    enabled/disabled checkbox, upper left
+    Multi input: just take from input 1
+    Multi output: just output to output 1
+    Container node: have monitoring thread do the work
+
+.In a top level save in the editor, the save needs to propogate down the contianer hierarchy to prompt them to save as 
+well; save always works from the current window down, same for number of nodes, and soon to be thread counts
+
+thread info
+
+threshold needs to output calculated T value
+
+?finish impl of Harris Corners
+    .still missing some
+    .default color green
+    /what does Draw Features mean in the python version?
+
+?finish Scharr
+/Laplacian shows Canny Edge properties
+/   properties too narrow
+.   add more UI elements
+.Contours
+.Blobs
+check all sliders that require odd ints
+Main class doing LOTS of instanceof, I think in serialization stuff?
+check all Java Nodes against all Python Effects
+
+
+Longer Term:
+------------
 
 compare all java nodes to python effects
     /Users/mbennett/Dropbox/dev/webcam-filters
@@ -42,56 +129,13 @@ Support copy and paste
 how many nodes override .paint()?
     can they be refactored?
 
-.add OK and Cancel buttons to PipelineEditor window
-    inconsistent Cancel behavior
-
-
-.Enabled Checkmark for all nodes, upper left next to the name
-    enabled/disabled checkbox, upper left
-    Multi input: just take from input 1
-    Multi output: just output to output 1
-    Container node: have monitoring thread do the work
-
-Add help links
-    offer for local install
-
-connection points shouldn't accept connector drops or start connection gestures if they already have a connection there
-
-File Source node still sluggish to show new name after Properties name edit
-
-.debug log all json files that are read or saved, even for the contents of a container
-
-.In a top level save in the editor, the save needs to propogate down the contianer hierarchy to prompt them to save as 
-well; save always works from the current window down, same for number of nodes, and soon to be thread counts
-
-
-thread info
-
 .Paramertize MOST hard-coded numbers damnit!
     /colors
     other?
 
-.Doc: Yes, you can edit while running, we encourage doing so to see the effects of your changes in real time 
 
-.Upper right corner icon in Container rendering in parent diagram, 
-    mouse over / tool tip "Edit Container's Sub-diagram"
-
-.opening container window, good initial position and good initial height, but width is too narrow, ideally same dims as parent window IF that would fit on their screen, so clamped
-
-.Container Editor status bar:
-    Should show number of running threads, implication is that it's for that diagram down
-    Yes, have it shown for that diagram down
-    Does Container have its own thread?
-        I think yes...
-        that would be counted as the parent's total
-            the two input/output nodes count towards child
-            again, what's countable on screen
-    rule: threads are countable number of nodes on that screen, PLUS all nodes downstream in the container hierarchy
-
-gain needs to be 5% to 20x, and slider output needs to now show percent for the ratios < 1
-
-
-
+opening container window, good initial position and good initial height,
+    but width is too narrow, ideally same dims as parent window IF that would fit on their screen, so clamped
 
 cv2.split()
 
@@ -163,43 +207,225 @@ Thresh:
     V = cv2.split(cv2.cvtColor(plate, cv2.COLOR_BGR2HSV))[2]
     thresh = cv2.adaptiveThreshold(V, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
 	    cv2.THRESH_BINARY_INV, 17, 3)
---
-matchTemplate:
-    # find the template in the source image
-    result = cv2.matchTemplate(source, template, cv2.TM_CCOEFF)
-    (minVal, maxVal, minLoc, (x, y)) = cv2.minMaxLoc(result)
 
-
-.fft low pass filter
-    figure out radius filters and smoothness
-    can we plot the curve?
-.finish impl of Harris Corners
-    .still missing some
-    .default color green
-    /what does Draw Features mean in the python version?
-/rename Shi-Tomasi to ... Corners
-.    FINISH ST corners
-.finish Scharr
-/Laplacian shows Canny Edge properties
-/   properties too narrow
-.   add more UI elements
-.Sobel
-    .dx / dy 3 horizontal radio buttons
-    Sobel Properties -> Sobel Edge Properties
-.Contours
-.Blobs
-check all sliders that require odd ints
-Main class doing LOTS of instanceof, I think in serialization stuff?
-check all Java Nodes against all Python Effects
-
-.dual input nodes
-    .require both queues fire
-    .work on either firing and last state of other
-        .if both 30 fps there would be ~60 objects emitted
-        .make it a UI checkbox for queues-in-sync default to NO
 
 Done:
 -----
+
+/Thumbnails look jagged, how calculated?  How interpolated?
+/dual input nodes
+    /require both queues fire
+    /work on either firing and last state of other
+        .if both 30 fps there would be ~60 objects emitted
+        .make it a UI checkbox for queues-in-sync default to NO
+/Sobel
+    .dx / dy 3 horizontal radio buttons
+    Sobel Properties -> Sobel Edge Properties
+/rename Shi-Tomasi to ... Corners
+.    FINISH ST corners
+/fft low pass filter
+    figure out radius filters and smoothness
+    can we plot the curve?
+/matchTemplate:
+    # find the template in the source image
+    result = cv2.matchTemplate(source, template, cv2.TM_CCOEFF)
+    (minVal, maxVal, minLoc, (x, y)) = cv2.minMaxLoc(result)
+/gain needs to be 5% to 20x, and slider output needs to now show percent for the ratios < 1
+/Container Editor status bar:
+    Should show number of running threads, implication is that it's for that diagram down
+    Yes, have it shown for that diagram down
+    Does Container have its own thread?
+        I think yes...
+        that would be counted as the parent's total
+            the two input/output nodes count towards child
+            again, what's countable on screen
+    x rule: threads are countable number of nodes on that screen, PLUS all nodes downstream in the container hierarchy
+?Upper right corner icon in Container rendering in parent diagram, 
+    mouse over / tool tip "Edit Container's Sub-diagram"
+/add OK and Cancel buttons to PipelineEditor window
+    inconsistent Cancel behavior
+/File Source node still sluggish to show new name after Properties name edit
+/debug log all json files that are read or saved, even for the contents of a container
+/Doc: Yes, you can edit while running, we encourage doing so to see the effects of your changes in real time 
+/Add help links
+    offer for local install
+/add to .gitignore files like .TODO.txt.swp
+/In any of the FFT properties dialog boxes, add a Note: that FFT is the slowest node, can often only handle < 1 fps
+/Container should be called "Container/Sub-diagram"
+/Instructions section: Click AND DRAG circles to connect
+    in both Pipeline Editor and Container Editor
+    make sure the Instructions area is a common bit of code shared by both editors
+/Button bar, swap Content and Blur
+/Container editor: can't click on connection to delete it
+    also can drag to highlight it either
+/Boundary nodes: don't have the corresponding Out: 0, In: 0.
+/Boundary nodes: the dot on the top could be just a little lower,
+  and the bottom dot could be just a bit higher 
+/Boundary node: Input node is shorter than all the other nodes
+/Boundary nodes: Output is taller than input?  Very odd
+    Input node is shorter than all the other nodes
+/In Container window, connections do not show queue stats
+/Whem moving parent window, child window is also moved, should stay where it is
+/Don't persist the width nor height of a node in JSON file
+    ignore any widths/heights read back in
+/Need mouse over tool tip for help link on all nodes.
+    If node has no help, then "Help (not available for this node type)".
+/Also need tool tip Enabled/Disabled button, tool tip "Enable / Disable this Node" 
+/Arrow tip on the end of connectors: they still aren't aligned rotationally with that end of the connector line
+/FFT 4 needs tool tips over every output
+    and also on its inputs
+    and all connection points should have tooltips
+/(->fft) Hint on File Source to maybe resize it to 640x480 with the resize node
+/In the container editor window, the button bar doesn't have as much horizontal padding to show the green background 
+/Pri display in nodes, needs to be darker gray or black
+/Boundary nodes Input: needs to show the number of things it's read in.  Output node needs to show its stats for Out:
+/Add (Clamp) -> Add w/Clamp
+/File Source: properties label I think "File:"? is truncated, the dialog is not wide enough
+/File Source (and probably others): the Category from the button bar doesn't need to be displayed in the properties dialog box 
+/Rendering of two input nodes: use the same vertical spacing as Clone outputs for both connection drag point and In1: In2:
+/Boundary nodes shouldn't have FPS
+/!Double-click for most node types not bringing up full dailog
+    example: clicking on Gain, no way to set the actual gain
+/On save/restart/load, the Priority and Work stats are not shown
+/Add note to dialog that FFT is slow
+/FFT4 out1: not getting filtered image
+/FFT4 out2: looks like just a passthrough
+/FFT4 out3: not getting the FFT visualization
+/FFT4 out4: not getting the filter curve
+/FFT4 Tool Tips over the connector endpoints
+    tool tips over all the connection points
+/In the button bar and when displaying a node, Grayscale needs to be "Grayscale/Color Convert" 
+/File source, needs FPS in properties, default to automatic, which is 1fps for static image, and normal fps for video
+/Pipeline not stopped when creating a new file
+/Also worried about threads from old diagram staying running when New or Open other diagram
+/Pipeline Editor: Select a container's JSON file, then OK, then open Container editor, no nodes
+    it might be that some JSON files saved those subdiagrams inline in themselves?
+/Pipeline Editor: status bar: Pipeline Running, no thread count
+/When selecting a new file in the File Source, you don't see a thumbnail of it once loaded 
+/File Source: When selecting a file, the click OK, you get a beep.  It still works, but the beep makes it like something is wrong
+/I see no evidence that anything is running when a pipeline is run.
+    None of the nodes update their counts, and neither do the queues/connectors
+/On the container properties, there is no file path to the pipeline file, and no browse button.
+/Containers should have separate standalone JSON files
+/Boundary nodes should also have their "other ends" displayed
+    Input Boundary node should add it's In: count
+    Output Boundary node should add it's Out: count
+/There's no Open on the file menu 
+/make the container node color the same as the boundary nodes.  Put a constant somewhere where all 3 can see it 
+/File Source: no field for file path
+/File Source: no browse button for file path
+/File Source: Enabled should not be in the properties
+/Both main Pipeline Editor and Container Editor: alphabetize within each category
+/In main pipeline editor and container editor:
+/Status bar: swap the position of the Node count and the zoom magnification
+/help system: please bring that over from the old code
+/Tool tip on help icon still too verbose, what is it doing?
+    or getting tooltip for entire node?  Still too much info
+/Help link tool tip of Webcam source has too much info
+/Boundary Nodes have lots their 3 vertical dots just now
+/Help link looks enabled for things that have no help yet, eg: Webcam Source
+/Container Editor status bar: Center should have the status of the pipeline and number of threads
+/ selected nodes look a bit too similar to unselected blue nodes 
+/For both the PipelineEditor UI and the Container UI, put Save and Cancel buttons above the Start Pipeline button
+    please see the old code for how we did this, bindings, etc
+/Just like you have it in Container Editor, the status bar
+    in the main Pipeline Editoir also needs to move to the bottom of the canvas
+/Button bar: CLAHE needs to say "CLAHE Contrast"
+/Node display: CLAHE needs to say "CLAHE Contrast"
+/Help links don't look disabled (grayed out) for items we have no help for
+/Mouse over is incorrectly over the entire node
+    Only the enabled checkbox and the help link should have it
+/Help system, viewing doc page, argument types rendered as hyperlinks, but don't do anything when you click them
+/For highlighting, use the brightest blue 0,255,0, and when highlighting a node, make its box line a little more wide
+  (this is already done, it just needs to be even wider)  And for the links, when they're highlighted, draw the line a
+  little heavier 
+/when displaying one of the edge nodes as a node, the title across the top should intially say Canny Edges,
+    not just Canny.  Same for the other 3 edges 
+/connections hard to hit exactly, need "close enough" logic
+/boudnary node placement and color
+/When launching a Container window, give it the same size as the parent window, with just a x=40 y=40 offset
+/Contaier editor: No special Bounday Input and Output nodes
+/I'm getting a weird little vertical rounded square show up under my mouse.  I don't knkow what it is.  Maybe the ends of
+  a scroll bar with no space in between?  Not sure.  Shows up sporadically under my mouse 
+/Connectors: Queue stats not horizontally centered
+/Restart doesn't bring application back up
+/Container editor: search box doesn't have the "x"
+/The status bar needs to be at the bottom of the canvas and take up just that horizontal space
+    current layout puts zoom under preview, which gives false impression
+/Enabled check boxes: Background should be white (currently dark green)
+    and make checkmarks black, not white
+/Container editor: menu buttons look "flat", not like they do in main PipelineEditor window
+/Container editor: no "x" in the searh box
+/Container editor: no Start Pipeline / Stop Pipeline above the Preview window
+/Container editor: no Instructions above the preview area
+/No queue stats on the connectors, please see old code
+/Zoom placement is odd, looks like it wo8uld appy to the preview window.
+    Can't it go on the status bar?
+/Enabled checkmark should have a white background, more visibility
+/Status bar: Pipeline status should be in the middle of the status bar, more visible
+/Top right: missing "Instructions:"
+/Move Start/Stop pipeline to upper right, above Preview pane
+    please look at old code
+/Webcam: still says just "Webcam", not "Webcam Soure"
+/Find box doesn't have an X on the right to clear the search
+/When new node is selected, it sometimes gets placed off screen, you have to know to scroll to it
+/the "x" button for search box should be inside the the text box to the right,
+    and if it can't, then at least touching the search box and be the same size
+/File / Restart doesn't bring the application back up
+/I'd like to see some progress on the Container editing window
+/mouse click and drag in canvas of Container Editor still drags canvas instead of starting a select 
+/Restart: NO Use mvn exec:exec for reliable JavaFX restart
+    that won't work for java -jar ...
+    how did the old code do it?
+/PipelineEditor: replace the x with unicode multiplication sign
+/Container Editor: remove the circle around the X (multiplication sign)
+/PipelineEditor: make the "x" (unicode multiply) go away when text box is empty
+x.Main menu still says Java, not OpenCV
+    in the app bundle's Info.plist
+/! File / Restart still doesn't bring application back up
+    how did we do it in the main branch version? that worked perfectly
+x.Main menu still says Java, not OpenCV
+    in the app bundle's Info.plist
+/Still no restart
+/STILL: Node: Webcam -> Webcam Source
+/Webcan Source Node: still way too wide
+/Main menu: under Java/OpenCV
+    x Quit OpenCV (instead of long class name)
+    /Restart, like we had before
+/Webcam source WAY too wide
+/Grid: sometimes when you try to click and drag a node, it instead moves the entire grid
+    this happens even when clicking on a connection point
+/No arrow head on connectors
+/No Tool Tips
+/Node: Webcam -> Webcam Source
+/Enabled check boxes don't uncheck when clicked
+/Node: No In: counter
+/Node: Put actual Out: (or Out1: Out2:) type of counters on the right of nodes
+    this replaces the "Work: N" on top
+/Left Button Bar: remove all vertical spacing
+/Button bar: "Source" -> "Sources"
+x!.Menu: rename Java -> OpenCV
+/When first hooking a node to a new node, it'd be nice if a frame was sent through. The old system had this feature.
+/Container should be rendered with a double line
+/thumbnails not persisted on save/restart/load
+x Quit in menu still has full class name
+/On Container: Right click only offers Delete
+    guessing other nodes are missing right click options too
+/On Container: double click brings up Properties dialog, not the subdiagram
+/Button bar: background outside of buttons should be green, not white
+x Java menu, remove 2 Hide... options and show all
+x Java menu, still showing full com.ttennebkram...
+/Remove VERTICAL padding between buttons in the button bar
+/Click and drag on empty part of the grid tries to drag the grid
+/Connecting line arrow head: wrong angle in relation to that end of the line
+    line is at 45 degrees, but arrowhead is horizontal, looks broken
+/webcam source STILL way too wide
+/buttons in left tray still need horizontal spacing, actually a fair amount so the green background is visible
+/Connector: Select to Highlight, press backspace, nothing happens
+/Gray for In:/Out: is too light
+/On most nodes: thumbnail overwrites Out: label
+/arrow head too small, and at odd angle compared to the line its connecting
+    doesn't look like the same arrow
 /each node can have its own custom name
 /Have Container window open.  Now switch to main window, Container window doesn't acknowledge now-running pipeline, still 
 shows "Start Pipeline" button (should be "Stop Pipeline", and status bar shows Pipeline Stopped 
