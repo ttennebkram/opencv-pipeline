@@ -293,11 +293,13 @@ public class FXPipelineEditor {
         for (FXNode node : nodes) {
             boolean isSelected = selectedNodes.contains(node);
             int[] outputCounters = new int[] { node.outputCount1, node.outputCount2, node.outputCount3, node.outputCount4 };
+            // Boundary nodes at root level (not embedded) are shown grayed out as inactive
+            boolean isInactive = node.isBoundaryNode && !node.isEmbedded;
             NodeRenderer.renderNode(gc, node.x, node.y, node.width, node.height,
                 node.label, isSelected, node.enabled, node.backgroundColor,
                 node.hasInput, node.hasDualInput, node.outputCount,
                 node.thumbnail, node.isContainer,
-                node.inputCount, node.inputCount2, outputCounters, node.nodeType, node.isBoundaryNode);
+                node.inputCount, node.inputCount2, outputCounters, node.nodeType, node.isBoundaryNode, isInactive);
 
             // Draw stats line
             boolean isSourceNode = !node.hasInput && !node.isBoundaryNode;
@@ -1103,6 +1105,10 @@ public class FXPipelineEditor {
         double y = 50 + (nodes.size() / 5) * 30;
 
         FXNode node = FXNodeFactory.createFXNode(nodeType, (int) x, (int) y);
+        // In root diagram, nodes are not embedded (they're at top level, not inside a container)
+        if (isRootDiagram) {
+            node.isEmbedded = false;
+        }
         nodes.add(node);
         selectedNodes.clear();
         selectedNodes.add(node);

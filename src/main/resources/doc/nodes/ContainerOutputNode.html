@@ -21,12 +21,16 @@
     <p>The exit point for frames leaving a Container's sub-pipeline. This node sends processed frames back to the parent pipeline.</p>
 
     <h2>Location</h2>
-    <p>Sub-pipeline Boundary Output nodes only appear <strong>inside</strong> Container sub-pipelines. They are automatically created when you create a new Container and cannot be deleted.</p>
+    <p>Sub-pipeline Boundary Output nodes are only active when <strong>inside</strong> Container sub-pipelines. They are automatically created when you create a new Container and cannot be deleted.</p>
+
+    <div class="note">
+        <strong>Grayed Out?</strong> If this node appears grayed out, it means the pipeline is being viewed at the root level (not inside a container). Sub-pipeline Boundary nodes only function when running inside a Container - they have no effect when the pipeline runs standalone. This visual indicator helps you understand the execution context.
+    </div>
 
     <h2>Behavior</h2>
     <ul>
         <li>Has one input that receives frames from your processing chain</li>
-        <li>Sends the received frames to the Container node's output in the parent pipeline</li>
+        <li>Sends processed frames back to the parent pipeline</li>
         <li>Acts as a passthrough - no modifications to the frame</li>
     </ul>
 

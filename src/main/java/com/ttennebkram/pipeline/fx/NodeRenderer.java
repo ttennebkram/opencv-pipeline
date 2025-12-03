@@ -48,6 +48,8 @@ public class NodeRenderer {
     private static final Color COLOR_NODE_BORDER = Color.rgb(100, 100, 150);
     private static final Color COLOR_NODE_SELECTED = Color.rgb(0, 0, 255);  // Bright blue for maximum visibility
     private static final Color COLOR_NODE_DISABLED_BG = Color.rgb(220, 220, 220);
+    private static final Color COLOR_NODE_INACTIVE_BG = Color.rgb(230, 230, 230);  // Light gray for inactive boundary nodes
+    private static final Color COLOR_NODE_INACTIVE_BORDER = Color.rgb(170, 170, 170);  // Gray border for inactive
 
     // Public color for container and boundary nodes (shared across classes)
     public static final Color COLOR_CONTAINER_NODE = Color.rgb(255, 200, 200);  // Light red
@@ -299,7 +301,6 @@ public class NodeRenderer {
 
     /**
      * Render a processing node with counters, node type, and boundary node indicator.
-     * This is the full version with all parameters.
      */
     public static void renderNode(GraphicsContext gc, double x, double y,
                                    double width, double height, String label,
@@ -309,14 +310,48 @@ public class NodeRenderer {
                                    Image thumbnail, boolean isContainer,
                                    int inputCounter, int inputCounter2, int[] outputCounters, String nodeType,
                                    boolean isBoundaryNode) {
+        renderNode(gc, x, y, width, height, label, selected, enabled, bgColor,
+                   hasInput, hasDualInput, outputCount, thumbnail, isContainer,
+                   inputCounter, inputCounter2, outputCounters, nodeType, isBoundaryNode, false);
+    }
 
-        // Draw background
-        Color bg = enabled ? (bgColor != null ? bgColor : COLOR_NODE_BG) : COLOR_NODE_DISABLED_BG;
+    /**
+     * Render a processing node with counters, node type, boundary node indicator, and inactive state.
+     * This is the full version with all parameters.
+     * @param isInactive true if this is a boundary node at root level (not inside a container) - renders grayed out
+     */
+    public static void renderNode(GraphicsContext gc, double x, double y,
+                                   double width, double height, String label,
+                                   boolean selected, boolean enabled,
+                                   Color bgColor, boolean hasInput,
+                                   boolean hasDualInput, int outputCount,
+                                   Image thumbnail, boolean isContainer,
+                                   int inputCounter, int inputCounter2, int[] outputCounters, String nodeType,
+                                   boolean isBoundaryNode, boolean isInactive) {
+
+        // Draw background - inactive nodes get gray background
+        Color bg;
+        if (isInactive) {
+            bg = COLOR_NODE_INACTIVE_BG;
+        } else if (enabled) {
+            bg = (bgColor != null ? bgColor : COLOR_NODE_BG);
+        } else {
+            bg = COLOR_NODE_DISABLED_BG;
+        }
         gc.setFill(bg);
         gc.fillRoundRect(x, y, width, height, 10, 10);
 
         // Draw border (thicker if selected, double-line for containers)
-        gc.setStroke(selected ? COLOR_NODE_SELECTED : COLOR_NODE_BORDER);
+        // Inactive nodes get gray border unless selected
+        Color borderColor;
+        if (selected) {
+            borderColor = COLOR_NODE_SELECTED;
+        } else if (isInactive) {
+            borderColor = COLOR_NODE_INACTIVE_BORDER;
+        } else {
+            borderColor = COLOR_NODE_BORDER;
+        }
+        gc.setStroke(borderColor);
         gc.setLineWidth(selected ? LINE_WIDTH_SELECTED : LINE_WIDTH_NORMAL);
         gc.strokeRoundRect(x, y, width, height, 10, 10);
 
@@ -329,7 +364,8 @@ public class NodeRenderer {
         // Input node: hexagons on left (where it attaches to container edge)
         // Output node: hexagons on right (where it attaches to container edge)
         if (isBoundaryNode) {
-            gc.setFill(Color.rgb(80, 90, 100));
+            // Use lighter color for inactive nodes (boundary nodes at root level)
+            gc.setFill(isInactive ? Color.rgb(180, 180, 180) : Color.rgb(80, 90, 100));
             double hexRadius = 3.3;
             double dotX;
             if ("ContainerInput".equals(nodeType)) {
@@ -353,13 +389,13 @@ public class NodeRenderer {
             drawCheckbox(gc, x + CHECKBOX_MARGIN, y + CHECKBOX_MARGIN, enabled);
         }
 
-        // Draw title (shift left if no checkbox)
-        gc.setFill(Color.BLACK);
+        // Draw title (shift left if no checkbox) - gray text for inactive nodes
+        gc.setFill(isInactive ? Color.GRAY : Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 10));
         double titleX = skipCheckbox ? x + CHECKBOX_MARGIN : x + CHECKBOX_MARGIN + CHECKBOX_SIZE + 5;
         gc.fillText(label, titleX, y + 15);
 
-        // Draw help icon (grayed out if no help available)
+        // Draw help icon - always active even for inactive nodes (user can still get help)
         boolean hasHelp = nodeType != null && FXHelpBrowser.hasHelp(nodeType);
         drawHelpIcon(gc, x + width - HELP_ICON_SIZE - HELP_ICON_MARGIN,
                      y + HELP_ICON_MARGIN, hasHelp);

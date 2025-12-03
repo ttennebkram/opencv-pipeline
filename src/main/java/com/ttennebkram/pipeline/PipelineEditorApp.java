@@ -328,6 +328,12 @@ public class PipelineEditorApp extends Application {
             connections.clear();
             nodes.addAll(doc.nodes);
             connections.addAll(doc.connections);
+
+            // Mark all root-level nodes as not embedded (they're at the top level, not inside a container)
+            for (FXNode node : nodes) {
+                node.isEmbedded = false;
+            }
+
             currentFilePath = path;
             editor.setBasePath(path);
             isDirty = false;
