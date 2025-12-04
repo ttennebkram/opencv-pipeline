@@ -9,27 +9,29 @@ Not just a drawing program - **it's live!** Each node you see is **an actual thr
 
 ## Quick Start
 
-Download `opencv-pipeline.jar` from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases) and run:
+Download the JAR for your platform from the [releases page](https://github.com/ttennebkram/opencv-pipeline/releases):
+
+| Platform | Download |
+|----------|----------|
+| macOS Apple Silicon (M1-M5) | [opencv-pipeline-mac-aarch64.jar](https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline-mac-aarch64.jar) |
+| macOS Intel (x86_64) | [opencv-pipeline-mac.jar](https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline-mac.jar) |
+| Linux x86_64 | [opencv-pipeline-linux.jar](https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline-linux.jar) |
+| Linux ARM64 (Raspberry Pi 4 & 5) | [opencv-pipeline-linux-aarch64.jar](https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline-linux-aarch64.jar) |
+| Windows x86_64 (Intel/AMD) | [opencv-pipeline-win.jar](https://github.com/ttennebkram/opencv-pipeline/releases/latest/download/opencv-pipeline-win.jar) |
+
+Then run:
 
 ```bash
-java -jar opencv-pipeline.jar
+java -jar opencv-pipeline-<platform>.jar
 ```
 
-Or to automatically load and startup a pipeline when the program first runs you'd do:
+Or to automatically load and start a pipeline:
 
 ```bash
-java -jar opencv-pipeline.jar pipeline.json --start 
+java -jar opencv-pipeline-<platform>.jar pipeline.json --start
 ```
 
-That's it! This one JAR works on all **supported** platforms:
-- **macOS** Apple Silicon (M1-M5)
-- **macOS** Intel (x86_64)
-- **Linux** x86_64
-- **Linux** ARM64 (Raspberry Pi 4 & 5)
-- **Windows** x86_64 (Intel/AMD)
-- *No Windows ARM64*
-
-Sorry, no Windows on ARM support. This project uses **OpenCV** which relies on **JNI** (Java Native Interface) for high-performance image processing, and OpenCV doesn't provide Windows ARM64 native libraries. We wanted to support it, but it's out of our control.
+**Note:** No Windows ARM64 support. OpenCV doesn't provide Windows ARM64 native libraries.
 
 Requires Java 17+.
 
@@ -42,7 +44,7 @@ Requires Java 17+.
 - **Threaded Execution**: Each node runs in its own thread with queue-based communication
 - **Container Nodes**: Create reusable sub-pipelines that can be nested
 - **Save/Load Pipelines**: Save your pipelines to JSON files and reload them later
-- **Cross-Platform**: Single JAR runs on macOS, Linux, and Windows
+- **Cross-Platform**: Runs on macOS, Linux, and Windows (platform-specific JARs)
 
 
 ## Requirements
@@ -53,7 +55,17 @@ Requires Java 17+.
 ## Building from Source
 
 ```bash
+# Build for current platform (macOS Apple Silicon by default)
 mvn clean package
+
+# Build for a specific platform
+mvn clean package -Pmac           # macOS Intel
+mvn clean package -Plinux         # Linux x86_64
+mvn clean package -Plinux-aarch64 # Linux ARM64 (Raspberry Pi)
+mvn clean package -Pwin           # Windows x86_64
+
+# Build all platforms at once
+./build-all-platforms.sh
 ```
 
 The uber-jar is created at `target/opencv-pipeline.jar`.
