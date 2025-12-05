@@ -16,7 +16,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javafx.version>19.0.2.1</javafx.version>
+        <javafx.version>22.0.1</javafx.version>
     </properties>
 
     <dependencies>
@@ -104,9 +104,9 @@
                                 <classpath/>
                                 <argument>-Xms512m</argument>
                                 <argument>-Xmx4g</argument>
-                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
-                                <argument>-Dapple.awt.application.name=OpenCV</argument>
-                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
+                                <argument>-Djdk.gtk.version=2</argument>
+                                <argument>-Dprism.order=sw</argument>
+                                <argument>-Djavafx.verbose=true</argument>
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                             </arguments>
                         </configuration>
@@ -121,9 +121,9 @@
                                 <classpath/>
                                 <argument>-Xms512m</argument>
                                 <argument>-Xmx4g</argument>
-                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
-                                <argument>-Dapple.awt.application.name=OpenCV</argument>
-                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
+                                <argument>-Djdk.gtk.version=2</argument>
+                                <argument>-Dprism.order=sw</argument>
+                                <argument>-Djavafx.verbose=true</argument>
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                                 <argument>--start</argument>
                             </arguments>
@@ -134,7 +134,7 @@
                         <id>run</id>
                         <configuration>
                             <executable>java</executable>
-                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g -Xdock:name=OpenCV\ Pipeline\ Editor -Dapple.awt.application.name=OpenCV com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
+                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
                         </configuration>
                     </execution>
                 </executions>

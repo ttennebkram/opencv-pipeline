@@ -271,7 +271,10 @@ public class PipelineEditorApp extends Application {
         menuBar.getMenus().addAll(fileMenu, editMenu, helpMenu);
 
         // macOS-specific menu bar integration
-        menuBar.setUseSystemMenuBar(true);
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac")) {
+            menuBar.setUseSystemMenuBar(true);
+        }
 
         return menuBar;
     }
