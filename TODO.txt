@@ -48,6 +48,8 @@ finish help pages
 
 .Should only be able to add 1 each: Container Input and Container Output nodes
 
+threads for boundary Input/Output nodes shouldn't run if loaded as root
+
 .image file paths should be resolved relative to the .json file that's referencing them
 
 .we're not showing the method signatures any more in Properties

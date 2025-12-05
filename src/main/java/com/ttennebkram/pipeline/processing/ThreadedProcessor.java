@@ -499,9 +499,16 @@ public class ThreadedProcessor {
 
     /**
      * Start processing thread.
+     * Boundary nodes (ContainerInput/ContainerOutput) don't start their threads
+     * when at root level (not embedded inside a container).
      */
     public void startProcessing() {
         if (running.get()) {
+            return;
+        }
+
+        // Boundary nodes should not run their threads at root level
+        if (fxNode != null && isBoundaryNode() && !fxNode.isEmbedded) {
             return;
         }
 
@@ -515,6 +522,15 @@ public class ThreadedProcessor {
         processingThread = new Thread(this::processingLoop, "Processor-" + name);
         processingThread.setPriority(threadPriority);
         processingThread.start();
+    }
+
+    /**
+     * Check if this processor is for a boundary node (ContainerInput/ContainerOutput).
+     */
+    private boolean isBoundaryNode() {
+        if (fxNode == null) return false;
+        String nodeType = fxNode.nodeType;
+        return "ContainerInput".equals(nodeType) || "ContainerOutput".equals(nodeType);
     }
 
     /**
