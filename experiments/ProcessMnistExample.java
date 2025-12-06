@@ -8,6 +8,9 @@
 //
 // Run with:
 //   java -cp experiments ProcessMnistExample
+//
+// *** CALLS PYTHON for higher performance GPU/Cuda, CPU fallback ***
+//
 
 import java.io.*;
 

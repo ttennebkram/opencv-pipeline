@@ -185,6 +185,14 @@
                             <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
                         </configuration>
                     </execution>
+                    <!-- Run ML tests: mvn exec:exec@ml -Dml.class=MLFacade -->
+                    <execution>
+                        <id>ml</id>
+                        <configuration>
+                            <executable>java</executable>
+                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g com.ttennebkram.pipeline.util.${ml.class} ${ml.args}</commandlineArgs>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <!-- Create executable uber-jar with all dependencies -->
