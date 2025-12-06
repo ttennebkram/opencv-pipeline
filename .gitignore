@@ -5,3 +5,8 @@ target/
 dependency-reduced-pom.xml
 __AUTH_CONST
 *.swp
+
+# ML datasets (downloaded by PyTorch/DJL)
+data/
+experiments/data/
+*.weights
