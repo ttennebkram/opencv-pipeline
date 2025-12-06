@@ -11,6 +11,10 @@ A graphical node-based pipeline editor for OpenCV image processing operations.
 - Never commit code in a potentially broken state
 - The user prefers to verify changes work before committing
 
+**Commit message format:**
+- Use only ONE attribution line at the end: `Co-Authored-By: Claude <noreply@anthropic.com>`
+- Do NOT include the emoji/link line `🤖 Generated with [Claude Code](...)`
+
 ## IMPORTANT: Verification
 
 **Do not claim a fix works until it has been tested.**
