@@ -5,7 +5,6 @@ import com.ttennebkram.pipeline.fx.FXNode;
 import com.ttennebkram.pipeline.fx.FXPropertiesDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Slider;
-import javafx.scene.control.ToggleGroup;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 
@@ -32,15 +31,23 @@ public class ThresholdProcessor extends FXProcessorBase {
 
     // Threshold type options
     private static final String[] TYPE_NAMES = {
-            "Binary", "Binary Inv", "Trunc", "To Zero", "To Zero Inv"
+            "Binary", "Binary Inv", "Trunc", "To Zero", "To Zero Inv",
+            "Otsu", "Otsu Inv", "Triangle", "Triangle Inv"
     };
     private static final int[] TYPE_VALUES = {
             Imgproc.THRESH_BINARY,
             Imgproc.THRESH_BINARY_INV,
             Imgproc.THRESH_TRUNC,
             Imgproc.THRESH_TOZERO,
-            Imgproc.THRESH_TOZERO_INV
+            Imgproc.THRESH_TOZERO_INV,
+            Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU,
+            Imgproc.THRESH_BINARY_INV | Imgproc.THRESH_OTSU,
+            Imgproc.THRESH_BINARY | Imgproc.THRESH_TRIANGLE,
+            Imgproc.THRESH_BINARY_INV | Imgproc.THRESH_TRIANGLE
     };
+
+    // Store computed threshold for display (for OTSU/TRIANGLE modes)
+    private double computedThreshold = -1;
 
     @Override
     public String getNodeType() {
@@ -71,10 +78,21 @@ public class ThresholdProcessor extends FXProcessorBase {
             gray = input.clone();
         }
 
-        // Apply threshold
+        // Apply threshold - returns computed threshold for OTSU/TRIANGLE modes
         Mat thresholded = new Mat();
-        Imgproc.threshold(gray, thresholded, threshold, maxValue, thresholdType);
+        computedThreshold = Imgproc.threshold(gray, thresholded, threshold, maxValue, thresholdType);
         gray.release();
+
+        // Update status text with threshold values
+        // For OTSU/TRIANGLE: show both set threshold and calculated threshold
+        // For manual modes: computed == set, so just show set
+        if (fxNode != null) {
+            if (usesAutoThreshold()) {
+                fxNode.statusText = String.format("T: %d  Calc: %.0f", threshold, computedThreshold);
+            } else {
+                fxNode.statusText = String.format("T: %d", threshold);
+            }
+        }
 
         // Convert back to BGR for display
         Mat output = new Mat();
@@ -82,6 +100,21 @@ public class ThresholdProcessor extends FXProcessorBase {
         thresholded.release();
 
         return output;
+    }
+
+    /**
+     * Check if this processor uses automatic threshold computation (OTSU or TRIANGLE).
+     */
+    public boolean usesAutoThreshold() {
+        return (thresholdType & Imgproc.THRESH_OTSU) != 0 ||
+               (thresholdType & Imgproc.THRESH_TRIANGLE) != 0;
+    }
+
+    /**
+     * Get the computed threshold value (for OTSU/TRIANGLE modes).
+     */
+    public double getComputedThreshold() {
+        return computedThreshold;
     }
 
     @Override
@@ -94,19 +127,17 @@ public class ThresholdProcessor extends FXProcessorBase {
         // Max value slider
         Slider maxValSlider = dialog.addSlider("Max Value:", 0, 255, maxValue, "%.0f");
 
-        // Threshold type radio buttons
+        // Threshold type dropdown
         int currentTypeIndex = getTypeIndex(thresholdType);
-        ToggleGroup typeGroup = dialog.addRadioButtons("Type:", TYPE_NAMES, currentTypeIndex);
+        ComboBox<String> typeCombo = dialog.addComboBox("Type:", TYPE_NAMES,
+                TYPE_NAMES[Math.min(currentTypeIndex, TYPE_NAMES.length - 1)]);
 
         // Save callback
         dialog.setOnOk(() -> {
             threshold = (int) threshSlider.getValue();
             maxValue = (int) maxValSlider.getValue();
-            // Get selected type from toggle group
-            if (typeGroup.getSelectedToggle() != null) {
-                int selectedIndex = (Integer) typeGroup.getSelectedToggle().getUserData();
-                thresholdType = TYPE_VALUES[selectedIndex];
-            }
+            int selectedIndex = typeCombo.getSelectionModel().getSelectedIndex();
+            thresholdType = TYPE_VALUES[selectedIndex];
         });
     }
 

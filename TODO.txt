@@ -46,6 +46,10 @@ finish help pages
     About...
         tip jar in About doc
 
+File Output
+
+Threshold node needs to show value of T
+
 .Should only be able to add 1 each: Container Input and Container Output nodes
 
 threads for boundary Input/Output nodes shouldn't run if loaded as root

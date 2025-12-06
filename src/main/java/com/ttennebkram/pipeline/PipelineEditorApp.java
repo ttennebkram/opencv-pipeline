@@ -240,6 +240,9 @@ public class PipelineEditorApp extends Application {
         MenuItem quitItem = new MenuItem("Quit");
         quitItem.setAccelerator(new KeyCodeCombination(KeyCode.Q, KeyCombination.SHORTCUT_DOWN));
         quitItem.setOnAction(e -> {
+            if (!checkUnsavedChanges()) {
+                return;
+            }
             stopPipeline();
             Platform.exit();
         });
@@ -549,6 +552,7 @@ public class PipelineEditorApp extends Application {
             node.outputCount2 = 0;
             node.outputCount3 = 0;
             node.outputCount4 = 0;
+            node.statusText = "";
         }
         // Clear connection queue stats
         for (FXConnection conn : connections) {
@@ -569,6 +573,11 @@ public class PipelineEditorApp extends Application {
     // ========================= APPLICATION LIFECYCLE =========================
 
     private void restartApplication() {
+        // Check for unsaved changes first
+        if (!checkUnsavedChanges()) {
+            return;
+        }
+
         // Stop pipeline first
         stopPipeline();
 

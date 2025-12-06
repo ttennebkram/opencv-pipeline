@@ -311,7 +311,7 @@ public class FXPipelineEditor {
                     node.threadPriority, node.workUnitsCompleted, node.isEmbedded);
             } else {
                 NodeRenderer.drawStatsLine(gc, node.x + 22, node.y + node.height - 8,
-                    node.threadPriority, node.workUnitsCompleted);
+                    node.threadPriority, node.workUnitsCompleted, node.statusText);
             }
         }
 

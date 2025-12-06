@@ -80,6 +80,9 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("outputCount2", node.outputCount2);
             nodeJson.addProperty("outputCount3", node.outputCount3);
             nodeJson.addProperty("outputCount4", node.outputCount4);
+            if (node.statusText != null && !node.statusText.isEmpty()) {
+                nodeJson.addProperty("statusText", node.statusText);
+            }
 
             // Node configuration
             nodeJson.addProperty("hasInput", node.hasInput);
@@ -280,6 +283,9 @@ public class FXPipelineSerializer {
                 }
                 if (nodeJson.has("outputCount4")) {
                     node.outputCount4 = nodeJson.get("outputCount4").getAsInt();
+                }
+                if (nodeJson.has("statusText")) {
+                    node.statusText = nodeJson.get("statusText").getAsString();
                 }
 
                 // Restore node configuration
@@ -906,6 +912,9 @@ public class FXPipelineSerializer {
             nodeJson.addProperty("outputCount2", node.outputCount2);
             nodeJson.addProperty("outputCount3", node.outputCount3);
             nodeJson.addProperty("outputCount4", node.outputCount4);
+            if (node.statusText != null && !node.statusText.isEmpty()) {
+                nodeJson.addProperty("statusText", node.statusText);
+            }
             nodeJson.addProperty("hasInput", node.hasInput);
             nodeJson.addProperty("hasDualInput", node.hasDualInput);
             nodeJson.addProperty("queuesInSync", node.queuesInSync);
@@ -1050,6 +1059,9 @@ public class FXPipelineSerializer {
             }
             if (nodeJson.has("outputCount4")) {
                 node.outputCount4 = nodeJson.get("outputCount4").getAsInt();
+            }
+            if (nodeJson.has("statusText")) {
+                node.statusText = nodeJson.get("statusText").getAsString();
             }
             if (nodeJson.has("hasInput")) {
                 node.hasInput = nodeJson.get("hasInput").getAsBoolean();

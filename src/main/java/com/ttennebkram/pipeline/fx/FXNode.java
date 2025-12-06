@@ -52,6 +52,7 @@ public class FXNode {
     public int threadPriority = 5;  // Default to NORM_PRIORITY
     public long workUnitsCompleted = 0;
     public double effectiveFps = 0;  // For source nodes only
+    public String statusText = "";  // Extra status text (e.g., computed threshold for OTSU/TRIANGLE)
 
     // Webcam-specific properties - default set dynamically when creating WebcamSource nodes
     public int cameraIndex = -1; // -1 means "auto-detect highest camera"

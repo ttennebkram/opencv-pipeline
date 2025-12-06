@@ -869,10 +869,27 @@ public class NodeRenderer {
      */
     public static void drawStatsLine(GraphicsContext gc, double x, double y,
                                       int priority, long workUnits) {
+        drawStatsLine(gc, x, y, priority, workUnits, "");
+    }
+
+    /**
+     * Draw the stats line for processing nodes: "Pri: N   Work: N   [statusText]"
+     * @param gc Graphics context
+     * @param x X position to start drawing
+     * @param y Y position for baseline
+     * @param priority Current thread priority (1-10)
+     * @param workUnits Number of work units completed
+     * @param statusText Extra status text to display (can be empty)
+     */
+    public static void drawStatsLine(GraphicsContext gc, double x, double y,
+                                      int priority, long workUnits, String statusText) {
         gc.setFont(STATS_LINE_FONT);
         // Red text if priority is below 5, otherwise dark gray
         gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
         String statsLine = String.format("Pri: %d   Work: %,d", priority, workUnits);
+        if (statusText != null && !statusText.isEmpty()) {
+            statsLine += "   " + statusText;
+        }
         gc.fillText(statsLine, x, y);
     }
 
