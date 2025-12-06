@@ -38,6 +38,10 @@ mvn exec:exec@run -Dpipeline.args="file.json --start"
 # Package uber-jar
 mvn clean package
 java -jar target/opencv-pipeline.jar
+
+# Build all platform JARs for release
+./build-all-platforms.sh
+# Creates: target/opencv-pipeline-{mac-aarch64,mac,linux,linux-aarch64,win}.jar
 ```
 
 ## Tech Stack
@@ -119,6 +123,18 @@ Toolbar categories appear in this order (defined in `FXNodeRegistry.CATEGORY_ORD
 13. Container I/O
 
 ## Key Patterns
+
+### Node Status Text
+Processors can display extra runtime information (like computed values) via `FXNode.statusText`:
+```java
+// In process() method, update statusText for display on the node
+if (fxNode != null) {
+    fxNode.statusText = String.format("Value: %.0f", computedValue);
+}
+```
+- statusText is displayed after "Work:" in the node's stats line
+- Cleared when pipeline starts (in `clearPipelineStats()`)
+- Persisted to JSON and restored on load
 
 ### Mat Memory Management
 OpenCV Mats must be manually released. Use `MatTracker` for debugging leaks:
