@@ -5,3 +5,7 @@ target/
 dependency-reduced-pom.xml
 __AUTH_CONST
 *.swp
+
+# ML datasets and model weights
+data/
+*.weights
