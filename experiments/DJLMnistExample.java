@@ -1,31 +1,27 @@
 // DJLMnistExample.java
 //
-// A small CNN on MNIST using DJL (Deep Java Library) with PyTorch backend.
-// DJL has better Apple Silicon support than DL4J.
+// PURE JAVA CNN - No Python required!
 //
-// Maven dependencies needed in pom.xml:
+// Uses DJL (Deep Java Library) with PyTorch backend.
+// DJL downloads native PyTorch libraries automatically - no Python install needed.
+// This runs entirely in the JVM.
 //
-// <dependency>
-//     <groupId>ai.djl</groupId>
-//     <artifactId>api</artifactId>
-//     <version>0.30.0</version>
-// </dependency>
-// <dependency>
-//     <groupId>ai.djl.pytorch</groupId>
-//     <artifactId>pytorch-engine</artifactId>
-//     <version>0.30.0</version>
-//     <scope>runtime</scope>
-// </dependency>
-// <dependency>
-//     <groupId>ai.djl</groupId>
-//     <artifactId>basicdataset</artifactId>
-//     <version>0.30.0</version>
-// </dependency>
-// <dependency>
-//     <groupId>ai.djl</groupId>
-//     <artifactId>model-zoo</artifactId>
-//     <version>0.30.0</version>
-// </dependency>
+// Note: Despite using PyTorch under the hood, DJL's PyTorch doesn't support
+// Apple Silicon GPU (MPS). Training is CPU-only (~7s/epoch).
+// For GPU-accelerated training, see ProcessMnistExample.java (Python subprocess).
+//
+// Run with:
+//   mvn exec:exec@ml -Dml.class=DJLTrainer
+//
+// Or standalone:
+//   mvn compile
+//   java -cp "$(cat /tmp/cp.txt):target/classes:experiments" DJLMnistExample
+//
+// Dependencies already in pom.xml:
+//   - ai.djl:api:0.30.0
+//   - ai.djl.pytorch:pytorch-engine:0.30.0
+//   - ai.djl:basicdataset:0.30.0
+//   - ai.djl:model-zoo:0.30.0
 
 import ai.djl.Model;
 import ai.djl.basicdataset.cv.classification.Mnist;

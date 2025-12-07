@@ -1,27 +1,23 @@
 // CNNMnistExample.java
 //
-// A small CNN on MNIST, roughly equivalent to the PyTorch version we wrote.
-// Uses Deeplearning4j.
+// PURE JAVA CNN - No Python required!
 //
-// Maven dependencies (pom.xml) would need something like:
+// Uses Deeplearning4j (DL4J), a pure Java deep learning library.
+// This runs entirely in the JVM - no Python, no external processes.
 //
-// <dependencies>
-//   <dependency>
-//     <groupId>org.deeplearning4j</groupId>
-//     <artifactId>deeplearning4j-core</artifactId>
-//     <version>1.0.0-M2.1</version>
-//   </dependency>
-//   <dependency>
-//     <groupId>org.nd4j</groupId>
-//     <artifactId>nd4j-native-platform</artifactId>
-//     <version>1.0.0-M2.1</version>
-//   </dependency>
-//   <dependency>
-//     <groupId>org.deeplearning4j</groupId>
-//     <artifactId>deeplearning4j-datasets</artifactId>
-//     <version>1.0.0-M2.1</version>
-//   </dependency>
-// </dependencies>
+// Trade-off: DL4J doesn't support Apple Silicon GPU (MPS) or modern CUDA.
+// Training is CPU-only and slower than Python+PyTorch (~7s/epoch vs ~3s/epoch).
+// For GPU-accelerated training, see ProcessMnistExample.java (Python subprocess)
+// or PythonMLBridge.java (Java-orchestrated Python).
+//
+// Run with:
+//   mvn compile
+//   java -cp "$(cat /tmp/cp.txt):target/classes:experiments" CNNMnistExample
+//
+// Dependencies already in pom.xml:
+//   - org.deeplearning4j:deeplearning4j-core:1.0.0-M2.1
+//   - org.nd4j:nd4j-native-platform:1.0.0-M2.1
+//   - org.deeplearning4j:deeplearning4j-datasets:1.0.0-M2.1
 
 import org.deeplearning4j.datasets.iterator.impl.MnistDataSetIterator;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;

@@ -1,15 +1,25 @@
 // ProcessMnistExample.java
 //
-// Runs PyTorch MNIST training via Python subprocess.
-// This gives us MPS (Metal) GPU acceleration without needing Jep to compile.
+// JAVA + PYTHON HYBRID - Requires Python!
+//
+// Java spawns a Python subprocess to run PyTorch training.
+// This gives us GPU acceleration (MPS on Mac, CUDA on NVIDIA) that
+// pure Java solutions (DL4J, DJL) don't support.
+//
+// How it works:
+//   1. Java embeds Python code as a string
+//   2. Java writes it to a temp file
+//   3. Java runs "python3 tempfile.py" via ProcessBuilder
+//   4. Java streams the output in real-time
+//
+// Performance: ~3s/epoch (vs ~7s/epoch for pure Java)
 //
 // Prerequisites:
 //   pip install torch torchvision
 //
 // Run with:
-//   java -cp experiments ProcessMnistExample
-//
-// *** CALLS PYTHON for higher performance GPU/Cuda, CPU fallback ***
+//   mvn dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -q
+//   java -cp "$(cat /tmp/cp.txt):target/classes:experiments" ProcessMnistExample
 //
 
 import java.io.*;
