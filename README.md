@@ -192,6 +192,22 @@ The application uses a modular processor architecture:
 - New node types can be added by creating a new processor class with the `@FXProcessorInfo` annotation
 - Runtime discovery automatically registers all processors
 
+## ML Experiments
+
+The `experiments` branch contains experimental deep learning code for training CNNs with GPU acceleration.
+
+```bash
+git checkout experiments
+mvn exec:exec@ml -Dml.class=MLFacade
+```
+
+Features:
+- **Automatic backend selection**: Uses Python+GPU (MPS/CUDA) if available, falls back to pure Java
+- **Cross-platform inference**: Train anywhere, run inference in pure Java (~0.3ms/image)
+- **Step-by-step Python bridge**: Java orchestrates training while Python/PyTorch handles GPU computation
+
+See `CLAUDE.md` for detailed ML documentation.
+
 ## License
 
 MIT License

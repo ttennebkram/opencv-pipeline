@@ -173,3 +173,42 @@ Pipelines are saved as JSON with `.json` extension. Thumbnails are cached in `~/
 - Watch for file handle leaks - always close InputStreams, use try-with-resources
 - FFT nodes have complex multi-channel output modes (grayscale vs 4-channel)
 - Container nodes have their own sub-pipeline serialized inline
+
+## ML Experiments (experiments branch)
+
+The `experiments` branch contains experimental ML/deep learning code for training CNNs.
+
+### Running ML Demos
+
+```bash
+git checkout experiments
+
+# Auto-detect best backend (Python+GPU if available, falls back to Java)
+mvn exec:exec@ml -Dml.class=MLFacade
+
+# Force pure Java backend (no Python needed)
+mvn exec:exec@ml -Dml.class=MLFacade '-Dml.args=--djl'
+
+# Run individual components
+mvn exec:exec@ml -Dml.class=PythonMLBridge    # Python bridge demo
+mvn exec:exec@ml -Dml.class=DJLTrainer        # Pure Java trainer
+mvn exec:exec@ml -Dml.class=JavaCNNInference  # Train + Java inference
+```
+
+### ML Architecture
+
+- **MLFacade**: Auto-selects best backend (Python+GPU > Python+CPU > Java/DJL)
+- **PythonMLBridge**: Step-by-step Python/PyTorch calls with MPS/CUDA GPU support
+- **DJLTrainer**: Pure Java fallback using DJL when Python unavailable
+- **JavaCNNInference**: Pure Java inference (~0.3ms/image) - no Python needed at runtime
+
+### Performance
+
+| Backend | Training (3 epochs) | Inference |
+|---------|---------------------|-----------|
+| Python + MPS (Mac) | ~10s | - |
+| Python + CUDA (NVIDIA) | ~10s | - |
+| Java DJL (CPU) | ~22s | - |
+| Java Inference | - | 0.3ms/image |
+
+Training exports portable weight files that work with JavaCNNInference on any platform.
