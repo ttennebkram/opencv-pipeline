@@ -1,4 +1,4 @@
-// ProcessMnistExample.java
+// ProcessMnistHybridExample.java
 //
 // JAVA + PYTHON HYBRID - Requires Python!
 //
@@ -19,12 +19,12 @@
 //
 // Run with:
 //   mvn dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -q
-//   java -cp "$(cat /tmp/cp.txt):target/classes:experiments" ProcessMnistExample
+//   java -cp "$(cat /tmp/cp.txt):target/classes:experiments" ProcessMnistHybridExample
 //
 
 import java.io.*;
 
-public class ProcessMnistExample {
+public class ProcessMnistHybridExample {
 
     public static void main(String[] args) throws Exception {
         System.out.println("Starting Python PyTorch MNIST via subprocess");
