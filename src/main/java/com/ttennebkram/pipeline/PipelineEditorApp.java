@@ -145,6 +145,12 @@ public class PipelineEditorApp extends Application {
                     e.consume();
                 }
             }
+            // F key: fullscreen preview of selected node
+            if (e.getCode() == KeyCode.F && !e.isControlDown() && !e.isShiftDown() && !e.isAltDown()) {
+                if (editor.showFullscreenPreview()) {
+                    e.consume();
+                }
+            }
         });
 
         primaryStage.setTitle("OpenCV Pipeline Editor - (untitled)");

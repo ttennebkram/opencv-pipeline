@@ -3,13 +3,16 @@ package com.ttennebkram.pipeline.fx;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 
@@ -222,6 +225,56 @@ public class FXPipelineEditor {
             paintCanvas();
         }
         return moved;
+    }
+
+    /**
+     * Show fullscreen preview of the currently selected node's image.
+     * Returns true if fullscreen was shown, false if no valid preview available.
+     */
+    public boolean showFullscreenPreview() {
+        // Need exactly one selected node with a preview image
+        if (selectedNodes.size() != 1) {
+            return false;
+        }
+        FXNode node = selectedNodes.iterator().next();
+        Image image = node.previewImage;
+        if (image == null) {
+            return false;
+        }
+
+        // Create fullscreen stage
+        Stage fullscreenStage = new Stage();
+        fullscreenStage.initOwner(ownerWindow);
+        fullscreenStage.initModality(Modality.APPLICATION_MODAL);
+        fullscreenStage.setTitle("Preview: " + node.label + " (ESC to close)");
+
+        // ImageView to display the preview
+        ImageView imageView = new ImageView(image);
+        imageView.setPreserveRatio(true);
+
+        // Container that fills the window
+        StackPane container = new StackPane(imageView);
+        container.setStyle("-fx-background-color: #000000;");
+
+        // Bind image size to window size
+        imageView.fitWidthProperty().bind(container.widthProperty());
+        imageView.fitHeightProperty().bind(container.heightProperty());
+
+        Scene scene = new Scene(container, 800, 600);
+
+        // ESC key closes the window
+        scene.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                fullscreenStage.close();
+                e.consume();
+            }
+        });
+
+        fullscreenStage.setScene(scene);
+        fullscreenStage.setMaximized(true);
+        fullscreenStage.show();
+
+        return true;
     }
 
     /**
