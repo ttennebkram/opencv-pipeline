@@ -47,14 +47,12 @@ public class CNNMnistExample {
     public static void main(String[] args) throws Exception {
 
         // ========================================================
-        // Step 1: "Architect writes the blueprint"
+        // Step 1: "Architect draws up the plans"
         //
-        // Here we DEFINE the network architecture:
-        //   - Two conv+pool blocks
-        //   - One dense layer
-        //   - One output layer (10 digits)
-        //
-        // This is just a configuration / blueprint, not trained yet.
+        // Define the basic parameters for our network:
+        //   - Input dimensions (28x28 grayscale images)
+        //   - Output classes (10 digits)
+        //   - Training hyperparameters
         // ========================================================
 
         int height = 28;        // MNIST height
@@ -65,20 +63,26 @@ public class CNNMnistExample {
         int epochs = 3;
         double learningRate = 0.001;
 
+        System.out.println("Step 1: Planning the network");
+        System.out.println("  Input:  " + channels + " x " + height + " x " + width);
+        System.out.println("  Output: " + outputNum + " classes");
+        System.out.println("  Batch:  " + batchSize + ", Epochs: " + epochs);
+
+        // ========================================================
+        // Step 2: "Prepare the worksite - lay out the empty layers"
+        //
+        // Create the layer structure (but weights are not initialized yet):
+        //
         // Conv1: 1 -> 8 filters, 3x3 kernel
-        // After Conv1 (no padding, stride 1):
-        //   28x28 -> 26x26
-        // After Pool1 (2x2):
-        //   26x26 -> 13x13
+        //   28x28 -> 26x26 -> Pool -> 13x13
         //
         // Conv2: 8 -> 16 filters, 3x3 kernel
-        // After Conv2:
-        //   13x13 -> 11x11
-        // After Pool2 (2x2):
-        //   11x11 -> 5x5
+        //   13x13 -> 11x11 -> Pool -> 5x5
         //
-        // Final conv output shape: 16 x 5 x 5
-        // Flatten size: 16 * 5 * 5 = 400
+        // Dense: 400 -> 64 -> 10
+        // ========================================================
+
+        System.out.println("\nStep 2: Preparing layer structure");
 
         MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
                 .seed(123)
@@ -127,22 +131,12 @@ public class CNNMnistExample {
                 .setInputType(InputType.convolutionalFlat(height, width, channels))
                 .build();
 
-        // ========================================================
-        // Step 2: "Blueprint is finalized"
-        //
-        // The configuration object (conf) now contains the complete
-        // network architecture specification. At this point we have:
-        //   - Layer definitions (conv, pool, dense, output)
-        //   - Hyperparameters (learning rate, optimizer)
-        //   - Input/output shapes
-        //
-        // But no actual neural network exists yet - just the plan.
-        // ========================================================
-
-        System.out.println("Network configuration created:");
-        System.out.println("  Input:  " + channels + " x " + height + " x " + width);
-        System.out.println("  Layers: " + conf.getConfs().size());
-        System.out.println("  Output: " + outputNum + " classes");
+        System.out.println("  Layer 0: Conv2D     1 -> 8 filters (3x3)");
+        System.out.println("  Layer 1: MaxPool    2x2");
+        System.out.println("  Layer 2: Conv2D     8 -> 16 filters (3x3)");
+        System.out.println("  Layer 3: MaxPool    2x2");
+        System.out.println("  Layer 4: Dense      400 -> 64");
+        System.out.println("  Layer 5: Output     64 -> 10");
 
         // ========================================================
         // Step 3: "Construction crew builds the house and brings tools"
