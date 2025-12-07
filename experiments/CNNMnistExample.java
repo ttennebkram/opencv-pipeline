@@ -128,6 +128,23 @@ public class CNNMnistExample {
                 .build();
 
         // ========================================================
+        // Step 2: "Blueprint is finalized"
+        //
+        // The configuration object (conf) now contains the complete
+        // network architecture specification. At this point we have:
+        //   - Layer definitions (conv, pool, dense, output)
+        //   - Hyperparameters (learning rate, optimizer)
+        //   - Input/output shapes
+        //
+        // But no actual neural network exists yet - just the plan.
+        // ========================================================
+
+        System.out.println("Network configuration created:");
+        System.out.println("  Input:  " + channels + " x " + height + " x " + width);
+        System.out.println("  Layers: " + conf.getConfs().size());
+        System.out.println("  Output: " + outputNum + " classes");
+
+        // ========================================================
         // Step 3: "Construction crew builds the house and brings tools"
         //
         // Now we:
