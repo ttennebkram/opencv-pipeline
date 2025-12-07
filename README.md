@@ -109,6 +109,7 @@ mvn compile exec:exec@start
 - **Ctrl+S / Cmd+S**: Save pipeline
 - **Ctrl+O / Cmd+O**: Open pipeline
 - **Ctrl+N / Cmd+N**: New pipeline
+- **F**: Fullscreen preview of selected node (ESC to close)
 
 ### Save Warning
 
