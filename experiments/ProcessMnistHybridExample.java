@@ -27,10 +27,17 @@ import java.io.*;
 public class ProcessMnistHybridExample {
 
     public static void main(String[] args) throws Exception {
-        System.out.println("Starting Python PyTorch MNIST via subprocess");
-        System.out.println("=============================================\n");
+        System.out.println("ProcessMnistHybridExample - Java orchestrates, Python computes");
+        System.out.println("==============================================================\n");
 
-        // Python script as heredoc
+        // ========================================================
+        // Step 1: [JAVA] Prepare the Python script
+        //
+        // Java holds the Python code as a string. This keeps
+        // everything in one file for easy distribution.
+        // ========================================================
+        System.out.println("Step 1: [JAVA] Preparing Python script...");
+
         String pythonScript = """
 import torch
 import torch.nn as nn
@@ -43,40 +50,50 @@ import sys
 # Unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
 
-# Check for MPS (Metal) GPU
+# ========================================================
+# Step 2: [PYTHON] Detect GPU
+# ========================================================
+print("Step 2: [PYTHON] Detecting GPU...")
 if torch.backends.mps.is_available():
     device = torch.device("mps")
-    print(f"Using MPS (Metal) GPU acceleration!")
+    print("  GPU: MPS (Apple Metal) - FAST!")
 elif torch.cuda.is_available():
     device = torch.device("cuda")
-    print(f"Using CUDA GPU")
+    print(f"  GPU: CUDA ({torch.cuda.get_device_name(0)}) - FAST!")
 else:
     device = torch.device("cpu")
-    print(f"Using CPU")
+    print("  GPU: None - using CPU (slower)")
 
-print(f"Device: {device}")
-
-# Hyperparameters
+# ========================================================
+# Step 3: [PYTHON] Define hyperparameters
+# ========================================================
+print("\\nStep 3: [PYTHON] Setting hyperparameters...")
 batch_size = 128
 epochs = 3
 learning_rate = 0.001
+print(f"  Batch size: {batch_size}")
+print(f"  Epochs: {epochs}")
+print(f"  Learning rate: {learning_rate}")
 
-# Data transforms
+# ========================================================
+# Step 4: [PYTHON] Load MNIST dataset
+# ========================================================
+print("\\nStep 4: [PYTHON] Loading MNIST dataset...")
 transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
 ])
-
-# Load MNIST
-print("\\nLoading MNIST dataset...")
 train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
 test_dataset = datasets.MNIST('./data', train=False, transform=transform)
-
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-print(f"Training samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
+print(f"  Training samples: {len(train_dataset)}")
+print(f"  Test samples: {len(test_dataset)}")
 
-# Define CNN (same architecture as Java versions)
+# ========================================================
+# Step 5: [PYTHON] Define CNN architecture
+# ========================================================
+print("\\nStep 5: [PYTHON] Defining CNN architecture...")
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
@@ -100,19 +117,27 @@ class CNN(nn.Module):
         x = self.fc2(x)
         return x
 
-# Create model
 model = CNN().to(device)
-print(f"\\nModel architecture:")
-print(model)
+print("  Layer 0: Conv2D     1 -> 8 filters (3x3)")
+print("  Layer 1: MaxPool    2x2")
+print("  Layer 2: Conv2D     8 -> 16 filters (3x3)")
+print("  Layer 3: MaxPool    2x2")
+print("  Layer 4: Dense      400 -> 64")
+print("  Layer 5: Output     64 -> 10")
 
-# Loss and optimizer
+# ========================================================
+# Step 6: [PYTHON] Configure optimizer
+# ========================================================
+print("\\nStep 6: [PYTHON] Configuring optimizer...")
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+print("  Loss: CrossEntropyLoss")
+print("  Optimizer: Adam")
 
-# Training loop
-print("\\n" + "="*50)
-print("Starting training...")
-print("="*50)
+# ========================================================
+# Step 7: [PYTHON] Train the model (GPU-accelerated)
+# ========================================================
+print("\\nStep 7: [PYTHON] Training model on " + str(device) + "...")
 
 total_start = time.time()
 
@@ -143,12 +168,12 @@ for epoch in range(epochs):
     print(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}, Acc: {train_acc:.2f}%, Time: {epoch_time:.2f}s")
 
 total_time = time.time() - total_start
-print(f"\\nTotal training time: {total_time:.2f}s")
+print(f"  Total training time: {total_time:.2f}s")
 
-# Evaluation
-print("\\n" + "="*50)
-print("Evaluating on test set...")
-print("="*50)
+# ========================================================
+# Step 8: [PYTHON] Evaluate on test set
+# ========================================================
+print("\\nStep 8: [PYTHON] Evaluating on test set...")
 
 model.eval()
 test_loss = 0
@@ -165,13 +190,13 @@ with torch.no_grad():
         correct += predicted.eq(target).sum().item()
 
 test_acc = 100. * correct / total
-print(f"Test Accuracy: {test_acc:.2f}%")
-print(f"Test Loss: {test_loss/len(test_loader):.4f}")
+print(f"  Test Accuracy: {test_acc:.2f}%")
+print(f"  Test Loss: {test_loss/len(test_loader):.4f}")
 
-# Single prediction
-print("\\n" + "="*50)
-print("Single sample prediction:")
-print("="*50)
+# ========================================================
+# Step 9: [PYTHON] Single sample prediction
+# ========================================================
+print("\\nStep 9: [PYTHON] Single sample prediction...")
 
 test_iter = iter(test_loader)
 data, target = next(test_iter)
@@ -183,9 +208,9 @@ with torch.no_grad():
     probs = torch.softmax(output, dim=1)
     predicted = output.argmax(dim=1).item()
 
-print(f"Actual: {single_label}")
-print(f"Predicted: {predicted}")
-print(f"Confidence: {probs[0][predicted].item()*100:.2f}%")
+print(f"  Actual: {single_label}")
+print(f"  Predicted: {predicted}")
+print(f"  Confidence: {probs[0][predicted].item()*100:.2f}%")
 """;
 
         // Write script to temp file
@@ -194,8 +219,16 @@ print(f"Confidence: {probs[0][predicted].item()*100:.2f}%")
         try (PrintWriter writer = new PrintWriter(tempScript)) {
             writer.print(pythonScript);
         }
+        System.out.println("  Script ready (" + pythonScript.length() + " chars)\n");
 
-        // Run Python
+        // ========================================================
+        // Step 1b: [JAVA] Launch Python subprocess
+        //
+        // Java spawns Python and streams its output in real-time.
+        // From here, Steps 2-9 run in Python with GPU acceleration.
+        // ========================================================
+        System.out.println("Step 1b: [JAVA] Launching Python subprocess...\n");
+
         ProcessBuilder pb = new ProcessBuilder("python3", tempScript.getAbsolutePath());
         pb.redirectErrorStream(true);
         pb.environment().put("PYTHONUNBUFFERED", "1");
@@ -212,7 +245,10 @@ print(f"Confidence: {probs[0][predicted].item()*100:.2f}%")
 
         int exitCode = process.waitFor();
 
-        System.out.println("\n=============================================");
-        System.out.println("Python process exited with code: " + exitCode);
+        // ========================================================
+        // Step 10: [JAVA] Done!
+        // ========================================================
+        System.out.println("\nStep 10: [JAVA] Complete!");
+        System.out.println("  Python process exited with code: " + exitCode);
     }
 }

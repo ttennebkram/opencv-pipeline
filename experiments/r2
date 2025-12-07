@@ -7,5 +7,6 @@
 
 # Or if you've already built the classpath file recently:
 
-java -cp "$(cat /tmp/cp.txt):target/classes:." ProcessMnistExample
+#java -cp "$(cat /tmp/cp.txt):target/classes:." ProcessMnistExample
+java -cp "$(cat /tmp/cp.txt):target/classes:." ProcessMnistHybridExample
 
