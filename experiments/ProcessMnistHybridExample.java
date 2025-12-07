@@ -105,38 +105,85 @@ print(f"  Test samples: {len(test_dataset)}")
 
 # ========================================================
 # Step 5: [PYTHON] Define CNN architecture
+#
+# Network parameters (named constants for clarity)
 # ========================================================
 print("\\nStep 5: [PYTHON] Defining CNN architecture...")
+
+# ----- Architecture Constants -----
+# Input: MNIST images
+INPUT_HEIGHT = 28
+INPUT_WIDTH = 28
+INPUT_CHANNELS = 1      # grayscale
+
+# Conv layer settings
+KERNEL_SIZE = 3         # 3x3 convolution kernels
+CONV_STRIDE = 1         # no stride (move 1 pixel at a time)
+POOL_SIZE = 2           # 2x2 max pooling
+POOL_STRIDE = 2         # non-overlapping pools
+
+# Filter counts (double each layer - common pattern)
+CONV1_FILTERS = 8       # first conv: 8 feature detectors
+CONV2_FILTERS = 16      # second conv: 16 feature detectors
+
+# Dense layer sizes
+HIDDEN_UNITS = 64       # hidden layer neurons
+NUM_CLASSES = 10        # output: digits 0-9
+
+# ----- Calculate sizes through the network -----
+# Conv reduces size by (kernel_size - 1) when stride=1, no padding
+# Pool divides size by pool_stride
+
+# After conv1: 28 - (3-1) = 26
+after_conv1 = INPUT_HEIGHT - (KERNEL_SIZE - 1)
+# After pool1: 26 // 2 = 13
+after_pool1 = after_conv1 // POOL_STRIDE
+# After conv2: 13 - (3-1) = 11
+after_conv2 = after_pool1 - (KERNEL_SIZE - 1)
+# After pool2: 11 // 2 = 5
+after_pool2 = after_conv2 // POOL_STRIDE
+
+# Flattened size for dense layer: filters * height * width
+FLATTEN_SIZE = CONV2_FILTERS * after_pool2 * after_pool2  # 16 * 5 * 5 = 400
+
+print(f"  Input:       {INPUT_CHANNELS} x {INPUT_HEIGHT} x {INPUT_WIDTH}")
+print(f"  After conv1: {CONV1_FILTERS} x {after_conv1} x {after_conv1}")
+print(f"  After pool1: {CONV1_FILTERS} x {after_pool1} x {after_pool1}")
+print(f"  After conv2: {CONV2_FILTERS} x {after_conv2} x {after_conv2}")
+print(f"  After pool2: {CONV2_FILTERS} x {after_pool2} x {after_pool2}")
+print(f"  Flattened:   {FLATTEN_SIZE}")
+print(f"  Hidden:      {HIDDEN_UNITS}")
+print(f"  Output:      {NUM_CLASSES}")
+
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        # Conv block 1: 1 -> 8 filters
-        self.conv1 = nn.Conv2d(1, 8, kernel_size=3, stride=1)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # Conv block 2: 8 -> 16 filters
-        self.conv2 = nn.Conv2d(8, 16, kernel_size=3, stride=1)
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # Dense layers
-        self.fc1 = nn.Linear(16 * 5 * 5, 64)
-        self.fc2 = nn.Linear(64, 10)
+        # Conv block 1: extract low-level features (edges, textures)
+        self.conv1 = nn.Conv2d(INPUT_CHANNELS, CONV1_FILTERS,
+                               kernel_size=KERNEL_SIZE, stride=CONV_STRIDE)
+        self.pool1 = nn.MaxPool2d(kernel_size=POOL_SIZE, stride=POOL_STRIDE)
+
+        # Conv block 2: extract higher-level features (shapes, patterns)
+        self.conv2 = nn.Conv2d(CONV1_FILTERS, CONV2_FILTERS,
+                               kernel_size=KERNEL_SIZE, stride=CONV_STRIDE)
+        self.pool2 = nn.MaxPool2d(kernel_size=POOL_SIZE, stride=POOL_STRIDE)
+
+        # Dense layers: classify based on extracted features
+        self.fc1 = nn.Linear(FLATTEN_SIZE, HIDDEN_UNITS)
+        self.fc2 = nn.Linear(HIDDEN_UNITS, NUM_CLASSES)
 
     def forward(self, x):
-        x = torch.relu(self.conv1(x))
-        x = self.pool1(x)
-        x = torch.relu(self.conv2(x))
-        x = self.pool2(x)
-        x = x.view(-1, 16 * 5 * 5)
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
+        # x: [batch, 1, 28, 28]
+        x = torch.relu(self.conv1(x))   # -> [batch, 8, 26, 26]
+        x = self.pool1(x)                # -> [batch, 8, 13, 13]
+        x = torch.relu(self.conv2(x))   # -> [batch, 16, 11, 11]
+        x = self.pool2(x)                # -> [batch, 16, 5, 5]
+        x = x.view(-1, FLATTEN_SIZE)     # -> [batch, 400]
+        x = torch.relu(self.fc1(x))     # -> [batch, 64]
+        x = self.fc2(x)                  # -> [batch, 10]
         return x
 
 model = CNN().to(device)
-print("  Layer 0: Conv2D     1 -> 8 filters (3x3)")
-print("  Layer 1: MaxPool    2x2")
-print("  Layer 2: Conv2D     8 -> 16 filters (3x3)")
-print("  Layer 3: MaxPool    2x2")
-print("  Layer 4: Dense      400 -> 64")
-print("  Layer 5: Output     64 -> 10")
 
 # ========================================================
 # Step 6: [PYTHON] Configure optimizer
