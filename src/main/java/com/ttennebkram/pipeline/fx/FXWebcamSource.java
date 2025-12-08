@@ -34,6 +34,12 @@ public class FXWebcamSource {
     private int fpsIndex = 2; // Default 10 fps
     private boolean mirrorHorizontal = true;
     private boolean isOpen = false;
+    private boolean usingGStreamer = false; // Track if using GStreamer pipeline
+    private Process rpicamProcess = null; // rpicam-still process for Pi camera
+    private String rpicamTempFile = null; // Temp file for rpicam-still output
+    private boolean usingRpicamPolling = false; // Track if using rpicam-still polling
+    private int rpicamWidth = 640;
+    private int rpicamHeight = 480;
 
     private Thread captureThread;
     private AtomicBoolean running = new AtomicBoolean(false);
@@ -58,19 +64,144 @@ public class FXWebcamSource {
     public boolean open() {
         close(); // Close any existing capture
 
+        int[] res = RESOLUTIONS[resolutionIndex];
+
+        // First try standard V4L2 capture (works for USB webcams, preferred for higher FPS)
         videoCapture = new VideoCapture(cameraIndex);
         if (videoCapture.isOpened()) {
             // Set resolution
-            int[] res = RESOLUTIONS[resolutionIndex];
             videoCapture.set(Videoio.CAP_PROP_FRAME_WIDTH, res[0]);
             videoCapture.set(Videoio.CAP_PROP_FRAME_HEIGHT, res[1]);
             isOpen = true;
-            System.out.println("Webcam opened: camera " + cameraIndex + ", " + res[0] + "x" + res[1]);
+            usingGStreamer = false;
+            System.out.println("Webcam opened (V4L2): camera " + cameraIndex + ", " + res[0] + "x" + res[1]);
             return true;
-        } else {
-            System.err.println("Failed to open webcam at index " + cameraIndex);
-            isOpen = false;
+        }
+
+        // V4L2 failed - on Raspberry Pi with libcamera CSI cameras, try rpicam-still as fallback
+        // This is needed because OpenCV's V4L2 backend doesn't work with libcamera
+        if (tryOpenWithRpicam(res[0], res[1])) {
+            return true;
+        }
+
+        System.err.println("Failed to open webcam at index " + cameraIndex);
+        isOpen = false;
+        return false;
+    }
+
+    /**
+     * Try to open the camera using rpicam-still frame polling.
+     * This is needed for Raspberry Pi cameras that use libcamera.
+     * We continuously capture JPEG frames to a temp file and read them.
+     */
+    private boolean tryOpenWithRpicam(int width, int height) {
+        // Check if rpicam-still is available (Raspberry Pi with libcamera)
+        try {
+            Process check = Runtime.getRuntime().exec(new String[]{"which", "rpicam-still"});
+            int exitCode = check.waitFor();
+            if (exitCode != 0) {
+                return false; // rpicam-still not available
+            }
+        } catch (Exception e) {
             return false;
+        }
+
+        // Create a unique temp file for this camera
+        String tempFile = "/tmp/opencv_camera_" + System.currentTimeMillis() + ".jpg";
+        rpicamTempFile = tempFile;
+
+        try {
+            // Test capture a single frame to verify camera works
+            String[] testCmd = {
+                "rpicam-still",
+                "-n",  // No preview
+                "--width", String.valueOf(width),
+                "--height", String.valueOf(height),
+                "-o", tempFile,
+                "-t", "1"  // Very short timeout
+            };
+
+            System.out.println("Testing rpicam-still...");
+            ProcessBuilder pb = new ProcessBuilder(testCmd);
+            pb.redirectErrorStream(true);
+            Process testProcess = pb.start();
+            int exitCode = testProcess.waitFor();
+
+            java.io.File testFile = new java.io.File(tempFile);
+            if (exitCode != 0 || !testFile.exists() || testFile.length() == 0) {
+                System.out.println("rpicam-still test capture failed");
+                testFile.delete();
+                return false;
+            }
+
+            // Load the test frame with OpenCV to verify it works
+            Mat testFrame = org.opencv.imgcodecs.Imgcodecs.imread(tempFile);
+            if (testFrame.empty()) {
+                System.out.println("OpenCV failed to read rpicam-still output");
+                testFrame.release();
+                testFile.delete();
+                return false;
+            }
+            testFrame.release();
+            testFile.delete();
+
+            // Start continuous capture process using rpicam-still --timelapse
+            // This will write frames to the temp file at regular intervals
+            String[] captureCmd = {
+                "rpicam-still",
+                "-n",  // No preview
+                "--width", String.valueOf(width),
+                "--height", String.valueOf(height),
+                "-o", tempFile,
+                "-t", "0",  // Run forever
+                "--timelapse", "100"  // Capture every 100ms (10 fps)
+            };
+
+            System.out.println("Starting rpicam-still continuous capture...");
+            pb = new ProcessBuilder(captureCmd);
+            pb.redirectErrorStream(true);
+            rpicamProcess = pb.start();
+
+            // Give it time to start
+            Thread.sleep(500);
+
+            if (!rpicamProcess.isAlive()) {
+                System.out.println("rpicam-still continuous capture failed to start");
+                return false;
+            }
+
+            // Mark as using rpicam polling mode
+            isOpen = true;
+            usingRpicamPolling = true;
+            rpicamWidth = width;
+            rpicamHeight = height;
+            System.out.println("Webcam opened (rpicam-still polling): " + width + "x" + height);
+            return true;
+
+        } catch (Exception e) {
+            System.out.println("rpicam-still setup failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        // Cleanup on failure
+        stopRpicamProcess();
+        return false;
+    }
+
+    /**
+     * Stop the rpicam-still background process if running.
+     */
+    private void stopRpicamProcess() {
+        if (rpicamProcess != null) {
+            System.out.println("Stopping rpicam-still process...");
+            rpicamProcess.destroyForcibly();
+            try {
+                rpicamProcess.waitFor();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            rpicamProcess = null;
+            System.out.println("Stopped rpicam-still process");
         }
     }
 
@@ -83,6 +214,15 @@ public class FXWebcamSource {
             videoCapture.release();
             videoCapture = null;
         }
+        stopRpicamProcess(); // Stop rpicam-still if it was running
+
+        // Clean up temp file
+        if (rpicamTempFile != null) {
+            new java.io.File(rpicamTempFile).delete();
+            rpicamTempFile = null;
+        }
+
+        usingRpicamPolling = false;
         isOpen = false;
     }
 
@@ -90,6 +230,9 @@ public class FXWebcamSource {
      * Check if webcam is open.
      */
     public boolean isOpen() {
+        if (usingRpicamPolling) {
+            return isOpen && rpicamProcess != null && rpicamProcess.isAlive();
+        }
         return isOpen && videoCapture != null && videoCapture.isOpened();
     }
 
@@ -98,7 +241,15 @@ public class FXWebcamSource {
      * @return The captured Mat, or null if failed
      */
     public Mat captureFrame() {
-        if (!isOpen()) return null;
+        if (!isOpen) return null;
+
+        // For rpicam polling mode, read from the temp file
+        if (usingRpicamPolling) {
+            return captureFrameFromRpicam();
+        }
+
+        // Standard V4L2/VideoCapture mode
+        if (videoCapture == null) return null;
 
         Mat frame = new Mat();
         if (videoCapture.read(frame) && !frame.empty()) {
@@ -109,6 +260,31 @@ public class FXWebcamSource {
         }
         frame.release();
         return null;
+    }
+
+    /**
+     * Capture a frame from rpicam-still polling mode.
+     * Reads the latest JPEG frame from the temp file.
+     */
+    private Mat captureFrameFromRpicam() {
+        if (rpicamTempFile == null) return null;
+
+        java.io.File file = new java.io.File(rpicamTempFile);
+        if (!file.exists() || file.length() == 0) {
+            return null;
+        }
+
+        // Read the JPEG file with OpenCV
+        Mat frame = org.opencv.imgcodecs.Imgcodecs.imread(rpicamTempFile);
+        if (frame.empty()) {
+            frame.release();
+            return null;
+        }
+
+        if (mirrorHorizontal) {
+            Core.flip(frame, frame, 1);
+        }
+        return frame;
     }
 
     /**
@@ -315,5 +491,43 @@ public class FXWebcamSource {
             test.release();
         }
         return highest >= 0 ? highest : 0;
+    }
+
+    /**
+     * Find and open an available camera, returning a ready-to-use FXWebcamSource.
+     * On Raspberry Pi, this will try GStreamer/libcamera first.
+     * @return A new FXWebcamSource with the camera already opened, or null if none found
+     */
+    public static FXWebcamSource findAndOpenCamera() {
+        return findAndOpenCamera(-1);
+    }
+
+    /**
+     * Find and open an available camera, trying the preferred index first.
+     * On Raspberry Pi, this will try GStreamer/libcamera first, then fall back to V4L2.
+     * @param preferredIndex The camera index to try first for V4L2 (-1 to skip preference)
+     * @return A new FXWebcamSource with the camera already opened, or null if none found
+     */
+    public static FXWebcamSource findAndOpenCamera(int preferredIndex) {
+        // Create a source and use the open() method which tries GStreamer first
+        FXWebcamSource source = new FXWebcamSource(preferredIndex >= 0 ? preferredIndex : 0);
+        if (source.open()) {
+            return source;
+        }
+
+        // If GStreamer succeeded but V4L2 failed at that index, try other indices
+        // (GStreamer doesn't use indices, so this is just for V4L2 fallback)
+        if (preferredIndex >= 0) {
+            for (int i = 0; i <= 9; i++) {
+                if (i == preferredIndex) continue;
+
+                source = new FXWebcamSource(i);
+                if (source.open()) {
+                    return source;
+                }
+            }
+        }
+
+        return null;
     }
 }

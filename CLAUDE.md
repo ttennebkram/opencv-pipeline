@@ -164,6 +164,33 @@ getInt(properties, "key", defaultVal)  // from FXNode.properties map
 
 Pipelines are saved as JSON with `.json` extension. Thumbnails are cached in `~/.opencv-pipeline/thumbnails/`.
 
+## Raspberry Pi Camera Support
+
+The webcam source supports Raspberry Pi cameras (CSI modules like OV5647) via `rpicam-still` polling.
+
+### How it works
+
+On Raspberry Pi 5, the camera uses libcamera which is not compatible with OpenCV's V4L2 backend. OpenCV can *open* the V4L2 device but cannot *read* frames from it. The solution:
+
+1. `FXWebcamSource.open()` first checks if `rpicam-still` is available
+2. If found, it starts `rpicam-still --timelapse 100` which writes JPEG frames to a temp file every 100ms
+3. `captureFrame()` reads the latest JPEG from the temp file using `Imgcodecs.imread()`
+4. Falls back to standard V4L2 VideoCapture for USB webcams
+
+### Key files
+
+- `FXWebcamSource.java` - `tryOpenWithRpicam()`, `captureFrameFromRpicam()`, `stopRpicamProcess()`
+
+### Alternatives considered but not viable
+
+- **GStreamer pipeline**: OpenCV (openpnp build) is not compiled with GStreamer support
+- **rpicam-vid TCP/UDP streaming**: OpenCV couldn't read the streams reliably
+- **Building custom OpenCV**: Would break cross-platform portability
+
+### USB webcams
+
+USB webcams work normally via V4L2 and don't need the rpicam workaround. The code automatically detects which method to use.
+
 ## Known Issues
 
 - Watch for file handle leaks - always close InputStreams, use try-with-resources

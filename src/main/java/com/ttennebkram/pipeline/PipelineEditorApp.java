@@ -489,19 +489,35 @@ public class PipelineEditorApp extends Application {
                 Object mirrorVal = node.properties.get("mirrorHorizontal");
                 if (mirrorVal instanceof Boolean) mirror = (Boolean) mirrorVal;
 
-                // Auto-detect camera if index is -1
-                if (cameraIndex < 0) {
-                    cameraIndex = FXWebcamSource.findHighestCamera();
+                FXWebcamSource webcam;
+
+                // On Raspberry Pi with libcamera/V4L2, camera indices can be unstable
+                // and reopening a recently-closed device can fail due to timing issues.
+                // Always use findAndOpenCamera() which probes for any available camera.
+                // If a specific index is requested, try it first, then fall back to auto-detect.
+                if (cameraIndex >= 0) {
+                    // Try the specific camera first
+                    webcam = FXWebcamSource.findAndOpenCamera(cameraIndex);
+                } else {
+                    webcam = null;
                 }
 
-                // Create and configure the webcam source
-                FXWebcamSource webcam = new FXWebcamSource(cameraIndex);
-                webcam.setResolutionIndex(resolutionIndex);
-                webcam.setFpsIndex(fpsIndex);
-                webcam.setMirrorHorizontal(mirror);
+                // Fall back to auto-detect if specific camera failed or none was specified
+                if (webcam == null) {
+                    webcam = FXWebcamSource.findAndOpenCamera();
+                }
 
-                // Open and start the webcam
-                if (webcam.open()) {
+                if (webcam != null) {
+                    cameraIndex = webcam.getCameraIndex();
+                }
+
+                if (webcam != null) {
+                    // Configure the webcam source
+                    webcam.setResolutionIndex(resolutionIndex);
+                    webcam.setFpsIndex(fpsIndex);
+                    webcam.setMirrorHorizontal(mirror);
+
+                    // Start the webcam
                     webcam.start();
                     webcamSources.put(node.id, webcam);
                     System.out.println("Started webcam for node " + node.label + " (camera " + cameraIndex + ")");
@@ -576,6 +592,10 @@ public class PipelineEditorApp extends Application {
         final FXPipelineExecutor executorToStop = pipelineExecutor;
         pipelineExecutor = null;
 
+        // Close all webcams to release the VideoCapture resources
+        // This must be done so cameras can be reopened on next start
+        stopAllWebcams();
+
         if (executorToStop != null) {
             new Thread(() -> {
                 executorToStop.stop();
@@ -614,7 +634,7 @@ public class PipelineEditorApp extends Application {
 
     private void stopAllWebcams() {
         for (FXWebcamSource webcam : webcamSources.values()) {
-            webcam.stop();
+            webcam.close();  // close() calls stop() and releases the VideoCapture
         }
         webcamSources.clear();
     }
