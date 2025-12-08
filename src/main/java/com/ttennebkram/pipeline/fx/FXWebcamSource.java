@@ -66,13 +66,7 @@ public class FXWebcamSource {
 
         int[] res = RESOLUTIONS[resolutionIndex];
 
-        // On Raspberry Pi with libcamera, try rpicam-vid streaming first
-        // This is needed because OpenCV's V4L2 backend doesn't work with libcamera
-        if (tryOpenWithRpicam(res[0], res[1])) {
-            return true;
-        }
-
-        // Fall back to standard V4L2 capture (works for USB webcams)
+        // First try standard V4L2 capture (works for USB webcams, preferred for higher FPS)
         videoCapture = new VideoCapture(cameraIndex);
         if (videoCapture.isOpened()) {
             // Set resolution
@@ -82,11 +76,17 @@ public class FXWebcamSource {
             usingGStreamer = false;
             System.out.println("Webcam opened (V4L2): camera " + cameraIndex + ", " + res[0] + "x" + res[1]);
             return true;
-        } else {
-            System.err.println("Failed to open webcam at index " + cameraIndex);
-            isOpen = false;
-            return false;
         }
+
+        // V4L2 failed - on Raspberry Pi with libcamera CSI cameras, try rpicam-still as fallback
+        // This is needed because OpenCV's V4L2 backend doesn't work with libcamera
+        if (tryOpenWithRpicam(res[0], res[1])) {
+            return true;
+        }
+
+        System.err.println("Failed to open webcam at index " + cameraIndex);
+        isOpen = false;
+        return false;
     }
 
     /**

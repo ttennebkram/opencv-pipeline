@@ -31,11 +31,35 @@ Or to automatically load and start a pipeline:
 java -jar opencv-pipeline-<platform>.jar pipeline.json --start
 ```
 
-**Note:** No Windows ARM64 support. OpenCV doesn't provide Windows ARM64 native libraries.
+**Note:** No **Windows ARM64** support; OpenCV doesn't provide Windows ARM64 native libraries. We wanted to support this platform, but it's out of our control.
 
 Requires Java 17+.
 
-## Features
+## Raspberry Pi Camera Support
+
+Raspberry Pi CSI cameras (Camera Module 2/3, HQ Camera, etc.) are the ones with ribbon cables that plug directly into the Pi's camera connector on the circuit board. These use the `libcamera` stack which is not directly compatible with OpenCV's V4L2 backend. However, the **good news** is that this application includes an **automatic workaround**:
+
+### Automatic Workaround:
+
+1. On startup, the app first tries V4L2 capture (USB webcams get priority for higher FPS)
+2. If V4L2 fails, it checks if `rpicam-still` is available (pre-installed on Raspberry Pi OS)
+3. If found, it uses `rpicam-still --timelapse` to capture frames to a temp file
+4. OpenCV reads the JPEG frames from the temp file
+5. When running in workaround mode, the FPS property is ignored and it runs at a fixed 10 frames per second (FPS)
+6. Reminder: Use a USB-based webcam for higher frame rates
+
+**Limitations:**
+- Maximum ~10 fps due to file-based polling
+- Slight latency from JPEG encode/decode
+
+**For higher frame rates**, use a **USB webcam** instead of the CSI camera. USB webcams work directly with OpenCV's V4L2 backend and can achieve 30+ fps with no workaround needed.
+
+| Camera Type | Frame Rate | Notes |
+|-------------|------------|-------|
+| USB Webcam | 30+ fps | Direct V4L2, recommended for high fps |
+| RPi CSI Camera | ~10 fps | Uses rpicam-still polling workaround |
+
+## OpenCV Pipeline Features
 
 - **Visual Pipeline Editor**: Drag-and-drop nodes on a canvas to build image processing pipelines
 - **Multiple Source Types**: Webcam capture, image files, video files, blank canvas
@@ -181,9 +205,10 @@ Drawing nodes (shapes, text) support negative position values for coordinates re
 
 This allows positioning elements relative to image dimensions that may vary at runtime.
 
-## Performance Note
+## Performance Notes
+
 - FFT takes over a second to filter a full resolution 12 megapixel image
-- If using FFT filters, we suggest you use the Resize node first to shrink the image donw
+- If using FFT filters, we suggest you use the Resize node first to shrink the image down
 
 ## Architecture
 
