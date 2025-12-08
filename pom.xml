@@ -16,7 +16,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javafx.version>22.0.1</javafx.version>
+        <javafx.version>19.0.2.1</javafx.version>
     </properties>
 
     <dependencies>
@@ -60,54 +60,6 @@
             <artifactId>gson</artifactId>
             <version>2.10.1</version>
         </dependency>
-
-        <!-- For CNN's, etc (DL4J) -->
-        <dependency>
-            <groupId>org.deeplearning4j</groupId>
-            <artifactId>deeplearning4j-core</artifactId>
-            <version>1.0.0-M2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.nd4j</groupId>
-            <artifactId>nd4j-native-platform</artifactId>
-            <version>1.0.0-M2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.deeplearning4j</groupId>
-            <artifactId>deeplearning4j-datasets</artifactId>
-            <version>1.0.0-M2.1</version>
-        </dependency>
-
-        <!-- DJL (Deep Java Library) with PyTorch backend -->
-        <dependency>
-            <groupId>ai.djl</groupId>
-            <artifactId>api</artifactId>
-            <version>0.30.0</version>
-        </dependency>
-        <dependency>
-            <groupId>ai.djl.pytorch</groupId>
-            <artifactId>pytorch-engine</artifactId>
-            <version>0.30.0</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>ai.djl</groupId>
-            <artifactId>basicdataset</artifactId>
-            <version>0.30.0</version>
-        </dependency>
-        <dependency>
-            <groupId>ai.djl</groupId>
-            <artifactId>model-zoo</artifactId>
-            <version>0.30.0</version>
-        </dependency>
-
-        <!-- Jep - Java Embedded Python (for calling PyTorch with MPS from Java) -->
-        <dependency>
-            <groupId>black.ninia</groupId>
-            <artifactId>jep</artifactId>
-            <version>4.2.0</version>
-        </dependency>
-
     </dependencies>
 
     <build>
@@ -152,9 +104,9 @@
                                 <classpath/>
                                 <argument>-Xms512m</argument>
                                 <argument>-Xmx4g</argument>
-                                <argument>-Djdk.gtk.version=2</argument>
-                                <argument>-Dprism.order=sw</argument>
-                                <argument>-Djavafx.verbose=true</argument>
+                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
+                                <argument>-Dapple.awt.application.name=OpenCV</argument>
+                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                             </arguments>
                         </configuration>
@@ -169,9 +121,9 @@
                                 <classpath/>
                                 <argument>-Xms512m</argument>
                                 <argument>-Xmx4g</argument>
-                                <argument>-Djdk.gtk.version=2</argument>
-                                <argument>-Dprism.order=sw</argument>
-                                <argument>-Djavafx.verbose=true</argument>
+                                <argument>-Xdock:name=OpenCV Pipeline Editor</argument>
+                                <argument>-Dapple.awt.application.name=OpenCV</argument>
+                                <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
                                 <argument>--start</argument>
                             </arguments>
@@ -182,7 +134,7 @@
                         <id>run</id>
                         <configuration>
                             <executable>java</executable>
-                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
+                            <commandlineArgs>-classpath %classpath -Xms512m -Xmx4g -Xdock:name=OpenCV\ Pipeline\ Editor -Dapple.awt.application.name=OpenCV com.ttennebkram.pipeline.PipelineEditorLauncher ${pipeline.args}</commandlineArgs>
                         </configuration>
                     </execution>
                 </executions>
