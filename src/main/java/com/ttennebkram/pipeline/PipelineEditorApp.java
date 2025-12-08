@@ -468,6 +468,49 @@ public class PipelineEditorApp extends Application {
         // Clear all node and connection stats before starting
         clearPipelineStats();
 
+        // Create webcam sources for all webcam nodes
+        for (FXNode node : nodes) {
+            if ("WebcamSource".equals(node.nodeType)) {
+                // Get camera settings from node properties
+                int cameraIndex = -1;
+                int resolutionIndex = 1;
+                int fpsIndex = 0;
+                boolean mirror = true;
+
+                Object camIdx = node.properties.get("cameraIndex");
+                if (camIdx instanceof Number) cameraIndex = ((Number) camIdx).intValue();
+
+                Object resIdx = node.properties.get("resolutionIndex");
+                if (resIdx instanceof Number) resolutionIndex = ((Number) resIdx).intValue();
+
+                Object fps = node.properties.get("fpsIndex");
+                if (fps instanceof Number) fpsIndex = ((Number) fps).intValue();
+
+                Object mirrorVal = node.properties.get("mirrorHorizontal");
+                if (mirrorVal instanceof Boolean) mirror = (Boolean) mirrorVal;
+
+                // Auto-detect camera if index is -1
+                if (cameraIndex < 0) {
+                    cameraIndex = FXWebcamSource.findHighestCamera();
+                }
+
+                // Create and configure the webcam source
+                FXWebcamSource webcam = new FXWebcamSource(cameraIndex);
+                webcam.setResolutionIndex(resolutionIndex);
+                webcam.setFpsIndex(fpsIndex);
+                webcam.setMirrorHorizontal(mirror);
+
+                // Open and start the webcam
+                if (webcam.open()) {
+                    webcam.start();
+                    webcamSources.put(node.id, webcam);
+                    System.out.println("Started webcam for node " + node.label + " (camera " + cameraIndex + ")");
+                } else {
+                    System.err.println("Failed to open webcam for node " + node.label + " (camera " + cameraIndex + ")");
+                }
+            }
+        }
+
         // Create and start the pipeline executor
         pipelineExecutor = new FXPipelineExecutor(nodes, connections, webcamSources);
         pipelineExecutor.setBasePath(currentFilePath);  // For resolving relative paths in nested containers
