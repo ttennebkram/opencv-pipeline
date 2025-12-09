@@ -236,10 +236,10 @@ public class FXPipelineSerializer {
 
                 // Only override label if user had customized it
                 // Keep factory-assigned label (from registry displayName) if:
-                // - savedLabel equals the type name (e.g., "WebcamSource")
                 // - savedLabel equals the current displayName (e.g., "Webcam Source")
                 // - savedLabel is an old-style short name we want to update (e.g., "Webcam" -> "Webcam Source")
-                if (savedLabel != null && !savedLabel.equals(type) && !savedLabel.equals(node.label)) {
+                // Note: We DO restore labels that match the type name (e.g., user naming a Monitor node "Monitor")
+                if (savedLabel != null && !savedLabel.equals(node.label)) {
                     // Check if this is an old-style label that should be updated
                     // Old files might have "Webcam" instead of "Webcam Source"
                     boolean isOldStyleDefault = isOldStyleDefaultLabel(savedLabel, type);

@@ -28,12 +28,47 @@ java -jar opencv-pipeline-<platform>.jar
 Or to automatically load and start a pipeline:
 
 ```bash
-java -jar opencv-pipeline-<platform>.jar pipeline.json --start
+java -jar opencv-pipeline-<platform>.jar pipeline.json -a
 ```
 
 **Note:** No **Windows ARM64** support; OpenCV doesn't provide Windows ARM64 native libraries. We wanted to support this platform, but it's out of our control.
 
 Requires Java 17+.
+
+### Command Line Options
+
+Options can appear before or after the pipeline filename.
+
+```
+-h, --help                     Show help message and exit
+-a, --auto_start, --auto_run   Automatically start the pipeline after loading
+--fullscreen_node_name NAME    Show fullscreen preview of node with given name
+--max_time SECONDS             Exit after specified number of seconds
+
+Camera options (override all webcam source nodes):
+--camera_index INDEX           Camera index (-1 for auto-detect)
+--camera_resolution RES        Resolution: 320x240, 640x480, 1280x720, 1920x1080
+--camera_fps FPS               Target frame rate (any positive number)
+--camera_mirror BOOL           Mirror horizontally: true/false
+
+Save behavior options (for use with --max_time):
+--autosave_prompt              Show save dialog if unsaved changes (default)
+--autosave_yes                 Automatically save without prompting
+--autosave_no                  Exit without saving
+```
+
+Examples:
+
+```bash
+# Using the JAR directly
+java -jar opencv-pipeline.jar my-pipeline.json -a
+java -jar opencv-pipeline.jar -a --camera_fps 15 my-pipeline.json
+java -jar opencv-pipeline.jar my-pipeline.json -a --fullscreen_node_name "Monitor" --max_time 3600 --autosave_no
+
+# Using Maven during development
+mvn compile exec:exec@run -Dpipeline.args="my-pipeline.json -a"
+mvn compile exec:exec@run -Dpipeline.args="-a --camera_fps 15 my-pipeline.json"
+```
 
 ## Raspberry Pi Camera Support
 
@@ -94,27 +129,18 @@ mvn clean package -Pwin           # Windows x86_64
 
 The uber-jar is created at `target/opencv-pipeline.jar`.
 
-For development (automatically reopens the last saved file):
+For development:
 
 ```bash
+# Run with default settings (reopens last saved file)
 mvn compile exec:exec
-```
 
-Or any of:
-
-```bash
+# Run with auto-start
 mvn compile exec:exec@start
-mvn compile exec:exec@run -Dpipeline.args="--start"
-mvn compile exec:exec@run -Dpipeline.args="pipeline.json"
-mvn compile exec:exec@run -Dpipeline.args="pipeline.json --start"
-```
 
-
-To compile and run the app use either of:
-
-```bash
-mvn compile exec:exec
-mvn compile exec:exec@start
+# Run with custom arguments
+mvn compile exec:exec@run -Dpipeline.args="pipeline.json -a"
+mvn compile exec:exec@run -Dpipeline.args="-a --camera_fps 15 pipeline.json"
 ```
 
 ## Usage

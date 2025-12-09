@@ -24,14 +24,14 @@ public class FXWebcamSource {
         {320, 240}, {640, 480}, {1280, 720}, {1920, 1080}
     };
 
-    // FPS options
+    // FPS options (for UI dropdown)
     public static final String[] FPS_NAMES = {"1 fps", "5 fps", "10 fps", "15 fps", "30 fps"};
     public static final double[] FPS_VALUES = {1.0, 5.0, 10.0, 15.0, 30.0};
 
     private VideoCapture videoCapture;
     private int cameraIndex = 1; // Default to 1 (0 is often a virtual camera like iPhone)
     private int resolutionIndex = 1; // Default 640x480
-    private int fpsIndex = 2; // Default 10 fps
+    private double fps = 10.0; // Target FPS (any value allowed)
     private boolean mirrorHorizontal = true;
     private boolean isOpen = false;
     private boolean usingGStreamer = false; // Track if using GStreamer pipeline
@@ -313,7 +313,7 @@ public class FXWebcamSource {
 
         running.set(true);
         captureThread = new Thread(() -> {
-            long frameDelayMs = (long) (1000.0 / FPS_VALUES[fpsIndex]);
+            long frameDelayMs = (long) (1000.0 / fps);
 
             while (running.get()) {
                 long startTime = System.currentTimeMillis();
@@ -449,13 +449,39 @@ public class FXWebcamSource {
         }
     }
 
-    public int getFpsIndex() { return fpsIndex; }
-    public void setFpsIndex(int index) { this.fpsIndex = index; }
+    /** Get FPS index for UI dropdown (finds closest match to current fps). */
+    public int getFpsIndex() {
+        int closest = 0;
+        double minDiff = Math.abs(fps - FPS_VALUES[0]);
+        for (int i = 1; i < FPS_VALUES.length; i++) {
+            double diff = Math.abs(fps - FPS_VALUES[i]);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = i;
+            }
+        }
+        return closest;
+    }
+
+    /** Set FPS from UI dropdown index. */
+    public void setFpsIndex(int index) {
+        if (index >= 0 && index < FPS_VALUES.length) {
+            this.fps = FPS_VALUES[index];
+        }
+    }
+
+    /** Set FPS directly to any value. */
+    public void setFps(double fps) {
+        this.fps = fps;
+    }
+
+    /** Get current FPS value. */
+    public double getFps() { return fps; }
 
     public boolean isMirrorHorizontal() { return mirrorHorizontal; }
     public void setMirrorHorizontal(boolean mirror) { this.mirrorHorizontal = mirror; }
 
-    public double getCurrentFps() { return FPS_VALUES[fpsIndex]; }
+    public double getCurrentFps() { return fps; }
 
     /**
      * Detect available cameras.
@@ -495,7 +521,7 @@ public class FXWebcamSource {
 
     /**
      * Find and open an available camera, returning a ready-to-use FXWebcamSource.
-     * On Raspberry Pi, this will try GStreamer/libcamera first.
+     * Auto-detects by finding the first camera that returns non-blank frames.
      * @return A new FXWebcamSource with the camera already opened, or null if none found
      */
     public static FXWebcamSource findAndOpenCamera() {
@@ -503,29 +529,91 @@ public class FXWebcamSource {
     }
 
     /**
+     * Check if a frame is blank (all zeros or all same color).
+     * @param frame The frame to check
+     * @return true if the frame appears to be blank
+     */
+    private static boolean isBlankFrame(Mat frame) {
+        if (frame == null || frame.empty()) {
+            return true;
+        }
+        // Check if all pixels are the same (blank)
+        // Calculate mean and stddev - a real image has variation
+        org.opencv.core.MatOfDouble mean = new org.opencv.core.MatOfDouble();
+        org.opencv.core.MatOfDouble stddev = new org.opencv.core.MatOfDouble();
+        Core.meanStdDev(frame, mean, stddev);
+        double[] stddevValues = stddev.toArray();
+        mean.release();
+        stddev.release();
+
+        // If standard deviation is very low across all channels, it's likely blank
+        double totalStdDev = 0;
+        for (double v : stddevValues) {
+            totalStdDev += v;
+        }
+        return totalStdDev < 1.0; // Very low variation = blank
+    }
+
+    /**
      * Find and open an available camera, trying the preferred index first.
-     * On Raspberry Pi, this will try GStreamer/libcamera first, then fall back to V4L2.
-     * @param preferredIndex The camera index to try first for V4L2 (-1 to skip preference)
+     * When preferredIndex is -1 (auto-detect), finds the first camera returning non-blank frames.
+     * @param preferredIndex The camera index to try first (-1 for auto-detect with frame validation)
      * @return A new FXWebcamSource with the camera already opened, or null if none found
      */
     public static FXWebcamSource findAndOpenCamera(int preferredIndex) {
-        // Create a source and use the open() method which tries GStreamer first
-        FXWebcamSource source = new FXWebcamSource(preferredIndex >= 0 ? preferredIndex : 0);
-        if (source.open()) {
-            return source;
+        // If a specific camera is requested, just try to open it
+        if (preferredIndex >= 0) {
+            FXWebcamSource source = new FXWebcamSource(preferredIndex);
+            if (source.open()) {
+                return source;
+            }
+            return null;
         }
 
-        // If GStreamer succeeded but V4L2 failed at that index, try other indices
-        // (GStreamer doesn't use indices, so this is just for V4L2 fallback)
-        if (preferredIndex >= 0) {
-            for (int i = 0; i <= 9; i++) {
-                if (i == preferredIndex) continue;
+        // Auto-detect mode: find first camera that returns non-blank frames
+        System.out.println("Auto-detecting cameras...");
+        for (int i = 0; i <= 9; i++) {
+            VideoCapture testCapture = new VideoCapture(i);
+            if (testCapture.isOpened()) {
+                System.out.println("Testing camera " + i + "...");
 
-                source = new FXWebcamSource(i);
-                if (source.open()) {
-                    return source;
+                // Try to grab a few frames and check if they're non-blank
+                // Some cameras need a few frames to "warm up"
+                boolean hasValidFrames = false;
+                for (int attempt = 0; attempt < 5; attempt++) {
+                    Mat testFrame = new Mat();
+                    if (testCapture.read(testFrame) && !testFrame.empty()) {
+                        if (!isBlankFrame(testFrame)) {
+                            System.out.println("Camera " + i + " returns valid frames");
+                            hasValidFrames = true;
+                            testFrame.release();
+                            break;
+                        }
+                    }
+                    testFrame.release();
+                    // Brief pause between attempts
+                    try { Thread.sleep(100); } catch (InterruptedException e) { break; }
+                }
+
+                testCapture.release();
+
+                if (hasValidFrames) {
+                    // Found a good camera - create and return the source
+                    FXWebcamSource source = new FXWebcamSource(i);
+                    if (source.open()) {
+                        return source;
+                    }
+                } else {
+                    System.out.println("Camera " + i + " opens but returns blank frames, skipping");
                 }
             }
+        }
+
+        // Also try rpicam-still fallback for Raspberry Pi
+        // (open() already tries this internally if V4L2 fails)
+        FXWebcamSource piSource = new FXWebcamSource(0);
+        if (piSource.open()) {
+            return piSource;
         }
 
         return null;

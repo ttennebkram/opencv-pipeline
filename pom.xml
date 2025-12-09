@@ -125,7 +125,7 @@
                                 <argument>-Dapple.awt.application.name=OpenCV</argument>
                                 <argument>-Dcom.apple.mrj.application.apple.menu.about.name=OpenCV</argument>
                                 <argument>com.ttennebkram.pipeline.PipelineEditorLauncher</argument>
-                                <argument>--start</argument>
+                                <argument>-a</argument>
                             </arguments>
                         </configuration>
                     </execution>

@@ -262,6 +262,17 @@ public class FXPipelineEditor {
 
         Scene scene = new Scene(container, 800, 600);
 
+        // Timer to update image from node.previewImage (for live pipeline updates)
+        javafx.animation.AnimationTimer updateTimer = new javafx.animation.AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                if (node.previewImage != null && node.previewImage != imageView.getImage()) {
+                    imageView.setImage(node.previewImage);
+                }
+            }
+        };
+        updateTimer.start();
+
         // ESC key closes the window
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ESCAPE) {
@@ -270,11 +281,28 @@ public class FXPipelineEditor {
             }
         });
 
+        // Stop timer when window closes
+        fullscreenStage.setOnHidden(e -> updateTimer.stop());
+
         fullscreenStage.setScene(scene);
         fullscreenStage.setMaximized(true);
         fullscreenStage.show();
 
+        // Request focus to prevent beep on first click
+        fullscreenStage.requestFocus();
+        container.requestFocus();
+
         return true;
+    }
+
+    /**
+     * Programmatically select a node (clearing any other selection).
+     */
+    public void selectNode(FXNode node) {
+        selectedNodes.clear();
+        selectedConnections.clear();
+        selectedNodes.add(node);
+        paintCanvas();
     }
 
     /**
@@ -358,7 +386,7 @@ public class FXPipelineEditor {
             boolean isSourceNode = !node.hasInput && !node.isBoundaryNode;
             if (isSourceNode) {
                 NodeRenderer.drawSourceStatsLine(gc, node.x + 22, node.y + node.height - 8,
-                    node.threadPriority, node.workUnitsCompleted, node.effectiveFps);
+                    node.threadPriority, node.workUnitsCompleted, node.effectiveFps, node.cameraIndex);
             } else if ("IsNestedInput".equals(node.nodeType) || "IsNotNestedOutput".equals(node.nodeType)) {
                 NodeRenderer.drawIsNestedStatsLine(gc, node.x + 22, node.y + node.height - 8,
                     node.threadPriority, node.workUnitsCompleted, node.isEmbedded);

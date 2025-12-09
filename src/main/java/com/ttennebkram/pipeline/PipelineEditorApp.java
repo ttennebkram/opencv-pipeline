@@ -71,17 +71,130 @@ public class PipelineEditorApp extends Application {
     // Command line options
     private boolean autoStartPipeline = false;
     private String commandLinePipelineFile = null;
+    private String fullscreenNodeName = null;
+    private long maxRuntimeSeconds = 0; // 0 = no limit
+
+    // Global camera settings (null = use node settings)
+    private Integer cmdCameraIndex = null; // -1 = auto-detect
+    private Integer cmdCameraResolution = null; // 0=320x240, 1=640x480, 2=1280x720, 3=1920x1080
+    private Double cmdCameraFps = null; // Any positive value, or <0 for default (1 fps)
+    private Boolean cmdCameraMirror = null;
+
+    // Auto-save behavior for --max_time exit: "prompt" (default), "yes", "no"
+    private String autoSaveBehavior = "prompt";
 
     @Override
     public void start(Stage primaryStage) {
         // Parse command line arguments
         java.util.List<String> params = getParameters().getRaw();
-        for (String param : params) {
-            if ("--start".equals(param)) {
+        for (int i = 0; i < params.size(); i++) {
+            String param = params.get(i);
+            if ("-h".equals(param) || "--help".equals(param)) {
+                printHelp();
+                Platform.exit();
+                return;
+            } else if ("-a".equals(param) || "--auto_start".equals(param) || "--autostart".equals(param) || "--auto_run".equals(param) || "--autorun".equals(param) || "--start".equals(param)) {
                 autoStartPipeline = true;
-            } else if (!param.startsWith("--")) {
+            } else if ("--fullscreen_node_name".equals(param)) {
+                if (i + 1 < params.size()) {
+                    fullscreenNodeName = params.get(++i);
+                } else {
+                    System.err.println("Error: --fullscreen_node_name requires a node name argument");
+                    System.err.println("       Tip: You can set a node's name by double-clicking on it.");
+                    Platform.exit();
+                    return;
+                }
+            } else if ("--max_time".equals(param)) {
+                if (i + 1 < params.size()) {
+                    try {
+                        maxRuntimeSeconds = Long.parseLong(params.get(++i));
+                    } catch (NumberFormatException e) {
+                        System.err.println("Error: --max_time requires a numeric value in seconds");
+                        Platform.exit();
+                        return;
+                    }
+                } else {
+                    System.err.println("Error: --max_time requires a value in seconds");
+                    Platform.exit();
+                    return;
+                }
+            } else if ("--autosave_yes".equals(param)) {
+                autoSaveBehavior = "yes";
+            } else if ("--autosave_no".equals(param)) {
+                autoSaveBehavior = "no";
+            } else if ("--autosave_prompt".equals(param) || "--autosave_default".equals(param)) {
+                autoSaveBehavior = "prompt";
+            } else if ("--camera_index".equals(param)) {
+                if (i + 1 < params.size()) {
+                    try {
+                        cmdCameraIndex = Integer.parseInt(params.get(++i));
+                    } catch (NumberFormatException e) {
+                        System.err.println("Error: --camera_index requires a numeric value (-1 for auto-detect)");
+                        Platform.exit();
+                        return;
+                    }
+                } else {
+                    System.err.println("Error: --camera_index requires a value (-1 for auto-detect)");
+                    Platform.exit();
+                    return;
+                }
+            } else if ("--camera_resolution".equals(param)) {
+                if (i + 1 < params.size()) {
+                    String resArg = params.get(++i);
+                    switch (resArg) {
+                        case "320x240": case "0": cmdCameraResolution = 0; break;
+                        case "640x480": case "1": cmdCameraResolution = 1; break;
+                        case "1280x720": case "720p": case "2": cmdCameraResolution = 2; break;
+                        case "1920x1080": case "1080p": case "3": cmdCameraResolution = 3; break;
+                        default:
+                            System.err.println("Error: --camera_resolution must be 320x240, 640x480, 1280x720, or 1920x1080");
+                            Platform.exit();
+                            return;
+                    }
+                } else {
+                    System.err.println("Error: --camera_resolution requires a value (e.g., 640x480 or 1080p)");
+                    Platform.exit();
+                    return;
+                }
+            } else if ("--camera_fps".equals(param)) {
+                if (i + 1 < params.size()) {
+                    try {
+                        cmdCameraFps = Double.parseDouble(params.get(++i));
+                    } catch (NumberFormatException e) {
+                        System.err.println("Error: --camera_fps requires a numeric value");
+                        Platform.exit();
+                        return;
+                    }
+                } else {
+                    System.err.println("Error: --camera_fps requires a value");
+                    Platform.exit();
+                    return;
+                }
+            } else if ("--camera_mirror".equals(param)) {
+                if (i + 1 < params.size()) {
+                    String mirrorArg = params.get(++i).toLowerCase();
+                    if ("true".equals(mirrorArg) || "yes".equals(mirrorArg) || "1".equals(mirrorArg)) {
+                        cmdCameraMirror = true;
+                    } else if ("false".equals(mirrorArg) || "no".equals(mirrorArg) || "0".equals(mirrorArg)) {
+                        cmdCameraMirror = false;
+                    } else {
+                        System.err.println("Error: --camera_mirror must be true/false or yes/no");
+                        Platform.exit();
+                        return;
+                    }
+                } else {
+                    System.err.println("Error: --camera_mirror requires a value (true/false)");
+                    Platform.exit();
+                    return;
+                }
+            } else if (!param.startsWith("-")) {
                 // Non-flag argument is the pipeline file path
                 commandLinePipelineFile = param;
+            } else {
+                System.err.println("Unknown option: " + param);
+                printHelp();
+                Platform.exit();
+                return;
             }
         }
         this.primaryStage = primaryStage;
@@ -180,8 +293,68 @@ public class PipelineEditorApp extends Application {
         System.out.println("JavaFX Pipeline Editor started");
         System.out.println("OpenCV version: " + org.opencv.core.Core.VERSION);
         if (autoStartPipeline) {
-            System.out.println("Auto-start pipeline requested via --start command line or exec:exec@start in pom.xml target");
+            System.out.println("Auto-start pipeline requested via -a/--autostart command line");
         }
+        if (fullscreenNodeName != null) {
+            System.out.println("Fullscreen node requested: " + fullscreenNodeName);
+        }
+        if (maxRuntimeSeconds > 0) {
+            System.out.println("Max runtime: " + maxRuntimeSeconds + " seconds");
+            if (!autoStartPipeline && fullscreenNodeName == null) {
+                System.err.println("Warning: --max_time specified without -a/--auto_start or --fullscreen_node_name.");
+                System.err.println("         Application may auto-exit unexpectedly, after " + maxRuntimeSeconds + " seconds.");
+                // Show dialog to user
+                Platform.runLater(() -> {
+                    javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+                    alert.setTitle("Warning");
+                    alert.setHeaderText("Unusual command line options");
+                    alert.setContentText("--max_time specified without -a/--auto_start or --fullscreen_node_name.\n\nApplication may auto-exit unexpectedly, after " + maxRuntimeSeconds + " seconds.");
+                    alert.showAndWait();
+                });
+            }
+        }
+        if (fullscreenNodeName != null && !autoStartPipeline) {
+            System.err.println("Warning: --fullscreen_node_name specified without -a/--auto_start.");
+            System.err.println("         Fullscreen preview requires a running pipeline to display images.");
+            // Show dialog to user
+            Platform.runLater(() -> {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+                alert.setTitle("Warning");
+                alert.setHeaderText("Fullscreen without auto-start");
+                alert.setContentText("--fullscreen_node_name specified without -a/--auto_start.\n\nFullscreen preview requires a running pipeline to display images.");
+                alert.showAndWait();
+            });
+        }
+    }
+
+    private void printHelp() {
+        System.out.println("OpenCV Pipeline Editor");
+        System.out.println();
+        System.out.println("Usage: java -jar opencv-pipeline.jar [options] [pipeline.json]");
+        System.out.println();
+        System.out.println("Options:");
+        System.out.println("  -h, --help                     Show this help message and exit");
+        System.out.println("  -a, --auto_start               Automatically start the pipeline after loading");
+        System.out.println("  --fullscreen_node_name NAME    Show fullscreen preview of node with given name");
+        System.out.println("  --max_time SECONDS             Exit after specified number of seconds");
+        System.out.println();
+        System.out.println("Camera options (override all webcam source nodes):");
+        System.out.println("  --camera_index INDEX           Camera index (-1 for auto-detect)");
+        System.out.println("  --camera_resolution RES        Resolution: 320x240, 640x480, 1280x720, 1920x1080");
+        System.out.println("  --camera_fps FPS               Target frame rate (any number, -1 for default 1fps)");
+        System.out.println("  --camera_mirror BOOL           Mirror horizontally: true/false");
+        System.out.println();
+        System.out.println("Save behavior options (for use with --max_time):");
+        System.out.println("  --autosave_prompt              Show save dialog if unsaved changes (default)");
+        System.out.println("  --autosave_yes                 Automatically save without prompting");
+        System.out.println("  --autosave_no                  Exit without saving");
+        System.out.println();
+        System.out.println("Examples:");
+        System.out.println("  java -jar opencv-pipeline.jar");
+        System.out.println("  java -jar opencv-pipeline.jar pipeline.json");
+        System.out.println("  java -jar opencv-pipeline.jar pipeline.json -a");
+        System.out.println("  java -jar opencv-pipeline.jar pipeline.json -a --camera_index 2 --camera_resolution 1080p");
+        System.out.println("  java -jar opencv-pipeline.jar pipeline.json -a --fullscreen_node_name \"Monitor\" --max_time 60");
     }
 
     private void loadLastFile() {
@@ -206,10 +379,108 @@ public class PipelineEditorApp extends Application {
 
         if (fileToLoad != null) {
             loadDiagramFromPath(fileToLoad);
-            // Auto-start pipeline if --start was passed
+            // Auto-start pipeline if -a/--autostart was passed
             if (autoStartPipeline && !pipelineRunning) {
                 startPipeline();
+
+                // If fullscreen node requested, wait a moment for images to generate then show fullscreen
+                if (fullscreenNodeName != null) {
+                    // Delay to allow pipeline to produce first frame
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(1000); // Wait 1 second for first frame
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        Platform.runLater(this::showFullscreenForNamedNode);
+                    }).start();
+                }
+
+                // If max_time specified, start exit timer
+                if (maxRuntimeSeconds > 0) {
+                    startExitTimer();
+                }
             }
+        }
+    }
+
+    /**
+     * Find node by label and show fullscreen preview.
+     */
+    private void showFullscreenForNamedNode() {
+        if (fullscreenNodeName == null) return;
+
+        // Find all nodes matching the name
+        java.util.List<FXNode> matchingNodes = new java.util.ArrayList<>();
+        for (FXNode node : nodes) {
+            if (fullscreenNodeName.equals(node.label)) {
+                matchingNodes.add(node);
+            }
+        }
+
+        if (matchingNodes.isEmpty()) {
+            System.err.println("Warning: Node not found for fullscreen: " + fullscreenNodeName);
+            // Show dialog to user
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+            alert.setTitle("Node Not Found");
+            alert.setHeaderText("Fullscreen node not found");
+            alert.setContentText("No node with name \"" + fullscreenNodeName + "\" was found in the pipeline.\n\nThe pipeline will continue running without fullscreen preview.\n\nTip: You can set a node's name by double-clicking on it.");
+            alert.showAndWait();
+            return;
+        }
+
+        if (matchingNodes.size() > 1) {
+            System.err.println("Warning: Multiple nodes found with name \"" + fullscreenNodeName + "\" (" + matchingNodes.size() + " matches).");
+            System.err.println("         Choosing node at position (" + matchingNodes.get(0).x + ", " + matchingNodes.get(0).y + ") (pseudo-random)");
+        }
+
+        FXNode chosen = matchingNodes.get(0);
+        editor.selectNode(chosen);
+        editor.showFullscreenPreview();
+    }
+
+    /**
+     * Start timer to exit after maxRuntimeSeconds.
+     */
+    private void startExitTimer() {
+        Thread timerThread = new Thread(() -> {
+            try {
+                Thread.sleep(maxRuntimeSeconds * 1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            System.out.println("Max runtime reached (" + maxRuntimeSeconds + "s), exiting...");
+            Platform.runLater(this::handleMaxTimeExit);
+        });
+        timerThread.setDaemon(true);  // Don't prevent JVM exit
+        timerThread.start();
+    }
+
+    /**
+     * Handle exit when max_time is reached, respecting autosave behavior.
+     */
+    private void handleMaxTimeExit() {
+        stopPipeline();
+
+        if ("yes".equals(autoSaveBehavior)) {
+            // Auto-save without prompting
+            if (isDirty && currentFilePath != null) {
+                saveDiagramToPath(currentFilePath);
+                System.out.println("Auto-saved to: " + currentFilePath);
+            }
+            Platform.exit();
+        } else if ("no".equals(autoSaveBehavior)) {
+            // Exit without saving
+            Platform.exit();
+        } else {
+            // "prompt" - show the normal unsaved changes dialog
+            if (checkUnsavedChanges()) {
+                Platform.exit();
+            }
+            // If user cancels, don't exit (but timer has expired, so just exit anyway)
+            // Actually for max_time, we should still exit even if they cancel
+            Platform.exit();
         }
     }
 
@@ -471,50 +742,75 @@ public class PipelineEditorApp extends Application {
         // Create webcam sources for all webcam nodes
         for (FXNode node : nodes) {
             if ("WebcamSource".equals(node.nodeType)) {
-                // Get camera settings from node properties
+                // Get camera settings from node properties, with command line overrides
                 int cameraIndex = -1;
                 int resolutionIndex = 1;
                 int fpsIndex = 0;
                 boolean mirror = true;
 
-                Object camIdx = node.properties.get("cameraIndex");
-                if (camIdx instanceof Number) cameraIndex = ((Number) camIdx).intValue();
+                // Command line options override node settings
+                if (cmdCameraIndex != null) {
+                    cameraIndex = cmdCameraIndex;
+                } else {
+                    Object camIdx = node.properties.get("cameraIndex");
+                    if (camIdx instanceof Number) cameraIndex = ((Number) camIdx).intValue();
+                }
 
-                Object resIdx = node.properties.get("resolutionIndex");
-                if (resIdx instanceof Number) resolutionIndex = ((Number) resIdx).intValue();
+                if (cmdCameraResolution != null) {
+                    resolutionIndex = cmdCameraResolution;
+                } else {
+                    Object resIdx = node.properties.get("resolutionIndex");
+                    if (resIdx instanceof Number) resolutionIndex = ((Number) resIdx).intValue();
+                }
 
-                Object fps = node.properties.get("fpsIndex");
-                if (fps instanceof Number) fpsIndex = ((Number) fps).intValue();
+                // FPS: command line can be direct value or use node's index
+                Double directFps = null;
+                if (cmdCameraFps != null) {
+                    if (cmdCameraFps < 0) {
+                        fpsIndex = 0; // Default to 1 fps
+                    } else {
+                        directFps = cmdCameraFps; // Will use setFps() later
+                    }
+                } else {
+                    Object fps = node.properties.get("fpsIndex");
+                    if (fps instanceof Number) fpsIndex = ((Number) fps).intValue();
+                }
 
-                Object mirrorVal = node.properties.get("mirrorHorizontal");
-                if (mirrorVal instanceof Boolean) mirror = (Boolean) mirrorVal;
+                if (cmdCameraMirror != null) {
+                    mirror = cmdCameraMirror;
+                } else {
+                    Object mirrorVal = node.properties.get("mirrorHorizontal");
+                    if (mirrorVal instanceof Boolean) mirror = (Boolean) mirrorVal;
+                }
 
                 FXWebcamSource webcam;
 
                 // On Raspberry Pi with libcamera/V4L2, camera indices can be unstable
                 // and reopening a recently-closed device can fail due to timing issues.
-                // Always use findAndOpenCamera() which probes for any available camera.
-                // If a specific index is requested, try it first, then fall back to auto-detect.
+                // If a specific index is requested (>= 0), try it first.
+                // If index is -1, use auto-detect which finds first camera returning non-blank frames.
                 if (cameraIndex >= 0) {
                     // Try the specific camera first
                     webcam = FXWebcamSource.findAndOpenCamera(cameraIndex);
                 } else {
-                    webcam = null;
-                }
-
-                // Fall back to auto-detect if specific camera failed or none was specified
-                if (webcam == null) {
+                    // Auto-detect: find first camera that returns non-blank frames
                     webcam = FXWebcamSource.findAndOpenCamera();
                 }
 
                 if (webcam != null) {
                     cameraIndex = webcam.getCameraIndex();
+                    // Store actual camera index in node for display
+                    node.cameraIndex = cameraIndex;
                 }
 
                 if (webcam != null) {
                     // Configure the webcam source
                     webcam.setResolutionIndex(resolutionIndex);
-                    webcam.setFpsIndex(fpsIndex);
+                    if (directFps != null) {
+                        webcam.setFps(directFps);
+                    } else {
+                        webcam.setFpsIndex(fpsIndex);
+                    }
                     webcam.setMirrorHorizontal(mirror);
 
                     // Start the webcam
@@ -532,6 +828,11 @@ public class PipelineEditorApp extends Application {
         pipelineExecutor.setBasePath(currentFilePath);  // For resolving relative paths in nested containers
         pipelineExecutor.setOnNodeOutput((node, mat) -> {
             try {
+                // Check if pipeline was stopped while callback was queued
+                if (pipelineExecutor == null) {
+                    return;
+                }
+
                 // Update node thumbnail (small, for node box display)
                 javafx.scene.image.Image newThumb = FXImageUtils.matToImage(mat,
                     NodeRenderer.PROCESSING_NODE_THUMB_WIDTH,
@@ -548,7 +849,9 @@ public class PipelineEditorApp extends Application {
                 }
 
                 // Sync queue and processor stats before repainting
-                pipelineExecutor.syncAllStats();
+                if (pipelineExecutor != null) {
+                    pipelineExecutor.syncAllStats();
+                }
 
                 // Repaint canvas
                 editor.paintCanvas();

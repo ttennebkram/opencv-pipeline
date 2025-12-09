@@ -2,6 +2,8 @@
 
 A graphical node-based pipeline editor for OpenCV image processing operations.
 
+**IMPORTANT: Always read README.md as well when starting a session.** The README contains user-facing documentation including command line options, feature descriptions, and platform support details that provide important context.
+
 ## IMPORTANT: Git Policy
 
 **DO NOT create git commits or push without explicit user approval.**
@@ -33,7 +35,9 @@ mvn exec:exec
 mvn exec:exec@start
 
 # Run with custom arguments
-mvn exec:exec@run -Dpipeline.args="file.json --start"
+mvn exec:exec@run -Dpipeline.args="file.json -a"
+mvn exec:exec@run -Dpipeline.args="file.json -a --fullscreen_node_name Monitor"
+mvn exec:exec@run -Dpipeline.args="file.json -a --camera_fps 15 --max_time 60"
 
 # Package uber-jar
 mvn clean package
@@ -191,8 +195,25 @@ On Raspberry Pi 5, the camera uses libcamera which is not compatible with OpenCV
 
 USB webcams work normally via V4L2 and don't need the rpicam workaround. The code automatically detects which method to use.
 
+## Command Line Options
+
+Key options for automated/scripted use:
+- `-a`, `--auto_start`, `--auto_run` - Start pipeline immediately after loading
+- `--fullscreen_node_name NAME` - Open fullscreen preview of named node (live, updates continuously)
+- `--max_time SECONDS` - Exit after specified time (timer thread is daemon, so app exits cleanly)
+- `--camera_index`, `--camera_resolution`, `--camera_fps`, `--camera_mirror` - Override all webcam sources
+
+Options can appear before or after the pipeline filename.
+
 ## Known Issues
 
 - Watch for file handle leaks - always close InputStreams, use try-with-resources
 - FFT nodes have complex multi-channel output modes (grayscale vs 4-channel)
 - Container nodes have their own sub-pipeline serialized inline
+
+## Recent Bug Fixes Worth Noting
+
+- **Node label serialization** (v2.4.0): Custom labels that match the node type name (e.g., naming a Monitor node "Monitor") now save/restore correctly. Previously the condition `!savedLabel.equals(type)` rejected these.
+- **Fullscreen preview race conditions**: The fullscreen window uses an `AnimationTimer` to continuously update from `node.previewImage`, and properly requests focus to avoid beeps on first click.
+- **Clean exit with --max_time**: The timer thread is set as daemon (`setDaemon(true)`) so the JVM exits when windows close.
+- **Pipeline stop race condition**: Null checks added for `pipelineExecutor` in callbacks that may fire after pipeline stops.

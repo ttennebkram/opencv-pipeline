@@ -903,11 +903,16 @@ public class NodeRenderer {
      * @param effectiveFps Current effective FPS after slowdown
      */
     public static void drawSourceStatsLine(GraphicsContext gc, double x, double y,
-                                            int priority, long workUnits, double effectiveFps) {
+                                            int priority, long workUnits, double effectiveFps, int cameraIndex) {
         gc.setFont(STATS_LINE_FONT);
         // Red text if priority is below 5, otherwise dark gray
         gc.setFill(priority < 5 ? COLOR_STATS_SLOWED : COLOR_STATS_NORMAL);
-        String statsLine = String.format("Pri: %d   Work: %,d   FPS: %.3f", priority, workUnits, effectiveFps);
+        String statsLine;
+        if (cameraIndex >= 0) {
+            statsLine = String.format("Pri: %d   Work: %,d   FPS: %.1f   Cam: %d", priority, workUnits, effectiveFps, cameraIndex);
+        } else {
+            statsLine = String.format("Pri: %d   Work: %,d   FPS: %.1f", priority, workUnits, effectiveFps);
+        }
         gc.fillText(statsLine, x, y);
     }
 
