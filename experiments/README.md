@@ -30,15 +30,17 @@ The goal is to train a CNN to detect the 4 corners of a paper/document in a came
 
 ### Output Files
 
+Each run creates timestamped files to avoid overwriting previous runs:
+
 ```
 output_dir/
-├── human_content.avi      # For human review: content sorted by rotation angle
-├── human_white.avi        # For human review: white page sorted by rotation angle
-├── training_content.avi   # For training: content in random order
-├── training_white.avi     # For training: white page in random order
-├── training_labels.json   # JSON array of per-frame labels
-├── images/                # Individual frame images (PNG)
-└── labels/                # Individual frame labels (JSON)
+├── human_content_YYYY-MM-DD_HH-MM-SS.avi      # For human review: content sorted by rotation
+├── human_white_YYYY-MM-DD_HH-MM-SS.avi        # For human review: white page sorted by rotation
+├── training_content_YYYY-MM-DD_HH-MM-SS.avi   # For training: content in random order
+├── training_white_YYYY-MM-DD_HH-MM-SS.avi     # For training: white page in random order
+├── training_labels_YYYY-MM-DD_HH-MM-SS.json   # JSON array of per-frame labels
+├── images/                                     # Individual frame images (JPEG)
+└── labels/                                     # Individual frame labels (JSON)
 ```
 
 ### Video Pairs

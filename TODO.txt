@@ -114,6 +114,7 @@ how many nodes override .paint()?
     /colors
     other?
 
+lead crystal filter from 2 image sources
 
 opening container window, good initial position and good initial height,
     but width is too narrow, ideally same dims as parent window IF that would fit on their screen, so clamped

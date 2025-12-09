@@ -245,6 +245,7 @@ The generator simulates a camera viewing a paper document on a surface:
    - Renders random Wikipedia pages using JavaFX WebView
    - 50% dark mode (CSS injection) for variety
    - Random page scrolling (0-3 pages down) to avoid position bias
+   - **Note**: Stage must be shown for WebView to render (headless mode moves window off-screen)
 
 2. **Perspective Transforms**:
    - Paper rotation: full 360°
