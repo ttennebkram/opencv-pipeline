@@ -1,17 +1,41 @@
 #!/bin/bash
 
-#java -cp "$(cat /tmp/cp.txt):experiments" CNNMnistExample
+# Run HomographyTrainingDataGenerator with JavaFX support
+# This uses WebView to render web pages for training data generation
 
-#mvn dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -q && \
-#  java -cp "$(cat /tmp/cp.txt):target/classes:experiments" ProcessMnistExample
+cd "$(dirname "$0")/.."
 
-# Or if you've already built the classpath file recently:
+# Build the classpath file
+mvn compile dependency:build-classpath \
+    -Dmdep.outputFile=/tmp/cp.txt \
+    -q
 
-#java -cp "$(cat /tmp/cp.txt):target/classes:." ProcessMnistExample
+# Compile experiments folder (not part of Maven build)
+javac -cp "$(cat /tmp/cp.txt):target/classes" \
+    -d experiments \
+    experiments/HomographyTrainingDataGenerator.java
 
-cd ..
-javac -cp "$(cat /tmp/cp.txt):target/classes" -d experiments experiments/ProcessMnistHybridExample.java
-cd experiments
+# Find JavaFX jars in Maven repository
+JAVAFX_VERSION="22.0.1"
+M2_REPO=~/.m2/repository/org/openjfx
 
-java -cp "$(cat /tmp/cp.txt):target/classes:." ProcessMnistHybridExample
+# Build module path for JavaFX
+JAVAFX_MODULES="$M2_REPO/javafx-controls/$JAVAFX_VERSION/javafx-controls-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-controls/$JAVAFX_VERSION/javafx-controls-$JAVAFX_VERSION-mac-aarch64.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-graphics/$JAVAFX_VERSION/javafx-graphics-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-graphics/$JAVAFX_VERSION/javafx-graphics-$JAVAFX_VERSION-mac-aarch64.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-base/$JAVAFX_VERSION/javafx-base-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-base/$JAVAFX_VERSION/javafx-base-$JAVAFX_VERSION-mac-aarch64.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-web/$JAVAFX_VERSION/javafx-web-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-web/$JAVAFX_VERSION/javafx-web-$JAVAFX_VERSION-mac-aarch64.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-swing/$JAVAFX_VERSION/javafx-swing-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-swing/$JAVAFX_VERSION/javafx-swing-$JAVAFX_VERSION-mac-aarch64.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-media/$JAVAFX_VERSION/javafx-media-$JAVAFX_VERSION.jar"
+JAVAFX_MODULES="$JAVAFX_MODULES:$M2_REPO/javafx-media/$JAVAFX_VERSION/javafx-media-$JAVAFX_VERSION-mac-aarch64.jar"
 
+# Run the Java program with JavaFX modules
+java --module-path "$JAVAFX_MODULES" \
+    --add-modules javafx.controls,javafx.web,javafx.swing,javafx.media \
+    -cp "$(cat /tmp/cp.txt):target/classes:experiments" \
+    HomographyTrainingDataGenerator \
+    "$@"

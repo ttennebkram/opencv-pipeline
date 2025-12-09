@@ -212,3 +212,145 @@ mvn exec:exec@ml -Dml.class=JavaCNNInference  # Train + Java inference
 | Java Inference | - | 0.3ms/image |
 
 Training exports portable weight files that work with JavaCNNInference on any platform.
+
+## Homography Estimation Experiment (WIP)
+
+**Goal**: Train a neural network to recognize perspective distortion in images and output the corner positions of a paper/document in the camera view.
+
+### Quick Start
+
+```bash
+cd experiments
+
+# Continuous mode (default) - runs until Ctrl+C
+./r2 --output training_data/homography
+
+# Generate specific amount
+./r2 --samples_per_page 30 --pages 100 --output training_data/homography
+
+# Estimate mode - show projections without generating
+./r2 --estimate --pages 1000
+```
+
+### Files
+
+- `experiments/HomographyTrainingDataGenerator.java` - Renders Wikipedia pages, applies random perspective transforms, generates training videos and JSON labels
+- `experiments/r2` - Shell script to compile and run the generator with JavaFX
+
+### Training Data Generator Features
+
+The generator simulates a camera viewing a paper document on a surface:
+
+1. **Web Page Rendering**:
+   - Renders random Wikipedia pages using JavaFX WebView
+   - 50% dark mode (CSS injection) for variety
+   - Random page scrolling (0-3 pages down) to avoid position bias
+
+2. **Perspective Transforms**:
+   - Paper rotation: full 360°
+   - Camera tilt: ±30% perspective distortion (realistic viewing angles)
+   - Paper scale: 5-80% of frame (biased toward smaller/distant papers via squared distribution)
+   - Paper position: -20% to 120% of frame (can be partially off-screen)
+
+3. **Shadow Effects** (50% of samples):
+   - Gradient shadows (directional)
+   - Edge vignettes
+   - Cast shadows with perspective
+   - Corner occlusion
+   - 30% of shadows are "hard black" (pixels → 0)
+
+4. **Video Output** (4 videos at 30 fps):
+   - `human_content.avi` - Content with shadows, sorted by rotation angle (for review)
+   - `human_white.avi` - White page geometry, sorted by rotation angle (for review)
+   - `training_content.avi` - Content with shadows, random order (for training)
+   - `training_white.avi` - White page geometry, random order (for training)
+
+5. **Threading**: Heavy OpenCV processing runs on background thread, keeping UI responsive
+
+6. **JSON Labels** (per frame):
+```json
+{
+  "frame": 0,
+  "id": "page_0_sample_5",
+  "h": [9 homography values],
+  "inv": [9 inverse values],
+  "corners": [x0, y0, x1, y1, x2, y2, x3, y3],
+  "dark_mode": true
+}
+```
+
+7. **Stats Tracking**:
+   - Dark/light mode page counts printed at end
+   - Thread-safe frame buffering for concurrent access
+   - Stats cached to `~/.homography_generator_stats.json` for projections
+   - `--estimate` mode shows projections without generating data
+
+8. **Output Resolution**:
+   - Default: 1920×1080 (1080p) for high-quality source data
+   - **IMPORTANT**: Resize significantly for training (224×224, 320×240, etc.)
+   - Training on 1080p directly is wasteful and slow
+
+### Training Recommendations
+
+- **Train on corners_normalized**, not raw homography values
+- Homography matrix values can range from -200M to +200M (extremely variable)
+- Corners are bounded to [-1, +1] after normalization
+- Network output: 8 values (4 corners × 2 coordinates)
+
+### Implementation Plan
+
+1. [x] Create training data generator (`experiments/HomographyTrainingDataGenerator.java`)
+   - Uses JavaFX WebView to render Wikipedia pages
+   - Random perspective transforms simulating paper on table
+   - Shadow effects for realism
+   - Dual video output (content + geometry)
+2. [x] Create Python training script (`experiments/train_homography.py`)
+   - CNN with conv backbone + regression head
+   - Combined loss: MSE + reprojection error
+   - Exports weights for Java inference
+3. [ ] Generate large training dataset (1000+ pages × 10 samples = 10,000+ pairs)
+4. [ ] Train and tune the model
+5. [ ] Export trained model for Java inference
+6. [ ] Create `HomographyEstimatorProcessor` - runs inference in pipeline
+
+### Alternative: High-Resolution Document Scans
+
+Instead of low-res camera captures, train on 300 DPI scans of 8.5×11" paper:
+- **Input size**: 2550×3300 pixels (8.4 million grayscale)
+- **Use case**: Document deskewing, perspective correction for scanned documents
+
+**Why CNNs excel here** (vs fully-connected):
+- **Parameter sharing**: Conv kernels reuse weights across spatial locations
+- **Hierarchical pooling**: Progressively reduce 8.4M pixels → manageable feature vector
+- **Translation invariance**: Detect features regardless of position
+
+**Example CNN architecture** (2550×3300 → 8 corner values):
+```
+Layer                  Output Shape      Parameters
+─────────────────────────────────────────────────────
+Conv 3×3, 32 filters   2550×3300×32      320
+MaxPool 2×2            1275×1650×32      -
+Conv 3×3, 64 filters   1275×1650×64      18,496
+MaxPool 2×2            637×825×64        -
+Conv 3×3, 128 filters  637×825×128       73,856
+MaxPool 2×2            318×412×128       -
+Conv 3×3, 256 filters  318×412×256       295,168
+MaxPool 2×2            159×206×256       -
+GlobalAveragePool      256               -
+Dense → 8              8                 2,056
+─────────────────────────────────────────────────────
+Total: ~390K parameters (~1.5 MB model)
+```
+
+**Comparison**:
+| Approach | Input Size | Parameters | Model Size |
+|----------|------------|------------|------------|
+| Fully-connected (160×120) | 19,200 | 9.6M | ~39 MB |
+| CNN (2550×3300) | 8.4M | 390K | ~1.5 MB |
+
+CNNs use **25× fewer parameters** while handling **437× more pixels**!
+
+### Related
+
+- `calibrate` branch: CalibrateProcessor for projector alignment using detected corners
+- Uses OpenCV `Calib3d.findHomography()` and `Imgproc.warpPerspective()`
