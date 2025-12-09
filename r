@@ -23,14 +23,17 @@
 # ---
 # Tar file build, easier syntax-wise :-)
 #echo Running from .jar:
-#java -jar target/opencv-pipeline.jar
+java -jar target/opencv-pipeline.jar
 #java -jar target/opencv-pipeline.jar -h
 #java -jar target/opencv-pipeline.jar --webcam -1
-java -jar target/opencv-pipeline.jar \
-    /Users/mbennett/Dropbox/dev/image-pipelines/webcam_invert.json \
-    --auto_run \
-    --fullscreen_node_name Monitor \
-    --max_time 10
+
+# Fancy
+# -----
+#java -jar target/opencv-pipeline.jar \
+#    /Users/mbennett/Dropbox/dev/image-pipelines/webcam_invert.json \
+#    --auto_run \
+#    --fullscreen_node_name Monitor \
+#    --max_time 10
 
 # Syntax
 # ------

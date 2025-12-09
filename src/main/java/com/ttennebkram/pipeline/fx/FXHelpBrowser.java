@@ -113,6 +113,14 @@ public class FXHelpBrowser {
     }
 
     /**
+     * Open the README documentation.
+     * @param parent Parent stage (for positioning)
+     */
+    public static void openReadme(Stage parent) {
+        open(parent, "README.md");
+    }
+
+    /**
      * Open help for a specific node type.
      * @param parent Parent stage
      * @param nodeType The node type name to show help for
@@ -209,6 +217,10 @@ public class FXHelpBrowser {
      */
     private static Map<String, String> getAllDocumentedNodes() {
         Map<String, String> nodes = new LinkedHashMap<>();
+
+        // General documentation (at top of list)
+        nodes.put("README - Full Documentation", "README.md");
+
         // Blur nodes
         nodes.put("Gaussian Blur", "doc/opencv/GaussianBlur.html");
         nodes.put("Box Blur", "doc/opencv/blur.html");
@@ -601,8 +613,16 @@ public class FXHelpBrowser {
     }
 
     private void navigate(String docPath) {
-        String html = loadResource(docPath);
-        if (html != null) {
+        String content = loadResource(docPath);
+        if (content != null) {
+            // Convert markdown to HTML if needed
+            String html;
+            if (docPath.endsWith(".md")) {
+                html = convertMarkdownToHtml(content);
+            } else {
+                html = content;
+            }
+
             if (!navigatingFromHistory) {
                 // Remove forward history
                 while (history.size() > historyIndex + 1) {
@@ -648,6 +668,192 @@ public class FXHelpBrowser {
         } else {
             webEngine.loadContent(getNotFoundHtml("doc/about.html"));
         }
+    }
+
+    /**
+     * Convert basic markdown to HTML for display.
+     * Handles headers, lists, code blocks, links, bold, and basic formatting.
+     */
+    private String convertMarkdownToHtml(String markdown) {
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>README</title>");
+        html.append("<style>");
+        html.append("body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; margin: 20px; line-height: 1.6; }");
+        html.append("h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }");
+        html.append("h2 { color: #34495e; margin-top: 25px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }");
+        html.append("h3 { color: #555; margin-top: 20px; }");
+        html.append("code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }");
+        html.append("pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }");
+        html.append("pre code { background: none; padding: 0; }");
+        html.append("a { color: #3498db; }");
+        html.append("table { border-collapse: collapse; margin: 15px 0; }");
+        html.append("th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }");
+        html.append("th { background: #f4f4f4; }");
+        html.append("ul, ol { padding-left: 25px; }");
+        html.append("li { margin: 5px 0; }");
+        html.append("blockquote { border-left: 4px solid #3498db; margin: 15px 0; padding-left: 15px; color: #666; }");
+        html.append("img { max-width: 100%; height: auto; }");
+        html.append("</style></head><body>");
+
+        String[] lines = markdown.split("\n");
+        boolean inCodeBlock = false;
+        boolean inList = false;
+        boolean inTable = false;
+        StringBuilder codeBlock = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            // Code blocks
+            if (line.startsWith("```")) {
+                if (inCodeBlock) {
+                    html.append("<pre><code>").append(escapeHtml(codeBlock.toString())).append("</code></pre>\n");
+                    codeBlock = new StringBuilder();
+                    inCodeBlock = false;
+                } else {
+                    if (inList) {
+                        html.append("</ul>\n");
+                        inList = false;
+                    }
+                    inCodeBlock = true;
+                }
+                continue;
+            }
+
+            if (inCodeBlock) {
+                codeBlock.append(line).append("\n");
+                continue;
+            }
+
+            // Tables
+            if (line.startsWith("|") && line.endsWith("|")) {
+                if (!inTable) {
+                    if (inList) {
+                        html.append("</ul>\n");
+                        inList = false;
+                    }
+                    html.append("<table>\n");
+                    inTable = true;
+                }
+                // Skip separator lines like |---|---|
+                if (line.matches("\\|[-:\\s|]+\\|")) {
+                    continue;
+                }
+                String[] cells = line.split("\\|");
+                html.append("<tr>");
+                for (int c = 1; c < cells.length - 1; c++) { // Skip empty first/last from split
+                    String cell = cells[c].trim();
+                    cell = processInlineMarkdown(cell);
+                    // First row is header
+                    if (i > 0 && lines[i-1].startsWith("|") && !lines[i-1].matches("\\|[-:\\s|]+\\|")) {
+                        html.append("<td>").append(cell).append("</td>");
+                    } else {
+                        html.append("<th>").append(cell).append("</th>");
+                    }
+                }
+                html.append("</tr>\n");
+                continue;
+            } else if (inTable) {
+                html.append("</table>\n");
+                inTable = false;
+            }
+
+            // Headers
+            if (line.startsWith("### ")) {
+                if (inList) { html.append("</ul>\n"); inList = false; }
+                html.append("<h3>").append(processInlineMarkdown(line.substring(4))).append("</h3>\n");
+                continue;
+            }
+            if (line.startsWith("## ")) {
+                if (inList) { html.append("</ul>\n"); inList = false; }
+                html.append("<h2>").append(processInlineMarkdown(line.substring(3))).append("</h2>\n");
+                continue;
+            }
+            if (line.startsWith("# ")) {
+                if (inList) { html.append("</ul>\n"); inList = false; }
+                html.append("<h1>").append(processInlineMarkdown(line.substring(2))).append("</h1>\n");
+                continue;
+            }
+
+            // List items
+            if (line.startsWith("- ") || line.startsWith("* ")) {
+                if (!inList) {
+                    html.append("<ul>\n");
+                    inList = true;
+                }
+                html.append("<li>").append(processInlineMarkdown(line.substring(2))).append("</li>\n");
+                continue;
+            }
+
+            // Numbered lists
+            if (line.matches("^\\d+\\.\\s.*")) {
+                if (!inList) {
+                    html.append("<ul>\n");
+                    inList = true;
+                }
+                html.append("<li>").append(processInlineMarkdown(line.replaceFirst("^\\d+\\.\\s", ""))).append("</li>\n");
+                continue;
+            }
+
+            // End list if non-list line
+            if (inList && !line.trim().isEmpty()) {
+                html.append("</ul>\n");
+                inList = false;
+            }
+
+            // Empty lines
+            if (line.trim().isEmpty()) {
+                if (inList) {
+                    html.append("</ul>\n");
+                    inList = false;
+                }
+                continue;
+            }
+
+            // Regular paragraph
+            html.append("<p>").append(processInlineMarkdown(line)).append("</p>\n");
+        }
+
+        // Close any open tags
+        if (inList) html.append("</ul>\n");
+        if (inTable) html.append("</table>\n");
+        if (inCodeBlock) html.append("<pre><code>").append(escapeHtml(codeBlock.toString())).append("</code></pre>\n");
+
+        html.append("</body></html>");
+        return html.toString();
+    }
+
+    /**
+     * Process inline markdown: bold, italic, code, links.
+     */
+    private String processInlineMarkdown(String text) {
+        // Escape HTML first (but preserve our conversions)
+        text = escapeHtml(text);
+
+        // Inline code (must come before bold/italic to avoid conflicts)
+        text = text.replaceAll("`([^`]+)`", "<code>$1</code>");
+
+        // Bold **text** or __text__
+        text = text.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
+        text = text.replaceAll("__([^_]+)__", "<strong>$1</strong>");
+
+        // Links [text](url)
+        text = text.replaceAll("\\[([^\\]]+)\\]\\(([^)]+)\\)", "<a href=\"$2\">$1</a>");
+
+        // Images ![alt](url) - convert to just showing alt text since images may not load
+        text = text.replaceAll("!\\[([^\\]]+)\\]\\(([^)]+)\\)", "<em>[Image: $1]</em>");
+
+        return text;
+    }
+
+    /**
+     * Escape HTML special characters.
+     */
+    private String escapeHtml(String text) {
+        return text.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;");
     }
 
     private void navigateToHistoryItem(int index) {

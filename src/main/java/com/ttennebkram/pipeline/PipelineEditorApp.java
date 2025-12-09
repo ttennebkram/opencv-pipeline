@@ -542,11 +542,13 @@ public class PipelineEditorApp extends Application {
 
         // Help menu
         Menu helpMenu = new Menu("Help");
+        MenuItem readmeItem = new MenuItem("README");
+        readmeItem.setOnAction(e -> FXHelpBrowser.openReadme(primaryStage));
         MenuItem searchHelpItem = new MenuItem("Search OpenCV Pipeline Help...");
         searchHelpItem.setOnAction(e -> FXHelpBrowser.openSearch(primaryStage));
         MenuItem aboutItem = new MenuItem("About");
         aboutItem.setOnAction(e -> FXHelpBrowser.openAbout(primaryStage));
-        helpMenu.getItems().addAll(searchHelpItem, new SeparatorMenuItem(), aboutItem);
+        helpMenu.getItems().addAll(readmeItem, searchHelpItem, new SeparatorMenuItem(), aboutItem);
 
         menuBar.getMenus().addAll(fileMenu, editMenu, helpMenu);
 
