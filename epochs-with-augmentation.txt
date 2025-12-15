@@ -1,0 +1,19 @@
+with --augment image twiddling
+
+  | Checkpoint | Pixel Error        | Status     |
+  |------------|--------------------|------------|
+  | Epoch 25   | 57.1 px            | Downloaded |
+  | Epoch 50   | 55.7 px            | Downloaded |
+  | Epoch 75   | 126.8 px (outlier) | Downloaded |
+  | Epoch 100  | 50.9 px            | Downloaded |
+  | Epoch 125  | 47.2 px            | Downloaded |
+  | Epoch 150  | 47.8 px            | Downloaded |
+  | Epoch 175  | 46.5 px            | Downloaded |
+  | Epoch 200  | 46.6 px            | Downloaded |
+  | Epoch 225  | 45.7 px            | Downloaded |
+  | Epoch 250  | 45.4 px            | Downloaded |
+  | Epoch 275  | 45.9 px            | Downloaded |
+  | Epoch 300  | 45.0 px            | Downloaded |
+  | Epoch 325  | 45.0 px     |
+        ...
+    stayed at like 37 pixel error than flattened

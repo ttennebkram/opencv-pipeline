@@ -61,7 +61,7 @@ public class HomographyTrainingDataGenerator extends Application {
     private static int renderHeight = 1320;
     private static int samplesPerPage = 30;  // How many distortions per source image
     private static int totalPages = -1;       // How many pages to render (-1 = continuous until Ctrl+C)
-    private static String outputDir = "training_data/homography";
+    private static String outputDir = "/Volumes/SamsungBlue/ml-training/homography/training_data";
     private static List<String> urls = new ArrayList<>();
 
     // State
@@ -92,6 +92,8 @@ public class HomographyTrainingDataGenerator extends Application {
     private static boolean clearAllData = false;  // Clear all existing training data before starting
     private static int workerId = 0;  // Worker ID for multi-process mode (0 = single process)
     private static int numWorkers = 10;  // Number of worker processes to spawn (default 10, 0 = single process)
+    private static int maxSeconds = -1;  // Maximum seconds to run (-1 = no limit)
+    private static int maxFrames = -1;   // Maximum frames to output (-1 = no limit)
     private static final String STATS_CACHE_FILE = System.getProperty("user.home") + "/.homography_generator_stats.json";
     private static final String WORKER_STATS_PREFIX = ".worker_stats_";  // Worker stats files in output dir
 
@@ -207,6 +209,14 @@ public class HomographyTrainingDataGenerator extends Application {
                 case "--workers":
                     numWorkers = Integer.parseInt(args[++i]);
                     break;
+                case "--seconds":
+                case "--time":
+                    maxSeconds = Integer.parseInt(args[++i]);
+                    break;
+                case "--frames":
+                case "--max_frames":
+                    maxFrames = Integer.parseInt(args[++i]);
+                    break;
                 case "-h":
                 case "--help":
                     printUsage();
@@ -236,7 +246,15 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.println("Output directory: " + outputDir);
         if (totalPages < 0) {
             System.out.println("Mode: CONTINUOUS (Ctrl+C to stop)");
-            System.out.println("WARNING: Disk usage grows without limit! (~200 KB/frame)");
+            if (maxSeconds > 0 || maxFrames > 0) {
+                System.out.print("Limits: ");
+                if (maxSeconds > 0) System.out.print(maxSeconds + " seconds");
+                if (maxSeconds > 0 && maxFrames > 0) System.out.print(", ");
+                if (maxFrames > 0) System.out.print(maxFrames + " frames");
+                System.out.println();
+            } else {
+                System.out.println("WARNING: Disk usage grows without limit! (~200 KB/frame)");
+            }
         } else {
             int totalSamples = samplesPerPage * totalPages;
             long estimatedMB = (totalSamples * 200L) / 1024;  // ~200KB per frame
@@ -273,7 +291,19 @@ public class HomographyTrainingDataGenerator extends Application {
 
         // Add shutdown hook for Ctrl-C
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n[Worker " + workerId + "] Shutdown requested, cleaning up...");
+            System.out.println("\n[Worker " + workerId + "] Shutdown requested, waiting for background threads...");
+
+            // Signal shutdown and give background threads time to finish current work
+            if (instance != null) {
+                instance.shuttingDown = true;
+            }
+            try {
+                Thread.sleep(3000);  // Wait 3 seconds for threads to finish
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            System.out.println("[Worker " + workerId + "] Cleaning up resources...");
             if (instance != null) {
                 instance.cleanup();
             }
@@ -707,7 +737,7 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.println("  --height N           Image height (default: 1080)");
         System.out.println("  --samples_per_page N Distortions per page (default: 30)");
         System.out.println("  --pages N            Number of pages (-1 = continuous, default: -1)");
-        System.out.println("  --output DIR         Output directory (default: training_data/homography)");
+        System.out.println("  --output DIR         Output directory (default: /Volumes/SamsungBlue/ml-training/homography/training_data)");
         System.out.println("  --fps N              Video fps and display delay (default: 30)");
         System.out.println("  --estimate           Show projections based on previous runs, don't generate");
         System.out.println("  --headless           Suppress all windows (faster processing)");
@@ -715,6 +745,8 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.println("  --clear_all_generated_data  DELETE all existing training data before starting");
         System.out.println("  --worker-id N        Worker ID for multi-process mode (adds _wN suffix to files)");
         System.out.println("  --workers N          Spawn N parallel worker processes (default: 10, 0=single)");
+        System.out.println("  --seconds N          Stop after N seconds (-1 = no limit, default: -1)");
+        System.out.println("  --frames N           Stop after N frames (-1 = no limit, default: -1)");
         System.out.println("  -h, --help           Show this help");
         System.out.println();
         System.out.println("*** IMPORTANT: RESIZE FOR TRAINING! ***");
@@ -1038,6 +1070,18 @@ public class HomographyTrainingDataGenerator extends Application {
     private void loadNextPage() {
         if (shuttingDown) return;
 
+        // Check if we've hit any limits (time or frames)
+        if (hasReachedLimit()) {
+            if (limitMessage != null) {
+                System.out.println("\n" + limitMessage);
+            }
+            System.out.println("Stopping generation.");
+            cleanup();
+            completionLatch.countDown();
+            Platform.exit();
+            return;
+        }
+
         // In continuous mode (pages < 0), always load a new random Wikipedia page
         if (totalPages < 0) {
             currentSampleIndex = 0;
@@ -1062,6 +1106,35 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.print("[Page " + (currentUrlIndex + 1) + "/" + urls.size() + "] ");
         System.out.flush();
         webEngine.load(url);
+    }
+
+    private volatile boolean limitReached = false;
+    private volatile String limitMessage = null;
+
+    /**
+     * Check if we've reached any configured limits (time or frames).
+     */
+    private boolean hasReachedLimit() {
+        if (limitReached) return true;
+
+        // Check time limit
+        if (maxSeconds > 0) {
+            long elapsedSeconds = (System.currentTimeMillis() - startTimeMillis) / 1000;
+            if (elapsedSeconds >= maxSeconds) {
+                limitReached = true;
+                limitMessage = String.format("Time limit reached: %d seconds", maxSeconds);
+                return true;
+            }
+        }
+
+        // Check frame limit
+        if (maxFrames > 0 && totalSamplesGenerated >= maxFrames) {
+            limitReached = true;
+            limitMessage = String.format("Frame limit reached: %d frames", maxFrames);
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -1109,7 +1182,7 @@ public class HomographyTrainingDataGenerator extends Application {
             addOriginalPageFrame(originalMat, pageIdx, pageTitle);
 
             // Generate multiple distorted versions
-            for (int i = 0; i < samplesPerPage && !shuttingDown; i++) {
+            for (int i = 0; i < samplesPerPage && !shuttingDown && !hasReachedLimit(); i++) {
                 generateSample(originalMat, pageIdx, i, pageTitle);
                 currentSampleIndex++;
                 totalSamplesGenerated++;
@@ -1268,18 +1341,16 @@ public class HomographyTrainingDataGenerator extends Application {
         // Destination: simulate paper on a table viewed from a tilted camera
         // The paper appears as a distorted quadrilateral in the output image
 
-        double paperRotation = random.nextDouble() * 2 * Math.PI;  // Paper orientation 0-360°
-        double cameraTiltX = (random.nextDouble() - 0.5) * 0.6;    // Camera tilt left/right (±0.3)
-        double cameraTiltY = (random.nextDouble() - 0.5) * 0.6;    // Camera tilt forward/back (±0.3)
-        // Use squared random to bias toward smaller scales (more distant papers)
-        double scaleRandom = random.nextDouble();
-        scaleRandom = scaleRandom * scaleRandom;  // Square it: more samples near 0
-        double paperScale = 0.05 + scaleRandom * 0.75;             // Paper size 5-80% of frame (biased toward small/distant)
+        double paperRotation = random.nextDouble() * 2 * Math.PI;  // Paper orientation 0-360° (realistic)
+        double cameraTiltX = (random.nextDouble() - 0.5) * 0.3;    // Camera tilt left/right (±0.15, was ±0.3)
+        double cameraTiltY = (random.nextDouble() - 0.5) * 0.3;    // Camera tilt forward/back (±0.15, was ±0.3)
+        // Linear random for scale (was squared/biased toward small)
+        double paperScale = 0.20 + random.nextDouble() * 0.50;     // Paper size 20-70% of frame (was 5-80%)
 
-        // Random position - paper can be anywhere, including partially off-frame
-        // Range allows paper center from -20% to 120% of image dimensions
-        double centerX = imageWidth * (-0.2 + random.nextDouble() * 1.4);
-        double centerY = imageHeight * (-0.2 + random.nextDouble() * 1.4);
+        // Random position - paper mostly on-screen
+        // Range allows paper center from 10% to 90% of image dimensions (was -20% to 120%)
+        double centerX = imageWidth * (0.1 + random.nextDouble() * 0.8);
+        double centerY = imageHeight * (0.1 + random.nextDouble() * 0.8);
 
         // Base paper size in output - maintain 8.5x11 (letter paper) proportions
         // paperScale controls what fraction of image height the paper takes
@@ -2083,6 +2154,8 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.println("Homography Training Data Generator - Multi-Worker Mode");
         System.out.println("======================================================");
         System.out.println("Spawning " + numWorkers + " worker processes...");
+        if (maxFrames > 0) System.out.println("Frame limit: " + maxFrames);
+        if (maxSeconds > 0) System.out.println("Time limit: " + maxSeconds + " seconds");
         System.out.println();
 
         // Make output directory absolute so workers can find it
@@ -2212,6 +2285,47 @@ public class HomographyTrainingDataGenerator extends Application {
         System.out.println("Press Ctrl+C to stop all workers.");
         System.out.println();
 
+        // Start a monitoring thread to periodically print aggregated stats and check limits
+        final long monitorStartTime = startTime;
+        final List<Process> workersForMonitor = workers;
+        Thread monitorThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(2000);  // Check every 2 seconds
+                    long totalFrames = getTotalWorkerFrames();
+                    long elapsedSeconds = (System.currentTimeMillis() - monitorStartTime) / 1000;
+                    double fps = elapsedSeconds > 0 ? totalFrames / (double) elapsedSeconds : 0;
+
+                    // Print stats
+                    System.out.printf("[STATS] Total: %,d frames, %.1f fps, %ds elapsed (limit: %d)%n",
+                                      totalFrames, fps, elapsedSeconds, maxFrames);
+                    System.out.flush();
+
+                    // Check frame limit
+                    if (maxFrames > 0 && totalFrames >= maxFrames) {
+                        System.out.printf("%n[COORDINATOR] Frame limit reached: %,d frames. Stopping workers...%n", totalFrames);
+                        for (Process p : workersForMonitor) {
+                            if (p.isAlive()) p.destroy();
+                        }
+                        break;
+                    }
+
+                    // Check time limit
+                    if (maxSeconds > 0 && elapsedSeconds >= maxSeconds) {
+                        System.out.printf("%n[COORDINATOR] Time limit reached: %d seconds. Stopping workers...%n", elapsedSeconds);
+                        for (Process p : workersForMonitor) {
+                            if (p.isAlive()) p.destroy();
+                        }
+                        break;
+                    }
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        });
+        monitorThread.setDaemon(true);
+        monitorThread.start();
+
         // Add shutdown hook to gracefully stop all workers on Ctrl+C
         final List<Process> workersFinal = workers;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -2283,6 +2397,25 @@ public class HomographyTrainingDataGenerator extends Application {
 
         // Aggregate worker stats (normal completion, not Ctrl+C)
         aggregateWorkerStats(startTime);
+    }
+
+    /**
+     * Get total frames generated across all workers by reading their stats files.
+     */
+    private static long getTotalWorkerFrames() {
+        long totalFrames = 0;
+        for (int i = 1; i <= numWorkers; i++) {
+            String statsFile = outputDir + "/" + WORKER_STATS_PREFIX + i + ".json";
+            try {
+                Path statsPath = Paths.get(statsFile);
+                if (!Files.exists(statsPath)) continue;
+                String content = Files.readString(statsPath);
+                totalFrames += parseJsonLong(content, "frames", 0);
+            } catch (Exception e) {
+                // Ignore read errors
+            }
+        }
+        return totalFrames;
     }
 
     /**

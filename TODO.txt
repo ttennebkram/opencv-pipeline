@@ -5,7 +5,7 @@ Legend:
     ! = urgent a = very high pri  b = important          c = avg/lower pri
     ? = question                  X or x = No/dismissed  = = dupe
 
-.Too many open files
+/Too many open files
 
 -----------------------------------------------------
 

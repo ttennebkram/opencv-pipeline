@@ -6,18 +6,41 @@ See the main [CLAUDE.md](../CLAUDE.md) for project overview and build instructio
 
 ## Quick Start
 
+Data is stored on external SSD: `/Volumes/SamsungBlue/ml-training/homography/training_data`
+
 ```bash
-# Continuous mode (default) - runs until Ctrl+C
-./r2 --output training_data
+# Run for 5 minutes (recommended for first test)
+./r2 --seconds 300
 
 # Generate specific amount (100 pages × 30 samples = 3000 frames)
-./r2 --pages 100 --samples_per_page 30 --output training_data
+./r2 --pages 100 --samples_per_page 30
+
+# Continuous mode - runs until Ctrl+C
+./r2
 
 # Preview mode (fewer samples, visible window)
-./r2 --pages 5 --samples_per_page 10 --output test_run
+./r2 --pages 5 --samples_per_page 10
 
 # Estimate mode - show projections without generating
 ./r2 --estimate --pages 1000
+
+# Train the model (uses same default path)
+python3 train_homography.py --epochs 50
+```
+
+### ⚠️ Disk Space Warning
+
+At full speed with 10 workers, the generator produces ~50 fps × 200KB/frame = **~36GB/hour**.
+
+**Your disk will fill in approximately 2 hours!**
+
+### ⚠️ KNOWN BUG: Frame Limit Broken
+
+The `--max_frames` option doesn't work reliably in multi-worker mode. Use `--seconds` or Ctrl+C instead.
+
+```bash
+./r2 --seconds 1800 --output training_data  # 30 minutes - works
+./r2 --max_frames 10000 --output training_data  # BROKEN - use --seconds instead
 ```
 
 ## What We're Generating
@@ -135,11 +158,24 @@ Options:
   --fps N              Video frame rate (default: 30)
   --width W            Output image width (default: 1920)
   --height H           Output image height (default: 1080)
+  --seconds N          Stop after N seconds (-1 = no limit)
+  --max_frames N       Stop after N frames (-1 = no limit)
+  --workers N          Number of parallel worker processes (default: 10)
+  --headless           Suppress preview window (faster processing)
   --estimate           Show projections based on previous runs, don't generate
   --help               Show help message
 ```
 
-## Stats Caching
+## Stats & Monitoring
+
+### Live Stats (Multi-Worker Mode)
+
+When running with multiple workers (default), the coordinator prints aggregated stats every 5 seconds:
+```
+[STATS] W1:450 | W2:420 | W3:480 | Total: 1,350 frames (45.2 fps)
+```
+
+### Stats Caching
 
 The generator tracks statistics from each run in `~/.homography_generator_stats.json`:
 

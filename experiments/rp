@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# rp as in Run Prime, control args to r2
+
+./r2
+    --pages 100
+    --samples 100
