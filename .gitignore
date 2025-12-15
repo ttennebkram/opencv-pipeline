@@ -10,3 +10,4 @@ __AUTH_CONST
 data/
 experiments/data/
 *.weights
+DIALOG.md
