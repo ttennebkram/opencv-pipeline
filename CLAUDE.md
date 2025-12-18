@@ -2,6 +2,8 @@
 
 A graphical node-based pipeline editor for OpenCV image processing operations.
 
+**IMPORTANT: Always read README.md as well when starting a session.** The README contains user-facing documentation including command line options, feature descriptions, and platform support details that provide important context.
+
 ## IMPORTANT: Git Policy
 
 **DO NOT create git commits or push without explicit user approval.**
@@ -11,10 +13,6 @@ A graphical node-based pipeline editor for OpenCV image processing operations.
 - Never commit code in a potentially broken state
 - The user prefers to verify changes work before committing
 
-**Commit message format:**
-- Use only ONE attribution line at the end: `Co-Authored-By: Claude <noreply@anthropic.com>`
-- Do NOT include the emoji/link line `🤖 Generated with [Claude Code](...)`
-
 ## IMPORTANT: Verification
 
 **Do not claim a fix works until it has been tested.**
@@ -23,19 +21,6 @@ A graphical node-based pipeline editor for OpenCV image processing operations.
 - Do not say "this should fix it" or "this is now fixed" - say "I've made changes, please test"
 - If you're unsure whether something works, say so
 - The user will verify functionality before considering something complete
-
-## IMPORTANT: Python Coding Standards
-
-**All print statements must use `flush=True`**
-
-Python buffers stdout by default, which causes log output to appear delayed when monitoring remote training jobs or background processes. Always use:
-
-```python
-print("message", flush=True)
-print(f"Epoch {epoch}: {error:.1f}px", flush=True)
-```
-
-This ensures immediate output visibility for monitoring long-running ML training.
 
 ## Build & Run
 
@@ -50,7 +35,9 @@ mvn exec:exec
 mvn exec:exec@start
 
 # Run with custom arguments
-mvn exec:exec@run -Dpipeline.args="file.json --start"
+mvn exec:exec@run -Dpipeline.args="file.json -a"
+mvn exec:exec@run -Dpipeline.args="file.json -a --fullscreen_node_name Monitor"
+mvn exec:exec@run -Dpipeline.args="file.json -a --camera_fps 15 --max_time 60"
 
 # Package uber-jar
 mvn clean package
@@ -94,16 +81,9 @@ src/main/java/com/ttennebkram/pipeline/
 │       ├── FXMultiOutputProcessor.java # Base for multi-output nodes
 │       └── *Processor.java          # Individual processor implementations
 ├── processing/                  # Legacy processor interfaces
-├── effects/                     # Standalone effects (not pipeline nodes)
-│   └── refraction/
-│       └── RefractionCutGlass.java  # Cut-glass refraction effect (WIP, needs BaseEffect)
 └── util/
     └── MatTracker.java          # Tracks OpenCV Mat allocations for leak detection
 ```
-
-**Note on Effects vs Processors:**
-- **Processors** (`fx/processors/`): Pipeline nodes with UI, serialization, auto-discovery via `@FXProcessorInfo`
-- **Effects** (`effects/`): Standalone OpenCV effects, not integrated into pipeline yet. Port of Python effects.
 
 ## Adding a New Processor
 
@@ -188,963 +168,432 @@ getInt(properties, "key", defaultVal)  // from FXNode.properties map
 
 Pipelines are saved as JSON with `.json` extension. Thumbnails are cached in `~/.opencv-pipeline/thumbnails/`.
 
+## Raspberry Pi Camera Support
+
+The webcam source supports Raspberry Pi cameras (CSI modules like OV5647) via `rpicam-still` polling.
+
+### How it works
+
+On Raspberry Pi 5, the camera uses libcamera which is not compatible with OpenCV's V4L2 backend. OpenCV can *open* the V4L2 device but cannot *read* frames from it. The solution:
+
+1. `FXWebcamSource.open()` first checks if `rpicam-still` is available
+2. If found, it starts `rpicam-still --timelapse 100` which writes JPEG frames to a temp file every 100ms
+3. `captureFrame()` reads the latest JPEG from the temp file using `Imgcodecs.imread()`
+4. Falls back to standard V4L2 VideoCapture for USB webcams
+
+### Key files
+
+- `FXWebcamSource.java` - `tryOpenWithRpicam()`, `captureFrameFromRpicam()`, `stopRpicamProcess()`
+
+### Alternatives considered but not viable
+
+- **GStreamer pipeline**: OpenCV (openpnp build) is not compiled with GStreamer support
+- **rpicam-vid TCP/UDP streaming**: OpenCV couldn't read the streams reliably
+- **Building custom OpenCV**: Would break cross-platform portability
+
+### USB webcams
+
+USB webcams work normally via V4L2 and don't need the rpicam workaround. The code automatically detects which method to use.
+
+## Command Line Options
+
+Key options for automated/scripted use:
+- `-a`, `--auto_start`, `--auto_run` - Start pipeline immediately after loading
+- `--fullscreen_node_name NAME` - Open fullscreen preview of named node (live, updates continuously)
+- `--max_time SECONDS` - Exit after specified time (timer thread is daemon, so app exits cleanly)
+- `--camera_index`, `--camera_resolution`, `--camera_fps`, `--camera_mirror` - Override all webcam sources
+
+Options can appear before or after the pipeline filename.
+
 ## Known Issues
 
 - Watch for file handle leaks - always close InputStreams, use try-with-resources
 - FFT nodes have complex multi-channel output modes (grayscale vs 4-channel)
 - Container nodes have their own sub-pipeline serialized inline
 
-## ML Experiments (experiments branch)
+## Recent Bug Fixes Worth Noting
 
-The `experiments` branch contains experimental ML/deep learning code for training CNNs.
+- **Node label serialization** (v2.4.0): Custom labels that match the node type name (e.g., naming a Monitor node "Monitor") now save/restore correctly. Previously the condition `!savedLabel.equals(type)` rejected these.
+- **Fullscreen preview race conditions**: The fullscreen window uses an `AnimationTimer` to continuously update from `node.previewImage`, and properly requests focus to avoid beeps on first click.
+- **Clean exit with --max_time**: The timer thread is set as daemon (`setDaemon(true)`) so the JVM exits when windows close.
+- **Pipeline stop race condition**: Null checks added for `pipelineExecutor` in callbacks that may fire after pipeline stops.
 
-### Running ML Demos
+---
+
+## Claude Code Wrapper (ccwrap)
+
+**Note:** `DIALOG.md` exists in the `_dialog` branch but may not be visible on this branch.
+
+### Goal
+
+A Python 3 wrapper that runs Claude Code underneath and adds:
+
+1. **Journaling**: Write an auditable dialog log to `DIALOG.md` in the repo root with:
+   - A fixed "Latest Dialog" block at the top that is rewritten each update (do not rely on anchors)
+   - Append-only entries below that clearly separate User vs Claude
+   - Timestamps including timezone
+
+2. **Awaiting-user detection**:
+   - Detect when Claude Code is waiting for input (regex + heuristics)
+   - When detected, send email to `mbennett+cc@ideaeng.com` with a short per-session token and prompt context
+   - While in awaiting mode, poll Gmail label `CC` for replies containing the token and a command (y/n/1-9/status/abort)
+   - If accepted, inject that reply into Claude Code stdin
+
+3. **Dialog branch updates**:
+   - Update branch `_dialog` without checkout so `_dialog` contains only `DIALOG.md`
+   - Use Git plumbing: `hash-object`, `mktree`, `commit-tree`, `update-ref`
+   - Do not modify the working tree or current branch
+   - Do not require hooks or worktrees
+
+### Package Location
+
+```
+tools/ccwrap/
+├── __init__.py
+├── __main__.py
+├── main.py
+├── pty_runner.py
+├── dialog_log.py
+├── git_dialog_branch.py
+├── gmail_client.py
+├── email_notify.py
+├── config.py
+└── util.py
+```
+
+Runnable entrypoint: `python3 -m tools.ccwrap`
+
+### Running Claude Code
 
 ```bash
-git checkout experiments
-
-# Auto-detect best backend (Python+GPU if available, falls back to Java)
-mvn exec:exec@ml -Dml.class=MLFacade
-
-# Force pure Java backend (no Python needed)
-mvn exec:exec@ml -Dml.class=MLFacade '-Dml.args=--djl'
-
-# Run individual components
-mvn exec:exec@ml -Dml.class=PythonMLBridge    # Python bridge demo
-mvn exec:exec@ml -Dml.class=DJLTrainer        # Pure Java trainer
-mvn exec:exec@ml -Dml.class=JavaCNNInference  # Train + Java inference
+python3 -m tools.ccwrap [-- <args passed to claude-code>]
 ```
 
-### ML Architecture
+The wrapper spawns `claude` or `claude-code` as a child process in a PTY (pseudo-terminal) so prompts behave as in a real terminal. Captures all child stdout/stderr (PTY stream) and all user keystrokes sent to child.
 
-- **MLFacade**: Auto-selects best backend (Python+GPU > Python+CPU > Java/DJL)
-- **PythonMLBridge**: Step-by-step Python/PyTorch calls with MPS/CUDA GPU support
-- **DJLTrainer**: Pure Java fallback using DJL when Python unavailable
-- **JavaCNNInference**: Pure Java inference (~0.3ms/image) - no Python needed at runtime
+### DIALOG.md Format
 
-### Performance
+At top of `DIALOG.md`, maintain a fixed block delimited by sentinels:
 
-| Backend | Training (3 epochs) | Inference |
-|---------|---------------------|-----------|
-| Python + MPS (Mac) | ~10s | - |
-| Python + CUDA (NVIDIA) | ~10s | - |
-| Java DJL (CPU) | ~22s | - |
-| Java Inference | - | 0.3ms/image |
+```markdown
+<!-- LATEST-START -->
+## Latest Dialog
+Updated: YYYY-MM-DD HH:MM:SS ±HHMM
 
-Training exports portable weight files that work with JavaCNNInference on any platform.
+Scroll down to see the most recent full entry below.
+<!-- LATEST-END -->
 
-## Homography Estimation Experiment (WIP)
-
-**Goal**: Train a neural network to recognize perspective distortion in images and output the corner positions of a paper/document in the camera view.
-
-### Quick Start
-
-```bash
-cd experiments
-
-# Continuous mode (default) - runs until Ctrl+C
-# Data stored on external SSD: /Volumes/SamsungBlue/ml-training/homography/training_data
-./r2
-
-# Run for limited time (recommended - disk fills in ~2 hours at full speed!)
-./r2 --seconds 300   # 5 minutes
-
-# Generate specific amount (by page count)
-./r2 --samples_per_page 30 --pages 100
-
-# Estimate mode - show projections without generating
-./r2 --estimate --pages 1000
-
-# Train the model
-python3 train_homography.py --epochs 50
+---
 ```
 
-### Files
+Below that, append entries like:
 
-- `experiments/HomographyTrainingDataGenerator.java` - Renders Wikipedia pages, applies random perspective transforms, generates training videos and JSON labels
-- `experiments/r2` - Shell script to compile and run the generator with JavaFX
+```markdown
+---
+## YYYY-MM-DD HH:MM:SS ±HHMM
 
-### Training Data Generator Features
+**Session ID:** <uuid>
+**Repo:** <name>
+**Branch:** <branch>
+**HEAD:** <sha>
+**Host:** <hostname>
 
-The generator simulates a camera viewing a paper document on a surface:
-
-1. **Web Page Rendering**:
-   - Renders random Wikipedia pages using JavaFX WebView
-   - 50% dark mode (CSS injection) for variety
-   - Random page scrolling (0-3 pages down) to avoid position bias
-   - **Note**: Stage must be shown for WebView to render (headless mode moves window off-screen)
-
-2. **Perspective Transforms**:
-   - Paper rotation: full 360°
-   - Camera tilt: ±30% perspective distortion (realistic viewing angles)
-   - Paper scale: 5-80% of frame (biased toward smaller/distant papers via squared distribution)
-   - Paper position: -20% to 120% of frame (can be partially off-screen)
-
-3. **Shadow Effects** (50% of samples):
-   - Gradient shadows (directional)
-   - Edge vignettes
-   - Cast shadows with perspective
-   - Corner occlusion
-   - 30% of shadows are "hard black" (pixels → 0)
-
-4. **Video Output** (4 videos at 30 fps):
-   - `human_content.avi` - Content with shadows, sorted by rotation angle (for review)
-   - `human_white.avi` - White page geometry, sorted by rotation angle (for review)
-   - `training_content.avi` - Content with shadows, random order (for training)
-   - `training_white.avi` - White page geometry, random order (for training)
-
-5. **Threading**: Heavy OpenCV processing runs on background thread, keeping UI responsive
-
-6. **JSON Labels** (per frame):
-```json
-{
-  "frame": 0,
-  "id": "page_0_sample_5",
-  "h": [9 homography values],
-  "inv": [9 inverse values],
-  "corners": [x0, y0, x1, y1, x2, y2, x3, y3],
-  "dark_mode": true
-}
+### User
+```text
+<exact user input (raw)>
 ```
 
-7. **Stats Tracking**:
-   - Dark/light mode page counts printed at end
-   - Thread-safe frame buffering for concurrent access
-   - Stats cached to `~/.homography_generator_stats.json` for projections
-   - `--estimate` mode shows projections without generating data
-   - Live stats monitoring in multi-worker mode (every 5 seconds)
-
-8. **Output Resolution**:
-   - Default: 1920×1080 (1080p) for high-quality source data
-   - **IMPORTANT**: Resize significantly for training (224×224, 320×240, etc.)
-   - Training on 1080p directly is wasteful and slow
-
-9. **Resource Limits**:
-   - `--seconds N` - Stop after N seconds
-   - `--max_frames N` - Stop after N frames
-   - **WARNING**: At full speed (~50 fps with 10 workers), generates ~200KB/frame
-   - This fills ~36GB/hour - **disk will fill in ~2 hours** on a typical machine!
-   - **KNOWN BUG**: `--max_frames` doesn't work in multi-worker mode - use Ctrl+C or `--seconds`
-
-### Training Approach
-
-**Network output:** 18 log-transformed values (homography matrix 9 + inverse matrix 9)
-
-**Log transform** compresses extreme value ranges:
-- Raw homography values can range from -200M to +200M
-- Log transform: `sign(x) * log1p(|x|)` compresses to ~[-19, +19]
-- Inverse (for Java inference): `sign(y) * (exp(|y|) - 1)`
-
-### Corner Prediction Training (Current Approach)
-
-**Output:** 8 normalized corner values (4 corners × 2 coordinates) in range [-1, +1]
-- Much more stable than homography matrix values (which range -200M to +200M)
-- Homography computed from corners at inference time using OpenCV
-
-**Two architectures available:**
-
-| Architecture | Parameters | Model Size | Script |
-|--------------|------------|------------|--------|
-| FC [512,256,64] | 4.87M | ~19 MB | `train_corners.py` |
-| CNN (4 conv blocks) | **391K** | ~1.5 MB | `train_corners_cnn.py` |
-
-**CRITICAL: Plain CNNs fail - use ResNet+BatchNorm**
-
-Plain CNNs without skip connections suffer from vanishing gradients and fail to learn corner detection (stuck at ~400px error). The solution is ResNet-style architecture:
-
-| Architecture | Parameters | Overfit Test | Result |
-|--------------|------------|--------------|--------|
-| Plain CNN + BN | 391K | 118px | Slow, unstable |
-| Plain CNN (no BN) | 1.58M | 399px | **FAILS completely** |
-| **ResNet + BN** | 1.2M | **4.9px** | **SUCCESS** |
-
-**Working Architecture** (train_resnet.py):
-```python
-class ResBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1):
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_ch)
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_ch)
-        self.skip = nn.Conv2d(in_ch, out_ch, 1, stride=stride) if stride != 1 or in_ch != out_ch else nn.Identity()
-
-    def forward(self, x):
-        residual = self.skip(x)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = self.bn2(self.conv2(x))
-        return F.relu(x + residual)  # Skip connection!
-
-class ResNetCorners(nn.Module):
-    def __init__(self):
-        # 240×135 input → 8 corner coordinates
-        self.layer1 = ResBlock(1, 32, stride=2)    # → 120×67
-        self.layer2 = ResBlock(32, 64, stride=2)   # → 60×33
-        self.layer3 = ResBlock(64, 128, stride=2)  # → 30×16
-        self.layer4 = ResBlock(128, 256, stride=2) # → 15×8
-        self.global_pool = nn.AdaptiveAvgPool2d(1)
-        self.regressor = nn.Linear(256, 8)
+### Claude
+<relevant Claude output since last user input>
 ```
 
-**Key insights:**
-- Skip connections let gradients flow directly (no vanishing)
-- BatchNorm stabilizes training
-- Either one alone is insufficient - need BOTH
-- 1/8th resolution (240×135) works better than full res (less noise, faster)
+Rules:
+- Rewrite only the Latest block
+- Append entries; never rewrite history
+- Clearly label User vs Claude
+- Use local timezone
 
-**Always run tiny overfit test first** (50 samples, train to near-zero loss) before scaling up. If it can't overfit, architecture is broken.
+### Awaiting-User Detection
 
-### Progressive Overfit Playbook (CURRENT METHODOLOGY)
+Triggers awaiting state if PTY output matches any of these patterns (case-insensitive):
+- `\(y/n\)` or `\[(y/n)\]`
+- `continue\?`
+- `press enter`
+- `choose (one|an option)`
+- `select (1|one)`
+- `are you sure`
+- `confirm`
+- `waiting for (your )?input`
 
-**This is the systematic approach for validating model capacity before full training.**
+Idle heuristic: If no PTY output for N seconds AND the last line ends with `:` or `?` or `]` or `)`, assume awaiting input.
 
-The idea: Before investing in full dataset training, prove the model can memorize progressively larger subsets. This catches architecture/optimization issues early with fast, cheap experiments.
+When awaiting is triggered:
+- Generate a short token (e.g., 6 chars A-Z0-9)
+- Send email with subject: `[CC][WAITING][TOKEN] <repo> (<branch>) — needs input`
+- Include prompt excerpt (last ~30 lines) and instructions
+- Rate-limit: do not spam more than once per awaiting event
 
-#### The Algorithm
+### Gmail Polling and Reply Injection
 
-```
-overfit_samples = 50
-TARGET = 5.0  # pixels
+Use Gmail API (not IMAP/POP3).
+- Query: `label:CC is:unread`
+- Accept reply only if:
+  - From address is in allowlist
+  - Contains current token
+  - Command grammar matches: `y` / `n` / digits `1`-`9` / `status` / `abort`
+- When accepted:
+  - Write command + newline into PTY child stdin
+  - Mark email processed by removing `UNREAD` label
+  - Exit awaiting mode
 
-while overfit_samples <= dataset_size:
-    1. LOAD overfit_samples from dataset
-    2. TRAIN until pixel_error < TARGET
-       - Warm start from previous checkpoint (or fresh weights for first)
-       - NO train/val split (pure memorization test)
-       - NO augmentation
-       - LR=0.0005 with ReduceLROnPlateau(patience=50, factor=0.5)
-       - Eval on SAME data as training
+### Git `_dialog` Update (No Checkout)
 
-    3. DECISION GATE:
-       IF pixel_error < TARGET within 2000 epochs:
-           ✅ PASS - model can memorize at this scale
-           overfit_samples *= sqrt(2)  # ~1.41× increase
-       ELSE:
-           ⚠️ ALERT - investigate before proceeding
+Function `update_dialog_branch(dialog_path="DIALOG.md", branch="_dialog")`:
+1. Compute blob hash of file: `git hash-object -w --stdin`
+2. If `_dialog` exists and `rev-parse _dialog:DIALOG.md` equals new blob, do nothing
+3. Create one-file tree via `git mktree`
+4. Create commit via `git commit-tree` with parent if exists
+5. `git update-ref refs/heads/_dialog <commit>`
 
-# Once overfit_samples >= dataset_size:
-SWITCH to GENERAL TRAINING:
-    - 90/10 train/val split
-    - No augmentation initially
-    - Target: val_error < 4px
-```
+This branch tree contains only `DIALOG.md`.
 
-**Why √2 scaling?** Originally used 10× (50→500→5K), but 5K stalled. Switching to √2 (~1.41×) provides finer granularity to identify exactly where capacity limits appear.
+### Configuration
 
-#### Progressive Overfit Results (2025-12-15)
+`tools/ccwrap/config.py` settings:
+- Gmail credentials path / token path
+- Label name: `CC`
+- To address: `mbennett+cc@ideaeng.com`
+- Allowlist senders
+- Polling interval (e.g., 10s)
+- Awaiting idle threshold (e.g., 15s)
+
+Support environment overrides.
+
+### OAuth Setup
+
+`tools/ccwrap/gmail_client.py` implements Gmail API auth for installed apps:
+- Store token locally (e.g., `.ccwrap_token.json` in repo root or `~/.config/ccwrap/`)
+- Use Gmail scope `gmail.modify`
+- Provide `--gmail-auth` mode that runs the OAuth flow once
+
+### Event Logging
+
+Write a JSONL event log (optional file `ccwrap_events.jsonl` in repo root):
+- session_start/end
+- stdout chunk
+- user_input
+- awaiting_enter/exit
+- email_sent
+- gmail_poll
+- reply_accepted/rejected
+- git_dialog_updated
+
+---
+
+## ML Experiments: Corner Detection CNN
+
+### Progressive Overfit Testing (√2 Scaling)
+
+Validates the CNN can memorize increasingly larger datasets before training on full data.
+
+**Method:** Scale dataset by √2 (~1.41×) each step, require <5px error before advancing.
+
+**Architecture:** ResNet-style CNN with BatchNorm
+- 4 ResBlocks: 1→32→64→128→256 channels
+- Input: 240×135 grayscale (1/8 of 1920×1080)
+- Output: 8 corner coordinates (normalized -1 to 1)
+- ~4.9MB checkpoint size
+
+**Training Settings:**
+- Optimizer: Adam, initial LR: 0.0005
+- Scheduler: ReduceLROnPlateau(patience=50, factor=0.5)
+- Batch size: 256
+- Warm start from 500-sample checkpoint
+
+**Results (2025-12-16):**
 
 | Samples | Best Error | Epochs | Status |
 |---------|------------|--------|--------|
-| 50 | 4.5px | 149 | ✅ PASS |
-| 500 | 4.6px | 430 | ✅ PASS |
-| 707 | 5.0px | 302 | ✅ PASS |
-| 1000 | 4.3px | 303 | ✅ PASS |
-| 1414 | 4.1px | 308 | ✅ PASS |
-| 2000 | 4.1px | 335 | ✅ PASS |
-| 2828 | 4.7px | 641 | ✅ PASS |
-| 4000 | 4.7px | 303 | ✅ PASS |
-| 5656 | ? | ? | 🔄 RUNNING |
-| 8000 | - | - | Pending |
-| ... | - | - | Continue √2 scaling |
+| 50 | 4.5px | 149 | PASS |
+| 500 | 4.6px | 430 | PASS |
+| 707 | 5.0px | 302 | PASS |
+| 1000 | 4.3px | 303 | PASS |
+| 1414 | 4.1px | 308 | PASS |
+| 2000 | 4.1px | 335 | PASS |
+| 2828 | 4.7px | 641 | PASS |
+| 4000 | 4.7px | 303 | PASS |
+| 5656 | 4.8px | 299 | PASS |
+| 8000 | 4.6px | 267 | PASS |
+| 11314 | 5.0px | 1040 | PASS |
 
-**Checkpoints:** `/Volumes/SamsungBlue/ml-training/progressive_checkpoints/`
+**Next:** 16000 samples (11314 × √2)
 
-#### Diagnostic Playbook
+### Data Generation
 
-Each "chapter" follows this structure:
+**Local:** 1M+ images generated in `/Volumes/SamsungBlue/ml-training/wiki_training_v3/`
 
-1. **Hypothesis**: What might be limiting progress
-2. **Cheap test(s)**: Low-cost experiments to isolate the issue
-3. **Decision gate**: Based on evidence, choose ONE action:
-   - **Action A - Fix pipeline**: When tests show preprocessing jitter, quantization artifacts, coordinate-space issues
-   - **Action B - Improve supervision**: When tests show label instability, multiple correct solutions, loss↓ but error flat
-   - **Action C - Increase capacity**: ONLY when A and B are ruled out AND plateau remains
+**AWS:**
+- Instance: **DELETED** (was g5.xlarge with A10G GPU)
+- S3 only: `s3://ml-training-wiki-homography/wiki_training_v3/` (~$2-3/month)
+- Original JPEGs + labels backed up in S3
 
-**Meta-rule**: Do not proceed until the chosen action is executed AND tests re-run.
+**To recreate AWS training environment:**
+1. Launch new g5.xlarge with Deep Learning AMI
+2. Install dependencies: `pip3 install torch onnx`
+3. Sync training data: `aws s3 sync s3://ml-training-wiki-homography/wiki_training_v3/ /opt/dlami/nvme/wiki_training_v3/`
+4. Convert JPEGs to tensors (see conversion script below) - takes ~2 hours for 1M images
+5. Copy checkpoint from local: `scp models/full_training_24.3px_epoch20.pth ubuntu@<ip>:/opt/dlami/nvme/`
 
-#### Key Findings
+### Key Files
 
-- **ResNet+BatchNorm required**: Plain CNN stuck at ~400px; ResNet reaches <5px
-- **No train/val split for overfit**: Split causes apparent "overfitting" even on memorization test
-- **LR scheduler essential**: Model finds solutions but bounces; scheduler converges
-- **Epoch time ~3.1× per 10×**: Chapters get longer but still manageable
+- `experiments/generate_wiki_training_css3d.py` - CSS 3D transforms in browser
+- `experiments/train_corners_cnn.py` - CNN training script
+- `/Volumes/SamsungBlue/ml-training/progressive_checkpoints/` - All checkpoints
 
-#### Current Training Commands
+### Full-Scale Training Optimization (2025-12-17)
+
+#### Data Loading Bottleneck
+
+Training on 1M+ images was bottlenecked by JPEG decoding, not GPU compute:
+- JPEG decode: ~5-10ms per image (OpenCV imread + resize)
+- GPU batch processing: ~50ms for batch of 256
+- Result: GPU utilization only 20-40%
+
+#### Solution: Pre-convert to PyTorch Tensors
+
+Convert JPEGs to `.pt` tensor files (uint8, already resized to 240×135):
+```python
+# Conversion script creates tensors ~34KB each (vs 190-280KB JPEGs)
+img = cv2.imread(jpg_path, cv2.IMREAD_GRAYSCALE)
+img = cv2.resize(img, (240, 135))
+torch.save(torch.from_numpy(img), tensor_path)
+```
+
+Results:
+- Tensor load: ~1ms (vs 5-10ms for JPEG)
+- GPU utilization: 100%
+- Epoch time: 4× faster
+
+**Data Quality Issues Found:**
+- 1,056,312 original JPG/JSON pairs
+- 90,668 JPGs failed to convert (OpenCV couldn't read - corrupted downloads)
+- 7,177 tensor files are 0 bytes (disk write errors during conversion)
+- Solution: Add try/except in DataLoader `__getitem__` to return zeros for bad files
+
+#### Batch Size and Learning Rate
+
+| Batch | LR | Result |
+|-------|-----|--------|
+| 256 | 0.0001 | Stable, slow epochs |
+| 1024 | 0.0004 | Unstable, val error spiked |
+| 1024 | 0.0002 | Stable, 4× faster epochs |
+
+Linear LR scaling (4× batch → 4× LR) was too aggressive; 2× LR worked.
+
+#### DataLoader Memory Issues (OOM Kills)
+
+With g5.xlarge (15GB RAM, 23GB VRAM), aggressive prefetching caused OOM:
+```
+workers=4, prefetch_factor=8 → 32GB virtual memory → OOM killed
+workers=2, prefetch_factor=2 → 2GB memory → stable
+```
+
+Each worker prefetches `prefetch_factor` batches into shared memory. With batch_size=1024 and large tensors, this exhausts system RAM even though GPU VRAM is fine.
+
+#### Current Training Setup (AWS)
 
 ```bash
-# SSH to AWS
-ssh -i ~/.ssh/ml-training.pem ubuntu@98.91.248.103
-
-# Monitor current overfit test
-tail -20 /opt/dlami/nvme/overfit_4000.log
-
-# Create next √2 step (example: 4000 → 5656)
-sed 's/4000/5656/g; s/progressive_2828/progressive_4000/g' ~/overfit_4000.py > ~/overfit_5656.py
-
-# Run next test
-source /opt/pytorch/bin/activate && cd /opt/dlami/nvme && \
-  nohup python3 ~/overfit_5656.py > overfit_5656.log 2>&1 &
-
-# Backup checkpoints locally
-scp -i ~/.ssh/ml-training.pem ubuntu@98.91.248.103:/opt/dlami/nvme/progressive_*.pth \
-  /Volumes/SamsungBlue/ml-training/progressive_checkpoints/
-
-# Full training (after all overfit stages pass)
-python3 ~/train_resnet.py --data wiki_training_v3 --epochs 200 \
-  --batch_size 256 --lr 0.0005 --max_samples 300000 \
-  --output resnet_general.pth
+python3 train_tensors_fixed.py \
+  --checkpoint /opt/dlami/nvme/full_training/best_model.pth \
+  --data /opt/dlami/nvme/wiki_tensors \
+  --batch_size 1024 \
+  --lr 0.0002 \
+  --workers 2 \
+  --prefetch 2 \
+  --epochs 500
 ```
 
-### ML Development Checklist & Metrics (Legacy)
+- Instance: g5.xlarge (A10G 23GB VRAM, 4 vCPU, 15GB RAM)
+- Dataset: 861K training / 96K validation tensors
+- Epoch time: ~10 minutes
+- Best validation error: **24.3px** (epoch 20, 2025-12-18)
 
-**Older checklist - superseded by Progressive Overfit Playbook above.**
+### Trained Models
 
-#### Overfit Test Results
-
-| Date | Location | Architecture | Samples | Best Error | Epochs | Status |
-|------|----------|--------------|---------|------------|--------|--------|
-| 2025-12-15 | Local MPS | ResNet+BN | 50 | 4.9px | 123 | ✅ PASS |
-| 2025-12-15 | AWS CUDA | ResNet+BN | 50 | 4.5px | 149 | ✅ PASS |
-| 2025-12-15 | AWS CUDA | ResNet+BN | 500 | 4.6px | 430 | ✅ PASS |
-
-#### Augmentation Verification
-Visualize augmented images with ground truth corners to verify transforms are correct.
-- Horizontal flip: corners swap TL↔TR, BL↔BR, negate X
-- Vertical flip: corners swap TL↔BL, TR↔BR, negate Y
-- Test script: `experiments/viz_augmented.py` → `/tmp/augment_test_*.png`
-
-| Date | Augmentation | Corners Correct | Status |
-|------|--------------|-----------------|--------|
-| 2025-12-15 | H-flip, V-flip, brightness, contrast | Yes | ✅ PASS |
-
-#### Common Failure Modes
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| Train stuck ~400px | No skip connections | Use ResNet architecture |
-| Train drops, Val explodes | Overfitting | Add augmentation, dropout |
-| Both stuck high | Bad LR or architecture | Reduce LR, check overfit test |
-| Overfit test fails | Architecture broken | Fix architecture before proceeding |
-
-**Legacy CNN Architecture** (train_corners_cnn.py) - DEPRECATED:
-```
-Input: 128×72×1 grayscale
-Conv 3×3, 32 filters + BN + ReLU + MaxPool → 64×36×32
-Conv 3×3, 64 filters + BN + ReLU + MaxPool → 32×18×64
-Conv 3×3, 128 filters + BN + ReLU + MaxPool → 16×9×128
-Conv 3×3, 256 filters + BN + ReLU + MaxPool → 8×4×256
-GlobalAveragePool → 256
-Dense → 8 output values
-```
-
-**Why CNN is better for this task:**
-- **12× fewer parameters** - faster training, less overfitting
-- **Spatial hierarchy** - early layers detect edges, later layers detect corners
-- **Translation invariance** - learns corner features regardless of position
-- **Parameter sharing** - same conv filters applied across entire image
-
-**Training commands:**
-```bash
-cd experiments
-
-# Train CNN (recommended)
-python3 train_corners_cnn.py --epochs 50 --lr 0.002
-
-# Train with data augmentation (horizontal flip, brightness, contrast)
-python3 train_corners_cnn.py --epochs 50 --lr 0.002 --augment
-
-# Train with cosine annealing LR scheduler
-python3 train_corners_cnn.py --epochs 50 --lr 0.002 --scheduler cosine
-
-# Combined: augmentation + cosine annealing
-python3 train_corners_cnn.py --epochs 50 --lr 0.002 --augment --scheduler cosine
-
-# Resume training from checkpoint
-python3 train_corners_cnn.py --epochs 50 --lr 0.0005 --resume cnn_best.pth
-
-# Train FC (for comparison)
-python3 train_corners.py --epochs 50 --lr 0.0005
-
-# Parallel LR sweep (10 experiments)
-for lr in 0.0001 0.0003 0.0005 0.0007 0.001 0.002 0.003 0.005 0.007 0.01; do
-  nice -n 10 python3 train_corners_cnn.py --epochs 5 --lr $lr \
-    --output "cnn_lr${lr}.pth" 2>&1 &
-done
-```
-
-**CNN Training Features:**
-- `--augment`: On-the-fly data augmentation (horizontal flip, ±10% brightness, ±10% contrast)
-- `--scheduler`: LR scheduler choice:
-  - `plateau` (default): ReduceLROnPlateau - reactive, reduces LR when validation plateaus
-  - `cosine`: CosineAnnealingLR - smooth decay from initial LR to near-zero
-  - `cosine_warm`: CosineAnnealingWarmRestarts - periodic restarts (T_0=10, T_mult=2)
-- `--resume`: Continue training from a saved checkpoint (preserves optimizer state)
-
-### Training Data Requirements
-
-**Rule of thumb:** 10× to 100× training examples per parameter for good generalization.
-
-| Model | Parameters | Min Training Ticks | Max Training Ticks |
-|-------|------------|-------------------|-------------------|
-| CNN | 391K | **4M** (10×) | **40M** (100×) |
-| FC | 4.87M | 49M (10×) | 487M (100×) |
-
-**Epochs needed** (with current 67K samples, 54K training):
-
-| Target | CNN Epochs | FC Epochs |
-|--------|------------|-----------|
-| Minimum (10×) | **~75** | ~910 |
-| Maximum (100×) | **~745** | ~9,100 |
-
-**Current status:** With 67K samples at 50 epochs, we're seeing each sample ~50 times.
-- CNN: 50 × 54K = 2.7M ticks (68% of minimum 4M target)
-- Need ~75 epochs to reach minimum, ~745 epochs for thorough training
-
-**Implication:** Current CNN training runs (50 epochs) are likely undertrained. Consider:
-1. Running longer (75-150 epochs minimum)
-2. Generating more training data
-3. Using data augmentation (`--augment`) to effectively multiply dataset size
-
-### FC Training Results (Current Dataset: ~67K samples)
-
-| Resolution | Parameters | Best Pixel Error | Notes |
-|------------|------------|------------------|-------|
-| 128×72 FC | 4.87M | ~379px | lr=0.0005 optimal |
-
-**Observations:**
-- Optimal LR for FC: 0.0003-0.002 range (all within 10px of each other)
-- LR >= 0.005 causes instability
-- LR = 0.01 diverges completely
-
-### Implementation Plan
-
-1. [x] Create training data generator (`experiments/HomographyTrainingDataGenerator.java`)
-   - Uses JavaFX WebView to render Wikipedia pages
-   - Random perspective transforms simulating paper on table
-   - Shadow effects for realism
-   - Dual video output (content + geometry)
-2. [x] Create Python training script (`experiments/train_homography.py`)
-   - Fully-connected network with hidden layers [512, 256, 64]
-   - MSE loss on log-transformed homography + inverse (18 values)
-   - SGD with momentum, ReduceLROnPlateau scheduler
-   - Exports weights for Java inference
-3. [x] Initial training run with ~11K samples
-4. [ ] Generate larger training dataset (50K+ samples)
-5. [ ] Retrain and compare results
-6. [ ] Export trained model for Java inference
-7. [ ] Create `HomographyEstimatorProcessor` - runs inference in pipeline
-
-### Alternative: High-Resolution Document Scans
-
-Instead of low-res camera captures, train on 300 DPI scans of 8.5×11" paper:
-- **Input size**: 2550×3300 pixels (8.4 million grayscale)
-- **Use case**: Document deskewing, perspective correction for scanned documents
-
-**Why CNNs excel here** (vs fully-connected):
-- **Parameter sharing**: Conv kernels reuse weights across spatial locations
-- **Hierarchical pooling**: Progressively reduce 8.4M pixels → manageable feature vector
-- **Translation invariance**: Detect features regardless of position
-
-**Example CNN architecture** (2550×3300 → 8 corner values):
-```
-Layer                  Output Shape      Parameters
-─────────────────────────────────────────────────────
-Conv 3×3, 32 filters   2550×3300×32      320
-MaxPool 2×2            1275×1650×32      -
-Conv 3×3, 64 filters   1275×1650×64      18,496
-MaxPool 2×2            637×825×64        -
-Conv 3×3, 128 filters  637×825×128       73,856
-MaxPool 2×2            318×412×128       -
-Conv 3×3, 256 filters  318×412×256       295,168
-MaxPool 2×2            159×206×256       -
-GlobalAveragePool      256               -
-Dense → 8              8                 2,056
-─────────────────────────────────────────────────────
-Total: ~390K parameters (~1.5 MB model)
-```
-
-**Comparison**:
-| Approach | Input Size | Parameters | Model Size |
-|----------|------------|------------|------------|
-| Fully-connected (160×120) | 19,200 | 9.6M | ~39 MB |
-| CNN (2550×3300) | 8.4M | 390K | ~1.5 MB |
-
-CNNs use **25× fewer parameters** while handling **437× more pixels**!
-
-### Related
-
-- `calibrate` branch: CalibrateProcessor for projector alignment using detected corners
-- Uses OpenCV `Calib3d.findHomography()` and `Imgproc.warpPerspective()`
-
-## OCR Training Experiment (Planned)
-
-**Goal**: Train a CNN to recognize characters in high-resolution document scans, outputting a grid of character predictions.
-
-### Input/Output Specification
-
-- **Input**: 2550 × 3300 grayscale image (300 DPI scan of 8.5" × 11" paper)
-- **Output**: 80 × 66 grid of character predictions (80 chars/line × 66 lines)
-- **Character set**: ~96 classes (printable ASCII 32-126 + blank)
-
-### Why CNN? (Fully-Connected Won't Work)
-
-Fully-connected layers require a weight for every input→output connection:
-
-| Layer Size | Parameters | Memory |
-|------------|------------|--------|
-| 8.4M → 841K | 7 trillion | ~26 TB |
-| 8.4M → 84K | 708 billion | ~2.6 TB |
-| 8.4M → 8.4K | 71 billion | ~260 GB |
-
-CNNs solve this with **local connectivity** and **weight sharing**:
-- Each neuron connects only to a small local region (e.g., 3×3 pixels)
-- Same weights reused across entire image
-- Result: ~400K parameters instead of trillions
-
-### CNN Architecture
-
-**Convolution layers** learn to detect features (edges, curves, character parts).
-**Pooling layers** downsample by taking the max of each NxN region:
+Pre-trained corner detection models are included in the `models/` directory:
 
 ```
-MaxPool 2×2 example:
-┌───┬───┬───┬───┐       ┌───┬───┐
-│ 1 │ 3 │ 5 │ 2 │       │ 4 │ 6 │  (max of each 2×2 block)
-├───┼───┼───┼───┤   →   ├───┼───┤
-│ 4 │ 2 │ 6 │ 1 │       │ 8 │ 9 │
-├───┼───┼───┼───┤       └───┴───┘
-│ 7 │ 8 │ 3 │ 9 │
-├───┼───┼───┼───┤
-│ 0 │ 5 │ 7 │ 4 │
-└───┴───┴───┴───┘
+models/
+├── corners_model_24.3px.onnx    # ONNX format (recommended for OpenCV DNN)
+├── corners_model_24.3px.pt      # TorchScript format (for DJL)
+├── full_training_24.3px_epoch20.pth  # PyTorch state dict (best)
+└── training_log_24.3px.txt      # Training log
 ```
 
-**Proposed architecture** (2550×3300 → 80×66×96):
+**Model Input/Output:**
+- Input: 240×135 grayscale image, normalized to [0,1]
+- Output: 8 floats (4 corner points as x,y pairs, normalized to [-1,1])
+- To convert output to pixels: `x_px = (x + 1) * width / 2`, `y_px = (y + 1) * height / 2`
 
-```
-Layer              Output Shape         Parameters
-─────────────────────────────────────────────────────
-Input              2550 × 3300 × 1      -
-Conv 3×3, 32       2550 × 3300 × 32     320
-MaxPool 2×2        1275 × 1650 × 32     -
-Conv 3×3, 64       1275 × 1650 × 64     18,496
-MaxPool 2×2        637 × 825 × 64       -
-Conv 3×3, 128      637 × 825 × 128      73,856
-MaxPool 2×2        318 × 412 × 128      -
-Conv 3×3, 256      318 × 412 × 256      295,168
-MaxPool 4×4        79 × 103 × 256       -
-Conv 1×1, 96       79 × 103 × 96        24,672  (96 = character classes)
-─────────────────────────────────────────────────────
-Total: ~412K parameters (~1.6 MB)
-```
+**Full checkpoint archive:** `/Volumes/SamsungBlue/ml-training/progressive_checkpoints/`
 
-Final output is ~80×103 grid with 96 channels (one per character class). Pooling can be tuned to hit exactly 80×66.
+### Java Inference Options
 
-### Training Data Generation Plan
+The trained model can be used in Java through several approaches:
 
-1. Render Wikipedia article text (content only, no sidebar/logo)
-2. Use various fixed-width/monospace fonts (Courier, Consolas, Monaco, etc.)
-3. Font size chosen so 80 characters fit across 8.5" at 300 DPI
-4. Output: grayscale image + JSON with 66 lines of up to 80 characters each
+#### Model Formats
 
-### Plan B: Cell-Based Shared Network (Alternative to CNN)
+All formats can be derived from `.pth` + model code. No format *must* be exported from AWS.
 
-Instead of sliding convolutions, use **fixed non-overlapping cells** with a shared fully-connected network:
+| Format | File | Size | Created From |
+|--------|------|------|--------------|
+| PyTorch state dict | `.pth` | 4.7 MB | Training output |
+| JSON weights | `.json` | 27 MB | Convert from .pth locally |
+| TorchScript | `.pt` | 4.7 MB | Convert from .pth locally |
+| ONNX | `.onnx` | 4.6 MB | Convert from .pth locally |
 
-**Cell dimensions:**
-- Horizontal: 2550 ÷ 80 = 31.875 → ~32 pixels per cell
-- Vertical: 3300 ÷ 66 = 50 pixels per cell
-- Each cell: 32 × 50 = **1,600 pixels**
+#### Conversion Scripts
 
-**Architecture per cell:**
-```
-1,600 input pixels
-      ↓
-Hidden layer 1 (256 neurons)  — 409,856 params
-      ↓
-Hidden layer 2 (64 neurons)   — 16,448 params
-      ↓
-Output: 96 classes            — 6,240 params
-─────────────────────────────────────────
-Total: ~432K parameters (shared across all 5,280 cells)
+```python
+# .pth → TorchScript (trace-based, works without source inspection)
+model.load_state_dict(torch.load("model.pth", weights_only=True))
+model.eval()
+traced = torch.jit.trace(model, torch.randn(1, 1, 135, 240))
+traced.save("model.pt")
+
+# .pth → ONNX
+torch.onnx.export(model, dummy_input, "model.onnx",
+                  input_names=["image"], output_names=["corners"],
+                  dynamic_axes={"image": {0: "batch"}, "corners": {0: "batch"}})
+
+# .pth → JSON (for pure Java implementation)
+import json
+state = torch.load("model.pth", weights_only=True)
+json_state = {k: {"shape": list(v.shape), "data": v.numpy().tolist()} for k, v in state.items()}
+json.dump(json_state, open("model.json", "w"))
 ```
 
-**Key insight:** Same network processes every cell. Training shows it 5,280 examples per image (each cell + its label). Network learns "given these 1,600 pixels, what character?" regardless of position.
-
-**Comparison to CNN:**
-- CNN: Sliding overlapping windows, learns hierarchical features
-- Cell-based: Fixed grid, fully-connected within each cell
-- Both use weight sharing, both ~400K parameters
-
-### Implementation Steps
-
-1. [ ] Create `OCRTrainingDataGenerator.java`
-   - Fetch Wikipedia article text via API (plain text, no HTML)
-   - Render in monospace font at 300 DPI
-   - Cycle through available fixed-width fonts
-   - Save image + character grid labels
-2. [ ] Create `train_ocr.py` with CNN architecture (Plan A)
-3. [ ] Generate training dataset
-4. [ ] Train and evaluate CNN
-5. [ ] (Plan B) Implement cell-based shared network for comparison
-6. [ ] Export best model for Java inference
-
-## Cloud GPU Training Options
-
-For faster training than local Apple MPS, consider cloud GPU instances.
-
-### Recommended: AWS G5 Instances
-
-**Best value for small/medium CNNs** (like our 391K parameter corner estimator).
-
-| Instance | GPU | VRAM | vCPUs | RAM | On-Demand | Spot |
-|----------|-----|------|-------|-----|-----------|------|
-| **g5.xlarge** | 1× A10G | 24 GB | 4 | 16 GB | ~$1.00/hr | ~$0.30-0.40/hr |
-| g5.2xlarge | 1× A10G | 24 GB | 8 | 32 GB | ~$1.20/hr | ~$0.40-0.50/hr |
-| g5.4xlarge | 1× A10G | 24 GB | 16 | 64 GB | ~$1.60/hr | ~$0.50-0.60/hr |
-
-**NVIDIA A10G specs:**
-- 24 GB GDDR6 VRAM
-- 31.2 TFLOPS FP32
-- 125 TFLOPS Tensor (FP16)
-- 600 GB/s memory bandwidth
-
-**Quick start:**
-```bash
-# 1. Launch g5.xlarge with "Deep Learning AMI (PyTorch)"
-# 2. Upload training data
-scp -r training_data/ ec2-user@<instance>:~/
-
-# 3. Upload training script
-scp train_corners_cnn.py ec2-user@<instance>:~/
-
-# 4. SSH in and train
-ssh ec2-user@<instance>
-python3 train_corners_cnn.py --epochs 200 --lr 0.002 --augment
-
-# 5. Download results
-scp ec2-user@<instance>:~/cnn_*.pth .
-scp ec2-user@<instance>:~/cnn_*.weights .
-```
-
-### Google Cloud Alternative
-
-| Instance | GPU | VRAM | On-Demand |
-|----------|-----|------|-----------|
-| a2-highgpu-1g | 1× A100 | 40 GB | ~$3.67/hr |
-| a2-highgpu-2g | 2× A100 | 80 GB | ~$7.35/hr |
-
-**When to choose Google Cloud:**
-- Need >24 GB VRAM (large models)
-- Already using GCP infrastructure
-- Training large language models or diffusion models
-
-### Budget Alternatives
-
-| Provider | GPU | Price | Notes |
-|----------|-----|-------|-------|
-| Lambda Labs | A10 | ~$0.60/hr | Simple, ML-focused |
-| RunPod | A10G | ~$0.40/hr | Good for quick experiments |
-| Vast.ai | Various | ~$0.20-0.50/hr | Community GPUs, variable quality |
-
-### Cost Estimates (200-epoch CNN training)
-
-| Platform | Time | Cost |
-|----------|------|------|
-| Local MPS (M1/M2) | ~21 hours | $0 |
-| AWS g5.xlarge (on-demand) | ~2-4 hours | $2-4 |
-| AWS g5.xlarge (spot) | ~2-4 hours | **$0.60-1.60** |
-| Google Cloud A100 | ~1-2 hours | $4-7 |
-
-**Recommendation:** AWS g5.xlarge Spot for best price/performance
-
-## AWS Parallel CPU Training (No GPU)
-
-For hyperparameter sweeps and multi-seed experiments, run multiple training processes in parallel on a single CPU instance. This is more cost-effective than GPU for small CNNs when running many experiments.
-
-### Current AWS State (2025-12-15)
-
-**ACTIVE INSTANCE - GPU Training:**
-- **Instance:** `i-0563f8c98bdc5d818` (g5.xlarge with A10G GPU)
-- **IP:** `98.91.248.103`
-- **Task:** Training CNN on 118K wiki samples (100 epochs)
-- **Data:** `/opt/dlami/nvme/wiki_training_v2/` (118,453 images)
-- **Log:** `/opt/dlami/nvme/train_118k.log`
-- **Output model:** `/opt/dlami/nvme/eighth_118k.pth`
-
-**Monitor training:**
-```bash
-ssh -i ~/.ssh/ml-training.pem ubuntu@98.91.248.103 "tail -20 /opt/dlami/nvme/train_118k.log"
-```
-
-**Training parameters:**
-- Resolution: 240×135 (1/8 scale)
-- Batch size: 256
-- Learning rate: 0.002
-- Epochs: 100
-
-**S3 bucket:** `s3://ml-training-wiki-homography/wiki_training_v2/`
-- 118,453 images + labels (~22 GB)
-
-**Local data:** `/Volumes/SamsungBlue/ml-training/wiki_training_v2/`
-
-**Previous results:**
-| Dataset | Best Pixel Error |
-|---------|------------------|
-| 5K samples | 197px |
-| 54K samples | 122px |
-| 116K samples (4 epochs) | 191px |
-
-### Setup
-
-**Prerequisites:**
-- AWS CLI configured (`aws configure`)
-- SSH key pair: `~/.ssh/ml-training.pem`
-- Security group with SSH access (port 22)
-
-**Base AMI:** `ami-0dd2d28e9f738aa69` - Ubuntu 22.04 with:
-- Python 3.10 + venv at `~/ml-env`
-- PyTorch 2.9.1, scipy 1.15.3
-- 10K synthetic training images at `~/training/data/synthetic`
-- Training scripts at `~/training/scripts`
-
-### Recommended Instance
-
-| Instance | vCPUs | RAM | Storage | On-Demand | Spot |
-|----------|-------|-----|---------|-----------|------|
-| **c6i.2xlarge** | 8 | 16 GB | 30 GB EBS | ~$0.34/hr | ~$0.10-0.15/hr |
-
-**Why c6i.2xlarge:**
-- 8 vCPUs allows 8-10 parallel training processes
-- 16 GB RAM is sufficient for multiple PyTorch instances
-- Intel Ice Lake CPUs have good single-thread performance
-- Spot pricing is very cheap (~$0.10/hr)
-
-### Quick Start
-
-```bash
-# 1. Launch instance from custom AMI
-aws ec2 run-instances \
-  --image-id ami-0dd2d28e9f738aa69 \
-  --instance-type c6i.2xlarge \
-  --key-name ml-training \
-  --security-group-ids sg-08e1d25f98f79c51e \
-  --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30}}]' \
-  --query 'Instances[0].InstanceId' --output text
-
-# 2. Wait for instance and get IP
-aws ec2 describe-instances --instance-ids <instance-id> \
-  --query 'Reservations[0].Instances[0].PublicIpAddress' --output text
-
-# 3. SSH in
-ssh -i ~/.ssh/ml-training.pem ubuntu@<ip>
-
-# 4. Activate environment
-source ~/ml-env/bin/activate
-cd ~/training/scripts
-```
-
-### Parallel Training (10 processes on single instance)
-
-Each process trains on a different random seed or data slice:
-
-```bash
-# Run 10 parallel training processes with different seeds
-for seed in {0..9}; do
-  python3 train_corners_cnn.py \
-    --epochs 10 \
-    --lr 0.002 \
-    --batch_size 64 \
-    --augment \
-    --scheduler cosine_warm \
-    --seed $((42 + seed)) \
-    --data ~/training/data/synthetic \
-    --output "cnn_seed${seed}.pth" \
-    --results_json "results_seed${seed}.json" \
-    > train_${seed}.log 2>&1 &
-  echo "Started training process $seed (seed=$((42 + seed)))"
-done
-
-echo "All 10 processes started. Monitor with: tail -f train_*.log"
-wait
-echo "All processes complete"
-```
-
-### Parallel Data Generation
-
-Generate synthetic training data using multiple cores:
-
-```bash
-# Generate 100K images using 8 parallel processes
-for i in {0..7}; do
-  offset=$((i * 12500))
-  python3 generate_synthetic.py \
-    --output ~/training/data/synthetic \
-    --samples 12500 \
-    --img_size 128,72 \
-    --start_index $offset \
-    > gen_${i}.log 2>&1 &
-done
-wait
-```
-
-**Note:** `--start_index` ensures non-overlapping sample IDs across processes.
-
-### Collect Results
-
-```bash
-# View all results
-cat results_*.json | jq -s 'sort_by(.best_pixel_error)'
-
-# Download results locally
-scp -i ~/.ssh/ml-training.pem ubuntu@<ip>:~/training/scripts/results_*.json ./results/
-
-# Download best model
-best=$(cat results_*.json | jq -rs 'sort_by(.best_pixel_error)[0].seed')
-scp -i ~/.ssh/ml-training.pem ubuntu@<ip>:~/training/scripts/cnn_seed${best}.pth ./
-```
-
-### Creating a New AMI
-
-After generating data or installing packages, save as AMI:
-
-```bash
-# Create AMI from running instance
-aws ec2 create-image \
-  --instance-id <instance-id> \
-  --name "ml-training-100k-$(date +%Y%m%d)" \
-  --description "Training AMI with 100K synthetic images"
-```
-
-### Cost Comparison
-
-| Approach | Instance | Time | Cost |
-|----------|----------|------|------|
-| 10 sequential runs | c6i.2xlarge | ~5 hours | ~$0.50-1.70 |
-| **10 parallel runs** | c6i.2xlarge | ~30 min | **~$0.05-0.17** |
-| 10 parallel (t3.medium × 10) | 10 instances | ~30 min | ~$0.50 |
-
-**Key insight:** Running 10 processes on one 8-vCPU instance is cheaper than 10 separate instances because:
-1. No overhead per instance (launch time, IP allocation)
-2. Shared memory for data loading
-3. Single EBS volume instead of 10
-
-## Wikipedia ZIM Archive
-
-Offline Wikipedia archive for training data generation (renders pages without internet).
-
-**File:** `wikipedia_en_top_maxi_2025-09.zim` (7.2 GB, top 100K articles with images)
-
-**Locations:**
-- Local: `/Volumes/DevBlueB/kiwix/wikipedia_en_top_maxi_2025-09.zim`
-- AWS: `/mnt/data/home/ubuntu/wikipedia_en_top_maxi_2025-09.zim`
-
-**AWS Volume:** `vol-0e39424e89b42bf75` (tagged `ml-training-data`, 50GB)
-- Snapshot: `snap-08aefb347e9f1f7c0`
-- Contains: Wikipedia ZIM + old synthetic training images
-- Availability Zone: us-east-1f
-
-## 1080p Wiki Training Data Generation (2025-12-14)
-
-**Goal:** Generate 1M training images from Wikipedia pages with CSS 3D perspective transforms.
-
-### Current State
-
-**Local generation running:**
-- 12 parallel workers on `/Volumes/SamsungBlue/ml-training/wiki_training/`
-- Target: 1,000,000 images (100K pages × 10 samples each)
-- Rate: ~1,200 samples/min with 12 workers
-- Output: 1920×1080 JPEG images + JSON corner labels
-
-**S3 Upload running:**
-- Bucket: `s3://ml-training-wiki-homography`
-- Sync running in background
-
-### Scripts
-
-**Data Generation:**
-- `experiments/generate_wiki_training_css3d.py` - CSS 3D transforms in browser (crisp text at any angle)
-- `experiments/generate_wiki_training.py` - OpenCV warpPerspective (faster but aliased text)
-
-**Training:**
-- `experiments/train_corners_1080p.py` - 1.58M parameter CNN for 1920×1080 input
-
-### Commands
-
-```bash
-# Check generation progress
-ps aux | grep -c "[g]enerate_wiki" && echo "workers" && \
-find /Volumes/SamsungBlue/ml-training/wiki_training -name "*.jpg" | wc -l && echo "images"
-
-# Start 12 parallel workers for 1M samples
-for i in {0..11}; do
-  start_id=$((i * 83340))
-  pages=8333
-  outdir="/Volumes/SamsungBlue/ml-training/wiki_training/worker_${i}"
-  mkdir -p "$outdir/images" "$outdir/labels"
-  nice -n 10 python3 generate_wiki_training_css3d.py \
-    --pages $pages --transforms 9 --start_id $start_id --output "$outdir" \
-    > "$outdir/progress.log" 2>&1 &
-done
-
-# Upload to S3
-aws s3 sync /Volumes/SamsungBlue/ml-training/wiki_training s3://ml-training-wiki-homography/wiki_training/
-
-# Train 1080p model
-python3 train_corners_1080p.py --data /Volumes/SamsungBlue/ml-training/wiki_training --epochs 50
-
-# Check S3 upload
-aws s3 ls s3://ml-training-wiki-homography/wiki_training/ --recursive --summarize | tail -5
-```
-
-### CNN Architecture (1080p) - CURRENT CHOICE
-
-**This is the chosen architecture for corner prediction training.**
-
-```
-Input: 1920×1080×1 grayscale
-Conv 7×7, 32, stride 2  → 960×540×32      (1,600 params)
-Conv 3×3, 64, stride 2  → 480×270×64      (18,496 params)
-Conv 3×3, 128, stride 2 → 240×135×128     (73,856 params)
-Conv 3×3, 256, stride 2 → 120×67×256      (295,168 params)
-Conv 3×3, 512, stride 2 → 60×33×512       (1,180,160 params)
-GlobalAveragePool       → 512
-Dense                   → 8 corners        (4,104 params)
-─────────────────────────────────────────────────────────
-Total: 1.58M parameters
-```
-
-### Storage
-
-- **Local:** `/Volumes/SamsungBlue/ml-training/wiki_training/` (~180GB for 1M samples)
-- **S3:** `s3://ml-training-wiki-homography/wiki_training/` (~$4/month storage)
-
-### AWS GPU Training Instance (Active)
-
-- **Instance:** `i-0563f8c98bdc5d818` (g5.xlarge)
-- **IP:** `98.91.248.103`
-- **GPU:** NVIDIA A10G (24GB VRAM)
-- **AMI:** Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.7 (Ubuntu 22.04)
-- **Cost:** ~$1.00/hr on-demand, ~$0.30-0.40/hr spot
-- **Data:** `~/data/wiki_training` (synced from S3)
-
-**Training commands:**
-```bash
-# SSH in
-ssh -i ~/.ssh/ml-training.pem ubuntu@98.91.248.103
-
-# Check GPU
-nvidia-smi
-
-# Run training
-python3 train_corners_1080p.py --data ~/data/wiki_training --epochs 50 --lr 0.002
-
-# Monitor download progress
-find ~/data -name "*.jpg" | wc -l
-```
-
-### AWS Free Tier Instance
-
-- Instance: `i-0b895b27eb2d0c5da` (t2.micro)
-- Note: Crashes running Chromium (OOM with 1GB RAM). Use for file transfers only, not generation.
-- Mount data volume: `sudo mount /dev/xvdf1 /mnt/data`
+#### Java Inference Approaches
+
+**1. OpenCV DNN + ONNX (Recommended)**
+- Already have OpenCV in project
+- `Dnn.readNetFromONNX("model.onnx")`
+- Good performance, minimal dependencies
+
+**2. DJL (Deep Java Library)**
+- Amazon's ML library for Java
+- Loads TorchScript `.pt` files
+- Native PyTorch execution
+- Add dependency: `ai.djl.pytorch:pytorch-engine`
+
+**3. ONNX Runtime Java**
+- Microsoft's cross-platform inference
+- Load ONNX models directly
+- Good for production deployment
+- Add dependency: `com.microsoft.onnxruntime:onnxruntime`
+
+**4. Pure Java Implementation**
+- Implement ResNet architecture manually (~200 lines)
+- Load weights from JSON file
+- No external ML dependencies
+- Most control, useful for understanding/debugging
