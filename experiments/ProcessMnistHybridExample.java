@@ -82,7 +82,8 @@ else:
 # ========================================================
 print("\\nStep 3: [PYTHON] Setting hyperparameters...")
 batch_size = 128
-epochs = 3
+#epochs = 3
+epochs = 10
 learning_rate = 0.001
 print(f"  Batch size: {batch_size}")
 print(f"  Epochs: {epochs}")
@@ -142,6 +143,17 @@ after_pool1 = after_conv1 // POOL_STRIDE
 after_conv2 = after_pool1 - (KERNEL_SIZE - 1)
 # After pool2: 11 // 2 = 5
 after_pool2 = after_conv2 // POOL_STRIDE
+
+# Why two conv layers?
+# Conv1 detects simple patterns: edges, lines, corners, gradients
+# Conv2 combines those into higher-level features: curves, loops, shapes
+#
+# For digit recognition:
+#   Conv1 might detect: "horizontal line", "vertical line", "diagonal edge"
+#   Conv2 might detect: "loop shape" (0,6,8,9), "vertical stroke" (1), "top bar" (7)
+#
+# Each conv layer has a larger receptive field - it "sees" more of the image.
+# We double filters (8 -> 16) because complex features need more detectors.
 
 # Flattened size for dense layer: filters * height * width
 FLATTEN_SIZE = CONV2_FILTERS * after_pool2 * after_pool2  # 16 * 5 * 5 = 400
