@@ -524,9 +524,10 @@ Pre-trained corner detection models are included in the `models/` directory:
 
 ```
 models/
+├── corners_model_24.3px.json    # JSON weights (for pure Java)
 ├── corners_model_24.3px.onnx    # ONNX format (recommended for OpenCV DNN)
 ├── corners_model_24.3px.pt      # TorchScript format (for DJL)
-├── full_training_24.3px_epoch20.pth  # PyTorch state dict (best)
+├── full_training_24.3px_epoch20.pth  # PyTorch state dict (master)
 └── training_log_24.3px.txt      # Training log
 ```
 
